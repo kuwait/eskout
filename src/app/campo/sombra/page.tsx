@@ -8,7 +8,7 @@ import { SquadPanelView } from '@/components/squad/SquadPanelView';
 export default function PlantelSombraPage() {
   return (
     <div className="p-4 lg:p-6">
-      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Plantel Sombra</h1>
+      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Planteis Sombra</h1>
       <SquadPanelView squadType="shadow" />
     </div>
   );

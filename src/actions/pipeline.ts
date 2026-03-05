@@ -10,6 +10,94 @@ import { createClient } from '@/lib/supabase/server';
 import { recruitmentStatusChangeSchema } from '@/lib/validators';
 import type { ActionResponse, RecruitmentStatus } from '@/lib/types';
 
+/* ───────────── Calendar ↔ Pipeline sync helper ───────────── */
+
+/** Event type mapping: pipeline date field → calendar event type */
+const DATE_FIELD_TO_EVENT_TYPE: Record<string, string> = {
+  training_date: 'treino',
+  meeting_date: 'reuniao',
+  signing_date: 'assinatura',
+};
+
+/**
+ * Upsert a calendar_events row when a pipeline date is set/changed.
+ * If dateTime is null, deletes any existing calendar event for this player+type.
+ */
+async function syncCalendarEvent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  playerId: number,
+  dateField: string,
+  dateTime: string | null,
+) {
+  const eventType = DATE_FIELD_TO_EVENT_TYPE[dateField];
+  if (!eventType) return;
+
+  if (!dateTime) {
+    // Remove existing calendar event for this player+type
+    await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('player_id', playerId)
+      .eq('event_type', eventType);
+    return;
+  }
+
+  // Parse date and time from ISO timestamp
+  const eventDate = dateTime.slice(0, 10);
+  const rawTime = dateTime.length > 10 ? dateTime.slice(11, 16) : null;
+  const eventTime = rawTime === '00:00' ? null : rawTime;
+
+  // Get player name for auto-generated title
+  const { data: player } = await supabase
+    .from('players')
+    .select('name')
+    .eq('id', playerId)
+    .single();
+  const playerName = player?.name ?? '';
+
+  const TYPE_LABELS: Record<string, string> = {
+    treino: 'Vir Treinar',
+    reuniao: 'Reunião',
+    assinatura: 'Assinatura',
+  };
+  const title = `${TYPE_LABELS[eventType] ?? eventType} — ${playerName}`;
+
+  // Check if a calendar event already exists for this player+type
+  const { data: existing } = await supabase
+    .from('calendar_events')
+    .select('id')
+    .eq('player_id', playerId)
+    .eq('event_type', eventType)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    // Update existing event
+    await supabase
+      .from('calendar_events')
+      .update({
+        event_date: eventDate,
+        event_time: eventTime,
+        title,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+  } else {
+    // Create new calendar event
+    await supabase
+      .from('calendar_events')
+      .insert({
+        player_id: playerId,
+        event_type: eventType,
+        title,
+        event_date: eventDate,
+        event_time: eventTime,
+        created_by: userId,
+      });
+  }
+}
+
 export async function updateRecruitmentStatus(
   playerId: number,
   newStatus: RecruitmentStatus | null,
@@ -62,6 +150,17 @@ export async function updateRecruitmentStatus(
     return { success: false, error: `Erro ao atualizar estado: ${error.message}` };
   }
 
+  // Sync calendar events: delete events for cleared date fields
+  if (oldStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
+    await syncCalendarEvent(supabase, user.id, playerId, 'training_date', null);
+  }
+  if (oldStatus === 'reuniao_marcada' && newStatus !== 'reuniao_marcada') {
+    await syncCalendarEvent(supabase, user.id, playerId, 'meeting_date', null);
+  }
+  if (oldStatus === 'confirmado' && newStatus !== 'confirmado') {
+    await syncCalendarEvent(supabase, user.id, playerId, 'signing_date', null);
+  }
+
   // Log to status_history
   await supabase.from('status_history').insert({
     player_id: playerId,
@@ -73,6 +172,7 @@ export async function updateRecruitmentStatus(
   });
 
   revalidatePath('/pipeline');
+  revalidatePath('/calendario');
   revalidatePath('/campo');
   revalidatePath('/posicoes');
   revalidatePath(`/jogadores/${playerId}`);
@@ -123,7 +223,11 @@ export async function updateTrainingDate(
     return { success: false, error: `Erro ao atualizar data de treino: ${error.message}` };
   }
 
+  // Sync to calendar (create/update/delete calendar event)
+  await syncCalendarEvent(supabase, user.id, playerId, 'training_date', dateTime);
+
   revalidatePath('/pipeline');
+  revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
   return { success: true };
 }
@@ -146,7 +250,11 @@ export async function updateSigningDate(
     return { success: false, error: `Erro ao atualizar data de assinatura: ${error.message}` };
   }
 
+  // Sync to calendar (create/update/delete calendar event)
+  await syncCalendarEvent(supabase, user.id, playerId, 'signing_date', dateTime);
+
   revalidatePath('/pipeline');
+  revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
   return { success: true };
 }
@@ -169,7 +277,11 @@ export async function updateMeetingDate(
     return { success: false, error: `Erro ao atualizar data de reunião: ${error.message}` };
   }
 
+  // Sync to calendar (create/update/delete calendar event)
+  await syncCalendarEvent(supabase, user.id, playerId, 'meeting_date', dateTime);
+
   revalidatePath('/pipeline');
+  revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
   return { success: true };
 }

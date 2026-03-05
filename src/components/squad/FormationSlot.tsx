@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, User } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -17,13 +17,33 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import type { Player, PositionCode } from '@/lib/types';
 
 interface FormationSlotProps {
-  position: PositionCode;
+  position: string;
+  /** Unique slot ID for DnD droppable — defaults to position */
+  slotId?: string;
+  /** Override the display label (e.g. "DC (E)") */
+  positionLabel?: string;
   players: Player[];
   squadType: 'real' | 'shadow';
   onAdd: () => void;
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
 }
+
+/* ───────────── Rank styling for shadow squad priority ───────────── */
+
+/** Left border color by rank (0-indexed) */
+const RANK_BORDER: Record<number, string> = {
+  0: 'border-l-3 border-l-amber-400',    // 1st — gold
+  1: 'border-l-3 border-l-neutral-400',   // 2nd — silver
+  2: 'border-l-3 border-l-amber-700',     // 3rd — bronze
+};
+
+/** Corner badge style by rank (0-indexed) */
+const RANK_CORNER: Record<number, string> = {
+  0: 'bg-amber-400 text-white',
+  1: 'bg-neutral-300 text-white',
+  2: 'bg-amber-700 text-white',
+};
 
 /** Get display name: first + last for long names */
 function displayName(name: string): string {
@@ -36,20 +56,21 @@ function displayName(name: string): string {
 
 function DraggablePlayerCard({
   player,
-  position,
+  dndId,
   index,
   squadType,
   onRemove,
   onPlayerClick,
 }: {
   player: Player;
-  position: PositionCode;
+  /** Slot-based ID for drag (e.g. 'DC_E') */
+  dndId: string;
   index: number;
   squadType: 'real' | 'shadow';
   onRemove: () => void;
   onPlayerClick?: (playerId: number) => void;
 }) {
-  const dragId = `player-${player.id}-${position}`;
+  const dragId = `player-${player.id}-${dndId}`;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
   const [showActions, setShowActions] = useState(false);
 
@@ -71,40 +92,92 @@ function DraggablePlayerCard({
     setShowActions((v) => !v);
   }
 
+  const photoUrl = player.photoUrl || player.zzPhotoUrl;
+  const posLabel = player.positionNormalized
+    ? (POSITION_LABELS[player.positionNormalized as PositionCode] ?? player.positionNormalized)
+    : null;
+
+  /** Format dob to dd/MM/yyyy */
+  const dobLabel = player.dob
+    ? (() => { try { return new Date(player.dob!).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return player.dob; } })()
+    : null;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className="relative w-full min-w-[110px] max-w-[150px] cursor-grab rounded-md bg-white/90 shadow-sm touch-none active:cursor-grabbing"
+      className={`relative w-full min-w-[180px] max-w-[240px] cursor-grab rounded-lg bg-white/95 shadow-sm touch-none active:cursor-grabbing ${
+        squadType === 'shadow' ? RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200' : ''
+      }`}
       onClick={handleCardClick}
     >
-      {/* Card content */}
-      <div className="px-2 py-1.5 text-center">
-        {/* Priority number for shadow squad */}
-        {squadType === 'shadow' && (
-          <span className="text-[9px] font-bold text-green-800">{index + 1}ª</span>
+      {/* Rank corner badge — top-right */}
+      {squadType === 'shadow' && (
+        <span className={`absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-bl-md rounded-tr-lg text-[10px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
+          {index + 1}
+        </span>
+      )}
+
+      {/* Card content — horizontal layout like the tooltip */}
+      <div className="flex items-center gap-2.5 p-2">
+        {/* Photo or placeholder */}
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt=""
+            className="h-11 w-11 shrink-0 rounded-lg object-cover"
+          />
+        ) : (
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-400">
+            <User className="h-5 w-5" />
+          </span>
         )}
-        <p className="text-xs font-semibold leading-tight text-neutral-900">
-          {displayName(player.name)}
-        </p>
-        <p className="text-[10px] leading-tight text-neutral-500">
-          {player.club || '—'}
-        </p>
-        {/* Compact badges */}
-        <div className="mt-0.5 flex flex-wrap justify-center gap-0.5">
-          <OpinionBadge opinion={player.departmentOpinion} className="px-1 py-0 text-[8px]" />
-          {player.recruitmentStatus && (
-            <StatusBadge status={player.recruitmentStatus} className="px-1 py-0 text-[8px]" />
-          )}
+        <div className="min-w-0 flex-1">
+          {/* Name */}
+          <p className="truncate text-xs font-semibold leading-tight text-neutral-900">
+            {displayName(player.name)}
+          </p>
+          {/* Club */}
+          <p className="mt-0.5 truncate text-[10px] leading-tight text-neutral-500">
+            {player.club || '—'}
+          </p>
+          {/* Position, foot, DOB — inline details */}
+          <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px]">
+            {posLabel && (
+              <span>
+                <span className="text-neutral-400">Pos: </span>
+                <span className="font-medium text-neutral-700">{posLabel}</span>
+              </span>
+            )}
+            {player.foot && (
+              <span>
+                <span className="text-neutral-400">Pé: </span>
+                <span className="font-medium text-neutral-700">{player.foot}</span>
+              </span>
+            )}
+            {dobLabel && (
+              <span>
+                <span className="text-neutral-400">Nasc: </span>
+                <span className="font-medium text-neutral-700">{dobLabel}</span>
+              </span>
+            )}
+          </div>
+          {/* Compact badges */}
+          <div className="mt-0.5 flex flex-wrap gap-0.5">
+            <OpinionBadge opinion={player.departmentOpinion} className="px-1 py-0 text-[8px]" />
+            {player.recruitmentStatus && (
+              <StatusBadge status={player.recruitmentStatus} className="px-1 py-0 text-[8px]" />
+            )}
+          </div>
         </div>
       </div>
 
       {/* Action bar — slides in on tap */}
       {showActions && (
         <div
-          className="flex items-center justify-between gap-1 border-t border-neutral-200 bg-white px-1.5 py-1 rounded-b-md"
+          className="flex items-center justify-between gap-1 border-t border-neutral-200 bg-white px-1.5 py-1 rounded-b-lg"
           onPointerDown={(e) => e.stopPropagation()}
         >
           <button
@@ -129,25 +202,27 @@ function DraggablePlayerCard({
 
 /* ───────────── Formation Slot (droppable + sortable container) ───────────── */
 
-export function FormationSlot({ position, players, squadType, onAdd, onRemovePlayer, onPlayerClick }: FormationSlotProps) {
-  const label = POSITION_LABELS[position] ?? position;
+export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick }: FormationSlotProps) {
+  const label = positionLabel ?? ((POSITION_LABELS as Record<string, string>)[position] ?? position);
+  const displayCode = positionLabel ?? position;
+  const dndId = slotId ?? position;
 
   // Make this slot a droppable target for cross-position drops
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `droppable-${position}` });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `droppable-${dndId}` });
 
-  // IDs for SortableContext
-  const sortableIds = players.map((p) => `player-${p.id}-${position}`);
+  // IDs for SortableContext — use dndId so DC_E and DC_D have unique drag IDs
+  const sortableIds = players.map((p) => `player-${p.id}-${dndId}`);
 
   return (
     <div
       ref={setDropRef}
-      className={`flex min-w-[120px] flex-col items-center gap-1.5 rounded-lg p-1 transition-colors ${
+      className={`flex min-w-[190px] flex-col items-center gap-1.5 rounded-lg p-1 transition-colors ${
         isOver ? 'bg-white/20' : ''
       }`}
     >
       {/* Position badge */}
       <span className="rounded bg-white/90 px-2.5 py-1 text-xs font-bold text-neutral-900 shadow-sm">
-        {position}
+        {displayCode}
       </span>
 
       {/* Sortable player cards */}
@@ -156,7 +231,7 @@ export function FormationSlot({ position, players, squadType, onAdd, onRemovePla
           <DraggablePlayerCard
             key={p.id}
             player={p}
-            position={position}
+            dndId={dndId}
             index={i}
             squadType={squadType}
             onRemove={() => onRemovePlayer(p.id)}

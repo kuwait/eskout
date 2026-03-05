@@ -124,3 +124,43 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ───────────── Print styles ───────────── */
+@media print {
+  /* Hide navigation, toolbars, dialogs, overlays */
+  nav, header, aside,
+  [data-slot="sidebar"], [data-slot="mobile-nav"],
+  [data-slot="dropdown-menu"], [data-slot="dialog-overlay"],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Show print title element */
+  .print-title {
+    display: block !important;
+  }
+
+  /* Reset page layout */
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  main {
+    max-width: 100% !important;
+    padding: 8px !important;
+    margin: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  /* Remove shadows, borders that don't print well */
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Avoid page breaks inside player cards */
+  [data-slot="formation-slot"],
+  .rounded-lg {
+    break-inside: avoid;
+  }
+}

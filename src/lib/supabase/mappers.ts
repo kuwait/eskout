@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { DepartmentOpinion, Player, PlayerRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow } from '@/lib/types';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
 function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
@@ -113,6 +113,38 @@ export function mapPlayerRow(row: PlayerRow): Player {
     shadowOrder: row.shadow_order ?? 0,
     realOrder: row.real_order ?? 0,
     pipelineOrder: row.pipeline_order ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Calendar Event Mapper ───────────── */
+
+/** Map a Supabase CalendarEventRow (snake_case) to the domain CalendarEvent type (camelCase) */
+export function mapCalendarEventRow(row: CalendarEventRow): CalendarEvent {
+  // Resolve assignee display name from free-text field
+  const resolvedAssigneeName = row.assignee_name || '';
+
+  return {
+    id: row.id,
+    ageGroupId: row.age_group_id,
+    playerId: row.player_id,
+    playerName: row.players?.name ?? null,
+    playerPhotoUrl: row.players?.photo_url || row.players?.zz_photo_url || null,
+    playerClub: row.players?.club ?? null,
+    playerPosition: row.players?.position_normalized ?? null,
+    playerDob: row.players?.dob ?? null,
+    playerFoot: row.players?.foot ?? null,
+    eventType: row.event_type as CalendarEvent['eventType'],
+    title: row.title,
+    eventDate: row.event_date,
+    eventTime: row.event_time,
+    location: row.location ?? '',
+    notes: row.notes ?? '',
+    assigneeUserId: row.assignee_user_id,
+    assigneeName: resolvedAssigneeName,
+    createdBy: row.created_by,
+    createdByName: '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

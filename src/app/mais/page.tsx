@@ -4,10 +4,10 @@
 // RELEVANT FILES: src/components/layout/MobileNav.tsx, src/app/posicoes/page.tsx, src/app/layout.tsx
 
 import Link from 'next/link';
-import { MapPin, Upload, Download, UserCog } from 'lucide-react';
+import { CalendarDays, Upload, Download, UserCog } from 'lucide-react';
 
 const ITEMS = [
-  { href: '/posicoes', label: 'Posições', icon: MapPin, description: 'Vista por posição' },
+  { href: '/calendario', label: 'Calendário', icon: CalendarDays, description: 'Agenda de eventos e tarefas' },
   { href: '/importar', label: 'Importar', icon: Upload, description: 'Importar ficheiro Excel' },
   { href: '/exportar', label: 'Exportar', icon: Download, description: 'Exportar PDF / Excel' },
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, description: 'Gestão de utilizadores' },

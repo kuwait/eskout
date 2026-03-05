@@ -10,6 +10,7 @@ import { Search } from 'lucide-react';
 import { useAgeGroup } from '@/hooks/useAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
+import { fuzzyMatch } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { PlayerTable } from '@/components/players/PlayerTable';
@@ -65,8 +66,7 @@ export function PlayersView() {
 
     // Search by name
     if (search) {
-      const q = search.toLowerCase();
-      result = result.filter((p) => p.name.toLowerCase().includes(q));
+      result = result.filter((p) => fuzzyMatch(p.name, search));
     }
 
     // Filters

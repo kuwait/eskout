@@ -1,11 +1,14 @@
 // src/components/squad/SquadPlayerCard.tsx
 // Compact player card for squad views (campo, positions)
-// Shows name, club, opinion badge, foot — links to player profile
+// Shows photo/placeholder, name, club, opinion badge, foot — links to player profile
 // RELEVANT FILES: src/components/common/OpinionBadge.tsx, src/components/squad/PositionGroup.tsx, src/lib/types/index.ts
+
+'use client';
 
 import Link from 'next/link';
 import { X } from 'lucide-react';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
+import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { Button } from '@/components/ui/button';
 import type { Player } from '@/lib/types';
 
@@ -24,6 +27,17 @@ export function SquadPlayerCard({ player, onRemove, compact }: SquadPlayerCardPr
         href={`/jogadores/${player.id}`}
         className="flex min-w-0 flex-1 items-center gap-2"
       >
+        <PlayerAvatar
+          player={{
+            name: player.name,
+            photoUrl: player.photoUrl || player.zzPhotoUrl,
+            club: player.club,
+            position: player.positionNormalized,
+            dob: player.dob,
+            foot: player.foot,
+          }}
+          size={20}
+        />
         <div className="min-w-0 flex-1">
           <p className={`truncate font-medium ${compact ? 'text-xs' : 'text-sm'}`}>
             {player.name}

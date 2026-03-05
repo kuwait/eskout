@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Shield, ShieldCheck, Users, GitBranch, MapPin,
+  Shield, ShieldCheck, Users, GitBranch, CalendarDays,
   Upload, Download, UserCog, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,10 +17,10 @@ import { Button } from '@/components/ui/button';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Jogadores', icon: Users },
-  { href: '/campo/real', label: 'Plantel Real', icon: ShieldCheck },
-  { href: '/campo/sombra', label: 'Plantel Sombra', icon: Shield },
+  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck },
+  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield },
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch },
-  { href: '/posicoes', label: 'Posições', icon: MapPin },
+  { href: '/calendario', label: 'Calendário', icon: CalendarDays },
 ];
 
 const ADMIN_ITEMS = [

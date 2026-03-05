@@ -8,6 +8,7 @@
 import { useState, useTransition, useEffect } from 'react';
 import { Calendar, FileSignature, Phone, Users, X } from 'lucide-react';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
+import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -154,13 +155,24 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           className="block w-full text-left"
           onClick={() => onPlayerClick?.(player.id)}
         >
-          {/* Line 1: year pill + name */}
+          {/* Line 1: year pill + photo/placeholder with tooltip + name */}
           <div className="flex items-center gap-1.5">
             {birthYear && (
               <span className="shrink-0 rounded bg-blue-50 px-1 py-0.5 text-xs font-medium text-blue-700">
                 {birthYear}
               </span>
             )}
+            <PlayerAvatar
+              player={{
+                name: player.name,
+                photoUrl: player.photoUrl || player.zzPhotoUrl,
+                club: player.club,
+                position: player.positionNormalized,
+                dob: player.dob,
+                foot: player.foot,
+              }}
+              size={20}
+            />
             <p className="truncate text-sm font-medium">{player.name}</p>
           </div>
           {/* Line 2: club */}

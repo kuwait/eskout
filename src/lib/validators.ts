@@ -74,7 +74,7 @@ export type ObservationNoteData = z.infer<typeof observationNoteSchema>;
 
 export const shadowSquadSchema = z.object({
   playerId: z.number().int().positive('ID de jogador inválido'),
-  position: z.enum(['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'], {
+  position: z.enum(['GR', 'DD', 'DE', 'DC', 'DC_E', 'DC_D', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'], {
     message: 'Posição inválida',
   }),
 });
@@ -95,3 +95,22 @@ export const recruitmentStatusChangeSchema = z.object({
 });
 
 export type RecruitmentStatusChangeData = z.infer<typeof recruitmentStatusChangeSchema>;
+
+/* ───────────── Calendar Event ───────────── */
+
+const EVENT_TYPES = ['treino', 'assinatura', 'reuniao', 'observacao', 'outro'] as const;
+
+export const calendarEventSchema = z.object({
+  ageGroupId: z.number().int().positive('Escalão inválido').optional(),
+  playerId: z.number().int().positive('ID de jogador inválido').optional(),
+  eventType: z.enum(EVENT_TYPES, { message: 'Tipo de evento inválido' }),
+  title: z.string().min(1, 'Título é obrigatório'),
+  eventDate: z.string().min(1, 'Data é obrigatória'),
+  eventTime: z.string().optional(),
+  location: z.string().default(''),
+  notes: z.string().default(''),
+  assigneeUserId: z.string().uuid('ID de utilizador inválido').optional(),
+  assigneeName: z.string().default(''),
+});
+
+export type CalendarEventFormData = z.infer<typeof calendarEventSchema>;

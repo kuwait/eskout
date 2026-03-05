@@ -22,6 +22,27 @@ export const POSITIONS: { code: PositionCode; labelPt: string; labelEn: string }
 
 export const POSITION_CODES: PositionCode[] = POSITIONS.map((p) => p.code);
 
+/** Extended squad slot codes — includes DC_E / DC_D for formation views */
+export type SquadSlot = PositionCode | 'DC_E' | 'DC_D';
+
+/** All valid squad slot codes (10 positions + 2 DC sub-slots) */
+export const SQUAD_SLOT_CODES: SquadSlot[] = [...POSITION_CODES, 'DC_E', 'DC_D'];
+
+/** Squad display slots — DC split into DC (E) and DC (D) for list/compare views */
+export const SQUAD_SLOTS: { slot: SquadSlot; label: string }[] = [
+  { slot: 'GR', label: 'Guarda-Redes' },
+  { slot: 'DD', label: 'Defesa Direito' },
+  { slot: 'DE', label: 'Defesa Esquerdo' },
+  { slot: 'DC_E', label: 'Central (E)' },
+  { slot: 'DC_D', label: 'Central (D)' },
+  { slot: 'MDC', label: 'Médio Defensivo' },
+  { slot: 'MC', label: 'Médio Centro' },
+  { slot: 'MOC', label: 'Médio Ofensivo' },
+  { slot: 'ED', label: 'Extremo Direito' },
+  { slot: 'EE', label: 'Extremo Esquerdo' },
+  { slot: 'PL', label: 'Ponta de Lança' },
+];
+
 /** Quick lookup: code → Portuguese label */
 export const POSITION_LABELS: Record<PositionCode, string> = Object.fromEntries(
   POSITIONS.map((p) => [p.code, p.labelPt])
@@ -122,6 +143,31 @@ export function birthYearToAgeGroup(year: number): string | null {
   const group = AGE_GROUPS.find((g) => g.generationYear === year);
   return group?.name ?? null;
 }
+
+/* ───────────── Calendar Event Types ───────────── */
+
+import type { CalendarEventType } from '@/lib/types';
+
+export const CALENDAR_EVENT_TYPES: {
+  value: CalendarEventType;
+  labelPt: string;
+  color: string;
+  tailwind: string;
+}[] = [
+  { value: 'treino', labelPt: 'Vir Treinar', color: '#3b82f6', tailwind: 'bg-blue-500 text-white' },
+  { value: 'assinatura', labelPt: 'Assinatura', color: '#22c55e', tailwind: 'bg-green-500 text-white' },
+  { value: 'reuniao', labelPt: 'Reunião', color: '#f97316', tailwind: 'bg-orange-500 text-white' },
+  { value: 'observacao', labelPt: 'Observação', color: '#a855f7', tailwind: 'bg-purple-500 text-white' },
+  { value: 'outro', labelPt: 'Lembrete', color: '#a3a3a3', tailwind: 'bg-neutral-400 text-white' },
+];
+
+export const EVENT_TYPE_LABEL_MAP: Record<CalendarEventType, string> = Object.fromEntries(
+  CALENDAR_EVENT_TYPES.map((t) => [t.value, t.labelPt])
+) as Record<CalendarEventType, string>;
+
+export const EVENT_TYPE_COLOR_MAP: Record<CalendarEventType, string> = Object.fromEntries(
+  CALENDAR_EVENT_TYPES.map((t) => [t.value, t.tailwind])
+) as Record<CalendarEventType, string>;
 
 /* ───────────── Navigation ───────────── */
 

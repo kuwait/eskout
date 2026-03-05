@@ -7,8 +7,9 @@
 
 import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { Plus, Search, X } from 'lucide-react';
-import { useAgeGroup } from '@/hooks/useAgeGroup';
+import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
+import { fuzzyMatch } from '@/lib/utils';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
@@ -36,7 +37,7 @@ import {
 import type { DepartmentOpinion, ObservationNote, Player, PlayerRow, RecruitmentStatus, StatusHistoryEntry, UserRole } from '@/lib/types';
 
 export function PipelineView() {
-  const { selectedId } = useAgeGroup();
+  const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -274,7 +275,7 @@ export function PipelineView() {
         </Button>
       </div>
 
-      <AgeGroupSelector />
+      <AgeGroupSelector variant="tabs" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} />
 
       {/* Counter */}
       <p className="mb-4 mt-4 text-sm text-muted-foreground">
@@ -383,10 +384,7 @@ function AddToPipelineDialog({
     let result = availablePlayers;
 
     if (filters.search) {
-      const q = filters.search.toLowerCase();
-      result = result.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.club.toLowerCase().includes(q)
-      );
+      result = result.filter((p) => fuzzyMatch(`${p.name} ${p.club}`, filters.search));
     }
     if (filters.position) result = result.filter((p) => p.positionNormalized === filters.position);
     if (filters.club) result = result.filter((p) => p.club === filters.club);

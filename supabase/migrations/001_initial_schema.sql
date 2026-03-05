@@ -97,7 +97,7 @@ CREATE TABLE players (
   is_real_squad BOOLEAN DEFAULT FALSE,
   is_shadow_squad BOOLEAN DEFAULT FALSE,
   shadow_position TEXT
-    CHECK (shadow_position IN ('GR','DD','DE','DC','MDC','MC','MOC','ED','EE','PL') OR shadow_position IS NULL),
+    CHECK (shadow_position IN ('GR','DD','DE','DC','DC_E','DC_D','MDC','MC','MOC','ED','EE','PL') OR shadow_position IS NULL),
 
   -- Meta
   created_at TIMESTAMPTZ DEFAULT NOW(),

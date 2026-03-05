@@ -35,7 +35,7 @@ async function logStatusChange(
 
 export async function addToShadowSquad(
   playerId: number,
-  position: PositionCode
+  position: string
 ): Promise<ActionResponse> {
   const parsed = shadowSquadSchema.safeParse({ playerId, position });
   if (!parsed.success) {
@@ -128,7 +128,7 @@ export async function toggleRealSquad(
   playerId: number,
   isReal: boolean,
   /** Position to assign in the real squad formation (optional, used when adding) */
-  position?: PositionCode
+  position?: string
 ): Promise<ActionResponse> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -219,7 +219,7 @@ export async function bulkReorderSquad(
 
 export async function moveSquadPlayerPosition(
   playerId: number,
-  newPosition: PositionCode,
+  newPosition: string,
   newOrder: number,
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {

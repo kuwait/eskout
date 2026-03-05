@@ -8,7 +8,7 @@ import { SquadPanelView } from '@/components/squad/SquadPanelView';
 export default function PlantelRealPage() {
   return (
     <div className="p-4 lg:p-6">
-      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Plantel Real</h1>
+      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Planteis</h1>
       <SquadPanelView squadType="real" />
     </div>
   );

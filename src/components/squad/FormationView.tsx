@@ -22,18 +22,36 @@ import type { Player, PositionCode } from '@/lib/types';
 
 /* ───────────── Formation Columns (left to right on pitch) ───────────── */
 
-const FORMATION_COLS: PositionCode[][] = [
-  ['GR'],                 // Goalkeeper
-  ['DE', 'DC', 'DD'],     // Defence (top to bottom = left to right on pitch)
-  ['MDC', 'MC'],          // Midfield
-  ['EE', 'MOC', 'ED'],   // Wingers + Attacking mid
-  ['PL'],                 // Striker
+/** Visual slot IDs — DC split into two visual groups (by order, not foot) */
+type FormationSlotId = PositionCode | 'DC_E' | 'DC_D';
+
+const FORMATION_COLS: FormationSlotId[][] = [
+  ['GR'],                              // Goalkeeper
+  ['DE', 'DC_E', 'DC_D', 'DD'],       // Defence — two DC slots
+  ['MDC', 'MC'],                       // Midfield
+  ['EE', 'MOC', 'ED'],                // Wingers + Attacking mid
+  ['PL'],                              // Striker
 ];
+
+const SLOT_CONFIG: Record<FormationSlotId, { position: PositionCode; label: string }> = {
+  GR: { position: 'GR', label: 'GR' },
+  DD: { position: 'DD', label: 'DD' },
+  DE: { position: 'DE', label: 'DE' },
+  DC: { position: 'DC', label: 'DC' },
+  DC_E: { position: 'DC', label: 'DC (E)' },
+  DC_D: { position: 'DC', label: 'DC (D)' },
+  MDC: { position: 'MDC', label: 'MDC' },
+  MC: { position: 'MC', label: 'MC' },
+  MOC: { position: 'MOC', label: 'MOC' },
+  ED: { position: 'ED', label: 'ED' },
+  EE: { position: 'EE', label: 'EE' },
+  PL: { position: 'PL', label: 'PL' },
+};
 
 export interface DragEndInfo {
   playerId: number;
-  sourcePosition: PositionCode;
-  targetPosition: PositionCode;
+  sourcePosition: string;
+  targetPosition: string;
   /** New index within target position array */
   newIndex: number;
 }
@@ -41,17 +59,18 @@ export interface DragEndInfo {
 interface FormationViewProps {
   byPosition: Record<string, Player[]>;
   squadType: 'real' | 'shadow';
-  onAdd: (position: PositionCode) => void;
+  onAdd: (position: string) => void;
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
   onDragEnd?: (info: DragEndInfo) => void;
 }
 
-/** Drag item data encoded in the draggable ID: "player-{id}-{position}" */
-function parseDragId(id: string): { playerId: number; position: PositionCode } | null {
+/** Drag item data encoded in the draggable ID: "player-{id}-{slotId}" */
+function parseDragId(id: string): { playerId: number; position: string } | null {
   const parts = id.split('-');
   if (parts[0] !== 'player' || parts.length < 3) return null;
-  return { playerId: parseInt(parts[1], 10), position: parts.slice(2).join('-') as PositionCode };
+  const position = parts.slice(2).join('-');
+  return { playerId: parseInt(parts[1], 10), position };
 }
 
 export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd }: FormationViewProps) {
@@ -82,15 +101,15 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
 
     const overId = String(over.id);
 
-    // Dropped on a position droppable (e.g. "droppable-DC")
+    // Dropped on a position droppable (e.g. "droppable-DC_E")
     if (overId.startsWith('droppable-')) {
-      const targetPos = overId.replace('droppable-', '') as PositionCode;
+      const targetPos = overId.replace('droppable-', '');
       const targetPlayers = byPosition[targetPos] ?? [];
       onDragEnd({
         playerId: source.playerId,
         sourcePosition: source.position,
         targetPosition: targetPos,
-        newIndex: targetPlayers.length, // append at end
+        newIndex: targetPlayers.length,
       });
       return;
     }
@@ -161,17 +180,22 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
                 col.length === 1 ? 'justify-center' : 'justify-between'
               } py-2`}
             >
-              {col.map((pos) => (
-                <FormationSlot
-                  key={pos}
-                  position={pos}
-                  players={byPosition[pos] ?? []}
-                  squadType={squadType}
-                  onAdd={() => onAdd(pos)}
-                  onRemovePlayer={onRemovePlayer}
-                  onPlayerClick={onPlayerClick}
-                />
-              ))}
+              {col.map((slotId) => {
+                const config = SLOT_CONFIG[slotId];
+                return (
+                  <FormationSlot
+                    key={slotId}
+                    position={config.position}
+                    slotId={slotId}
+                    positionLabel={config.label !== config.position ? config.label : undefined}
+                    players={byPosition[slotId] ?? []}
+                    squadType={squadType}
+                    onAdd={() => onAdd(slotId)}
+                    onRemovePlayer={onRemovePlayer}
+                    onPlayerClick={onPlayerClick}
+                  />
+                );
+              })}
             </div>
           ))}
         </div>

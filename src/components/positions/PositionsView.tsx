@@ -53,7 +53,7 @@ export function PositionsView() {
       }
       // Shadow squad
       if (p.isShadowSquad && p.shadowPosition) {
-        result[p.shadowPosition]?.shadow.push(p);
+        result[p.shadowPosition as PositionCode]?.shadow.push(p);
       }
       // Pool: not in real or shadow, has a normalized position
       if (!p.isRealSquad && !p.isShadowSquad && p.positionNormalized) {

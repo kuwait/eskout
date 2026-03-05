@@ -44,7 +44,7 @@ export interface Player {
   dob: string | null;
   club: string;
   positionOriginal: string;
-  positionNormalized: PositionCode | '';
+  positionNormalized: string;
   foot: Foot;
   shirtNumber: string;
   contact: string;
@@ -79,7 +79,7 @@ export interface Player {
   recruitmentNotes: string;
   isRealSquad: boolean;
   isShadowSquad: boolean;
-  shadowPosition: PositionCode | null;
+  shadowPosition: string | null;
   shadowOrder: number;
   realOrder: number;
   pipelineOrder: number;
@@ -244,6 +244,63 @@ export interface ActionResponse<T = void> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+/* ───────────── Calendar Events ───────────── */
+
+export type CalendarEventType = 'treino' | 'assinatura' | 'reuniao' | 'observacao' | 'outro';
+
+export interface CalendarEvent {
+  id: number;
+  ageGroupId: number | null;
+  playerId: number | null;
+  playerName: string | null;
+  playerPhotoUrl: string | null;
+  playerClub: string | null;
+  playerPosition: string | null;
+  playerDob: string | null;
+  playerFoot: string | null;
+  eventType: CalendarEventType;
+  title: string;
+  eventDate: string; // YYYY-MM-DD
+  eventTime: string | null; // HH:mm
+  location: string;
+  notes: string;
+  assigneeUserId: string | null;
+  assigneeName: string;
+  createdBy: string | null;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  /** True when this event is derived from a player's pipeline date (training/meeting/signing) — read-only in calendar */
+  isPlayerDate?: boolean;
+}
+
+export interface CalendarEventRow {
+  id: number;
+  age_group_id: number | null;
+  player_id: number | null;
+  event_type: string;
+  title: string;
+  event_date: string;
+  event_time: string | null;
+  location: string | null;
+  notes: string | null;
+  assignee_user_id: string | null;
+  assignee_name: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  players?: {
+    name: string;
+    photo_url: string | null;
+    zz_photo_url: string | null;
+    club: string | null;
+    position_normalized: string | null;
+    dob: string | null;
+    foot: string | null;
+  } | null;
 }
 
 /* ───────────── JSON Import Types (data/all_players.json structure) ───────────── */

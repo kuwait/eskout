@@ -1,12 +1,12 @@
-// src/components/squad/AddToSquadDialog.tsx
-// Dialog to search and add a player to real or shadow squad at a specific position
-// Full filters: name, club, position, opinion, foot
-// RELEVANT FILES: src/actions/squads.ts, src/components/squad/CampoView.tsx, src/lib/constants.ts
+// src/components/calendar/PlayerPickerDialog.tsx
+// Dialog to search and select a single player from the full database
+// Same filter pattern as AddToSquadDialog: name/club search, position, opinion, foot, year
+// RELEVANT FILES: src/components/squad/AddToSquadDialog.tsx, src/components/calendar/EventForm.tsx, src/lib/constants.ts
 
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
-import { Search, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Search, X, Check } from 'lucide-react';
 import { fuzzyMatch } from '@/lib/utils';
 import {
   Dialog,
@@ -24,25 +24,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { POSITION_LABELS, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, AGE_GROUPS } from '@/lib/constants';
-import { addToShadowSquad, toggleRealSquad } from '@/actions/squads';
-import type { DepartmentOpinion, Player, PositionCode } from '@/lib/types';
+import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
+import type { DepartmentOpinion, Player } from '@/lib/types';
 
-interface AddToSquadDialogProps {
+/* ───────────── Props ───────────── */
+
+interface PlayerPickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  position: string;
-  squadType: 'real' | 'shadow';
-  availablePlayers: Player[];
-  /** All players across all age groups for cross-escalão search */
-  allPlayers?: Player[];
-  /** IDs of players already in the squad — excluded from results */
-  excludeIds?: Set<number>;
-  /** Legacy: server action + refetch (used by CampoView) */
-  onAdded?: () => void;
-  /** Optimistic: parent handles add instantly (used by SquadPanelView) */
-  onAddPlayer?: (player: Player) => void;
+  allPlayers: Player[];
+  /** Currently selected player ID (shows checkmark) */
+  selectedId?: number;
+  onSelect: (player: Player) => void;
+  /** Allow clearing the selection */
+  onClear?: () => void;
 }
+
+/* ───────────── Filters ───────────── */
 
 interface Filters {
   search: string;
@@ -55,58 +53,38 @@ interface Filters {
 
 const EMPTY_FILTERS: Filters = { search: '', position: '', club: '', opinion: '', foot: '', year: '' };
 
-export function AddToSquadDialog({
+/* ───────────── Component ───────────── */
+
+export function PlayerPickerDialog({
   open,
   onOpenChange,
-  position,
-  squadType,
-  availablePlayers,
   allPlayers,
-  excludeIds,
-  onAdded,
-  onAddPlayer,
-}: AddToSquadDialogProps) {
-  // Filter allPlayers to exclude those already in the target squad
-  const searchablePlayers = useMemo(() => {
-    const base = (allPlayers && allPlayers.length > 0) ? allPlayers : availablePlayers;
-    // Use excludeIds (optimistic, always up-to-date) when available
-    if (excludeIds && excludeIds.size > 0) {
-      return base.filter((p) => !excludeIds.has(p.id));
-    }
-    // Fallback: filter by squad flags from DB data
-    const filtered = squadType === 'shadow'
-      ? base.filter((p) => !p.isShadowSquad)
-      : base.filter((p) => !p.isRealSquad);
-    return filtered.length > 0 ? filtered : availablePlayers;
-  }, [allPlayers, availablePlayers, squadType, excludeIds]);
+  selectedId,
+  onSelect,
+  onClear,
+}: PlayerPickerDialogProps) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [isPending, startTransition] = useTransition();
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const posLabel = (POSITION_LABELS as Record<string, string>)[position] ?? position;
-  const title = squadType === 'shadow'
-    ? `Plantel Sombra — ${position} (${posLabel})`
-    : `Plantel Real — ${position} (${posLabel})`;
-
+  // Derive unique club and year lists from player data
   const clubs = useMemo(() => {
-    const set = new Set(searchablePlayers.map((p) => p.club).filter(Boolean));
+    const set = new Set(allPlayers.map((p) => p.club).filter(Boolean));
     return Array.from(set).sort();
-  }, [searchablePlayers]);
+  }, [allPlayers]);
 
-  /** Extract unique birth years from players for year filter */
   const years = useMemo(() => {
     const set = new Set<number>();
-    for (const p of searchablePlayers) {
+    for (const p of allPlayers) {
       if (p.dob) {
         const y = new Date(p.dob).getFullYear();
         if (!isNaN(y)) set.add(y);
       }
     }
     return Array.from(set).sort((a, b) => b - a);
-  }, [searchablePlayers]);
+  }, [allPlayers]);
 
+  // Apply filters with 30-result limit
   const filtered = useMemo(() => {
-    let result = searchablePlayers;
+    let result = allPlayers;
     if (filters.search) {
       result = result.filter((p) => fuzzyMatch(`${p.name} ${p.club}`, filters.search));
     }
@@ -119,7 +97,7 @@ export function AddToSquadDialog({
       result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
     }
     return result.slice(0, 30);
-  }, [searchablePlayers, filters]);
+  }, [allPlayers, filters]);
 
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
 
@@ -127,59 +105,24 @@ export function AddToSquadDialog({
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleAdd(player: Player) {
-    setErrorMsg(null);
+  function handleSelect(player: Player) {
+    onSelect(player);
+    setFilters(EMPTY_FILTERS);
+    onOpenChange(false);
+  }
 
-    // Optimistic path: parent handles state + persistence
-    if (onAddPlayer) {
-      onAddPlayer(player);
-      setFilters(EMPTY_FILTERS);
-      return;
-    }
-
-    // Legacy path: dialog handles server action
-    startTransition(async () => {
-      try {
-        const result = squadType === 'shadow'
-          ? await addToShadowSquad(player.id, position)
-          : await toggleRealSquad(player.id, true, position);
-
-        if (result.success) {
-          onAdded?.();
-          setFilters(EMPTY_FILTERS);
-          setErrorMsg(null);
-          onOpenChange(false);
-        } else {
-          setErrorMsg(result.error ?? 'Erro desconhecido');
-        }
-      } catch (err) {
-        setErrorMsg(`Erro inesperado: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    });
+  function handleClear() {
+    onClear?.();
+    setFilters(EMPTY_FILTERS);
+    onOpenChange(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => {
-      if (isPending) return;
-      if (!v) setErrorMsg(null);
-      onOpenChange(v);
-    }}>
-      <DialogContent
-        className="max-h-[85vh] overflow-hidden sm:max-w-lg"
-        onInteractOutside={(e) => { if (isPending) e.preventDefault(); }}
-      >
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>Selecionar Jogador</DialogTitle>
         </DialogHeader>
-
-        {/* Error banner */}
-        {errorMsg && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-            {errorMsg}
-          </div>
-        )}
-
-
 
         {/* Search */}
         <div className="relative">
@@ -255,7 +198,16 @@ export function AddToSquadDialog({
         {/* Results count */}
         <p className="text-xs text-muted-foreground">
           {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+          {filtered.length === 30 && ' (limite)'}
         </p>
+
+        {/* Clear selection button */}
+        {selectedId && onClear && (
+          <Button variant="outline" size="sm" className="w-full text-xs" onClick={handleClear}>
+            <X className="mr-1 h-3 w-3" />
+            Remover jogador selecionado
+          </Button>
+        )}
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
@@ -264,30 +216,30 @@ export function AddToSquadDialog({
               Nenhum jogador encontrado.
             </p>
           )}
-          {filtered.map((player) => (
-            <div key={player.id} className="flex items-center justify-between rounded-md border p-2">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{player.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {player.club}
-                  {player.positionNormalized ? ` · ${player.positionNormalized}` : ''}
-                  {player.foot ? ` · ${player.foot}` : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
+          {filtered.map((player) => {
+            const isSelected = player.id === selectedId;
+            return (
+              <button
+                key={player.id}
+                type="button"
+                onClick={() => handleSelect(player)}
+                className="flex w-full items-center justify-between rounded-md border p-2 text-left transition-colors hover:bg-neutral-50"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    {isSelected && <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                    <p className="truncate text-sm font-medium">{player.name}</p>
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {player.club}
+                    {player.positionNormalized ? ` · ${player.positionNormalized}` : ''}
+                    {player.foot ? ` · ${player.foot}` : ''}
+                  </p>
+                </div>
                 <OpinionBadge opinion={player.departmentOpinion} />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={(e) => { e.stopPropagation(); handleAdd(player); }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  Adicionar
-                </Button>
-              </div>
-            </div>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>
