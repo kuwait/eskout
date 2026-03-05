@@ -1,6 +1,7 @@
 // src/components/squad/FormationView.tsx
-// Horizontal 4-3-3 formation layout on a green pitch background with drag-and-drop
-// Columns left-to-right: GR | DE-DC-DD | MDC-MC | EE-MOC-ED | PL
+// Responsive formation layout: horizontal pitch on desktop, vertical column on mobile
+// Desktop (md+): columns left-to-right GR | DEF | MID | ATK | PL
+// Mobile (<md): single column top-to-bottom GR → DEF → MID → ATK → PL
 // RELEVANT FILES: src/components/squad/FormationSlot.tsx, src/components/squad/SquadPanelView.tsx, src/lib/types/index.ts
 
 'use client';
@@ -20,17 +21,28 @@ import {
 import { FormationSlot } from '@/components/squad/FormationSlot';
 import type { Player, PositionCode } from '@/lib/types';
 
-/* ───────────── Formation Columns (left to right on pitch) ───────────── */
+/* ───────────── Formation Groups ───────────── */
 
 /** Visual slot IDs — DC split into two visual groups (by order, not foot) */
 type FormationSlotId = PositionCode | 'DC_E' | 'DC_D';
 
-const FORMATION_COLS: FormationSlotId[][] = [
+/** Desktop groups: columns left-to-right on horizontal pitch */
+const DESKTOP_GROUPS: FormationSlotId[][] = [
   ['GR'],                              // Goalkeeper
   ['DE', 'DC_E', 'DC_D', 'DD'],       // Defence — two DC slots
   ['MDC', 'MC'],                       // Midfield
   ['EE', 'MOC', 'ED'],                // Wingers + Attacking mid
   ['PL'],                              // Striker
+];
+
+/** Mobile groups: rows top-to-bottom on vertical pitch (GR top, PL bottom) */
+const MOBILE_GROUPS: FormationSlotId[][] = [
+  ['GR'],                              // Goalkeeper
+  ['DC_E', 'DC_D'],                    // Central defenders
+  ['DE', 'DD'],                        // Full-backs
+  ['MDC', 'MC'],                       // Midfield
+  ['MOC'],                             // Attacking mid
+  ['EE', 'PL', 'ED'],                 // Wingers + Striker
 ];
 
 const SLOT_CONFIG: Record<FormationSlotId, { position: PositionCode; label: string }> = {
@@ -129,6 +141,24 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
     });
   }, [byPosition, onDragEnd]);
 
+  /** Render a single formation slot */
+  const renderSlot = (slotId: FormationSlotId) => {
+    const config = SLOT_CONFIG[slotId];
+    return (
+      <FormationSlot
+        key={slotId}
+        position={config.position}
+        slotId={slotId}
+        positionLabel={config.label !== config.position ? config.label : undefined}
+        players={byPosition[slotId] ?? []}
+        squadType={squadType}
+        onAdd={() => onAdd(slotId)}
+        onRemovePlayer={onRemovePlayer}
+        onPlayerClick={onPlayerClick}
+      />
+    );
+  };
+
   return (
     <DndContext
       sensors={sensors}
@@ -136,68 +166,46 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="relative overflow-x-auto overflow-y-hidden rounded-xl bg-green-700 p-4" style={{ minHeight: 520 }}>
-        {/* ───────────── Pitch markings ───────────── */}
-        <div className="pointer-events-none absolute inset-0">
-          {/* Outer border */}
-          <div className="absolute inset-3 border-2 border-white/25 rounded" />
-          {/* Centre line */}
-          <div className="absolute inset-y-3 left-1/2 w-0 border-l-2 border-white/25" />
-          {/* Centre circle */}
-          <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/25" />
-          {/* Centre dot */}
-          <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30" />
+      {/* ───────────── Desktop: horizontal pitch (md+) ───────────── */}
+      <div className="hidden md:block">
+        <div className="relative overflow-x-auto rounded-xl">
+          <div className="relative bg-green-700 p-4" style={{ width: 'max(100%, 720px)', minHeight: 520 }}>
+            {/* Pitch markings — horizontal */}
+            <PitchMarkingsHorizontal />
 
-          {/* Left goal area (GR side) */}
-          <div className="absolute left-3 top-1/2 h-40 w-14 -translate-y-1/2 border-2 border-l-0 border-white/25 rounded-r" />
-          <div className="absolute left-3 top-1/2 h-24 w-7 -translate-y-1/2 border-2 border-l-0 border-white/25 rounded-r" />
-          {/* Left goal */}
-          <div className="absolute left-1 top-1/2 h-16 w-2 -translate-y-1/2 rounded-r border-2 border-l-0 border-white/30" />
-          {/* Left penalty arc */}
-          <div className="absolute left-[68px] top-1/2 h-16 w-8 -translate-y-1/2 rounded-r-full border-2 border-l-0 border-white/20" />
-
-          {/* Right goal area (PL side) */}
-          <div className="absolute right-3 top-1/2 h-40 w-14 -translate-y-1/2 border-2 border-r-0 border-white/25 rounded-l" />
-          <div className="absolute right-3 top-1/2 h-24 w-7 -translate-y-1/2 border-2 border-r-0 border-white/25 rounded-l" />
-          {/* Right goal */}
-          <div className="absolute right-1 top-1/2 h-16 w-2 -translate-y-1/2 rounded-l border-2 border-r-0 border-white/30" />
-          {/* Right penalty arc */}
-          <div className="absolute right-[68px] top-1/2 h-16 w-8 -translate-y-1/2 rounded-l-full border-2 border-r-0 border-white/20" />
-
-          {/* Corner arcs */}
-          <div className="absolute left-3 top-3 h-4 w-4 rounded-br-full border-b-2 border-r-2 border-white/20" />
-          <div className="absolute left-3 bottom-3 h-4 w-4 rounded-tr-full border-t-2 border-r-2 border-white/20" />
-          <div className="absolute right-3 top-3 h-4 w-4 rounded-bl-full border-b-2 border-l-2 border-white/20" />
-          <div className="absolute right-3 bottom-3 h-4 w-4 rounded-tl-full border-t-2 border-l-2 border-white/20" />
-        </div>
-
-        {/* ───────────── Formation columns ───────────── */}
-        <div className="relative flex h-full items-stretch justify-between gap-4 px-2 py-2" style={{ minWidth: 640, minHeight: 488 }}>
-          {FORMATION_COLS.map((col, i) => (
-            <div
-              key={i}
-              className={`flex flex-col items-center ${
-                col.length === 1 ? 'justify-center' : 'justify-between'
-              } py-2`}
-            >
-              {col.map((slotId) => {
-                const config = SLOT_CONFIG[slotId];
-                return (
-                  <FormationSlot
-                    key={slotId}
-                    position={config.position}
-                    slotId={slotId}
-                    positionLabel={config.label !== config.position ? config.label : undefined}
-                    players={byPosition[slotId] ?? []}
-                    squadType={squadType}
-                    onAdd={() => onAdd(slotId)}
-                    onRemovePlayer={onRemovePlayer}
-                    onPlayerClick={onPlayerClick}
-                  />
-                );
-              })}
+            <div className="relative flex h-full items-stretch justify-between gap-2 px-2 py-2" style={{ minHeight: 488 }}>
+              {DESKTOP_GROUPS.map((group, i) => (
+                <div
+                  key={i}
+                  className={`flex flex-1 flex-col items-center ${
+                    group.length === 1 ? 'justify-center' : 'justify-between'
+                  } py-2`}
+                >
+                  {group.map(renderSlot)}
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ───────────── Mobile: vertical pitch (<md) ───────────── */}
+      <div className="md:hidden">
+        <div className="relative overflow-hidden rounded-xl bg-green-700 p-3">
+          {/* Pitch markings — vertical */}
+          <PitchMarkingsVertical />
+
+          {/* GR at top, PL at bottom — rows of positions */}
+          <div className="relative flex flex-col gap-1 py-2">
+            {MOBILE_GROUPS.map((group, i) => (
+              <div
+                key={i}
+                className="flex items-start justify-center gap-1"
+              >
+                {group.map(renderSlot)}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -211,5 +219,77 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
         )}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+/* ───────────── Pitch Markings: Horizontal (desktop) ───────────── */
+
+function PitchMarkingsHorizontal() {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {/* Outer border */}
+      <div className="absolute inset-3 rounded border-2 border-white/25" />
+      {/* Centre line */}
+      <div className="absolute inset-y-3 left-1/2 w-0 border-l-2 border-white/25" />
+      {/* Centre circle */}
+      <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/25" />
+      {/* Centre dot */}
+      <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30" />
+
+      {/* Left goal area (GR side) */}
+      <div className="absolute left-3 top-1/2 h-40 w-14 -translate-y-1/2 rounded-r border-2 border-l-0 border-white/25" />
+      <div className="absolute left-3 top-1/2 h-24 w-7 -translate-y-1/2 rounded-r border-2 border-l-0 border-white/25" />
+      <div className="absolute left-1 top-1/2 h-16 w-2 -translate-y-1/2 rounded-r border-2 border-l-0 border-white/30" />
+      <div className="absolute left-[68px] top-1/2 h-16 w-8 -translate-y-1/2 rounded-r-full border-2 border-l-0 border-white/20" />
+
+      {/* Right goal area (PL side) */}
+      <div className="absolute right-3 top-1/2 h-40 w-14 -translate-y-1/2 rounded-l border-2 border-r-0 border-white/25" />
+      <div className="absolute right-3 top-1/2 h-24 w-7 -translate-y-1/2 rounded-l border-2 border-r-0 border-white/25" />
+      <div className="absolute right-1 top-1/2 h-16 w-2 -translate-y-1/2 rounded-l border-2 border-r-0 border-white/30" />
+      <div className="absolute right-[68px] top-1/2 h-16 w-8 -translate-y-1/2 rounded-l-full border-2 border-r-0 border-white/20" />
+
+      {/* Corner arcs */}
+      <div className="absolute left-3 top-3 h-4 w-4 rounded-br-full border-b-2 border-r-2 border-white/20" />
+      <div className="absolute bottom-3 left-3 h-4 w-4 rounded-tr-full border-r-2 border-t-2 border-white/20" />
+      <div className="absolute right-3 top-3 h-4 w-4 rounded-bl-full border-b-2 border-l-2 border-white/20" />
+      <div className="absolute bottom-3 right-3 h-4 w-4 rounded-tl-full border-l-2 border-t-2 border-white/20" />
+    </div>
+  );
+}
+
+/* ───────────── Pitch Markings: Vertical (mobile) ───────────── */
+
+function PitchMarkingsVertical() {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {/* Outer border */}
+      <div className="absolute inset-3 rounded border-2 border-white/25" />
+      {/* Centre line — horizontal on vertical pitch */}
+      <div className="absolute inset-x-3 top-1/2 h-0 border-t-2 border-white/25" />
+      {/* Centre circle */}
+      <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/25" />
+      {/* Centre dot */}
+      <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30" />
+
+      {/* Top goal area (GR side) */}
+      <div className="absolute left-1/2 top-3 h-10 w-36 -translate-x-1/2 rounded-b border-2 border-t-0 border-white/25" />
+      <div className="absolute left-1/2 top-3 h-5 w-20 -translate-x-1/2 rounded-b border-2 border-t-0 border-white/25" />
+      <div className="absolute left-1/2 top-1 h-2 w-14 -translate-x-1/2 rounded-b border-2 border-t-0 border-white/30" />
+      {/* Penalty arc */}
+      <div className="absolute left-1/2 top-[52px] h-6 w-14 -translate-x-1/2 rounded-b-full border-2 border-t-0 border-white/20" />
+
+      {/* Bottom goal area (PL side) */}
+      <div className="absolute bottom-3 left-1/2 h-10 w-36 -translate-x-1/2 rounded-t border-2 border-b-0 border-white/25" />
+      <div className="absolute bottom-3 left-1/2 h-5 w-20 -translate-x-1/2 rounded-t border-2 border-b-0 border-white/25" />
+      <div className="absolute bottom-1 left-1/2 h-2 w-14 -translate-x-1/2 rounded-t border-2 border-b-0 border-white/30" />
+      {/* Penalty arc */}
+      <div className="absolute bottom-[52px] left-1/2 h-6 w-14 -translate-x-1/2 rounded-t-full border-2 border-b-0 border-white/20" />
+
+      {/* Corner arcs */}
+      <div className="absolute left-3 top-3 h-4 w-4 rounded-br-full border-b-2 border-r-2 border-white/20" />
+      <div className="absolute right-3 top-3 h-4 w-4 rounded-bl-full border-b-2 border-l-2 border-white/20" />
+      <div className="absolute bottom-3 left-3 h-4 w-4 rounded-tr-full border-r-2 border-t-2 border-white/20" />
+      <div className="absolute bottom-3 right-3 h-4 w-4 rounded-tl-full border-l-2 border-t-2 border-white/20" />
+    </div>
   );
 }

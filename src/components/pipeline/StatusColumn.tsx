@@ -93,7 +93,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
           else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }}
         style={style}
-        className={`flex min-w-[220px] flex-col rounded-lg bg-neutral-50 transition-colors ${
+        className={`flex w-full flex-col rounded-lg bg-neutral-50 transition-colors md:min-w-[220px] md:w-auto ${
           isOver ? 'border-2 border-blue-400' : 'border border-transparent'
         }`}
       >

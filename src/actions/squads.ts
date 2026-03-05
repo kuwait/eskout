@@ -128,7 +128,9 @@ export async function toggleRealSquad(
   playerId: number,
   isReal: boolean,
   /** Position to assign in the real squad formation (optional, used when adding) */
-  position?: string
+  position?: string,
+  /** Age group to assign — used for cross-age-group "call ups" */
+  ageGroupId?: number
 ): Promise<ActionResponse> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -138,6 +140,10 @@ export async function toggleRealSquad(
   const updateData: Record<string, unknown> = { is_real_squad: isReal };
   if (isReal && position) {
     updateData.position_normalized = position;
+  }
+  // Cross-age-group add: move player to target age group
+  if (isReal && ageGroupId) {
+    updateData.age_group_id = ageGroupId;
   }
 
   const { data: updated, error } = await supabase

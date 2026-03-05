@@ -275,37 +275,23 @@ export function PipelineView() {
         </Button>
       </div>
 
-      <AgeGroupSelector variant="tabs" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} />
+      <AgeGroupSelector variant="navigator" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} />
 
       {/* Counter */}
       <p className="mb-4 mt-4 text-sm text-muted-foreground">
         {pipelinePlayers.length} jogador{pipelinePlayers.length !== 1 ? 'es' : ''} em abordagens
       </p>
 
-      {/* Desktop: Kanban */}
-      <div className="hidden lg:block">
-        <KanbanBoard
-          playersByStatus={playersByStatus}
-          showBirthYear={showBirthYear}
-          onPlayerClick={handlePlayerClick}
-          onStatusChange={handleStatusChange}
-          onRemove={handleRemove}
-          onDateChange={handleDateChange}
-          onReorder={handleReorder}
-        />
-      </div>
-
-      {/* Mobile: Status list */}
-      <div className="lg:hidden">
-        <StatusList
-          playersByStatus={playersByStatus}
-          showBirthYear={showBirthYear}
-          onPlayerClick={handlePlayerClick}
-          onStatusChange={handleStatusChange}
-          onRemove={handleRemove}
-          onDateChange={handleDateChange}
-        />
-      </div>
+      {/* Kanban — same component for all screen sizes, horizontal scroll on mobile */}
+      <KanbanBoard
+        playersByStatus={playersByStatus}
+        showBirthYear={showBirthYear}
+        onPlayerClick={handlePlayerClick}
+        onStatusChange={handleStatusChange}
+        onRemove={handleRemove}
+        onDateChange={handleDateChange}
+        onReorder={handleReorder}
+      />
 
       {/* Player profile popup */}
       <Dialog open={profilePlayerId !== null} onOpenChange={(open) => { if (!open) handleProfileClose(); }}>

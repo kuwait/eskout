@@ -108,92 +108,77 @@ function DraggablePlayerCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`relative w-full min-w-[180px] max-w-[240px] cursor-grab rounded-lg bg-white/95 shadow-sm touch-none active:cursor-grabbing ${
+      className={`relative w-full min-w-[120px] max-w-[160px] cursor-grab rounded-md bg-white/95 shadow-sm touch-none active:cursor-grabbing ${
         squadType === 'shadow' ? RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200' : ''
       }`}
       onClick={handleCardClick}
     >
       {/* Rank corner badge — top-right */}
       {squadType === 'shadow' && (
-        <span className={`absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-bl-md rounded-tr-lg text-[10px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
+        <span className={`absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-bl-md rounded-tr-md text-[9px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
           {index + 1}
         </span>
       )}
 
-      {/* Card content — horizontal layout like the tooltip */}
-      <div className="flex items-center gap-2.5 p-2">
-        {/* Photo or placeholder */}
+      {/* Compact card: photo + name + club only */}
+      <div className="flex items-center gap-1.5 p-1.5">
         {photoUrl ? (
           <img
             src={photoUrl}
             alt=""
-            className="h-11 w-11 shrink-0 rounded-lg object-cover"
+            className="h-7 w-7 shrink-0 rounded object-cover"
           />
         ) : (
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-400">
-            <User className="h-5 w-5" />
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-neutral-100 text-neutral-400">
+            <User className="h-3.5 w-3.5" />
           </span>
         )}
         <div className="min-w-0 flex-1">
-          {/* Name */}
-          <p className="truncate text-xs font-semibold leading-tight text-neutral-900">
+          <p className="truncate text-[11px] font-semibold leading-tight text-neutral-900">
             {displayName(player.name)}
           </p>
-          {/* Club */}
-          <p className="mt-0.5 truncate text-[10px] leading-tight text-neutral-500">
+          <p className="truncate text-[9px] leading-tight text-neutral-500">
             {player.club || '—'}
           </p>
-          {/* Position, foot, DOB — inline details */}
-          <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px]">
-            {posLabel && (
-              <span>
-                <span className="text-neutral-400">Pos: </span>
-                <span className="font-medium text-neutral-700">{posLabel}</span>
-              </span>
-            )}
-            {player.foot && (
-              <span>
-                <span className="text-neutral-400">Pé: </span>
-                <span className="font-medium text-neutral-700">{player.foot}</span>
-              </span>
-            )}
-            {dobLabel && (
-              <span>
-                <span className="text-neutral-400">Nasc: </span>
-                <span className="font-medium text-neutral-700">{dobLabel}</span>
-              </span>
-            )}
+        </div>
+      </div>
+
+      {/* Expanded details — shown on tap before actions */}
+      {showActions && (
+        <div
+          className="border-t border-neutral-100 bg-white px-1.5 pb-1 pt-0.5 rounded-b-md"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {/* Extra info row */}
+          <div className="flex flex-wrap gap-x-2 text-[9px] text-neutral-500">
+            {posLabel && <span><span className="text-neutral-400">Pos:</span> <span className="font-medium text-neutral-700">{posLabel}</span></span>}
+            {player.foot && <span><span className="text-neutral-400">Pé:</span> <span className="font-medium text-neutral-700">{player.foot}</span></span>}
+            {dobLabel && <span><span className="text-neutral-400">Nasc:</span> <span className="font-medium text-neutral-700">{dobLabel}</span></span>}
           </div>
-          {/* Compact badges */}
+          {/* Badges */}
           <div className="mt-0.5 flex flex-wrap gap-0.5">
             <OpinionBadge opinion={player.departmentOpinion} className="px-1 py-0 text-[8px]" />
             {player.recruitmentStatus && (
               <StatusBadge status={player.recruitmentStatus} className="px-1 py-0 text-[8px]" />
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Action bar — slides in on tap */}
-      {showActions && (
-        <div
-          className="flex items-center justify-between gap-1 border-t border-neutral-200 bg-white px-1.5 py-1 rounded-b-lg"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <button
-            className="flex-1 rounded px-1.5 py-1 text-center text-[10px] font-medium text-blue-600 hover:bg-blue-50"
-            onClick={(e) => { e.stopPropagation(); setShowActions(false); onPlayerClick?.(player.id); }}
-          >
-            Ver perfil
-          </button>
-          <button
-            className="flex items-center gap-0.5 rounded bg-red-50 px-1.5 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100"
-            onClick={(e) => { e.stopPropagation(); setShowActions(false); onRemove(); }}
-            aria-label={`Remover ${player.name}`}
-          >
-            <Trash2 className="h-3 w-3" />
-            Remover
-          </button>
+          {/* Action buttons */}
+          <div className="mt-1 flex items-center justify-between gap-1">
+            <button
+              className="flex-1 rounded px-1.5 py-0.5 text-center text-[9px] font-medium text-blue-600 hover:bg-blue-50"
+              onClick={(e) => { e.stopPropagation(); setShowActions(false); onPlayerClick?.(player.id); }}
+            >
+              Ver perfil
+            </button>
+            <button
+              className="flex items-center gap-0.5 rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-medium text-red-600 hover:bg-red-100"
+              onClick={(e) => { e.stopPropagation(); setShowActions(false); onRemove(); }}
+              aria-label={`Remover ${player.name}`}
+            >
+              <Trash2 className="h-2.5 w-2.5" />
+              Remover
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -216,7 +201,7 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
   return (
     <div
       ref={setDropRef}
-      className={`flex min-w-[190px] flex-col items-center gap-1.5 rounded-lg p-1 transition-colors ${
+      className={`flex min-w-[130px] flex-col items-center gap-1 rounded-lg p-1 transition-colors ${
         isOver ? 'bg-white/20' : ''
       }`}
     >

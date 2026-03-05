@@ -96,7 +96,21 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
     for (const slot of SQUAD_SLOT_CODES) map[slot] = [];
     for (const p of players) {
       if (squadType === 'real' && p.isRealSquad && p.positionNormalized) {
-        map[p.positionNormalized]?.push(p);
+        // DC players without DC_E/DC_D → distribute to DC_E (odd index) and DC_D (even index)
+        if (p.positionNormalized === 'DC') {
+          const dcE = map['DC_E'] ?? [];
+          const dcD = map['DC_D'] ?? [];
+          // Balance: put in whichever sub-slot has fewer players
+          if (dcE.length <= dcD.length) {
+            dcE.push(p);
+            map['DC_E'] = dcE;
+          } else {
+            dcD.push(p);
+            map['DC_D'] = dcD;
+          }
+        } else {
+          map[p.positionNormalized]?.push(p);
+        }
       }
       if (squadType === 'shadow' && p.isShadowSquad && p.shadowPosition) {
         map[p.shadowPosition]?.push(p);
@@ -116,7 +130,19 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
     for (const slot of SQUAD_SLOT_CODES) map[slot] = [];
     for (const p of players) {
       if (otherType === 'real' && p.isRealSquad && p.positionNormalized) {
-        map[p.positionNormalized]?.push(p);
+        if (p.positionNormalized === 'DC') {
+          const dcE = map['DC_E'] ?? [];
+          const dcD = map['DC_D'] ?? [];
+          if (dcE.length <= dcD.length) {
+            dcE.push(p);
+            map['DC_E'] = dcE;
+          } else {
+            dcD.push(p);
+            map['DC_D'] = dcD;
+          }
+        } else {
+          map[p.positionNormalized]?.push(p);
+        }
       }
       if (otherType === 'shadow' && p.isShadowSquad && p.shadowPosition) {
         map[p.shadowPosition]?.push(p);
@@ -155,20 +181,34 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         }
         return [...prev, { ...player, isShadowSquad: true, shadowPosition: pos }];
       });
-      // Persist in background
+      // Persist in background — refetch on failure to revert optimistic update
       addToShadowSquad(player.id, pos).then((res) => {
-        if (!res.success) { console.error('addToShadowSquad failed:', res.error); fetchAllPlayers(); }
+        if (!res.success) {
+          console.error('addToShadowSquad failed:', res.error);
+          alert(`Erro ao adicionar: ${res.error}`);
+          fetchAllPlayers();
+        }
       });
     } else {
+      // DC_E/DC_D stored directly in position_normalized (requires migration 013)
+      const dbPos = pos;
+      // Move player to current age group so they appear in this squad view ("call up")
+      const targetAgeGroupId = selectedId;
       setAllPlayers((prev) => {
         const exists = prev.find((p) => p.id === player.id);
         if (exists) {
-          return prev.map((p) => p.id === player.id ? { ...p, isRealSquad: true, positionNormalized: pos } : p);
+          return prev.map((p) => p.id === player.id
+            ? { ...p, isRealSquad: true, positionNormalized: dbPos, ageGroupId: targetAgeGroupId! }
+            : p);
         }
-        return [...prev, { ...player, isRealSquad: true, positionNormalized: pos }];
+        return [...prev, { ...player, isRealSquad: true, positionNormalized: dbPos, ageGroupId: targetAgeGroupId! }];
       });
-      toggleRealSquad(player.id, true, pos).then((res) => {
-        if (!res.success) { console.error('toggleRealSquad failed:', res.error); fetchAllPlayers(); }
+      toggleRealSquad(player.id, true, dbPos, targetAgeGroupId ?? undefined).then((res) => {
+        if (!res.success) {
+          console.error('toggleRealSquad failed:', res.error);
+          alert(`Erro ao adicionar: ${res.error}`);
+          fetchAllPlayers();
+        }
       });
     }
   }
@@ -217,18 +257,20 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         if (!res.success) console.error('bulkReorderSquad failed:', res.error);
       });
     } else {
-      // Move to different position — optimistic update
+      // Move to different position — DC_E/DC_D are valid DB values for both squads
+      const dbPosition = targetPosition;
+
       const posField = squadType === 'shadow' ? 'shadowPosition' : 'positionNormalized';
       setAllPlayers((prev) =>
         prev.map((p) =>
           p.id === playerId
-            ? { ...p, [posField]: targetPosition, [orderField]: newIndex }
+            ? { ...p, [posField]: dbPosition, [orderField]: newIndex }
             : p
         )
       );
 
       // Persist
-      moveSquadPlayerPosition(playerId, targetPosition, newIndex, squadType).then((res) => {
+      moveSquadPlayerPosition(playerId, dbPosition, newIndex, squadType).then((res) => {
         if (!res.success) {
           console.error('moveSquadPlayerPosition failed:', res.error);
           fetchAllPlayers(); // revert on failure
@@ -245,7 +287,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
   if (!selectedId) {
     return (
       <div className="space-y-4">
-        <AgeGroupSelector showAll={false} variant="tabs" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} labelFn={labelFn} />
+        <AgeGroupSelector showAll={false} variant="navigator" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} labelFn={labelFn} />
         <p className="text-muted-foreground">Selecione um escalão para ver o plantel.</p>
       </div>
     );
@@ -263,8 +305,9 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <AgeGroupSelector showAll={false} variant="tabs" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} labelFn={labelFn} />
+      {/* Sticky header — age group tabs always visible while scrolling on mobile */}
+      <div className="sticky top-0 z-20 -mx-4 border-b border-transparent bg-white px-4 pb-2 pt-1 shadow-[0_1px_3px_rgba(0,0,0,0.05)] lg:-mx-6 lg:px-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <AgeGroupSelector showAll={false} variant="navigator" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} labelFn={labelFn} />
 
         {/* View mode toggle + export */}
         <div className="flex items-center gap-2">
@@ -350,8 +393,9 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         position={dialogPosition}
         squadType={squadType}
         availablePlayers={availablePlayers}
-        allPlayers={allPlayers}
+        allPlayers={squadType === 'real' ? allPlayers : undefined}
         excludeIds={squadPlayerIds}
+        initialYear={selectedAgeGroup ? String(selectedAgeGroup.generationYear) : undefined}
         onAddPlayer={(player) => { handleAdd(player, dialogPosition); setDialogOpen(false); }}
       />
 

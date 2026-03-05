@@ -7,12 +7,10 @@
 
 import { useState, useEffect, useMemo, useTransition } from 'react';
 import { Search } from 'lucide-react';
-import { useAgeGroup } from '@/hooks/useAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { fuzzyMatch } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { PlayerTable } from '@/components/players/PlayerTable';
 import { PlayerCard } from '@/components/players/PlayerCard';
 import { PlayerFilters } from '@/components/players/PlayerFilters';
@@ -26,6 +24,9 @@ export interface PlayerFilterState {
   status: string;
   shadowSquad: string;
   realSquad: string;
+  birthYear: string;
+  dobFrom: string;
+  dobTo: string;
 }
 
 const EMPTY_FILTERS: PlayerFilterState = {
@@ -36,29 +37,28 @@ const EMPTY_FILTERS: PlayerFilterState = {
   status: '',
   shadowSquad: '',
   realSquad: '',
+  birthYear: '',
+  dobFrom: '',
+  dobTo: '',
 };
 
 export function PlayersView() {
-  const { selectedId } = useAgeGroup();
   const [players, setPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<PlayerFilterState>(EMPTY_FILTERS);
 
-  // Fetch players when age group changes (null = all)
+  // Fetch all players once
   useEffect(() => {
     const supabase = createClient();
-
-    let query = supabase.from('players').select('*');
-    if (selectedId) query = query.eq('age_group_id', selectedId);
-    query.order('name').then(({ data, error }) => {
+    supabase.from('players').select('*').order('name').then(({ data, error }) => {
       if (!error && data) {
         startTransition(() => {
           setPlayers((data as PlayerRow[]).map(mapPlayerRow));
         });
       }
     });
-  }, [selectedId]);
+  }, []);
 
   // Client-side filtering
   const filtered = useMemo(() => {
@@ -80,6 +80,20 @@ export function PlayersView() {
     if (filters.realSquad === 'yes') result = result.filter((p) => p.isRealSquad);
     if (filters.realSquad === 'no') result = result.filter((p) => !p.isRealSquad);
 
+    // Birth year filter
+    if (filters.birthYear) {
+      const yr = parseInt(filters.birthYear, 10);
+      result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
+    }
+
+    // Date range filter (born between two dates)
+    if (filters.dobFrom) {
+      result = result.filter((p) => p.dob && p.dob >= filters.dobFrom);
+    }
+    if (filters.dobTo) {
+      result = result.filter((p) => p.dob && p.dob <= filters.dobTo);
+    }
+
     return result;
   }, [players, search, filters]);
 
@@ -89,21 +103,30 @@ export function PlayersView() {
     return Array.from(set).sort();
   }, [players]);
 
+  // Unique birth years for filter dropdown
+  const birthYears = useMemo(() => {
+    const set = new Set<number>();
+    for (const p of players) {
+      if (p.dob) {
+        const y = new Date(p.dob).getFullYear();
+        if (!isNaN(y)) set.add(y);
+      }
+    }
+    return Array.from(set).sort((a, b) => b - a);
+  }, [players]);
+
   return (
     <div className="space-y-4">
-      {/* Age group + Search */}
-      <div className="flex flex-wrap items-center gap-2">
-        <AgeGroupSelector />
-        <div className="relative min-w-0 flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Pesquisar jogador..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-            aria-label="Pesquisar jogador"
-          />
-        </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Pesquisar jogador..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+          aria-label="Pesquisar jogador"
+        />
       </div>
 
       {/* Filters */}
@@ -111,6 +134,7 @@ export function PlayersView() {
         filters={filters}
         onFiltersChange={setFilters}
         clubs={clubs}
+        birthYears={birthYears}
       />
 
       {/* Results count */}

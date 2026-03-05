@@ -34,8 +34,8 @@ export function AppShellClient({
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
         <span className="text-lg font-bold tracking-tight">Eskout</span>
       </header>
-      {/* Main content area */}
-      <main className="pb-16 lg:ml-64 lg:pb-0">
+      {/* Main content area — overflow-x-clip prevents horizontal page scroll without breaking sticky positioning */}
+      <main className="overflow-x-clip pb-16 lg:ml-64 lg:pb-0">
         {children}
       </main>
       <MobileNav />

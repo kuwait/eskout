@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 3.0 | **Date:** March 4, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 4.0 | **Date:** March 5, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -42,9 +42,16 @@ The app uses exactly these 10 position codes throughout:
 
 **There is NO "EXT" (generic winger) position.** If the original data has "Extremo" or "Ala" without a side, it must be manually classified as ED or EE by the admin, or left blank for later assignment.
 
-### 1.5. Users
-- **Admin** (formation coordinators, head of scouting): Full CRUD — players, squads, status, user management
-- **Scout** (field observers): Read-only on most data + can add new players + can add observation notes. They use the app primarily on their phone at the field.
+### 1.5. Users & Roles
+
+Four roles with progressively restricted access:
+
+| Role | Who | Access |
+|------|-----|--------|
+| **Admin** | Head of scouting, system owner | Full access. User management, import, export, delete players, all CRUD. |
+| **Master** | Formation coordinators, senior scouts | Everything except admin area: can view/edit all data, manage squads, pipeline, calendar. Cannot manage users, import, export, or delete players. |
+| **Scout** | Internal field observers | Can view all pages and data. Can add players, add observation notes, edit player data, manage pipeline/squads/calendar. Cannot delete players. |
+| **Scout Externo** | External/freelance scouts | Can only access a dedicated player submission page. Cannot view the database, squads, pipeline, or any other page. |
 
 ### 1.6. Hosting & Stack
 - **Frontend:** Vercel (free tier) — Next.js
@@ -177,21 +184,27 @@ All PDFs follow the same Boavista FC template. Fields to extract:
 
 | Decision | Choice |
 |----------|--------|
-| Formation | **Dynamic** — no fixed formation. Field view groups by position categories. |
-| Squad size | **Dynamic** — no limit. |
+| Formation | **Dynamic** — no fixed formation. Field view groups by position categories. Formation view available as visual overlay. |
+| Squad size | **Dynamic** — no limit. DC position supports sub-slots for finer granularity. |
 | Multi-age-group | **Yes** — all age groups supported |
-| Multi-user | **Yes** — Admin + Scout roles |
+| Multi-user | **Yes** — 4 roles: Admin, Master, Scout, Scout Externo |
 | Authentication | Email + password per user |
-| Profiles | Admin (full edit) / Scout (read + add notes + add players) |
+| Profiles | Admin (full access) / Master (all except admin area) / Scout (all except delete) / Scout Externo (submit only) |
 | Add new players | Directly in the app |
 | Change history | Yes — every status change logged with date, author, old→new |
-| Export | PDF and Excel |
+| Export | PDF, image, text, WhatsApp-formatted, and print for squads. Excel export for filtered DB (planned). |
 | Mobile | **Mobile-first** — scouts use phone at the field |
 | UI Language | **Portuguese (PT-PT)** |
 | Shadow squad | Pre-loaded for gen 2012, editable. Other age groups start empty. |
 | Club difficulty | Not needed — scouts know |
 | ZeroZero link | Manual entry by admin |
 | FPF link | Auto-imported from Excel |
+| Calendar | **Yes** — scouting calendar for scheduling observations, matches, and meetings. |
+| Player photos | **Yes** — photo URL field on player profile, displayed as avatar throughout the app. |
+| Signing tracking | **Yes** — "Assinou" recruitment status + signing date field for confirmed players. |
+| Meeting date | **Yes** — tracked on player profile for recruitment pipeline. |
+| Pipeline ordering | **Yes** — manual ordering within pipeline status columns. |
+| Squad ordering | **Yes** — manual ordering within position groups in squads. |
 
 ---
 
@@ -199,17 +212,24 @@ All PDFs follow the same Boavista FC template. Fields to extract:
 
 ### 4.1. Authentication & User Management
 - Login page: email + password (Supabase Auth)
-- Two roles: `admin` and `scout`
+- Four roles: `admin`, `master`, `scout`, `scout_externo`
 - Admin: create/edit/delete users, assign roles
 - Session persistence across browser sessions
 - Protected routes → redirect to login if unauthenticated
+- Role-based route protection:
+  - **Admin only:** `/admin/utilizadores`, `/importar`, `/exportar`
+  - **Admin + Master + Scout:** All main pages (dashboard, campo, jogadores, pipeline, posições, calendário)
+  - **Scout Externo:** Only `/submeter` (dedicated submission page) — redirected away from all other routes
 
 ### 4.2. Age Group Selector
-- Persistent dropdown/tabs at top of every page
-- All views filter by selected age group
-- Shows: "Sub-15 (2011)" format
-- Remembers selection across sessions
+- Three display variants:
+  - **Dropdown** — standard select, used in simple contexts
+  - **Tabs** — horizontal scrollable pills, used for pages with many options
+  - **Navigator** — arrow-based `← Sub-15 →` control with dropdown on tap; used on squad and pipeline pages where the selected group must always be visible
+- Navigator variant: compact card with prev/next arrows, tap name opens dropdown with all options. Supports "Todos" option when applicable.
+- Remembers selection per page across sessions (localStorage)
 - Age groups determined from data in database
+- Shows: "Sub-15" or birth year (e.g., "2011") depending on context
 
 ### 4.3. Dashboard
 For the selected age group:
@@ -223,44 +243,57 @@ For the selected age group:
 
 **This is the most important page in the app.**
 
-Two panels side by side (desktop) or stacked (mobile):
+Multiple views available via tabs/sub-routes (`/campo`, `/campo/real`, `/campo/sombra`):
 
-**Real Squad panel:**
+**Real Squad panel (`/campo/real`):**
 - All players at Boavista for this age group
 - Grouped by position: GR → DD → DE → DC → MDC → MC → MOC → ED → EE → PL
-- Each player card: name, position, foot
+- Each player card: name, position, foot, photo avatar
 - Admin can add players here (mark as "at Boavista")
+- Players can be manually reordered within position groups (`squad_order`)
+- Add player dialog: pre-fills position and birth year filters, hides players already in squad
+- **Cross-age-group add:** players from other age groups can be added; their `age_group_id` is updated to the current squad's age group ("call up" concept)
+- Age group selector uses the navigator variant (`← Sub-15 →`)
 
-**Shadow Squad panel:**
+**Shadow Squad panel (`/campo/sombra`):**
 - Best external candidates by position (same position grouping)
-- Each player card: name, club, opinion badge, observer rating
+- Each player card: name, club, opinion badge, observer rating, photo avatar
 - Admin can add/remove players, change shadow position
-- Click any player → opens full profile
+- Click any player → opens full profile (inline popup)
+- Players can be manually reordered within position groups (`squad_order`)
+- Add player dialog: pre-fills position filter, shows only players from the same birth year, hides players already in squad (no year filter shown since it's implicit)
+- Age group selector uses the navigator variant with birth year labels
 
-**Visual comparison:**
+**Compare view (`/campo`):**
+- Side-by-side comparison of real vs shadow
 - Position groups aligned side by side
 - Highlight positions where real squad is thin but shadow squad has candidates
 - Highlight positions where shadow squad is also thin (urgent need)
 
-**Optional field graphic:**
-- Football pitch with position zones
-- Toggle between real/shadow layers
-- Click zone to see all candidates
-- On mobile: the field is secondary; the grouped list IS the primary view
+**Squad export:**
+- Export menu with PDF, image, text, WhatsApp, and print options (see Section 4.11)
+
+**Formation view:**
+- Football pitch graphic with position zones (formation slots)
+- Visual overlay of players on a pitch layout
+- DC sub-slots (DC_E/DC_D) for left/right central defenders
+- **Desktop:** horizontal pitch layout with columns for position groups (GR → defense → midfield → attack → PL)
+- **Mobile:** vertical pitch layout, positions stacked top-to-bottom (GR top, PL bottom). Compact cards showing name + club; tap to expand for details and actions.
+- Drag-and-drop between positions and within positions for reordering
 
 ### 4.5. Player Database
-Full table/list of all players for selected age group:
+Full table/list of all players (fetched once, filtered client-side):
 
-**Search:** Instant search by name (client-side)
+**Search:** Instant fuzzy search by name (client-side)
 
-**Filters (multi-select where applicable):**
+**Filters:**
+- **Birth year** — dropdown with all available years (replaces age group selector on this page)
 - Position (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL)
 - Club
 - Department opinion
-- Observer rating
-- Observer decision
 - Foot (Dir, Esq, Amb)
 - Recruitment status
+- **Date of birth range** — collapsible "Data nascimento" panel with from/to date pickers. Defaults to Jul 1 – Dec 31 of the selected birth year when opened.
 - Shadow squad (yes/no)
 - Real squad (yes/no)
 
@@ -294,9 +327,11 @@ Dedicated page `/jogadores/{id}` — see Section 2 of this SOP for all available
 6. **Observation Notes** — Notes added by scouts in the app. Chronological. Shows author and date.
 7. **Recruitment** — Current status badge + dropdown to change (admin). Notes field. Full change history log.
 
-**Actions:**
-- Admin: Edit any field, change status, add/remove shadow squad, edit ZeroZero link
-- Scout: Add observation note, view everything
+**Actions by role:**
+- **Admin:** Edit any field, change status, add/remove shadow squad, edit ZeroZero link, set photo URL, set meeting date, set signing date, delete player
+- **Master:** Same as Admin except: cannot delete players
+- **Scout:** Same as Master
+- **Scout Externo:** No access to this page
 
 ### 4.7. Recruitment Pipeline
 Each player has exactly one recruitment status:
@@ -310,10 +345,13 @@ Each player has exactly one recruitment status:
 | `in_contact` | Em Contacto | Contact initiated with player/family/club | Purple |
 | `negotiating` | Em Negociação | Negotiation in progress | Dark Blue |
 | `confirmed` | Confirmado | Verbal agreement or signed | Green |
+| `assinou` | Assinou | Player signed — contract confirmed. Includes `signing_date` field. | Dark Green |
 | `rejected` | Rejeitado | No interest or impossible to sign | Red |
 
-**Desktop:** Kanban board — columns per status, drag players between columns (admin only)
-**Mobile:** Filtered list by status
+**All screens:** Kanban board — columns per status, drag players between columns (admin, master, scout). Players can be manually reordered within columns (`pipeline_order`). Columns can be reordered and persist via localStorage.
+- **Desktop:** horizontal scroll with columns side by side
+- **Mobile:** vertical stack with full-width columns, vertical scroll. Same DnD as desktop.
+- Age group selector uses the navigator variant (`← Sub-15 →`) with "Todos" option.
 
 Every status change creates a `status_history` entry with: timestamp, author, old value, new value, optional note.
 
@@ -329,7 +367,18 @@ For each of the 10 positions (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL):
 - Optional: All other fields (foot, contact, FPF link, ZeroZero link, notes, etc.)
 - Age group auto-determined from date of birth
 - New players default to: status=`pool`, opinion=`Por Observar`
-- Available to both Admin and Scout roles
+- Available to: Admin, Master, Scout
+- **Scout Externo** uses a separate dedicated submission page (`/submeter`) — see Section 4.16
+
+### 4.16. External Scout Submission Page (`/submeter`)
+Dedicated, simplified page for Scout Externo users.
+
+- Only page accessible to Scout Externo role (all other routes redirect here)
+- Simplified form: Name, Date of Birth, Position, Club, Foot, Notes
+- Auto-set: `created_by` = current user, `status` = `pool`, `opinion` = `Por Observar`
+- No access to existing player data, squads, pipeline, or any other feature
+- Mobile-optimized: designed for quick field submissions
+- Success feedback: toast confirmation, form reset for next submission
 
 ### 4.10. Excel Import
 - Upload `.xlsx` file
@@ -341,7 +390,14 @@ For each of the 10 positions (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL):
 - Admin only
 
 ### 4.11. Export
+**Squad export** (from Plantel view):
 - **PDF:** Squad report — real squad + shadow squad by position, player cards
+- **Image:** Export squad as image (PNG)
+- **Text:** Plain text export (copy to clipboard)
+- **WhatsApp:** Pre-formatted text optimized for WhatsApp sharing
+- **Print:** Browser print dialog
+
+**Database export** (planned):
 - **Excel:** Full database filtered by current view (age group, filters)
 - Admin only
 
@@ -350,6 +406,26 @@ For each of the 10 positions (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL):
 - Fields: Content (text, required), Match context (text, optional)
 - Auto-set author and timestamp
 - Mobile-optimized: large text area, minimal fields
+
+### 4.13. Calendar (Scouting Schedule)
+A calendar for scheduling and tracking scouting activities.
+
+- **Views:** Month grid (desktop) + list view (mobile)
+- **Event types:** Observação (scouting), Jogo (match), Reunião (meeting), Outro (other)
+- **Event fields:** Title, date, time (optional), type, age group, location (optional), notes (optional), linked players (optional)
+- **Player linking:** Events can be linked to specific players via a player picker dialog
+- **Export:** Calendar events can be exported
+- **Color coding:** Events color-coded by type
+- Available to: Admin, Master, Scout
+
+### 4.14. Player Photos
+- `photo_url` field on player profile (admin-editable)
+- Displayed as avatar throughout the app (player cards, profile, squad views)
+- Falls back to initials avatar when no photo set
+
+### 4.15. DC Sub-Slots
+- The DC (Defesa Central) position supports sub-slot classification for finer tactical granularity
+- Allows distinguishing between left-sided DC and right-sided DC within the squad view
 
 ---
 
@@ -371,94 +447,143 @@ For each of the 10 positions (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL):
 ### 5.2. Why Supabase?
 - Multi-user requires a real database
 - Auth included (email + password)
-- Row Level Security for admin vs scout permissions
+- Row Level Security for role-based permissions (admin/master/scout/scout_externo)
 - Free tier: 500MB DB, 1GB storage, 50K auth requests/month
 - JavaScript SDK for frontend
-- Realtime: admin changes status → scouts see immediately
+- Realtime: status changes propagate to all connected users
 
 ### 5.3. Project Structure
 
 ```
-boavista-planner/
+sikout/
 ├── src/
 │   ├── app/                           # Next.js App Router
-│   │   ├── layout.tsx
+│   │   ├── layout.tsx                 # Root layout (font, providers, age group context)
 │   │   ├── page.tsx                   # Dashboard
 │   │   ├── login/page.tsx
-│   │   ├── campo/page.tsx             # Real vs Shadow squad view
+│   │   ├── campo/
+│   │   │   ├── page.tsx               # Squad compare view (real vs shadow)
+│   │   │   ├── real/page.tsx          # Real squad panel
+│   │   │   └── sombra/page.tsx        # Shadow squad panel
 │   │   ├── jogadores/
 │   │   │   ├── page.tsx               # Player database table
 │   │   │   ├── [id]/page.tsx          # Player profile
 │   │   │   └── novo/page.tsx          # Add new player
 │   │   ├── pipeline/page.tsx          # Recruitment pipeline
 │   │   ├── posicoes/page.tsx          # Position view
-│   │   ├── importar/page.tsx          # Excel import (admin)
-│   │   ├── exportar/page.tsx          # Export (admin)
+│   │   ├── calendario/page.tsx        # Scouting calendar
+│   │   ├── mais/page.tsx              # "More" page (mobile overflow menu)
+│   │   ├── submeter/page.tsx          # External scout submission page — PLANNED
+│   │   ├── importar/page.tsx          # Excel import (admin) — PLANNED
+│   │   ├── exportar/page.tsx          # Export (admin) — PLANNED
 │   │   └── admin/
-│   │       └── utilizadores/page.tsx  # User management
+│   │       └── utilizadores/page.tsx  # User management — PLANNED
+│   ├── actions/
+│   │   ├── auth.ts                    # Auth server actions
+│   │   ├── players.ts                 # Player CRUD
+│   │   ├── pipeline.ts                # Recruitment status changes
+│   │   ├── squads.ts                  # Shadow/real squad management
+│   │   ├── notes.ts                   # Observation notes
+│   │   └── calendar.ts               # Calendar event CRUD
 │   ├── components/
 │   │   ├── layout/
+│   │   │   ├── AppShell.tsx           # Server-side app shell
+│   │   │   ├── AppShellClient.tsx     # Client-side app shell with responsive nav
 │   │   │   ├── Sidebar.tsx            # Desktop sidebar nav
-│   │   │   ├── MobileNav.tsx          # Bottom tab navigation
+│   │   │   ├── MobileNav.tsx          # Bottom tab navigation (6 tabs)
 │   │   │   └── AgeGroupSelector.tsx
 │   │   ├── dashboard/
 │   │   │   ├── StatsCards.tsx
 │   │   │   ├── RecentChanges.tsx
 │   │   │   └── PositionCoverage.tsx
 │   │   ├── squad/
-│   │   │   ├── RealSquadPanel.tsx
-│   │   │   ├── ShadowSquadPanel.tsx
-│   │   │   ├── FieldView.tsx          # Optional pitch graphic
-│   │   │   └── PositionGroup.tsx
+│   │   │   ├── CampoView.tsx          # Main campo orchestrator
+│   │   │   ├── SquadCompareView.tsx   # Side-by-side comparison
+│   │   │   ├── SquadPanelView.tsx     # Individual squad panel
+│   │   │   ├── SquadListView.tsx      # List view for squad
+│   │   │   ├── SquadPlayerCard.tsx    # Player card in squad context
+│   │   │   ├── PositionGroup.tsx      # Position group with player cards
+│   │   │   ├── AddToSquadDialog.tsx   # Add player to squad dialog
+│   │   │   ├── SquadExportMenu.tsx    # Export menu (PDF/image/text/WhatsApp/print)
+│   │   │   ├── FormationView.tsx      # Football pitch formation overlay
+│   │   │   └── FormationSlot.tsx      # Individual formation slot
 │   │   ├── players/
-│   │   │   ├── PlayerTable.tsx
-│   │   │   ├── PlayerCard.tsx         # Mobile card
-│   │   │   ├── PlayerFilters.tsx
-│   │   │   ├── PlayerProfile.tsx
-│   │   │   ├── PlayerForm.tsx
-│   │   │   ├── ZeroZeroData.tsx
-│   │   │   ├── FpfData.tsx
-│   │   │   ├── ScoutingReports.tsx
-│   │   │   └── StatusHistory.tsx
+│   │   │   ├── PlayersView.tsx        # Main players page orchestrator
+│   │   │   ├── PlayerTable.tsx        # Desktop table view
+│   │   │   ├── PlayerCard.tsx         # Mobile card view
+│   │   │   ├── PlayerFilters.tsx      # Multi-filter panel
+│   │   │   ├── PlayerProfile.tsx      # Full player profile
+│   │   │   ├── PlayerForm.tsx         # Add/edit player form
+│   │   │   ├── ObservationNotes.tsx   # Scout notes display + add
+│   │   │   ├── StatusHistory.tsx      # Change history log
+│   │   │   ├── ZeroZeroData.tsx       # ZeroZero data display — PLANNED
+│   │   │   ├── FpfData.tsx            # FPF data display — PLANNED
+│   │   │   └── ScoutingReports.tsx    # Extracted reports display — PLANNED
 │   │   ├── pipeline/
-│   │   │   ├── KanbanBoard.tsx
-│   │   │   └── StatusList.tsx         # Mobile list
-│   │   └── common/
-│   │       ├── StatusBadge.tsx
-│   │       ├── OpinionBadge.tsx
-│   │       └── SearchBar.tsx
+│   │   │   ├── PipelineView.tsx       # Main pipeline orchestrator
+│   │   │   ├── KanbanBoard.tsx        # Desktop Kanban view
+│   │   │   ├── StatusColumn.tsx       # Kanban column
+│   │   │   ├── PipelineCard.tsx       # Player card in pipeline
+│   │   │   └── StatusList.tsx         # Mobile list view
+│   │   ├── calendar/
+│   │   │   ├── CalendarView.tsx       # Main calendar orchestrator
+│   │   │   ├── CalendarGrid.tsx       # Month grid view
+│   │   │   ├── CalendarList.tsx       # List view
+│   │   │   ├── CalendarExport.tsx     # Calendar export
+│   │   │   ├── EventForm.tsx          # Add/edit event form
+│   │   │   ├── EventBadge.tsx         # Event type badge
+│   │   │   └── PlayerPickerDialog.tsx # Link players to events
+│   │   ├── positions/
+│   │   │   ├── PositionsView.tsx      # Main positions orchestrator
+│   │   │   └── PositionSection.tsx    # Individual position breakdown
+│   │   ├── common/
+│   │   │   ├── StatusBadge.tsx
+│   │   │   ├── OpinionBadge.tsx
+│   │   │   └── PlayerAvatar.tsx       # Avatar with photo or initials
+│   │   └── ui/                        # shadcn/ui components
 │   ├── lib/
 │   │   ├── supabase/
-│   │   │   ├── client.ts
-│   │   │   ├── server.ts              # Server-side client
-│   │   │   ├── auth.ts
-│   │   │   └── queries.ts
+│   │   │   ├── client.ts              # Browser Supabase client
+│   │   │   ├── server.ts              # Server-side Supabase client
+│   │   │   ├── mappers.ts             # DB row ↔ TypeScript mappers
+│   │   │   └── queries.ts             # Database query functions
 │   │   ├── utils/
 │   │   │   ├── positions.ts           # Position normalization
-│   │   │   ├── importExcel.ts         # Excel parser
-│   │   │   └── exportPdf.ts
+│   │   │   └── exportSquad.ts         # Squad export utilities
+│   │   ├── utils.ts                   # General utilities (cn, etc.)
+│   │   ├── validators.ts              # Shared Zod schemas
+│   │   ├── constants.ts               # Business rule constants
 │   │   └── types/
-│   │       └── index.ts
+│   │       └── index.ts               # All TypeScript types
 │   └── hooks/
-│       ├── useAuth.ts
-│       ├── usePlayers.ts
-│       └── useAgeGroup.ts
+│       ├── useAgeGroup.tsx            # Age group selector hook
+│       ├── usePlayerProfilePopup.tsx  # Inline player profile popup
+│       └── useResizableColumns.ts     # Table column resizing
 ├── scripts/
-│   ├── fpf_scraper.py
-│   ├── zerozero_scraper.py
-│   ├── extract_reports.py             # PDF report extraction
-│   └── import_initial_data.py         # One-time data import
+│   ├── import_initial_data.ts         # One-time JSON → Supabase import (TypeScript)
+│   ├── fpf_scraper.py                 # FPF current club scraper — PLANNED
+│   ├── zerozero_scraper.py            # ZeroZero stats scraper — PLANNED
+│   └── extract_reports.py             # PDF report extraction — PLANNED
 ├── supabase/
 │   └── migrations/
 │       ├── 001_initial_schema.sql
-│       └── 002_seed_data.sql
+│       ├── 002_seed_age_groups.sql
+│       ├── 003_fix_rls_recursion.sql
+│       ├── 004_squad_ordering.sql
+│       ├── 005_scout_update_players.sql
+│       ├── 006_fix_recruitment_status_constraint.sql
+│       ├── 007_add_meeting_date.sql
+│       ├── 008_pipeline_order.sql
+│       ├── 009_assinou_status_and_signing_date.sql
+│       ├── 010_photo_url.sql
+│       ├── 011_calendar_events.sql
+│       └── 012_dc_sub_slots.sql
 ├── data/
-│   ├── all_players.json               # 1,982 players extracted from Excel
-│   └── players_2012.json              # 244 players (gen 2012 subset)
-├── public/
-│   └── field.svg
+│   └── all_players.json               # 1,982 players extracted from Excel
+├── docs/
+│   ├── SOP.md                         # This document
+│   └── report_template.pdf            # Example scouting report PDF
 ├── package.json
-├── tailwind.config.ts
 └── README.md
 ```
 
@@ -471,7 +596,7 @@ boavista-planner/
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users PRIMARY KEY,
   full_name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'scout')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'master', 'scout', 'scout_externo')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -552,14 +677,23 @@ CREATE TABLE players (
 
   -- Recruitment
   recruitment_status TEXT DEFAULT 'pool'
-    CHECK (recruitment_status IN ('pool','shortlist','to_observe','target','in_contact','negotiating','confirmed','rejected')),
+    CHECK (recruitment_status IN ('pool','shortlist','to_observe','target','in_contact','negotiating','confirmed','assinou','rejected')),
   recruitment_notes TEXT,
+  meeting_date DATE,                     -- Date of meeting with player/family/agent
+  signing_date DATE,                     -- Date player signed (when status = 'assinou')
+  pipeline_order INT DEFAULT 0,          -- Manual ordering within pipeline status columns
 
   -- Squad membership
   is_real_squad BOOLEAN DEFAULT FALSE,   -- Player is at Boavista
   is_shadow_squad BOOLEAN DEFAULT FALSE,
   shadow_position TEXT                   -- Position in shadow squad (may differ from original)
     CHECK (shadow_position IN ('GR','DD','DE','DC','MDC','MC','MOC','ED','EE','PL') OR shadow_position IS NULL),
+  squad_order INT DEFAULT 0,             -- Manual ordering within position groups in squads
+  dc_sub_slot TEXT                       -- Sub-slot for DC position (e.g., 'left', 'right')
+    CHECK (dc_sub_slot IN ('left', 'right') OR dc_sub_slot IS NULL),
+
+  -- Player media
+  photo_url TEXT,                        -- URL to player photo
 
   -- Meta
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -646,6 +780,33 @@ CREATE TABLE observation_notes (
 );
 
 -- ============================================
+-- TABLE: calendar_events (scouting schedule)
+-- ============================================
+CREATE TABLE calendar_events (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  event_date DATE NOT NULL,
+  event_time TIME,                       -- Optional time
+  event_type TEXT NOT NULL
+    CHECK (event_type IN ('observacao', 'jogo', 'reuniao', 'outro')),
+  age_group_id INT REFERENCES age_groups(id),
+  location TEXT,
+  notes TEXT,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
+-- TABLE: calendar_event_players (M2M link)
+-- ============================================
+CREATE TABLE calendar_event_players (
+  event_id INT REFERENCES calendar_events(id) ON DELETE CASCADE,
+  player_id INT REFERENCES players(id) ON DELETE CASCADE,
+  PRIMARY KEY (event_id, player_id)
+);
+
+-- ============================================
 -- INDEXES
 -- ============================================
 CREATE INDEX idx_players_age_group ON players(age_group_id);
@@ -658,6 +819,10 @@ CREATE INDEX idx_reports_player ON scouting_reports(player_id);
 CREATE INDEX idx_reports_status ON scouting_reports(extraction_status);
 CREATE INDEX idx_history_player ON status_history(player_id);
 CREATE INDEX idx_notes_player ON observation_notes(player_id);
+CREATE INDEX idx_calendar_date ON calendar_events(event_date);
+CREATE INDEX idx_calendar_age_group ON calendar_events(age_group_id);
+CREATE INDEX idx_calendar_players_event ON calendar_event_players(event_id);
+CREATE INDEX idx_calendar_players_player ON calendar_event_players(player_id);
 
 -- ============================================
 -- ROW LEVEL SECURITY
@@ -666,19 +831,26 @@ ALTER TABLE players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scouting_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE status_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE observation_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_event_players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE age_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Everyone can read
+-- Helper: roles that can access main app (excludes scout_externo)
+-- Used in policies below. scout_externo can only insert players.
+
+-- Everyone authenticated can read (all 4 roles)
 CREATE POLICY "read_all_players" ON players FOR SELECT USING (true);
 CREATE POLICY "read_all_reports" ON scouting_reports FOR SELECT USING (true);
 CREATE POLICY "read_all_history" ON status_history FOR SELECT USING (true);
 CREATE POLICY "read_all_notes" ON observation_notes FOR SELECT USING (true);
 CREATE POLICY "read_all_age_groups" ON age_groups FOR SELECT USING (true);
 CREATE POLICY "read_own_profile" ON profiles FOR SELECT USING (true);
+CREATE POLICY "read_all_calendar_events" ON calendar_events FOR SELECT USING (true);
+CREATE POLICY "read_all_calendar_event_players" ON calendar_event_players FOR SELECT USING (true);
 
--- Admins can write everything
-CREATE POLICY "admin_write_players" ON players FOR ALL USING (
+-- Admin: full write on everything (including DELETE)
+CREATE POLICY "admin_full_access_players" ON players FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 CREATE POLICY "admin_write_reports" ON scouting_reports FOR ALL USING (
@@ -691,10 +863,28 @@ CREATE POLICY "admin_write_profiles" ON profiles FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
--- Scouts can insert players and notes
-CREATE POLICY "scout_insert_players" ON players FOR INSERT WITH CHECK (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'scout'))
+-- Master + Scout: can INSERT and UPDATE players, but NOT DELETE
+CREATE POLICY "internal_insert_players" ON players FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'master', 'scout'))
 );
+CREATE POLICY "internal_update_players" ON players FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'master', 'scout'))
+);
+
+-- Scout Externo: can only INSERT players (submit new scouted players)
+CREATE POLICY "externo_insert_players" ON players FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'scout_externo')
+);
+
+-- Calendar: admin, master, scout can write
+CREATE POLICY "internal_write_calendar" ON calendar_events FOR ALL USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'master', 'scout'))
+);
+CREATE POLICY "internal_write_calendar_players" ON calendar_event_players FOR ALL USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'master', 'scout'))
+);
+
+-- Notes: any authenticated user can insert their own notes
 CREATE POLICY "anyone_insert_notes" ON observation_notes FOR INSERT WITH CHECK (
   auth.uid() = author_id
 );
@@ -718,9 +908,13 @@ type ObserverDecision = '' | 'Assinar' | 'Acompanhar' | 'Rever' | 'Sem Interesse
 
 type RecruitmentStatus =
   | 'pool' | 'shortlist' | 'to_observe' | 'target'
-  | 'in_contact' | 'negotiating' | 'confirmed' | 'rejected';
+  | 'in_contact' | 'negotiating' | 'confirmed' | 'assinou' | 'rejected';
 
-type UserRole = 'admin' | 'scout';
+type DcSubSlot = 'left' | 'right';
+
+type CalendarEventType = 'observacao' | 'jogo' | 'reuniao' | 'outro';
+
+type UserRole = 'admin' | 'master' | 'scout' | 'scout_externo';
 
 interface Player {
   id: number;
@@ -758,9 +952,28 @@ interface Player {
   zzLastChecked: string | null;
   recruitmentStatus: RecruitmentStatus;
   recruitmentNotes: string;
+  meetingDate: string | null;
+  signingDate: string | null;
+  pipelineOrder: number;
   isRealSquad: boolean;
   isShadowSquad: boolean;
   shadowPosition: PositionCode | null;
+  squadOrder: number;
+  dcSubSlot: DcSubSlot | null;
+  photoUrl: string | null;
+}
+
+interface CalendarEvent {
+  id: number;
+  title: string;
+  eventDate: string;
+  eventTime: string | null;
+  eventType: CalendarEventType;
+  ageGroupId: number | null;
+  location: string | null;
+  notes: string | null;
+  createdBy: string;
+  players: Player[];            // Linked players (via M2M)
 }
 
 interface ScoutingReport {
@@ -919,22 +1132,23 @@ python scripts/extract_reports.py --retry-errors
 - **Immediate feedback** — toast notifications for actions
 - **Portuguese throughout** — all labels, buttons, messages in PT-PT
 
-### 7.2. Mobile Navigation (Bottom Tabs)
-1. **Dashboard** (home icon)
-2. **Plantel** (field/pitch icon) — Real vs Shadow view
-3. **Jogadores** (people icon) — Player database
-4. **Pipeline** (funnel icon) — Recruitment pipeline
-5. **Mais** (menu icon) — Position view, Import, Export, Admin
+### 7.2. Mobile Navigation (Bottom Tabs — 6 tabs)
+1. **Jogadores** (people icon) — Player database
+2. **Plantel** (shield-check icon) — Real squad
+3. **Sombra** (shield icon) — Shadow squad
+4. **Abordagens** (git-branch icon) — Recruitment pipeline
+5. **Agenda** (calendar icon) — Calendar
+6. **Mais** (menu icon) — Import, Export, Admin (Utilizadores)
 
 ### 7.3. Desktop Navigation (Sidebar)
-- Dashboard
-- Plantel (Real vs Shadow)
 - Jogadores
-- Pipeline
-- Posições
-- Importar (admin)
-- Exportar (admin)
-- Utilizadores (admin)
+- Planteis (Real squad)
+- Planteis Sombra (Shadow squad)
+- Abordagens (Pipeline)
+- Calendário
+- Importar (admin) — planned
+- Exportar (admin) — planned
+- Utilizadores (admin) — planned
 
 ---
 
@@ -956,12 +1170,19 @@ python scripts/extract_reports.py --retry-errors
 5. Admin: change status, move to shadow squad, edit data
 6. Scout: add observation note after watching a match
 
-### 8.3. Scout at the Field (Mobile)
+### 8.3. Internal Scout at the Field (Mobile)
 1. Open app on phone
 2. Jogadores → + Novo (Add New)
 3. Fill: name, position, club, date of birth
 4. Optionally paste FPF link
 5. Save → player appears with status "pool" for admin to review
+
+### 8.5. External Scout Submission
+1. Open app on phone (logged in as scout_externo)
+2. Automatically lands on `/submeter`
+3. Fill: name, position, club, date of birth, foot, notes
+4. Save → player appears with status "pool", `created_by` = this scout
+5. Form resets for next submission — no access to other pages
 
 ### 8.4. Update External Data (Weekly/Monthly)
 1. Run `fpf_scraper.py` in terminal
@@ -974,61 +1195,75 @@ python scripts/extract_reports.py --retry-errors
 
 ## 9. Development Phases
 
-### Phase 1 — Foundation (MVP)
+### Phase 1 — Foundation (MVP) ✅ COMPLETE
 Build the core app that replaces the spreadsheet.
 
-- [ ] Setup Supabase project (database, auth, RLS policies)
-- [ ] Setup Next.js 14+ with App Router + TypeScript + Tailwind + shadcn/ui
-- [ ] Authentication: login page, session management, role-based access
-- [ ] Age group selector (persistent across pages)
-- [ ] Excel import: upload, parse with openpyxl logic, extract hyperlinks, populate DB
-- [ ] Player database: table (desktop) + card list (mobile), search, filters, sorting
-- [ ] Player profile page: all basic data, report labels, external link buttons
-- [ ] Color coding by department opinion
-- [ ] Add new player form (mobile-optimized)
-- [ ] Deploy to Vercel
-- [ ] Seed data: pre-load the 2012 shadow squad
+- [x] Setup Supabase project (database, auth, RLS policies)
+- [x] Setup Next.js 16 with App Router + TypeScript + Tailwind v4 + shadcn/ui
+- [x] Authentication: login page, session management, role-based access
+- [x] Age group selector (persistent across pages via localStorage + context)
+- [x] JSON import script (`scripts/import_initial_data.ts`) — imports from `all_players.json`
+- [x] Player database: table (desktop) + card list (mobile), search, filters, sorting
+- [x] Player profile page: all basic data, report labels, external link buttons
+- [x] Color coding by department opinion
+- [x] Add new player form (mobile-optimized)
+- [x] Deploy to Vercel
+- [x] SQL migrations (001 schema + 002 seed age groups)
+- [ ] In-app Excel import page (`/importar`) — not yet built
+- [ ] Seed data: pre-load the 2012 shadow squad — depends on running import script
 
 **Deliverable:** Working app where users can log in, browse players, search/filter, view profiles.
 
-### Phase 2 — Planning & Recruitment
+### Phase 2 — Planning & Recruitment ✅ COMPLETE
 Add the core planning tools.
 
-- [ ] Real Squad vs Shadow Squad view (the PRIMARY planning page)
-- [ ] Shadow squad management: add/remove, assign shadow position
-- [ ] Real squad management: mark players as "at Boavista"
-- [ ] Position view: all 10 positions with real/shadow/pool breakdown
-- [ ] Recruitment pipeline: status management with Kanban (desktop) + list (mobile)
-- [ ] Status change with automatic history logging
-- [ ] Observation notes (scout feature)
-- [ ] Dashboard: counters, position coverage, recent changes, alerts
+- [x] Real Squad vs Shadow Squad view (the PRIMARY planning page) with compare, real-only, shadow-only sub-routes
+- [x] Shadow squad management: add/remove, assign shadow position, manual ordering
+- [x] Real squad management: mark players as "at Boavista", manual ordering
+- [x] Position view: all 10 positions with real/shadow/pool breakdown
+- [x] Recruitment pipeline: status management with Kanban board on all screens (horizontal desktop, vertical mobile), DnD, manual ordering
+- [x] Status change with automatic history logging
+- [x] Observation notes (scout feature)
+- [x] Dashboard: counters, position coverage, recent changes
+- [x] Formation view: football pitch graphic with position slots
+- [x] Squad export: PDF, image, text, WhatsApp, print
+- [x] DC sub-slots for left/right central defenders
+- [x] Calendar: scouting schedule with events, player linking, month/list views
+- [x] Player photos (photo_url + avatar component)
+- [x] "Assinou" recruitment status + signing date
+- [x] Meeting date tracking
+- [x] Player profile popup (inline view without page navigation)
+- [x] "Mais" overflow page for mobile
 
 **Deliverable:** Full planning workflow — scouts and admins can manage the recruitment process.
 
-### Phase 3 — External Data & Reports
+### Phase 3 — External Data & Reports ⬚ NOT STARTED
 Enrich player profiles with external data.
 
 - [ ] Setup Google Cloud Service Account + Drive API credentials
-- [ ] `extract_reports.py`: download PDFs, parse template, insert structured data
-- [ ] Display extracted reports on player profile (chronological, expandable cards)
+- [ ] `extract_reports.py`: download PDFs from Google Drive, parse template with pdfplumber, insert structured data into `scouting_reports` table
+- [ ] Display extracted reports on player profile (chronological, expandable cards) — `ScoutingReports.tsx`
 - [ ] Rating evolution chart (if player has multiple reports)
-- [ ] `fpf_scraper.py`: scrape current club, update DB, detect changes
-- [ ] FPF data display on player profile + club mismatch alert
+- [ ] `fpf_scraper.py`: scrape current club from FPF pages, update `fpf_current_club`, detect changes
+- [ ] FPF data display on player profile + club mismatch alert — `FpfData.tsx`
 - [ ] ZeroZero link field on player profile (admin-editable)
-- [ ] `zerozero_scraper.py`: scrape stats/history, update DB
-- [ ] ZeroZero data display on player profile (stats, history, photo)
-- [ ] Dashboard alerts for club changes
+- [ ] `zerozero_scraper.py`: scrape stats/history from ZeroZero, update `zz_*` fields
+- [ ] ZeroZero data display on player profile (stats, history, photo) — `ZeroZeroData.tsx`
+- [ ] Dashboard alerts for club changes (FPF club ≠ DB club)
 
 **Deliverable:** Enriched player profiles with scouting reports, current club verification, and match statistics.
 
-### Phase 4 — Polish & Export
+### Phase 4 — Polish & Export ⬚ PARTIAL
 Final refinements.
 
-- [ ] PDF export: squad report (real + shadow by position)
-- [ ] Excel export: filtered database
-- [ ] Dashboard complete with all metrics
+- [x] Squad export: PDF, image, text, WhatsApp, print (done in Phase 2)
+- [ ] Excel export: filtered database download
+- [x] Dashboard with core metrics (done in Phase 2)
 - [ ] Mobile optimizations (touch targets, swipe gestures, responsive layouts)
-- [ ] User management page (admin: create/edit/delete users)
+- [ ] Role system upgrade: 4 roles (admin, master, scout, scout_externo) — DB migration + middleware + UI guards
+- [ ] User management page (`/admin/utilizadores`) — admin: create/edit/delete users, assign 4 roles
+- [ ] External scout submission page (`/submeter`) — simplified form for scout_externo role
+- [ ] In-app Excel import page (`/importar`) — upload, parse, preview, confirm
 - [ ] PWA setup (installable on phone, offline caching for read-only data)
 
 **Deliverable:** Production-ready application.
@@ -1040,9 +1275,9 @@ Final refinements.
 | File | Description |
 |------|-------------|
 | `data/all_players.json` | 1,982 players from all age groups, extracted from Excel (with FPF links and report Google Drive links) |
-| `data/players_2012.json` | 244 players from generation 2012 (subset for testing) |
 | `docs/SOP.md` | This document |
-| `docs/report_template_example.pdf` | Example scouting report PDF for reference when building the parser |
+| `docs/report_template.pdf` | Example scouting report PDF for reference when building the parser |
+| `scripts/import_initial_data.ts` | TypeScript script to import `all_players.json` into Supabase |
 
 ### JSON Structure (`all_players.json`)
 Each player object has these fields:

@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useEffect, useTransition, useMemo } from 'react';
 import { Search, X } from 'lucide-react';
 import { fuzzyMatch } from '@/lib/utils';
 import {
@@ -38,6 +38,8 @@ interface AddToSquadDialogProps {
   allPlayers?: Player[];
   /** IDs of players already in the squad — excluded from results */
   excludeIds?: Set<number>;
+  /** Pre-fill year filter (generation year of selected age group) */
+  initialYear?: string;
   /** Legacy: server action + refetch (used by CampoView) */
   onAdded?: () => void;
   /** Optimistic: parent handles add instantly (used by SquadPanelView) */
@@ -63,6 +65,7 @@ export function AddToSquadDialog({
   availablePlayers,
   allPlayers,
   excludeIds,
+  initialYear,
   onAdded,
   onAddPlayer,
 }: AddToSquadDialogProps) {
@@ -82,6 +85,20 @@ export function AddToSquadDialog({
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Pre-fill position + year filters when dialog opens
+  // DC_E/DC_D → DC for the position filter (base position code)
+  useEffect(() => {
+    if (open) {
+      const basePos = position === 'DC_E' || position === 'DC_D' ? 'DC' : position;
+      setFilters({
+        ...EMPTY_FILTERS,
+        position: basePos,
+        year: initialYear ?? '',
+      });
+      setErrorMsg(null);
+    }
+  }, [open, position, initialYear]);
 
   const posLabel = (POSITION_LABELS as Record<string, string>)[position] ?? position;
   const title = squadType === 'shadow'
@@ -121,7 +138,8 @@ export function AddToSquadDialog({
     return result.slice(0, 30);
   }, [searchablePlayers, filters]);
 
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
+  // For shadow, year filter is hidden (always pre-set) — don't count it as "active filter"
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || (squadType === 'real' && filters.year);
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -235,15 +253,18 @@ export function AddToSquadDialog({
             </SelectContent>
           </Select>
 
-          <Select value={filters.year || 'all'} onValueChange={(v) => updateFilter('year', v === 'all' ? '' : v)}>
-            <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue placeholder="Ano" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Ano</SelectItem>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Year filter — only for real squad (shadow already filtered by year) */}
+          {squadType === 'real' && (
+            <Select value={filters.year || 'all'} onValueChange={(v) => updateFilter('year', v === 'all' ? '' : v)}>
+              <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue placeholder="Ano" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Ano</SelectItem>
+                {years.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters(EMPTY_FILTERS)}>

@@ -213,7 +213,8 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <ScrollArea className="w-full">
+      {/* Desktop: horizontal scroll */}
+      <ScrollArea className="hidden w-full md:block">
         <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
           <div className="flex gap-3 p-1 pb-4">
             {columnOrder.map((status) => (
@@ -231,6 +232,23 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
         </SortableContext>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
+
+      {/* Mobile: vertical stack */}
+      <div className="space-y-3 md:hidden">
+        <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+          {columnOrder.map((status) => (
+            <SortableStatusColumn
+              key={status}
+              status={status}
+              players={playersByStatus[status] ?? []}
+              showBirthYear={showBirthYear}
+              onPlayerClick={onPlayerClick}
+              onRemove={onRemove}
+              onDateChange={onDateChange}
+            />
+          ))}
+        </SortableContext>
+      </div>
 
       {/* Ghost card that follows the cursor while dragging */}
       <DragOverlay>

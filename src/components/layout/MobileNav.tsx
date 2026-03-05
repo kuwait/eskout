@@ -7,12 +7,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Users, GitBranch, CalendarDays, Menu } from 'lucide-react';
+import { Shield, ShieldCheck, Users, GitBranch, CalendarDays, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TABS = [
   { href: '/', label: 'Jogadores', icon: Users },
-  { href: '/campo/real', label: 'Plantel', icon: Shield },
+  { href: '/campo/real', label: 'Plantel', icon: ShieldCheck },
+  { href: '/campo/sombra', label: 'Sombra', icon: Shield },
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch },
   { href: '/calendario', label: 'Agenda', icon: CalendarDays },
   { href: '/mais', label: 'Mais', icon: Menu },
