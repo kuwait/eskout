@@ -325,7 +325,7 @@ export function PipelineView() {
       <AddToPipelineDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        availablePlayers={allPlayers}
+        availablePlayers={allPlayers.filter((p) => !p.recruitmentStatus)}
         onAdd={(playerId) => {
           handleAdd(playerId);
           setDialogOpen(false);

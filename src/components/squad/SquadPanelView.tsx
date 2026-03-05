@@ -119,6 +119,15 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
     return players.filter((p) => !p.isShadowSquad);
   }, [players, squadType]);
 
+  // IDs of players currently in this squad (optimistic, always up-to-date)
+  const squadPlayerIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const pos of POSITION_CODES) {
+      for (const p of byPosition[pos]) ids.add(p.id);
+    }
+    return ids;
+  }, [byPosition]);
+
   /* ───────────── Handlers ───────────── */
 
   /** Optimistic add: inject player into local state, persist in background */
@@ -265,6 +274,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         squadType={squadType}
         availablePlayers={availablePlayers}
         allPlayers={allDbPlayers}
+        excludeIds={squadPlayerIds}
         onAddPlayer={(player) => { handleAdd(player, dialogPosition); setDialogOpen(false); }}
       />
 

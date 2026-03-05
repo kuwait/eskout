@@ -35,6 +35,8 @@ interface AddToSquadDialogProps {
   availablePlayers: Player[];
   /** All players across all age groups for cross-escalão search */
   allPlayers?: Player[];
+  /** IDs of players already in the squad — excluded from results */
+  excludeIds?: Set<number>;
   /** Legacy: server action + refetch (used by CampoView) */
   onAdded?: () => void;
   /** Optimistic: parent handles add instantly (used by SquadPanelView) */
@@ -59,18 +61,23 @@ export function AddToSquadDialog({
   squadType,
   availablePlayers,
   allPlayers,
+  excludeIds,
   onAdded,
   onAddPlayer,
 }: AddToSquadDialogProps) {
-  // Filter allPlayers to exclude those already in the target squad, then merge with availablePlayers
+  // Filter allPlayers to exclude those already in the target squad
   const searchablePlayers = useMemo(() => {
-    if (!allPlayers || allPlayers.length === 0) return availablePlayers;
-    // Filter out players already in the target squad
+    const base = (allPlayers && allPlayers.length > 0) ? allPlayers : availablePlayers;
+    // Use excludeIds (optimistic, always up-to-date) when available
+    if (excludeIds && excludeIds.size > 0) {
+      return base.filter((p) => !excludeIds.has(p.id));
+    }
+    // Fallback: filter by squad flags from DB data
     const filtered = squadType === 'shadow'
-      ? allPlayers.filter((p) => !p.isShadowSquad)
-      : allPlayers.filter((p) => !p.isRealSquad);
+      ? base.filter((p) => !p.isShadowSquad)
+      : base.filter((p) => !p.isRealSquad);
     return filtered.length > 0 ? filtered : availablePlayers;
-  }, [allPlayers, availablePlayers, squadType]);
+  }, [allPlayers, availablePlayers, squadType, excludeIds]);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
