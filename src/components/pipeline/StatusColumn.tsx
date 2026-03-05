@@ -54,7 +54,7 @@ function SortablePipelineCard({
     <div
       ref={setNodeRef}
       style={style}
-      className="touch-none cursor-grab active:cursor-grabbing"
+      className="cursor-grab active:cursor-grabbing"
       {...attributes}
       {...listeners}
     >

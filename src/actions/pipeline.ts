@@ -103,17 +103,23 @@ export async function updateRecruitmentStatus(
   newStatus: RecruitmentStatus | null,
   note?: string
 ): Promise<ActionResponse> {
+  console.log('[updateRecruitmentStatus] called:', { playerId, newStatus, note });
+
   // Validate only when setting a status (null means removing from abordagens)
   if (newStatus) {
     const parsed = recruitmentStatusChangeSchema.safeParse({ playerId, newStatus, note });
     if (!parsed.success) {
+      console.log('[updateRecruitmentStatus] validation failed:', parsed.error.issues[0].message);
       return { success: false, error: parsed.error.issues[0].message };
     }
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
+  if (!user) {
+    console.log('[updateRecruitmentStatus] not authenticated');
+    return { success: false, error: 'Não autenticado' };
+  }
 
   // Get current status for history
   const { data: player } = await supabase
@@ -123,9 +129,11 @@ export async function updateRecruitmentStatus(
     .single();
 
   const oldStatus = player?.recruitment_status ?? null;
+  console.log('[updateRecruitmentStatus] oldStatus:', oldStatus, '→ newStatus:', newStatus);
 
   // Skip if same status
   if (oldStatus === newStatus) {
+    console.log('[updateRecruitmentStatus] same status, skipping');
     return { success: true };
   }
 
@@ -162,7 +170,7 @@ export async function updateRecruitmentStatus(
   }
 
   // Log to status_history
-  await supabase.from('status_history').insert({
+  const { error: historyError } = await supabase.from('status_history').insert({
     player_id: playerId,
     field_changed: 'recruitment_status',
     old_value: oldStatus,
@@ -170,6 +178,9 @@ export async function updateRecruitmentStatus(
     changed_by: user.id,
     notes: note ?? null,
   });
+  if (historyError) {
+    console.error('Failed to insert status_history:', historyError);
+  }
 
   revalidatePath('/pipeline');
   revalidatePath('/calendario');

@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes } from '@/components/players/ObservationNotes';
 import { StatusHistory } from '@/components/players/StatusHistory';
 import {
@@ -33,6 +34,7 @@ import {
   RECRUITMENT_STATUSES,
 } from '@/lib/constants';
 import { updatePlayer } from '@/actions/players';
+import { autoScrapePlayer } from '@/actions/scraping';
 import type {
   Player,
   PositionCode,
@@ -51,9 +53,11 @@ interface PlayerProfileProps {
   statusHistory?: StatusHistoryEntry[];
   /** If provided, "Voltar" calls this instead of router.back() */
   onClose?: () => void;
+  /** Age group name (e.g. "Sub-17") for display in squad badge */
+  ageGroupName?: string | null;
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], onClose }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], onClose, ageGroupName }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -95,7 +99,12 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
       const result = await updatePlayer(player.id, updates);
       if (result.success) {
         setEditing(false);
-        // Page will revalidate server-side
+        // Auto-scrape if external links changed
+        const fpfChanged = (draft.fpfLink || '') !== (player.fpfLink || '');
+        const zzChanged = (draft.zerozeroLink || '') !== (player.zerozeroLink || '');
+        if (fpfChanged || zzChanged) {
+          autoScrapePlayer(player.id, fpfChanged, zzChanged);
+        }
       }
     });
   }
@@ -115,11 +124,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           <ArrowLeft className="mr-1 h-4 w-4" />
           Voltar
         </Button>
-        {isAdmin && !editing && (
-          <Button variant="outline" size="sm" onClick={handleEdit}>
-            <Pencil className="mr-1 h-3 w-3" />
-            Editar
-          </Button>
+        {!editing && (
+          <div className="flex items-center gap-2">
+            <RefreshPlayerButton player={player} />
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={handleEdit}>
+                <Pencil className="mr-1 h-3 w-3" />
+                Editar
+              </Button>
+            )}
+          </div>
         )}
         {editing && (
           <div className="flex gap-2">
@@ -277,6 +291,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               <InfoItem label="Contacto" value={p.contact || '—'} />
               <InfoItem label="Referenciado por" value={p.referredBy || '—'} />
               <InfoItem label="Observador" value={p.observer || '—'} />
+              <InfoItem label="Altura" value={p.height ? `${p.height} cm` : '—'} />
+              <InfoItem label="Peso" value={p.weight ? `${p.weight} kg` : '—'} />
+              <InfoItem label="Nacionalidade" value={p.nationality || '—'} />
+              <InfoItem label="País Nascimento" value={p.birthCountry || '—'} />
               <InfoItem label="Avaliação Obs." value={p.observerEval || '—'} />
               <InfoItem label="Decisão Obs." value={p.observerDecision || '—'} />
             </InfoGrid>
@@ -291,8 +309,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
       </Section>
 
       {/* ───────────── Links Externos ───────────── */}
-      <Section title="Links Externos">
-        {editing ? (
+      {editing ? (
+        <Section title="Links Externos">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <EditField label="URL da Foto">
@@ -306,42 +324,35 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               <Input value={draft.zerozeroLink} onChange={(e) => updateDraft('zerozeroLink', e.target.value)} placeholder="https://..." />
             </EditField>
           </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {p.fpfLink && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={p.fpfLink} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-1 h-3 w-3" />FPF
-                  </a>
-                </Button>
-              )}
-              {p.zerozeroLink && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={p.zerozeroLink} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-1 h-3 w-3" />ZeroZero
-                  </a>
-                </Button>
-              )}
-              {!p.fpfLink && !p.zerozeroLink && (
-                <p className="text-sm text-muted-foreground">Sem links externos.</p>
-              )}
-            </div>
-
-            {/* Club mismatch alert */}
-            {p.fpfCurrentClub && p.fpfCurrentClub !== p.club && (
-              <div className="mt-3 rounded-md border border-orange-200 bg-orange-50 p-3">
-                <p className="text-sm font-medium text-orange-800">
-                  Atenção: clube FPF diferente do registado
-                </p>
-                <p className="text-sm text-orange-700">
-                  BD: {p.club} → FPF: {p.fpfCurrentClub}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </Section>
+        </Section>
+      ) : (p.fpfLink || p.zerozeroLink) && (
+        <div className="flex flex-wrap gap-2">
+          {p.fpfLink && (
+            <a
+              href={p.fpfLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-50"
+            >
+              <Image src="https://upload.wikimedia.org/wikipedia/pt/7/75/Portugal_FPF.png" alt="FPF" width={20} height={20} className="h-5 w-5 object-contain" unoptimized />
+              FPF
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </a>
+          )}
+          {p.zerozeroLink && (
+            <a
+              href={p.zerozeroLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-50"
+            >
+              <Image src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Zerozero-logo.svg/1280px-Zerozero-logo.svg.png" alt="ZeroZero" width={20} height={20} className="h-5 w-5 object-contain" unoptimized />
+              ZeroZero
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </a>
+          )}
+        </div>
+      )}
 
       {/* ───────────── Relatórios de Observação ───────────── */}
       {p.reportLabels.length > 0 && (
@@ -365,35 +376,54 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
       {/* ───────────── Recrutamento ───────────── */}
       <Section title="Recrutamento">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Estado:</span>
+        <div className="space-y-3">
+          {/* Status + squad badges row */}
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={p.recruitmentStatus} />
-          </div>
-          {p.recruitmentStatus === 'vir_treinar' && p.trainingDate && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Treino:</span>
-              <span className="text-sm font-medium">
-                {new Date(p.trainingDate).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            {p.isRealSquad && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                Atleta do Plantel{ageGroupName ? ` ${ageGroupName}` : ''}
               </span>
+            )}
+            {p.isShadowSquad && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                Sombra — {p.shadowPosition ?? '?'}
+              </span>
+            )}
+          </div>
+
+          {/* Key dates */}
+          {(p.trainingDate || p.meetingDate || p.signingDate) && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {p.trainingDate && (
+                <div className="rounded-md border bg-blue-50 p-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">Treino</p>
+                  <p className="text-sm font-medium">{formatDateTime(p.trainingDate)}</p>
+                </div>
+              )}
+              {p.meetingDate && (
+                <div className="rounded-md border bg-orange-50 p-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-600">Reunião</p>
+                  <p className="text-sm font-medium">{formatDateTime(p.meetingDate)}</p>
+                </div>
+              )}
+              {p.signingDate && (
+                <div className="rounded-md border bg-green-50 p-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600">Assinatura</p>
+                  <p className="text-sm font-medium">{formatDateTime(p.signingDate)}</p>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Notes */}
           {p.recruitmentNotes && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Notas</p>
+            <div className="rounded-md border bg-neutral-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Notas de Recrutamento</p>
               <p className="mt-1 whitespace-pre-wrap text-sm">{p.recruitmentNotes}</p>
             </div>
-          )}
-          {p.isShadowSquad && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Plantel Sombra:</span>
-              <span className="text-sm font-medium">{p.shadowPosition ?? 'Sem posição'}</span>
-            </div>
-          )}
-          {p.isRealSquad && (
-            <span className="inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white">
-              Plantel Real
-            </span>
           )}
         </div>
       </Section>
@@ -451,6 +481,18 @@ function InfoItem({ label, value }: { label: string; value: string }) {
 function formatDate(dateStr: string): string {
   try {
     return new Date(dateStr).toLocaleDateString('pt-PT');
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatDateTime(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    const date = d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const time = d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+    // Only show time if it's not midnight (meaning time was actually set)
+    return time === '00:00' ? date : `${date} ${time}`;
   } catch {
     return dateStr;
   }

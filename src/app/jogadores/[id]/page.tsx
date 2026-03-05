@@ -10,7 +10,11 @@ import {
   getObservationNotes,
   getStatusHistory,
 } from '@/lib/supabase/queries';
+import { createClient } from '@/lib/supabase/server';
 import { PlayerProfile } from '@/components/players/PlayerProfile';
+
+// Always fetch fresh data — status history and player data change frequently
+export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -31,6 +35,14 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   if (!player) notFound();
 
+  // Fetch age group name for display
+  const supabase = await createClient();
+  const { data: ageGroup } = await supabase
+    .from('age_groups')
+    .select('name')
+    .eq('id', player.ageGroupId)
+    .single();
+
   return (
     <div className="p-4 lg:p-6">
       <PlayerProfile
@@ -38,6 +50,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         userRole={role ?? 'scout'}
         notes={notes}
         statusHistory={statusHistory}
+        ageGroupName={ageGroup?.name ?? null}
       />
     </div>
   );

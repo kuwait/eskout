@@ -68,6 +68,10 @@ export interface Player {
   zzGoalsSeason: number | null;
   zzHeight: number | null;
   zzWeight: number | null;
+  height: number | null;
+  weight: number | null;
+  birthCountry: string | null;
+  nationality: string | null;
   photoUrl: string | null;
   zzPhotoUrl: string | null;
   zzTeamHistory: { club: string; season: string; games: number; goals: number }[] | null;
@@ -130,6 +134,10 @@ export interface PlayerRow {
   zz_goals_season: number | null;
   zz_height: number | null;
   zz_weight: number | null;
+  height: number | null;
+  weight: number | null;
+  birth_country: string | null;
+  nationality: string | null;
   photo_url: string | null;
   zz_photo_url: string | null;
   zz_team_history: { club: string; season: string; games: number; goals: number }[] | null;

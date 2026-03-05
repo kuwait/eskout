@@ -47,6 +47,7 @@ export function PipelineView() {
   /* ───────────── Player Profile Dialog ───────────── */
 
   const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
+  const [profileFetchKey, setProfileFetchKey] = useState(0);
   const [profileNotes, setProfileNotes] = useState<ObservationNote[]>([]);
   const [profileHistory, setProfileHistory] = useState<StatusHistoryEntry[]>([]);
   const [profileRole, setProfileRole] = useState<UserRole>('scout');
@@ -56,70 +57,85 @@ export function PipelineView() {
     : null;
 
   // Fetch notes, history, and role when opening the profile popup
+  // profileFetchKey forces re-fetch even for the same player
   useEffect(() => {
     if (!profilePlayerId) return;
+    let cancelled = false;
     const supabase = createClient();
 
-    // Fetch observation notes
-    supabase
-      .from('observation_notes')
-      .select('*, profiles:author_id(full_name)')
-      .eq('player_id', profilePlayerId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setProfileNotes(
-          (data ?? []).map((row: Record<string, unknown>) => ({
-            id: row.id as number,
-            playerId: row.player_id as number,
-            authorId: row.author_id as string,
-            authorName: (row.profiles as { full_name: string } | null)?.full_name ?? 'Desconhecido',
-            content: row.content as string,
-            matchContext: row.match_context as string | null,
-            createdAt: row.created_at as string,
-          }))
-        );
-      });
+    async function fetchProfileData() {
+      try {
+        // Fetch history, notes, and role in parallel
+        const [historyRes, notesRes, userRes] = await Promise.all([
+          supabase.from('status_history').select('*').eq('player_id', profilePlayerId).order('created_at', { ascending: false }),
+          supabase.from('observation_notes').select('*').eq('player_id', profilePlayerId).order('created_at', { ascending: false }),
+          supabase.auth.getUser(),
+        ]);
 
-    // Fetch status history
-    supabase
-      .from('status_history')
-      .select('*, profiles:changed_by(full_name)')
-      .eq('player_id', profilePlayerId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
+        if (cancelled) return;
+
+        // Resolve author names for both history and notes
+        const allUserIds = new Set<string>();
+        for (const r of historyRes.data ?? []) { if (r.changed_by) allUserIds.add(r.changed_by); }
+        for (const r of notesRes.data ?? []) { if (r.author_id) allUserIds.add(r.author_id); }
+
+        const nameMap: Record<string, string> = {};
+        if (allUserIds.size > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', [...allUserIds]);
+          for (const p of profiles ?? []) nameMap[p.id] = p.full_name;
+        }
+
+        if (cancelled) return;
+
+        // Set history
         setProfileHistory(
-          (data ?? []).map((row: Record<string, unknown>) => ({
+          (historyRes.data ?? []).map((row) => ({
             id: row.id as number,
             playerId: row.player_id as number,
             fieldChanged: row.field_changed as string,
             oldValue: row.old_value as string | null,
             newValue: row.new_value as string | null,
             changedBy: row.changed_by as string,
-            changedByName: (row.profiles as { full_name: string } | null)?.full_name ?? 'Sistema',
+            changedByName: nameMap[row.changed_by] ?? 'Sistema',
             notes: row.notes as string | null,
             createdAt: row.created_at as string,
           }))
         );
-      });
 
-    // Fetch current user role
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-        .then(({ data }) => {
-          setProfileRole((data?.role as UserRole) ?? 'scout');
-        });
-    });
-  }, [profilePlayerId]);
+        // Set notes
+        setProfileNotes(
+          (notesRes.data ?? []).map((row) => ({
+            id: row.id as number,
+            playerId: row.player_id as number,
+            authorId: row.author_id as string,
+            authorName: nameMap[row.author_id] ?? 'Desconhecido',
+            content: row.content as string,
+            matchContext: row.match_context as string | null,
+            createdAt: row.created_at as string,
+          }))
+        );
+
+        // Set role
+        const user = userRes.data?.user;
+        if (user) {
+          const { data: roleData } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+          if (!cancelled) setProfileRole((roleData?.role as UserRole) ?? 'scout');
+        }
+      } catch (err) {
+        console.error('[CLIENT] fetchProfileData error:', err);
+      }
+    }
+
+    fetchProfileData();
+    return () => { cancelled = true; };
+  }, [profilePlayerId, profileFetchKey]);
 
   function handlePlayerClick(playerId: number) {
     setProfileNotes([]);
     setProfileHistory([]);
     setProfilePlayerId(playerId);
+    // Increment key to force re-fetch even if same player
+    setProfileFetchKey((k) => k + 1);
   }
 
   function handleProfileClose() {
@@ -171,6 +187,7 @@ export function PipelineView() {
 
   /** Move between columns — optimistic, await server, revert on failure */
   async function handleStatusChange(playerId: number, newStatus: RecruitmentStatus) {
+    console.log('[CLIENT] handleStatusChange called:', { playerId, newStatus });
     const prev = allPlayers;
     setAllPlayers((cur) =>
       cur.map((p) => {
@@ -190,6 +207,7 @@ export function PipelineView() {
       })
     );
     const result = await updateRecruitmentStatus(playerId, newStatus);
+    console.log('[CLIENT] updateRecruitmentStatus result:', result);
     if (!result.success) {
       console.error('handleStatusChange failed:', result.error);
       setAllPlayers(prev);
@@ -296,6 +314,9 @@ export function PipelineView() {
       {/* Player profile popup */}
       <Dialog open={profilePlayerId !== null} onOpenChange={(open) => { if (!open) handleProfileClose(); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogTitle className="sr-only">
+            {profilePlayer?.name ?? 'Perfil do Jogador'}
+          </DialogTitle>
           {profilePlayer && (
             <PlayerProfile
               player={profilePlayer}

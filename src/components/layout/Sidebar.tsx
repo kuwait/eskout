@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays,
-  Upload, Download, UserCog, LogOut,
+  Upload, Download, UserCog, Settings, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
@@ -25,6 +25,7 @@ const NAV_ITEMS = [
 ];
 
 const ADMIN_ITEMS = [
+  { href: '/definicoes', label: 'Definições', icon: Settings },
   { href: '/importar', label: 'Importar', icon: Upload },
   { href: '/exportar', label: 'Exportar', icon: Download },
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog },

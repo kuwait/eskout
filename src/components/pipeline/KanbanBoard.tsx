@@ -89,6 +89,9 @@ function resolveStatus(id: string): RecruitmentStatus | null {
   // Droppable zone: "status-{value}"
   const statusMatch = id.match(/^status-(.+)$/);
   if (statusMatch) return statusMatch[1] as RecruitmentStatus;
+  // Column sortable wrapper: "column-{value}"
+  const columnStatus = parseColumnId(id);
+  if (columnStatus) return columnStatus;
   // Card: "pipeline-{playerId}-{status}"
   const parsed = parseDragId(id);
   return parsed?.status ?? null;
@@ -161,10 +164,11 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
 
     /* ───── Card reorder / cross-column move ───── */
     const source = parseDragId(activeId);
-    if (!source) return;
+    if (!source) { console.log('[DND] parseDragId failed for:', activeId); return; }
 
     const targetStatus = resolveStatus(overId);
-    if (!targetStatus) return;
+    console.log('[DND] drag end:', { activeId, overId, sourceStatus: source.status, targetStatus, isSameColumn: source.status === targetStatus });
+    if (!targetStatus) { console.log('[DND] resolveStatus returned null for overId:', overId); return; }
 
     const isSameColumn = source.status === targetStatus;
 
@@ -213,10 +217,10 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      {/* Desktop: horizontal scroll */}
-      <ScrollArea className="hidden w-full md:block">
+      {/* Single layout: vertical stack on mobile, horizontal scroll on desktop */}
+      <ScrollArea className="w-full">
         <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-          <div className="flex gap-3 p-1 pb-4">
+          <div className="flex flex-col gap-3 p-1 pb-4 md:flex-row">
             {columnOrder.map((status) => (
               <SortableStatusColumn
                 key={status}
@@ -230,25 +234,8 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
             ))}
           </div>
         </SortableContext>
-        <ScrollBar orientation="horizontal" />
+        <ScrollBar orientation="horizontal" className="hidden md:flex" />
       </ScrollArea>
-
-      {/* Mobile: vertical stack */}
-      <div className="space-y-3 md:hidden">
-        <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-          {columnOrder.map((status) => (
-            <SortableStatusColumn
-              key={status}
-              status={status}
-              players={playersByStatus[status] ?? []}
-              showBirthYear={showBirthYear}
-              onPlayerClick={onPlayerClick}
-              onRemove={onRemove}
-              onDateChange={onDateChange}
-            />
-          ))}
-        </SortableContext>
-      </div>
 
       {/* Ghost card that follows the cursor while dragging */}
       <DragOverlay>
