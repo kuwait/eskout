@@ -5,6 +5,7 @@
 
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -36,7 +37,10 @@ export function Sidebar() {
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-white lg:h-screen lg:fixed lg:left-0 lg:top-0">
       {/* Header */}
       <div className="flex items-center gap-2 border-b px-4 py-4">
-        <Link href="/" className="text-xl font-bold tracking-tight">Eskout</Link>
+        <Link href="/" className="flex items-center gap-2">
+          <Image src="/logo-icon.svg" alt="" width={28} height={28} className="dark:invert" />
+          <span className="text-xl font-bold tracking-tight">Eskout</span>
+        </Link>
       </div>
 
       {/* Navigation */}

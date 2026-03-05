@@ -16,6 +16,22 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Eskout — Plataforma de Scouting',
   description: 'Gestão de recrutamento de formação',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/apple-touch-icon.png',
+  },
+  openGraph: {
+    title: 'Eskout — Plataforma de Scouting',
+    description: 'Gestão de recrutamento de formação',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Eskout — Plataforma de Scouting',
+    description: 'Gestão de recrutamento de formação',
+    images: ['/og-image.png'],
+  },
 };
 
 export default function RootLayout({

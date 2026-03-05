@@ -5,6 +5,7 @@
 
 'use client';
 
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { AgeGroupProvider } from '@/hooks/useAgeGroup';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -32,7 +33,10 @@ export function AppShellClient({
       <Sidebar />
       {/* Mobile header */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
-        <span className="text-lg font-bold tracking-tight">Eskout</span>
+        <div className="flex items-center gap-2">
+          <Image src="/logo-icon.svg" alt="" width={24} height={24} />
+          <span className="text-lg font-bold tracking-tight">Eskout</span>
+        </div>
       </header>
       {/* Main content area — overflow-x-clip prevents horizontal page scroll without breaking sticky positioning */}
       <main className="overflow-x-clip pb-16 lg:ml-64 lg:pb-0">

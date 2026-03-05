@@ -6,6 +6,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { login } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +33,8 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
       <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
+        <CardHeader className="flex flex-col items-center text-center">
+          <Image src="/logo-icon.svg" alt="Eskout" width={56} height={56} className="mb-2" />
           <CardTitle className="text-2xl font-bold tracking-tight">
             Eskout
           </CardTitle>
