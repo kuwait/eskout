@@ -99,7 +99,7 @@ export function PlayerForm() {
 
           <div className="space-y-2">
             <Label htmlFor="contact">Contacto</Label>
-            <Input id="contact" name="contact" placeholder="Telefone / Email" />
+            <Input id="contact" name="contact" type="tel" placeholder="+351 912 345 678" />
           </div>
 
           <div className="space-y-2">
@@ -112,9 +112,8 @@ export function PlayerForm() {
             <Textarea id="notes" name="notes" rows={3} placeholder="Notas sobre o jogador..." />
           </div>
 
-          {/* Hidden defaults */}
+          {/* Hidden default — opinion as comma-separated for FormData */}
           <input type="hidden" name="departmentOpinion" value="Por Observar" />
-          <input type="hidden" name="recruitmentStatus" value="pool" />
 
           {error && (
             <p className="text-sm text-red-500" role="alert">{error}</p>

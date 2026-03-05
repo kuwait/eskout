@@ -3,7 +3,61 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { Player, PlayerRow } from '@/lib/types';
+import type { DepartmentOpinion, Player, PlayerRow } from '@/lib/types';
+
+/** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
+function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
+  if (!raw) return [];
+
+  // Already an array from Supabase (TEXT[] column)
+  if (Array.isArray(raw)) {
+    // Each element might be a JSON-encoded string from a bad migration, e.g. '["1ª Escolha"]'
+    return raw.flatMap((item) => {
+      if (item.startsWith('[')) {
+        try { return JSON.parse(item) as string[]; } catch { /* ignore */ }
+      }
+      return [item];
+    }) as DepartmentOpinion[];
+  }
+
+  // Single string — could be JSON array or plain value
+  if (raw.startsWith('[')) {
+    try { return (JSON.parse(raw) as string[]) as DepartmentOpinion[]; } catch { /* ignore */ }
+  }
+
+  return [raw as DepartmentOpinion];
+}
+
+/** Map old English recruitment statuses to new Portuguese ones (pre-migration compat) */
+const LEGACY_STATUS_MAP: Record<string, string> = {
+  pool: '',
+  shortlist: 'por_tratar',
+  to_observe: 'a_observar',
+  target: 'em_contacto',
+  in_contact: 'em_contacto',
+  negotiating: 'a_decidir',
+  confirmed: 'confirmado',
+  rejected: 'rejeitado',
+};
+
+function mapRecruitmentStatus(raw: string | null): Player['recruitmentStatus'] {
+  if (!raw) return null;
+  // Check if it's an old English status
+  if (raw in LEGACY_STATUS_MAP) {
+    const mapped = LEGACY_STATUS_MAP[raw];
+    return mapped ? (mapped as Player['recruitmentStatus']) : null;
+  }
+  return raw as Player['recruitmentStatus'];
+}
+
+/** Format shirt number: remove trailing ".0" from numeric strings */
+function formatShirtNumber(raw: string | null): string {
+  if (!raw) return '';
+  // "4.0" → "4", "10.0" → "10", but keep "12A" as-is
+  const num = parseFloat(raw);
+  if (!isNaN(num) && Number.isFinite(num)) return String(Math.round(num));
+  return raw;
+}
 
 /** Map a Supabase PlayerRow (snake_case) to the domain Player type (camelCase) */
 export function mapPlayerRow(row: PlayerRow): Player {
@@ -16,9 +70,9 @@ export function mapPlayerRow(row: PlayerRow): Player {
     positionOriginal: row.position_original ?? '',
     positionNormalized: (row.position_normalized as Player['positionNormalized']) ?? '',
     foot: (row.foot as Player['foot']) ?? '',
-    shirtNumber: row.shirt_number ?? '',
+    shirtNumber: formatShirtNumber(row.shirt_number),
     contact: row.contact ?? '',
-    departmentOpinion: (row.department_opinion as Player['departmentOpinion']) ?? '',
+    departmentOpinion: castToOpinionArray(row.department_opinion),
     observer: row.observer ?? '',
     observerEval: (row.observer_eval as Player['observerEval']) ?? '',
     observerDecision: (row.observer_decision as Player['observerDecision']) ?? '',
@@ -44,14 +98,21 @@ export function mapPlayerRow(row: PlayerRow): Player {
     zzGoalsSeason: row.zz_goals_season,
     zzHeight: row.zz_height,
     zzWeight: row.zz_weight,
+    photoUrl: row.photo_url ?? null,
     zzPhotoUrl: row.zz_photo_url,
     zzTeamHistory: row.zz_team_history,
     zzLastChecked: row.zz_last_checked,
-    recruitmentStatus: (row.recruitment_status as Player['recruitmentStatus']) ?? 'pool',
+    recruitmentStatus: mapRecruitmentStatus(row.recruitment_status),
+    trainingDate: row.training_date,
+    meetingDate: row.meeting_date ?? null,
+    signingDate: row.signing_date ?? null,
     recruitmentNotes: row.recruitment_notes ?? '',
     isRealSquad: row.is_real_squad,
     isShadowSquad: row.is_shadow_squad,
     shadowPosition: (row.shadow_position as Player['shadowPosition']) ?? null,
+    shadowOrder: row.shadow_order ?? 0,
+    realOrder: row.real_order ?? 0,
+    pipelineOrder: row.pipeline_order ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

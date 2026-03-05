@@ -20,7 +20,7 @@ interface AgeGroupContextValue {
   ageGroups: AgeGroup[];
   selectedId: number | null;
   selected: AgeGroup | null;
-  setSelectedId: (id: number) => void;
+  setSelectedId: (id: number | null) => void;
 }
 
 const AgeGroupContext = createContext<AgeGroupContextValue>({
@@ -36,14 +36,16 @@ function getInitialAgeGroupId(ageGroups: AgeGroup[]): number | null {
 
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(STORAGE_KEY);
+    // "all" means show all players (null)
+    if (stored === 'all') return null;
     if (stored) {
       const id = parseInt(stored, 10);
       if (ageGroups.some((ag) => ag.id === id)) return id;
     }
   }
 
-  // Default: first age group
-  return ageGroups[0].id;
+  // Default: all players (null)
+  return null;
 }
 
 export function AgeGroupProvider({
@@ -57,9 +59,9 @@ export function AgeGroupProvider({
     () => getInitialAgeGroupId(ageGroups)
   );
 
-  const setSelectedId = useCallback((id: number) => {
+  const setSelectedId = useCallback((id: number | null) => {
     setSelectedIdState(id);
-    localStorage.setItem(STORAGE_KEY, String(id));
+    localStorage.setItem(STORAGE_KEY, id === null ? 'all' : String(id));
   }, []);
 
   const selected = ageGroups.find((ag) => ag.id === selectedId) ?? null;

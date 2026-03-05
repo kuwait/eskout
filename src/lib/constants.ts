@@ -37,6 +37,7 @@ export const DEPARTMENT_OPINIONS: { value: DepartmentOpinion; color: string; tai
   { value: 'Urgente Observar', color: '#f97316', tailwind: 'bg-orange-500 text-white' },
   { value: 'Sem interesse', color: '#ef4444', tailwind: 'bg-red-500 text-white' },
   { value: 'Potencial', color: '#a855f7', tailwind: 'bg-purple-500 text-white' },
+  { value: 'Assinar', color: '#22c55e', tailwind: 'bg-green-500 text-white' },
 ];
 
 export const OPINION_COLOR_MAP: Record<DepartmentOpinion, string> = Object.fromEntries(
@@ -59,7 +60,7 @@ export const OBSERVER_DECISIONS = [
   'Sem Interesse',
 ] as const;
 
-/* ───────────── Recruitment Pipeline ───────────── */
+/* ───────────── Recruitment Statuses (Abordagens) ───────────── */
 
 export const RECRUITMENT_STATUSES: {
   value: RecruitmentStatus;
@@ -67,14 +68,15 @@ export const RECRUITMENT_STATUSES: {
   color: string;
   tailwind: string;
 }[] = [
-  { value: 'pool', labelPt: 'Pool', color: '#a3a3a3', tailwind: 'bg-neutral-400 text-white' },
-  { value: 'shortlist', labelPt: 'Shortlist', color: '#3b82f6', tailwind: 'bg-blue-500 text-white' },
-  { value: 'to_observe', labelPt: 'A Observar', color: '#eab308', tailwind: 'bg-yellow-500 text-white' },
-  { value: 'target', labelPt: 'Alvo', color: '#f97316', tailwind: 'bg-orange-500 text-white' },
-  { value: 'in_contact', labelPt: 'Em Contacto', color: '#a855f7', tailwind: 'bg-purple-500 text-white' },
-  { value: 'negotiating', labelPt: 'Em Negociação', color: '#1e40af', tailwind: 'bg-blue-800 text-white' },
-  { value: 'confirmed', labelPt: 'Confirmado', color: '#22c55e', tailwind: 'bg-green-500 text-white' },
-  { value: 'rejected', labelPt: 'Rejeitado', color: '#ef4444', tailwind: 'bg-red-500 text-white' },
+  { value: 'por_tratar', labelPt: 'Por tratar', color: '#a3a3a3', tailwind: 'bg-neutral-400 text-white' },
+  { value: 'a_observar', labelPt: 'A Observar', color: '#eab308', tailwind: 'bg-yellow-500 text-white' },
+  { value: 'em_contacto', labelPt: 'Em contacto', color: '#a855f7', tailwind: 'bg-purple-500 text-white' },
+  { value: 'vir_treinar', labelPt: 'Vir treinar', color: '#3b82f6', tailwind: 'bg-blue-500 text-white' },
+  { value: 'reuniao_marcada', labelPt: 'Reunião Marcada', color: '#f97316', tailwind: 'bg-orange-500 text-white' },
+  { value: 'a_decidir', labelPt: 'A decidir', color: '#1e40af', tailwind: 'bg-blue-800 text-white' },
+  { value: 'confirmado', labelPt: 'Confirmado', color: '#22c55e', tailwind: 'bg-green-500 text-white' },
+  { value: 'assinou', labelPt: 'Assinou', color: '#16a34a', tailwind: 'bg-green-700 text-white' },
+  { value: 'rejeitado', labelPt: 'Rejeitado', color: '#ef4444', tailwind: 'bg-red-500 text-white' },
 ];
 
 export const RECRUITMENT_STATUS_MAP: Record<RecruitmentStatus, string> = Object.fromEntries(

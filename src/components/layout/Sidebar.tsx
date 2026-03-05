@@ -1,6 +1,6 @@
 // src/components/layout/Sidebar.tsx
 // Desktop sidebar navigation for the Eskout application
-// Shows all nav items including admin-only sections
+// Jogadores is the home page. Plantel Real and Plantel Sombra separated.
 // RELEVANT FILES: src/components/layout/MobileNav.tsx, src/components/layout/AgeGroupSelector.tsx, src/app/layout.tsx
 
 'use client';
@@ -8,26 +8,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
-  Shield,
-  Users,
-  GitBranch,
-  MapPin,
-  Upload,
-  Download,
-  UserCog,
-  LogOut,
+  Shield, ShieldCheck, Users, GitBranch, MapPin,
+  Upload, Download, UserCog, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Painel', icon: LayoutDashboard },
-  { href: '/campo', label: 'Plantel', icon: Shield },
-  { href: '/jogadores', label: 'Jogadores', icon: Users },
-  { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
+  { href: '/', label: 'Jogadores', icon: Users },
+  { href: '/campo/real', label: 'Plantel Real', icon: ShieldCheck },
+  { href: '/campo/sombra', label: 'Plantel Sombra', icon: Shield },
+  { href: '/pipeline', label: 'Abordagens', icon: GitBranch },
   { href: '/posicoes', label: 'Posições', icon: MapPin },
 ];
 
@@ -44,12 +36,7 @@ export function Sidebar() {
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-white lg:h-screen lg:fixed lg:left-0 lg:top-0">
       {/* Header */}
       <div className="flex items-center gap-2 border-b px-4 py-4">
-        <span className="text-xl font-bold tracking-tight">Eskout</span>
-      </div>
-
-      {/* Age group selector */}
-      <div className="border-b px-4 py-3">
-        <AgeGroupSelector />
+        <Link href="/" className="text-xl font-bold tracking-tight">Eskout</Link>
       </div>
 
       {/* Navigation */}
@@ -81,14 +68,11 @@ export function Sidebar() {
 
         {/* Admin section */}
         <div className="mt-6">
-          <p className="px-3 text-xs font-semibold uppercase text-neutral-400">
-            Admin
-          </p>
+          <p className="px-3 text-xs font-semibold uppercase text-neutral-400">Admin</p>
           <ul className="mt-2 space-y-1">
             {ADMIN_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname.startsWith(item.href);
-
               return (
                 <li key={item.href}>
                   <Link

@@ -1,12 +1,12 @@
 // src/components/players/PlayerCard.tsx
 // Mobile card component for displaying a player in the player list
-// Compact layout with name, position, club, and opinion badge — tappable to open profile
+// Compact layout with name, DOB, position, club, opinion badge, status — tappable to open profile
 // RELEVANT FILES: src/components/players/PlayersView.tsx, src/components/common/OpinionBadge.tsx, src/lib/constants.ts
 
 import Link from 'next/link';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { POSITION_LABELS } from '@/lib/constants';
-import type { Player, PositionCode } from '@/lib/types';
+import { StatusBadge } from '@/components/common/StatusBadge';
+import type { Player } from '@/lib/types';
 
 interface PlayerCardProps {
   player: Player;
@@ -23,22 +23,21 @@ export function PlayerCard({ player }: PlayerCardProps) {
           <p className="truncate font-medium text-neutral-900">{player.name}</p>
           <div className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
             {player.positionNormalized && (
-              <span className="font-medium text-neutral-600">
-                {player.positionNormalized}
-              </span>
+              <span className="font-medium text-neutral-600">{player.positionNormalized}</span>
             )}
-            {player.club && (
-              <span className="truncate">{player.club}</span>
-            )}
+            {player.club && <span className="truncate">{player.club}</span>}
           </div>
-          {player.positionNormalized && (
+          {player.dob && (
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {POSITION_LABELS[player.positionNormalized as PositionCode]}
+              {formatDate(player.dob)}
             </p>
           )}
         </div>
         <div className="flex flex-col items-end gap-1">
           <OpinionBadge opinion={player.departmentOpinion} />
+          {player.recruitmentStatus && (
+            <StatusBadge status={player.recruitmentStatus} />
+          )}
           {player.foot && (
             <span className="text-xs text-muted-foreground">{player.foot}</span>
           )}
@@ -46,4 +45,12 @@ export function PlayerCard({ player }: PlayerCardProps) {
       </div>
     </Link>
   );
+}
+
+function formatDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toLocaleDateString('pt-PT');
+  } catch {
+    return dateStr;
+  }
 }

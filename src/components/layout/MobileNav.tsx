@@ -7,20 +7,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  LayoutDashboard,
-  Shield,
-  Users,
-  GitBranch,
-  Menu,
-} from 'lucide-react';
+import { Shield, Users, GitBranch, MapPin, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { href: '/', label: 'Painel', icon: LayoutDashboard },
-  { href: '/campo', label: 'Plantel', icon: Shield },
-  { href: '/jogadores', label: 'Jogadores', icon: Users },
-  { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
+  { href: '/', label: 'Jogadores', icon: Users },
+  { href: '/campo/real', label: 'Plantel', icon: Shield },
+  { href: '/pipeline', label: 'Abordagens', icon: GitBranch },
+  { href: '/posicoes', label: 'Posições', icon: MapPin },
   { href: '/mais', label: 'Mais', icon: Menu },
 ];
 
@@ -42,9 +36,7 @@ export function MobileNav() {
                 href={tab.href}
                 className={cn(
                   'flex flex-col items-center gap-0.5 py-2 text-xs transition-colors',
-                  isActive
-                    ? 'text-neutral-900 font-medium'
-                    : 'text-neutral-400'
+                  isActive ? 'text-neutral-900 font-medium' : 'text-neutral-400'
                 )}
               >
                 <Icon className="h-5 w-5" />

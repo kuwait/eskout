@@ -20,11 +20,11 @@ const POSITION_CODES = ['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 
 const FOOT_VALUES = ['Dir', 'Esq', 'Amb', ''] as const;
 const OPINION_VALUES = [
   '1ª Escolha', '2ª Escolha', 'Acompanhar',
-  'Por Observar', 'Urgente Observar', 'Sem interesse', 'Potencial', '',
+  'Por Observar', 'Urgente Observar', 'Sem interesse', 'Potencial', 'Assinar', '',
 ] as const;
 const RECRUITMENT_VALUES = [
-  'pool', 'shortlist', 'to_observe', 'target',
-  'in_contact', 'negotiating', 'confirmed', 'rejected',
+  'por_tratar', 'a_observar', 'em_contacto', 'vir_treinar',
+  'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou', 'rejeitado',
 ] as const;
 
 export const playerFormSchema = z.object({
@@ -35,7 +35,15 @@ export const playerFormSchema = z.object({
   foot: z.enum(FOOT_VALUES).default(''),
   shirtNumber: z.string().default(''),
   contact: z.string().default(''),
-  departmentOpinion: z.enum(OPINION_VALUES).default('Por Observar'),
+  departmentOpinion: z.preprocess(
+    (val) => {
+      // FormData sends comma-separated or multiple entries; ensure array
+      if (typeof val === 'string') return val ? val.split(',') : [];
+      if (Array.isArray(val)) return val;
+      return [];
+    },
+    z.array(z.enum(OPINION_VALUES)).default(['Por Observar'])
+  ),
   observer: z.string().default(''),
   observerEval: z.string().default(''),
   observerDecision: z.string().default(''),
@@ -43,7 +51,7 @@ export const playerFormSchema = z.object({
   notes: z.string().default(''),
   fpfLink: z.string().url('URL FPF inválido').or(z.literal('')).default(''),
   zerozeroLink: z.string().url('URL ZeroZero inválido').or(z.literal('')).default(''),
-  recruitmentStatus: z.enum(RECRUITMENT_VALUES).default('pool'),
+  recruitmentStatus: z.enum(RECRUITMENT_VALUES).optional(),
 });
 
 export type PlayerFormData = z.infer<typeof playerFormSchema>;
@@ -61,3 +69,29 @@ export const observationNoteSchema = z.object({
 });
 
 export type ObservationNoteData = z.infer<typeof observationNoteSchema>;
+
+/* ───────────── Shadow Squad ───────────── */
+
+export const shadowSquadSchema = z.object({
+  playerId: z.number().int().positive('ID de jogador inválido'),
+  position: z.enum(['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'], {
+    message: 'Posição inválida',
+  }),
+});
+
+export type ShadowSquadData = z.infer<typeof shadowSquadSchema>;
+
+/* ───────────── Recruitment Status Change ───────────── */
+
+export const recruitmentStatusChangeSchema = z.object({
+  playerId: z.number().int().positive('ID de jogador inválido'),
+  newStatus: z.enum([
+    'por_tratar', 'a_observar', 'em_contacto', 'vir_treinar',
+    'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou', 'rejeitado',
+  ], {
+    message: 'Estado de recrutamento inválido',
+  }),
+  note: z.string().optional(),
+});
+
+export type RecruitmentStatusChangeData = z.infer<typeof recruitmentStatusChangeSchema>;

@@ -65,7 +65,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
       foot: rest.foot || null,
       shirt_number: rest.shirtNumber || null,
       contact: rest.contact || null,
-      department_opinion: rest.departmentOpinion || 'Por Observar',
+      department_opinion: rest.departmentOpinion?.length ? rest.departmentOpinion : ['Por Observar'],
       observer: rest.observer || null,
       observer_eval: rest.observerEval || null,
       observer_decision: rest.observerDecision || null,
@@ -73,7 +73,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
       notes: rest.notes || null,
       fpf_link: rest.fpfLink || null,
       zerozero_link: rest.zerozeroLink || null,
-      recruitment_status: rest.recruitmentStatus || 'pool',
+      recruitment_status: rest.recruitmentStatus || null,
       created_by: user?.id,
     })
     .select('id')

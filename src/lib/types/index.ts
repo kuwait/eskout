@@ -14,20 +14,22 @@ export type DepartmentOpinion =
   | 'Por Observar'
   | 'Urgente Observar'
   | 'Sem interesse'
-  | 'Potencial';
+  | 'Potencial'
+  | 'Assinar';
 
 export type ObserverEval = '' | '2 - Dúvida' | '3 - Bom' | '4 - Muito Bom' | '5 - Excelente';
 export type ObserverDecision = '' | 'Assinar' | 'Acompanhar' | 'Rever' | 'Sem Interesse';
 
 export type RecruitmentStatus =
-  | 'pool'
-  | 'shortlist'
-  | 'to_observe'
-  | 'target'
-  | 'in_contact'
-  | 'negotiating'
-  | 'confirmed'
-  | 'rejected';
+  | 'por_tratar'
+  | 'a_observar'
+  | 'em_contacto'
+  | 'vir_treinar'
+  | 'reuniao_marcada'
+  | 'a_decidir'
+  | 'confirmado'
+  | 'assinou'
+  | 'rejeitado';
 
 export type UserRole = 'admin' | 'scout';
 
@@ -46,7 +48,7 @@ export interface Player {
   foot: Foot;
   shirtNumber: string;
   contact: string;
-  departmentOpinion: DepartmentOpinion | '';
+  departmentOpinion: DepartmentOpinion[];
   observer: string;
   observerEval: ObserverEval;
   observerDecision: ObserverDecision;
@@ -66,14 +68,21 @@ export interface Player {
   zzGoalsSeason: number | null;
   zzHeight: number | null;
   zzWeight: number | null;
+  photoUrl: string | null;
   zzPhotoUrl: string | null;
   zzTeamHistory: { club: string; season: string; games: number; goals: number }[] | null;
   zzLastChecked: string | null;
-  recruitmentStatus: RecruitmentStatus;
+  recruitmentStatus: RecruitmentStatus | null;
+  trainingDate: string | null;
+  meetingDate: string | null;
+  signingDate: string | null;
   recruitmentNotes: string;
   isRealSquad: boolean;
   isShadowSquad: boolean;
   shadowPosition: PositionCode | null;
+  shadowOrder: number;
+  realOrder: number;
+  pipelineOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,7 +100,7 @@ export interface PlayerRow {
   foot: string | null;
   shirt_number: string | null;
   contact: string | null;
-  department_opinion: string | null;
+  department_opinion: string[] | string | null;
   observer: string | null;
   observer_eval: string | null;
   observer_decision: string | null;
@@ -121,14 +130,21 @@ export interface PlayerRow {
   zz_goals_season: number | null;
   zz_height: number | null;
   zz_weight: number | null;
+  photo_url: string | null;
   zz_photo_url: string | null;
   zz_team_history: { club: string; season: string; games: number; goals: number }[] | null;
   zz_last_checked: string | null;
   recruitment_status: string;
+  training_date: string | null;
+  meeting_date: string | null;
+  signing_date: string | null;
   recruitment_notes: string | null;
   is_real_squad: boolean;
   is_shadow_squad: boolean;
   shadow_position: string | null;
+  shadow_order: number;
+  real_order: number;
+  pipeline_order: number;
   created_at: string;
   updated_at: string;
   created_by: string | null;
