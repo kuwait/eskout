@@ -9,7 +9,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell,
+  Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell, FileText, PlusCircle,
   Upload, Download, UserCog, Settings, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,12 +18,14 @@ import { Button } from '@/components/ui/button';
 import type { AlertCounts } from '@/components/layout/AppShell';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Jogadores', icon: Users },
-  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck },
-  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield },
-  { href: '/pipeline', label: 'Abordagens', icon: GitBranch },
-  { href: '/calendario', label: 'Calendário', icon: CalendarDays },
-  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell },
+  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: false },
+  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true },
+  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true },
+  { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true },
+  { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true },
+  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true },
+  { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true },
+  { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true },
 ];
 
 const ADMIN_ITEMS = [
@@ -35,6 +37,10 @@ const ADMIN_ITEMS = [
 
 export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; userRole: string }) {
   const pathname = usePathname();
+  const isScout = userRole === 'scout';
+  const visibleItems = isScout
+    ? NAV_ITEMS.filter((i) => !i.scoutHidden)
+    : NAV_ITEMS.filter((i) => !i.scoutOnly);
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-white lg:h-screen lg:fixed lg:left-0 lg:top-0">
@@ -49,7 +55,7 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href ||
               (item.href !== '/' && pathname.startsWith(item.href));

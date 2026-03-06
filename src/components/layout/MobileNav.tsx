@@ -7,26 +7,32 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, ShieldCheck, Users, GitBranch, Bell, Menu } from 'lucide-react';
+import { Shield, ShieldCheck, Users, GitBranch, Bell, FileText, PlusCircle, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AlertCounts } from '@/components/layout/AppShell';
 
 const TABS = [
-  { href: '/', label: 'Jogadores', icon: Users },
-  { href: '/campo/real', label: 'Plantel', icon: ShieldCheck },
-  { href: '/campo/sombra', label: 'Sombra', icon: Shield },
-  { href: '/pipeline', label: 'Abordagens', icon: GitBranch },
-  { href: '/alertas', label: 'Prioritárias', icon: Bell },
-  { href: '/mais', label: 'Mais', icon: Menu },
+  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true, scoutOnly: false },
+  { href: '/campo/real', label: 'Plantel', icon: ShieldCheck, scoutHidden: true, scoutOnly: false },
+  { href: '/campo/sombra', label: 'Sombra', icon: Shield, scoutHidden: true, scoutOnly: false },
+  { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, scoutOnly: false },
+  { href: '/alertas', label: 'Prioritárias', icon: Bell, scoutHidden: true, scoutOnly: false },
+  { href: '/meus-relatorios', label: 'Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true },
+  { href: '/submeter', label: 'Submeter', icon: PlusCircle, scoutHidden: false, scoutOnly: true },
+  { href: '/mais', label: 'Mais', icon: Menu, scoutHidden: false, scoutOnly: false },
 ];
 
-export function MobileNav({ alertCounts }: { alertCounts: AlertCounts }) {
+export function MobileNav({ alertCounts, userRole }: { alertCounts: AlertCounts; userRole: string }) {
   const pathname = usePathname();
+  const isScout = userRole === 'scout';
+  const visibleTabs = isScout
+    ? TABS.filter((t) => !t.scoutHidden)
+    : TABS.filter((t) => !t.scoutOnly);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white lg:hidden">
       <ul className="flex">
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.href === '/'
             ? pathname === '/'

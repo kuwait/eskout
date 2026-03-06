@@ -1,23 +1,31 @@
 // src/app/mais/page.tsx
 // "More" menu page for mobile — links to Import, Export, Admin sections
-// Provides navigation to pages not in the bottom tab bar. Admin items hidden for non-admins.
+// Provides navigation to pages not in the bottom tab bar. Role-filtered items.
 // RELEVANT FILES: src/components/layout/MobileNav.tsx, src/lib/supabase/queries.ts, src/app/layout.tsx
 
 import Link from 'next/link';
-import { Upload, Download, UserCog, Settings } from 'lucide-react';
+import { Upload, Download, UserCog, Settings, LogOut } from 'lucide-react';
 import { getCurrentUserRole } from '@/lib/supabase/queries';
+import { logout } from '@/actions/auth';
+import { Button } from '@/components/ui/button';
 
 const ITEMS = [
-  { href: '/definicoes', label: 'Definições', icon: Settings, description: 'Atualizar dados externos (FPF, ZeroZero)', adminOnly: false },
-  { href: '/importar', label: 'Importar', icon: Upload, description: 'Importar ficheiro Excel', adminOnly: true },
-  { href: '/exportar', label: 'Exportar', icon: Download, description: 'Exportar PDF / Excel', adminOnly: true },
-  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, description: 'Gestão de utilizadores', adminOnly: true },
+  { href: '/definicoes', label: 'Definições', icon: Settings, description: 'Atualizar dados externos (FPF, ZeroZero)', adminOnly: false, scoutHidden: true },
+  { href: '/importar', label: 'Importar', icon: Upload, description: 'Importar ficheiro Excel', adminOnly: true, scoutHidden: true },
+  { href: '/exportar', label: 'Exportar', icon: Download, description: 'Exportar PDF / Excel', adminOnly: true, scoutHidden: true },
+  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, description: 'Gestão de utilizadores', adminOnly: true, scoutHidden: true },
 ];
 
 export default async function MaisPage() {
   const role = await getCurrentUserRole();
   const isAdmin = role === 'admin';
-  const visibleItems = isAdmin ? ITEMS : ITEMS.filter((item) => !item.adminOnly);
+  const isScout = role === 'scout';
+
+  const visibleItems = isScout
+    ? [] // Scout sees nothing here except logout
+    : isAdmin
+      ? ITEMS
+      : ITEMS.filter((item) => !item.adminOnly);
 
   return (
     <div className="p-4 lg:p-6">
@@ -39,6 +47,14 @@ export default async function MaisPage() {
             </Link>
           );
         })}
+
+        {/* Logout — visible to all, especially scouts who have limited nav */}
+        <form action={logout}>
+          <Button variant="outline" className="w-full justify-start gap-3 mt-4" type="submit">
+            <LogOut className="h-5 w-5 text-neutral-600" />
+            Sair
+          </Button>
+        </form>
       </div>
     </div>
   );

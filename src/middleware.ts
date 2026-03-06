@@ -9,6 +9,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password'];
 // Routes that require admin role — editors and scouts are redirected
 const ADMIN_ONLY_ROUTES = ['/admin'];
+// Scouts can ONLY access these routes — everything else is blocked
+const SCOUT_ALLOWED_ROUTES = ['/meus-relatorios', '/submeter', '/mais'];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -62,18 +64,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Admin-only route protection — check role from profiles table
+  // Role-based route protection — fetch role once if needed
   const isAdminRoute = ADMIN_ONLY_ROUTES.some((route) => pathname.startsWith(route));
-  if (user && isAdminRoute) {
+  const isScoutAllowed = SCOUT_ALLOWED_ROUTES.some((route) => pathname.startsWith(route));
+
+  if (user && (isAdminRoute || !isScoutAllowed)) {
     const { data } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
 
-    if (data?.role !== 'admin') {
+    const role = data?.role;
+
+    // Admin-only pages
+    if (isAdminRoute && role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/';
+      return NextResponse.redirect(url);
+    }
+
+    // Scout — redirect to /meus-relatorios if accessing any non-allowed route
+    if (role === 'scout' && !isScoutAllowed) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/meus-relatorios';
       return NextResponse.redirect(url);
     }
   }

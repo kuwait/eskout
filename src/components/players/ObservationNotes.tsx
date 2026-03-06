@@ -22,7 +22,7 @@ interface ObservationNotesProps {
   showForm?: boolean;
   onShowFormChange?: (show: boolean) => void;
   /** Admin can edit any note */
-  isAdmin?: boolean;
+  canEdit?: boolean;
 }
 
 /* ───────────── Priority config ───────────── */
@@ -72,7 +72,7 @@ export function AddNoteButton({ onClick }: { onClick: () => void }) {
 
 /* ───────────── Main component ───────────── */
 
-export function ObservationNotes({ playerId, notes, showForm: showFormProp, onShowFormChange, isAdmin }: ObservationNotesProps) {
+export function ObservationNotes({ playerId, notes, showForm: showFormProp, onShowFormChange, canEdit }: ObservationNotesProps) {
   const router = useRouter();
   const [showFormInternal, setShowFormInternal] = useState(false);
   const showForm = showFormProp ?? showFormInternal;
@@ -272,7 +272,7 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {isAdmin && (
+                {canEdit && (
                   <button
                     onClick={() => startEdit(note)}
                     className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-blue-50 hover:text-blue-500 group-hover/note:opacity-100"

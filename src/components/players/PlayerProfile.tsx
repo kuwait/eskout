@@ -107,6 +107,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [isDeleting, startDelete] = useTransition();
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
+  const canEdit = userRole === 'admin' || userRole === 'editor';
 
   // Clear savedDraft when server delivers fresh props (after router.refresh())
   useEffect(() => {
@@ -328,7 +329,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </DropdownMenuContent>
             </DropdownMenu>
             <RefreshPlayerButton player={player} />
-            {isAdmin && (
+            {canEdit && (
               <Button variant="outline" size="sm" onClick={handleEdit}>
                 <Pencil className="mr-1 h-3 w-3" />
                 Editar
@@ -338,15 +339,17 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         )}
         {editing && (
           <div className="flex gap-2">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={isPending || isDeleting}
-            >
-              <Trash2 className="mr-1 h-3 w-3" />
-              Eliminar
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isPending || isDeleting}
+              >
+                <Trash2 className="mr-1 h-3 w-3" />
+                Eliminar
+              </Button>
+            )}
             <Button size="sm" onClick={handleSave} disabled={isPending || isDeleting}>
               <Save className="mr-1 h-3 w-3" />
               Guardar
@@ -705,7 +708,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 notes={notes}
                 showForm={showNoteForm}
                 onShowFormChange={setShowNoteForm}
-                isAdmin={isAdmin}
+                canEdit={canEdit}
               />
             </Section>
           </div>

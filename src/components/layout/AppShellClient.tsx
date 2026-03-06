@@ -47,7 +47,7 @@ export function AppShellClient({
       <main className="overflow-x-clip pb-16 lg:ml-64 lg:pb-0">
         {children}
       </main>
-      <MobileNav alertCounts={alertCounts} />
+      <MobileNav alertCounts={alertCounts} userRole={userRole} />
     </AgeGroupProvider>
   );
 }
