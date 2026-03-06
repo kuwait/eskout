@@ -116,6 +116,13 @@ export const FOOT_OPTIONS = [
   { value: 'Amb', label: 'Ambidestro' },
 ] as const;
 
+/** Map short foot codes to full Portuguese labels */
+export const FOOT_LABEL_MAP: Record<string, string> = {
+  Dir: 'Direito',
+  Esq: 'Esquerdo',
+  Amb: 'Ambidestro',
+};
+
 /* ───────────── Age Groups (season 2025/2026) ───────────── */
 
 export const AGE_GROUPS: { name: string; generationYear: number }[] = [

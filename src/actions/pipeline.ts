@@ -121,10 +121,10 @@ export async function updateRecruitmentStatus(
     return { success: false, error: 'Não autenticado' };
   }
 
-  // Get current status for history
+  // Get current status and date fields for richer history context
   const { data: player } = await supabase
     .from('players')
-    .select('recruitment_status')
+    .select('recruitment_status, training_date, meeting_date, signing_date')
     .eq('id', playerId)
     .single();
 
@@ -225,6 +225,13 @@ export async function updateTrainingDate(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Não autenticado' };
 
+  // Get old value for history
+  const { data: player } = await supabase
+    .from('players')
+    .select('training_date')
+    .eq('id', playerId)
+    .single();
+
   const { error } = await supabase
     .from('players')
     .update({ training_date: dateTime })
@@ -233,6 +240,15 @@ export async function updateTrainingDate(
   if (error) {
     return { success: false, error: `Erro ao atualizar data de treino: ${error.message}` };
   }
+
+  // Log to status_history
+  await supabase.from('status_history').insert({
+    player_id: playerId,
+    field_changed: 'training_date',
+    old_value: player?.training_date ?? null,
+    new_value: dateTime,
+    changed_by: user.id,
+  });
 
   // Sync to calendar (create/update/delete calendar event)
   await syncCalendarEvent(supabase, user.id, playerId, 'training_date', dateTime);
@@ -252,6 +268,13 @@ export async function updateSigningDate(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Não autenticado' };
 
+  // Get old value for history
+  const { data: player } = await supabase
+    .from('players')
+    .select('signing_date')
+    .eq('id', playerId)
+    .single();
+
   const { error } = await supabase
     .from('players')
     .update({ signing_date: dateTime })
@@ -260,6 +283,15 @@ export async function updateSigningDate(
   if (error) {
     return { success: false, error: `Erro ao atualizar data de assinatura: ${error.message}` };
   }
+
+  // Log to status_history
+  await supabase.from('status_history').insert({
+    player_id: playerId,
+    field_changed: 'signing_date',
+    old_value: player?.signing_date ?? null,
+    new_value: dateTime,
+    changed_by: user.id,
+  });
 
   // Sync to calendar (create/update/delete calendar event)
   await syncCalendarEvent(supabase, user.id, playerId, 'signing_date', dateTime);
@@ -279,6 +311,13 @@ export async function updateMeetingDate(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Não autenticado' };
 
+  // Get old value for history
+  const { data: player } = await supabase
+    .from('players')
+    .select('meeting_date')
+    .eq('id', playerId)
+    .single();
+
   const { error } = await supabase
     .from('players')
     .update({ meeting_date: dateTime })
@@ -287,6 +326,15 @@ export async function updateMeetingDate(
   if (error) {
     return { success: false, error: `Erro ao atualizar data de reunião: ${error.message}` };
   }
+
+  // Log to status_history
+  await supabase.from('status_history').insert({
+    player_id: playerId,
+    field_changed: 'meeting_date',
+    old_value: player?.meeting_date ?? null,
+    new_value: dateTime,
+    changed_by: user.id,
+  });
 
   // Sync to calendar (create/update/delete calendar event)
   await syncCalendarEvent(supabase, user.id, playerId, 'meeting_date', dateTime);

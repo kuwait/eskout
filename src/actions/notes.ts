@@ -13,7 +13,8 @@ import type { ActionResponse } from '@/lib/types';
 export async function createObservationNote(
   playerId: number,
   content: string,
-  matchContext?: string
+  matchContext?: string,
+  priority: 'normal' | 'importante' | 'urgente' = 'normal'
 ): Promise<ActionResponse> {
   const parsed = observationNoteSchema.safeParse({ content, matchContext });
   if (!parsed.success) {
@@ -29,10 +30,53 @@ export async function createObservationNote(
     author_id: user.id,
     content: parsed.data.content,
     match_context: parsed.data.matchContext || null,
+    priority,
   });
 
   if (error) {
     return { success: false, error: `Erro ao criar nota: ${error.message}` };
+  }
+
+  revalidatePath(`/jogadores/${playerId}`);
+  return { success: true };
+}
+
+export async function deleteObservationNote(
+  noteId: number,
+  playerId: number
+): Promise<ActionResponse> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Não autenticado' };
+
+  // Only admins or the note author can delete
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const isAdmin = profile?.role === 'admin';
+
+  if (!isAdmin) {
+    // Check if user is the author
+    const { data: note } = await supabase
+      .from('observation_notes')
+      .select('author_id')
+      .eq('id', noteId)
+      .single();
+    if (!note || note.author_id !== user.id) {
+      return { success: false, error: 'Sem permissão para apagar esta nota' };
+    }
+  }
+
+  const { error } = await supabase
+    .from('observation_notes')
+    .delete()
+    .eq('id', noteId);
+
+  if (error) {
+    return { success: false, error: `Erro ao apagar nota: ${error.message}` };
   }
 
   revalidatePath(`/jogadores/${playerId}`);

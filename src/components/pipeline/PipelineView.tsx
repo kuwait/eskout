@@ -111,6 +111,7 @@ export function PipelineView() {
             authorName: nameMap[row.author_id] ?? 'Desconhecido',
             content: row.content as string,
             matchContext: row.match_context as string | null,
+            priority: ((row.priority as string) ?? 'normal') as import('@/lib/types').NotePriority,
             createdAt: row.created_at as string,
           }))
         );

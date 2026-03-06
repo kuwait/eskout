@@ -45,6 +45,8 @@ export interface Player {
   club: string;
   positionOriginal: string;
   positionNormalized: string;
+  secondaryPosition: string | null;
+  tertiaryPosition: string | null;
   foot: Foot;
   shirtNumber: string;
   contact: string;
@@ -101,6 +103,8 @@ export interface PlayerRow {
   club: string | null;
   position_original: string | null;
   position_normalized: string | null;
+  secondary_position: string | null;
+  tertiary_position: string | null;
   foot: string | null;
   shirt_number: string | null;
   contact: string | null;
@@ -204,6 +208,8 @@ export interface StatusHistoryEntry {
 
 /* ───────────── Observation Notes ───────────── */
 
+export type NotePriority = 'normal' | 'importante' | 'urgente';
+
 export interface ObservationNote {
   id: number;
   playerId: number;
@@ -211,6 +217,7 @@ export interface ObservationNote {
   authorName: string;
   content: string;
   matchContext: string | null;
+  priority: NotePriority;
   createdAt: string;
 }
 

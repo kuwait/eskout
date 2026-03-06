@@ -52,6 +52,7 @@ export function usePlayerProfilePopup(allPlayers: Player[]) {
             authorName: (row.profiles as { full_name: string } | null)?.full_name ?? 'Desconhecido',
             content: row.content as string,
             matchContext: row.match_context as string | null,
+            priority: ((row.priority as string) ?? 'normal') as import('@/lib/types').NotePriority,
             createdAt: row.created_at as string,
           })),
         }));

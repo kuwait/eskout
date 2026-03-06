@@ -9,12 +9,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Shield, ShieldCheck, Users, GitBranch, CalendarDays,
+  Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell,
   Upload, Download, UserCog, Settings, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
+import type { AlertCounts } from '@/components/layout/AppShell';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Jogadores', icon: Users },
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield },
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays },
+  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell },
 ];
 
 const ADMIN_ITEMS = [
@@ -31,7 +33,7 @@ const ADMIN_ITEMS = [
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog },
 ];
 
-export function Sidebar() {
+export function Sidebar({ alertCounts }: { alertCounts: AlertCounts }) {
   const pathname = usePathname();
 
   return (
@@ -65,6 +67,17 @@ export function Sidebar() {
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
+                  {/* Alert badges on Alertas tab */}
+                  {item.href === '/alertas' && (alertCounts.urgente > 0 || alertCounts.importante > 0) && (
+                    <span className="ml-auto flex items-center gap-1">
+                      {alertCounts.urgente > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{alertCounts.urgente}</span>
+                      )}
+                      {alertCounts.importante > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 px-1.5 text-[10px] font-bold text-neutral-800">{alertCounts.importante}</span>
+                      )}
+                    </span>
+                  )}
                 </Link>
               </li>
             );

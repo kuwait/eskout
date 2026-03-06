@@ -69,6 +69,8 @@ export function mapPlayerRow(row: PlayerRow): Player {
     club: row.club ?? '',
     positionOriginal: row.position_original ?? '',
     positionNormalized: (row.position_normalized as Player['positionNormalized']) ?? '',
+    secondaryPosition: row.secondary_position ?? null,
+    tertiaryPosition: row.tertiary_position ?? null,
     foot: (row.foot as Player['foot']) ?? '',
     shirtNumber: formatShirtNumber(row.shirt_number),
     contact: row.contact ?? '',

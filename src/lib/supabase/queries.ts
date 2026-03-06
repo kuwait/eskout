@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { mapPlayerRow, mapCalendarEventRow } from '@/lib/supabase/mappers';
-import type { CalendarEvent, CalendarEventRow, Player, PlayerRow, Profile, StatusHistoryEntry, ObservationNote } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, StatusHistoryEntry, ObservationNote } from '@/lib/types';
 
 /* ───────────── Players ───────────── */
 
@@ -55,11 +55,27 @@ export async function getStatusHistory(playerId: number): Promise<StatusHistoryE
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('status_history')
-    .select('*, profiles:changed_by(full_name)')
+    .select('*')
     .eq('player_id', playerId)
     .order('created_at', { ascending: false });
 
-  if (error) return [];
+  if (error) {
+    console.error('[getStatusHistory] Failed to fetch:', error);
+    return [];
+  }
+
+  // Resolve author names from profiles in a separate query to avoid join issues
+  const changedByIds = [...new Set((data ?? []).map((r) => r.changed_by).filter(Boolean))];
+  let profileMap: Record<string, string> = {};
+  if (changedByIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', changedByIds);
+    profileMap = Object.fromEntries(
+      (profiles ?? []).map((p) => [p.id, p.full_name])
+    );
+  }
 
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -68,8 +84,7 @@ export async function getStatusHistory(playerId: number): Promise<StatusHistoryE
     oldValue: row.old_value,
     newValue: row.new_value,
     changedBy: row.changed_by,
-    // Supabase join returns { full_name } or null
-    changedByName: (row.profiles as { full_name: string } | null)?.full_name ?? 'Sistema',
+    changedByName: (row.changed_by && profileMap[row.changed_by]) || 'Sistema',
     notes: row.notes,
     createdAt: row.created_at,
   }));
@@ -81,21 +96,104 @@ export async function getObservationNotes(playerId: number): Promise<Observation
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('observation_notes')
-    .select('*, profiles:author_id(full_name)')
+    .select('*')
     .eq('player_id', playerId)
     .order('created_at', { ascending: false });
 
-  if (error) return [];
+  if (error) {
+    console.error('[getObservationNotes] Failed to fetch:', error);
+    return [];
+  }
+
+  // Resolve author names separately to avoid join issues
+  const authorIds = [...new Set((data ?? []).map((r) => r.author_id).filter(Boolean))];
+  let profileMap: Record<string, string> = {};
+  if (authorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', authorIds);
+    profileMap = Object.fromEntries(
+      (profiles ?? []).map((p) => [p.id, p.full_name])
+    );
+  }
 
   return (data ?? []).map((row) => ({
     id: row.id,
     playerId: row.player_id,
     authorId: row.author_id,
-    authorName: (row.profiles as { full_name: string } | null)?.full_name ?? 'Desconhecido',
+    authorName: row.author_id ? (profileMap[row.author_id] || 'Desconhecido') : 'Importado',
     content: row.content,
     matchContext: row.match_context,
+    priority: row.priority ?? 'normal',
     createdAt: row.created_at,
   }));
+}
+
+/* ───────────── Flagged Notes (important + urgent, across all players) ───────────── */
+
+export interface FlaggedNote extends ObservationNote {
+  playerName: string;
+  playerPhotoUrl: string | null;
+}
+
+export async function getFlaggedNotes(ageGroupId?: number): Promise<FlaggedNote[]> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('observation_notes')
+    .select('*, players:player_id(name, age_group_id, photo_url, zz_photo_url)')
+    .in('priority', ['importante', 'urgente'])
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  // If age group provided, filter by it (via joined player)
+  // Note: Supabase doesn't support filtering on joined columns directly in .eq(),
+  // so we filter in JS after fetch
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[getFlaggedNotes] Failed to fetch:', error);
+    return [];
+  }
+
+  // Resolve author names
+  const authorIds = [...new Set((data ?? []).map((r) => r.author_id).filter(Boolean))];
+  let profileMap: Record<string, string> = {};
+  if (authorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', authorIds);
+    profileMap = Object.fromEntries(
+      (profiles ?? []).map((p) => [p.id, p.full_name])
+    );
+  }
+
+  const mapped = (data ?? [])
+    .filter((row) => {
+      // Filter by age group if provided
+      if (!ageGroupId) return true;
+      const player = row.players as { name: string; age_group_id: number; photo_url: string | null; zz_photo_url: string | null } | null;
+      return player?.age_group_id === ageGroupId;
+    })
+    .map((row) => {
+      const player = row.players as { name: string; age_group_id: number; photo_url: string | null; zz_photo_url: string | null } | null;
+      return {
+        id: row.id,
+        playerId: row.player_id,
+        authorId: row.author_id,
+        authorName: row.author_id ? (profileMap[row.author_id] || 'Desconhecido') : 'Importado',
+        content: row.content,
+        matchContext: row.match_context,
+        priority: (row.priority ?? 'normal') as NotePriority,
+        createdAt: row.created_at,
+        playerName: player?.name ?? '?',
+        playerPhotoUrl: player?.photo_url || player?.zz_photo_url || null,
+      };
+    });
+
+  return mapped;
 }
 
 /* ───────────── Dashboard Stats ───────────── */
@@ -181,21 +279,41 @@ export async function getRecentChanges(ageGroupId: number, limit = 10): Promise<
 
   const { data, error } = await supabase
     .from('status_history')
-    .select('*, players:player_id(name), profiles:changed_by(full_name)')
+    .select('*')
     .in('player_id', ids)
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error || !data) return [];
 
+  // Resolve player names and author names separately to avoid join issues
+  const playerIdSet = [...new Set(data.map((r) => r.player_id).filter(Boolean))];
+  const changedByIds = [...new Set(data.map((r) => r.changed_by).filter(Boolean))];
+
+  const [playersRes, profilesRes] = await Promise.all([
+    playerIdSet.length > 0
+      ? supabase.from('players').select('id, name').in('id', playerIdSet)
+      : { data: [] },
+    changedByIds.length > 0
+      ? supabase.from('profiles').select('id, full_name').in('id', changedByIds)
+      : { data: [] },
+  ]);
+
+  const playerMap = Object.fromEntries(
+    (playersRes.data ?? []).map((p) => [p.id, p.name])
+  );
+  const profileMap = Object.fromEntries(
+    (profilesRes.data ?? []).map((p) => [p.id, p.full_name])
+  );
+
   return data.map((row) => ({
     id: row.id,
-    playerName: (row.players as { name: string } | null)?.name ?? '?',
+    playerName: (row.player_id && playerMap[row.player_id]) || '?',
     playerId: row.player_id,
     fieldChanged: row.field_changed,
     oldValue: row.old_value,
     newValue: row.new_value,
-    changedByName: (row.profiles as { full_name: string } | null)?.full_name ?? 'Sistema',
+    changedByName: (row.changed_by && profileMap[row.changed_by]) || 'Sistema',
     createdAt: row.created_at,
   }));
 }

@@ -70,7 +70,6 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
       observer_eval: rest.observerEval || null,
       observer_decision: rest.observerDecision || null,
       referred_by: rest.referredBy || null,
-      notes: rest.notes || null,
       fpf_link: rest.fpfLink || null,
       zerozero_link: rest.zerozeroLink || null,
       recruitment_status: rest.recruitmentStatus || null,
@@ -83,15 +82,49 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     return { success: false, error: `Erro ao criar jogador: ${error.message}` };
   }
 
+  // If notes were provided, create an observation note instead of storing on player
+  if (rest.notes?.trim()) {
+    await supabase.from('observation_notes').insert({
+      player_id: player!.id,
+      author_id: user?.id ?? null,
+      content: rest.notes.trim(),
+    });
+  }
+
   revalidatePath('/jogadores');
   return { success: true, data: { id: player!.id } };
 }
+
+// Fields that are tracked in status_history when changed via player profile
+const TRACKED_FIELDS = [
+  'recruitment_status',
+  'department_opinion',
+  'is_shadow_squad',
+  'is_real_squad',
+  'shadow_position',
+  'position_normalized',
+  'club',
+  'observer_decision',
+] as const;
 
 export async function updatePlayer(
   playerId: number,
   updates: Record<string, unknown>
 ): Promise<ActionResponse> {
   const supabase = await createClient();
+
+  // Fetch current values for tracked fields so we can detect changes
+  const trackedInUpdates = TRACKED_FIELDS.filter((f) => f in updates);
+  let oldValues: Record<string, unknown> = {};
+
+  if (trackedInUpdates.length > 0) {
+    const { data: current } = await supabase
+      .from('players')
+      .select(trackedInUpdates.join(','))
+      .eq('id', playerId)
+      .single();
+    if (current) oldValues = current as unknown as Record<string, unknown>;
+  }
 
   const { error } = await supabase
     .from('players')
@@ -102,7 +135,33 @@ export async function updatePlayer(
     return { success: false, error: `Erro ao atualizar jogador: ${error.message}` };
   }
 
+  // Log changes to status_history for tracked fields
+  if (trackedInUpdates.length > 0) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    for (const field of trackedInUpdates) {
+      const oldVal = oldValues[field];
+      const newVal = updates[field];
+      // Stringify for comparison (arrays like department_opinion)
+      const oldStr = oldVal == null ? null : (Array.isArray(oldVal) ? oldVal.join(', ') : String(oldVal));
+      const newStr = newVal == null ? null : (Array.isArray(newVal) ? (newVal as string[]).join(', ') : String(newVal));
+
+      if (oldStr !== newStr) {
+        await supabase.from('status_history').insert({
+          player_id: playerId,
+          field_changed: field,
+          old_value: oldStr,
+          new_value: newStr,
+          changed_by: userId,
+        });
+      }
+    }
+  }
+
   revalidatePath('/jogadores');
   revalidatePath(`/jogadores/${playerId}`);
+  revalidatePath('/pipeline');
+  revalidatePath('/campo');
   return { success: true };
 }

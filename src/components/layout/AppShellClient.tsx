@@ -11,15 +11,18 @@ import { AgeGroupProvider } from '@/hooks/useAgeGroup';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import type { AgeGroup } from '@/lib/types';
+import type { AlertCounts } from '@/components/layout/AppShell';
 
 const PUBLIC_ROUTES = ['/login'];
 
 export function AppShellClient({
   children,
   ageGroups,
+  alertCounts,
 }: {
   children: React.ReactNode;
   ageGroups: AgeGroup[];
+  alertCounts: AlertCounts;
 }) {
   const pathname = usePathname();
   const isPublic = PUBLIC_ROUTES.includes(pathname);
@@ -30,7 +33,7 @@ export function AppShellClient({
 
   return (
     <AgeGroupProvider ageGroups={ageGroups}>
-      <Sidebar />
+      <Sidebar alertCounts={alertCounts} />
       {/* Mobile header */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2">
@@ -42,7 +45,7 @@ export function AppShellClient({
       <main className="overflow-x-clip pb-16 lg:ml-64 lg:pb-0">
         {children}
       </main>
-      <MobileNav />
+      <MobileNav alertCounts={alertCounts} />
     </AgeGroupProvider>
   );
 }
