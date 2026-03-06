@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import type { AlertCounts } from '@/components/layout/AppShell';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: false },
+  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true },
   { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true },
   { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true },
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true },
