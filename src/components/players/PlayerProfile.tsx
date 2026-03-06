@@ -5,9 +5,10 @@
 
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { ArrowLeft, Download, ExternalLink, Camera, Pencil, Printer, Save, Trash2, User, X } from 'lucide-react';
 import {
   AlertDialog,
@@ -99,11 +100,18 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState(player);
+  // After save, keep showing draft values until server refresh delivers fresh props
+  const [savedDraft, setSavedDraft] = useState<typeof player | null>(null);
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, startDelete] = useTransition();
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
+
+  // Clear savedDraft when server delivers fresh props (after router.refresh())
+  useEffect(() => {
+    setSavedDraft(null);
+  }, [player]);
 
   // Hybrid rating from player (pre-computed: report ratings + scout evaluations)
   const hybridAvgRating = player.reportAvgRating;
@@ -145,6 +153,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
       };
       const result = await updatePlayer(player.id, updates);
       if (result.success) {
+        // Keep draft values visible until server refresh delivers fresh props
+        setSavedDraft({ ...draft });
         setEditing(false);
         // Refresh server data so status history and updated fields show immediately
         router.refresh();
@@ -152,7 +162,12 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         const fpfChanged = (draft.fpfLink || '') !== (player.fpfLink || '');
         const zzChanged = (draft.zerozeroLink || '') !== (player.zerozeroLink || '');
         if (fpfChanged || zzChanged) {
-          autoScrapePlayer(player.id, fpfChanged, zzChanged);
+          const scrapeResult = await autoScrapePlayer(player.id, fpfChanged, zzChanged);
+          if (scrapeResult.errors.length > 0) {
+            toast.warning(scrapeResult.errors.join('. '), { duration: 6000 });
+          }
+          // Refresh again after scrape to show updated external data
+          router.refresh();
         }
       }
     });
@@ -171,8 +186,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
     setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
-  // Data source for rendering (draft while editing, player while viewing)
-  const p = editing ? draft : player;
+  // Data source for rendering (draft while editing, savedDraft after save until refresh, player otherwise)
+  const p = editing ? draft : (savedDraft ?? player);
 
   /** Capture the profile as a canvas (shared by export & print) */
   async function captureProfile(): Promise<HTMLCanvasElement | null> {

@@ -246,9 +246,12 @@ async function fetchZeroZeroData(zzLink: string) {
     const html = new TextDecoder('iso-8859-1').decode(buf);
 
     // Detect captcha page content or empty/invalid responses
-    if (buf.byteLength === 0 || html.includes('recaptcha') || html.includes('g-recaptcha') ||
-        (!html.includes('card-data') && !html.includes('ld+json') && !html.includes('zz-enthdr'))) {
-      console.warn(`[ZZ] Resposta inválida (possível bloqueio): ${zzLink}`);
+    // ZZ pages may include a recaptcha script on valid pages — only treat as blocked if
+    // the page lacks real content markers (card-data, ld+json, zz-enthdr)
+    const hasMarkers = html.includes('card-data') || html.includes('ld+json') || html.includes('zz-enthdr');
+    if (buf.byteLength === 0 || !hasMarkers) {
+      const hasCaptcha = html.includes('recaptcha') || html.includes('g-recaptcha');
+      console.warn(`[ZZ] Resposta inválida (possível bloqueio, captcha=${hasCaptcha}): ${zzLink}`);
       throw new Error('ZZ_BLOCKED');
     }
     const result = {
@@ -774,7 +777,9 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   let zzLinkFound: string | null = null;
   let zzCandidate: ZzSearchCandidate | null = null;
   let zzBlocked = false;
+  let zzSearchAttempted = false;
   if (!player.zerozero_link && player.name && player.dob) {
+    zzSearchAttempted = true;
     try {
       const expectedAge = calcAgeFromDob(player.dob);
       zzCandidate = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob);
@@ -807,11 +812,18 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   ]);
 
   if (!fpfResult && player.fpf_link) errors.push('FPF indisponível');
+  // Detect empty ZZ result (page returned but no useful data — e.g. VPN/geo issues)
+  const zzEmpty = !!zzResult && !zzResult.fullName && !zzResult.currentClub && !zzResult.height && !zzResult.photoUrl;
   if (zzBlocked) errors.push('ZeroZero bloqueou o acesso (captcha). Tenta mais tarde.');
+  else if (zzEmpty && player.zerozero_link) errors.push('ZeroZero: página acedida mas sem dados (possível problema de rede/VPN)');
   else if (!zzResult && player.zerozero_link) errors.push('ZeroZero indisponível');
+  // Nullify empty ZZ result so downstream logic doesn't use it as valid data
+  const zzData = zzEmpty ? null : zzResult;
+  // Inform user when ZZ auto-search ran but found no matching player
+  if (zzSearchAttempted && !zzCandidate && !zzBlocked) errors.push('ZeroZero: jogador não encontrado na pesquisa automática');
 
-  if (!fpfResult && !zzResult) {
-    const noLinks = !player.fpf_link && !player.zerozero_link;
+  if (!fpfResult && !zzData) {
+    const noLinks = !player.fpf_link && !player.zerozero_link && !zzSearchAttempted;
     return { ...EMPTY_RESULT, success: !noLinks, errors: noLinks ? ['Sem links externos'] : errors };
   }
 
@@ -822,48 +834,48 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     cacheUpdates.fpf_last_checked = new Date().toISOString();
   }
   // Only cache ZZ fields if the link was already in the DB (not just auto-found)
-  if (zzResult && !zzLinkFound) {
-    cacheUpdates.zz_current_club = zzResult.currentClub;
-    cacheUpdates.zz_current_team = zzResult.currentTeam;
-    cacheUpdates.zz_games_season = zzResult.gamesSeason;
-    cacheUpdates.zz_goals_season = zzResult.goalsSeason;
-    cacheUpdates.zz_height = zzResult.height;
-    cacheUpdates.zz_weight = zzResult.weight;
-    cacheUpdates.zz_photo_url = zzResult.photoUrl;
-    cacheUpdates.zz_team_history = zzResult.teamHistory?.length ? zzResult.teamHistory : null;
+  if (zzData && !zzLinkFound) {
+    cacheUpdates.zz_current_club = zzData.currentClub;
+    cacheUpdates.zz_current_team = zzData.currentTeam;
+    cacheUpdates.zz_games_season = zzData.gamesSeason;
+    cacheUpdates.zz_goals_season = zzData.goalsSeason;
+    cacheUpdates.zz_height = zzData.height;
+    cacheUpdates.zz_weight = zzData.weight;
+    cacheUpdates.zz_photo_url = zzData.photoUrl;
+    cacheUpdates.zz_team_history = zzData.teamHistory?.length ? zzData.teamHistory : null;
     cacheUpdates.zz_last_checked = new Date().toISOString();
   }
   // Club logo: only auto-save if the scraped club matches the player's current club
   // (don't overwrite Canidelo's logo with Boavista's just because ZZ says the player moved)
   const fpfClubMatch = fpfResult?.currentClub && clubsMatch(fpfResult.currentClub, player.club ?? '');
-  const zzClubMatch = zzResult?.currentClub && clubsMatch(zzResult.currentClub, player.club ?? '');
+  const zzClubMatch = zzData?.currentClub && clubsMatch(zzData.currentClub, player.club ?? '');
   if (fpfResult?.clubLogoUrl && fpfClubMatch) cacheUpdates.club_logo_url = fpfResult.clubLogoUrl;
-  if (zzResult?.clubLogoUrl && !zzLinkFound && zzClubMatch) cacheUpdates.club_logo_url = zzResult.clubLogoUrl;
+  if (zzData?.clubLogoUrl && !zzLinkFound && zzClubMatch) cacheUpdates.club_logo_url = zzData.clubLogoUrl;
   if (Object.keys(cacheUpdates).length > 0) {
     await supabase.from('players').update(cacheUpdates).eq('id', playerId);
   }
 
   // Whether ZZ data is from a confirmed (pre-existing) link vs auto-found
-  const zzConfirmed = !!zzResult && !zzLinkFound;
+  const zzConfirmed = !!zzData && !zzLinkFound;
 
   // FPF-sourced: club (FPF priority), nationality, birth country
-  const mergedClub = fpfResult?.currentClub || (zzConfirmed ? zzResult?.currentClub : null) || null;
+  const mergedClub = fpfResult?.currentClub || (zzConfirmed ? zzData?.currentClub : null) || null;
   const clubChanged = mergedClub ? !clubsMatch(mergedClub, player.club ?? '') : false;
 
   // FPF-sourced: nationality, birth country (FPF priority, ZZ fallback if confirmed)
   // normalizeCountry fixes FPF accent issues (e.g. "Guine Bissau" → "Guiné-Bissau")
-  const mergedNationality = normalizeCountry(fpfResult?.nationality || (zzConfirmed ? zzResult?.nationality : null) || null);
+  const mergedNationality = normalizeCountry(fpfResult?.nationality || (zzConfirmed ? zzData?.nationality : null) || null);
   const nationalityChanged = !!mergedNationality && mergedNationality !== player.nationality;
-  const mergedBirthCountry = normalizeCountry(fpfResult?.birthCountry || (zzConfirmed ? zzResult?.birthCountry : null) || null);
+  const mergedBirthCountry = normalizeCountry(fpfResult?.birthCountry || (zzConfirmed ? zzData?.birthCountry : null) || null);
   const birthCountryChanged = !!mergedBirthCountry && mergedBirthCountry !== player.birth_country;
 
   // Club logo: auto-saved in cacheUpdates above, only show as change if genuinely different
-  const mergedLogo = (zzConfirmed ? zzResult?.clubLogoUrl : null) || fpfResult?.clubLogoUrl || null;
+  const mergedLogo = (zzConfirmed ? zzData?.clubLogoUrl : null) || fpfResult?.clubLogoUrl || null;
   const clubLogoChanged = !!mergedLogo && mergedLogo !== (player.club_logo_url ?? '');
 
   // Photos: keep separate so UI can show the right one based on ZZ confirmation
   const fpfPhotoUrl = fpfResult?.photoUrl ?? null;
-  const zzPhotoUrl = zzResult?.photoUrl ?? null;
+  const zzPhotoUrl = zzData?.photoUrl ?? null;
   // Only show photo option if URL is genuinely new (not seen before in any stored field)
   const currentPhoto = player.photo_url ?? '';
   const currentZzPhoto = player.zz_photo_url ?? '';
@@ -875,22 +887,22 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   const hasNewPhoto = fpfPhotoNew || zzPhotoNew;
 
   // ZZ-sourced: height, weight, position, foot, games, goals
-  const mergedHeight = zzResult?.height ?? null;
+  const mergedHeight = zzData?.height ?? null;
   const heightChanged = mergedHeight !== null && mergedHeight !== player.height;
-  const mergedWeight = zzResult?.weight ?? null;
+  const mergedWeight = zzData?.weight ?? null;
   const weightChanged = mergedWeight !== null && mergedWeight !== player.weight;
-  const positionRaw = zzResult?.position ?? null;
+  const positionRaw = zzData?.position ?? null;
   const positionNormalized = positionRaw ? normalizePosition(positionRaw) : '';
-  const secondaryRaw = zzResult?.secondaryPosition ?? null;
+  const secondaryRaw = zzData?.secondaryPosition ?? null;
   const secondaryNormalized = secondaryRaw ? normalizePosition(secondaryRaw) : null;
-  const tertiaryRaw = zzResult?.tertiaryPosition ?? null;
+  const tertiaryRaw = zzData?.tertiaryPosition ?? null;
   const tertiaryNormalized = tertiaryRaw ? normalizePosition(tertiaryRaw) : null;
   // Position changed: true if normalized code differs, OR if raw text exists but normalization failed (user picks via dropdown)
   const primaryChanged = !!positionRaw && (positionNormalized || '') !== (player.position_normalized ?? '');
   const secondaryChanged = !!secondaryRaw && (secondaryNormalized || '') !== (player.secondary_position ?? '');
   const tertiaryChanged = !!tertiaryRaw && (tertiaryNormalized || '') !== (player.tertiary_position ?? '');
   const positionChanged = primaryChanged || secondaryChanged || tertiaryChanged;
-  const mergedFoot = zzResult?.foot ?? null;
+  const mergedFoot = zzData?.foot ?? null;
   const footChanged = !!mergedFoot && mergedFoot !== (player.foot ?? '');
 
   const hasChanges = clubChanged || clubLogoChanged || hasNewPhoto || heightChanged || weightChanged || nationalityChanged || birthCountryChanged || positionChanged || footChanged || !!zzLinkFound;
@@ -982,10 +994,16 @@ export async function applyScrapedData(
   if (error) return { success: false };
 
   // Now scrape ZZ cache fields since the link is saved
+  // Also fill in main profile fields (nationality, position, foot, height, weight) if still empty
   if (updates.zzLinkFound) {
     const zzData = await fetchZeroZeroData(updates.zzLinkFound);
     if (zzData) {
-      await supabase.from('players').update({
+      // Get current player data to check which fields are empty
+      const { data: current } = await supabase.from('players')
+        .select('nationality, birth_country, position_normalized, secondary_position, tertiary_position, foot, height, weight, photo_url')
+        .eq('id', playerId).single();
+
+      const zzCacheFields: Record<string, unknown> = {
         zz_current_club: zzData.currentClub,
         zz_current_team: zzData.currentTeam,
         zz_games_season: zzData.gamesSeason,
@@ -996,7 +1014,22 @@ export async function applyScrapedData(
         zz_team_history: zzData.teamHistory?.length ? zzData.teamHistory : null,
         zz_last_checked: new Date().toISOString(),
         ...(zzData.clubLogoUrl ? { club_logo_url: zzData.clubLogoUrl } : {}),
-      }).eq('id', playerId);
+      };
+
+      // Fill empty main fields from ZZ data (don't overwrite existing values)
+      if (current) {
+        if (!current.nationality && zzData.nationality) zzCacheFields.nationality = zzData.nationality;
+        if (!current.birth_country && zzData.birthCountry) zzCacheFields.birth_country = zzData.birthCountry;
+        if (!current.position_normalized && zzData.position) zzCacheFields.position_normalized = normalizePosition(zzData.position);
+        if (!current.secondary_position && zzData.secondaryPosition) zzCacheFields.secondary_position = normalizePosition(zzData.secondaryPosition);
+        if (!current.tertiary_position && zzData.tertiaryPosition) zzCacheFields.tertiary_position = normalizePosition(zzData.tertiaryPosition);
+        if (!current.foot && zzData.foot) zzCacheFields.foot = zzData.foot;
+        if (!current.height && zzData.height) zzCacheFields.height = zzData.height;
+        if (!current.weight && zzData.weight) zzCacheFields.weight = zzData.weight;
+        if (!current.photo_url && zzData.photoUrl) zzCacheFields.photo_url = zzData.photoUrl;
+      }
+
+      await supabase.from('players').update(zzCacheFields).eq('id', playerId);
     }
   }
 
@@ -1084,11 +1117,15 @@ export async function autoScrapePlayer(
   playerId: number,
   fpfLinkChanged: boolean,
   zzLinkChanged: boolean
-): Promise<void> {
-  const promises: Promise<unknown>[] = [];
-  if (fpfLinkChanged) promises.push(scrapePlayerFpf(playerId));
-  if (zzLinkChanged) promises.push(scrapePlayerZeroZero(playerId));
-  await Promise.all(promises);
+): Promise<{ errors: string[] }> {
+  const errors: string[] = [];
+
+  const fpfPromise = fpfLinkChanged ? scrapePlayerFpf(playerId) : Promise.resolve(null);
+  const zzPromise = zzLinkChanged ? scrapePlayerZeroZero(playerId) : Promise.resolve(null);
+  const [fpfResult, zzResult] = await Promise.all([fpfPromise, zzPromise]);
+
+  if (fpfResult && !fpfResult.success) errors.push('FPF: falha ao aceder aos dados');
+  if (zzResult && !zzResult.success) errors.push('ZeroZero: bloqueado ou indisponível');
 
   // After FPF scrape, try to auto-find ZeroZero link if player doesn't have one
   if (fpfLinkChanged && !zzLinkChanged) {
@@ -1101,12 +1138,17 @@ export async function autoScrapePlayer(
     // Only attempt if player has name + DOB but no ZZ link
     if (data && data.dob && data.name && !data.zerozero_link) {
       const result = await findZeroZeroLinkForPlayer(playerId);
-      // If ZZ link found, also scrape the ZZ profile for full data
       if (result.success && result.url) {
-        await scrapePlayerZeroZero(playerId);
+        // If ZZ link found, also scrape the ZZ profile for full data
+        const zzScrape = await scrapePlayerZeroZero(playerId);
+        if (!zzScrape.success) errors.push('ZeroZero: bloqueado ou indisponível');
+      } else if (result.error) {
+        errors.push(`ZeroZero: ${result.error}`);
       }
     }
   }
+
+  return { errors };
 }
 
 /* ───────────── Bulk Update ───────────── */
@@ -1277,6 +1319,13 @@ function removeDiacritics(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Count how many name parts overlap between two names (case/diacritic insensitive) */
+function countNameOverlap(a: string, b: string): number {
+  const partsA = removeDiacritics(a).toLowerCase().split(/\s+/);
+  const partsB = removeDiacritics(b).toLowerCase().split(/\s+/);
+  return partsA.filter((p) => partsB.includes(p)).length;
+}
+
 interface ZzSearchCandidate {
   url: string;
   name: string;
@@ -1337,13 +1386,23 @@ async function searchZzAutocomplete(query: string): Promise<ZzSearchCandidate[]>
   );
   // Detect blocked: non-200, redirect to captcha, or empty response
   if (!res.ok || res.url.includes('recaptcha') || res.url.includes('captcha')) {
+    console.warn(`[ZZ] Autocomplete bloqueado: status=${res.status} url=${res.url}`);
     throw new Error('ZZ_BLOCKED');
   }
   const buf = await res.arrayBuffer();
-  if (buf.byteLength === 0) throw new Error('ZZ_BLOCKED');
+  if (buf.byteLength === 0) {
+    console.warn('[ZZ] Autocomplete: resposta vazia');
+    throw new Error('ZZ_BLOCKED');
+  }
   // ZZ autocomplete responds in UTF-8 (unlike player pages which are ISO-8859-1)
   const html = new TextDecoder('utf-8').decode(buf);
-  if (html.includes('recaptcha') || html.includes('g-recaptcha')) throw new Error('ZZ_BLOCKED');
+  // Only treat as blocked if there are NO search results AND captcha is present
+  // (ZZ may include recaptcha scripts on valid autocomplete responses)
+  const hasResults = html.includes('/jogador/') || html.includes('searchresults');
+  if (!hasResults && (html.includes('recaptcha') || html.includes('g-recaptcha'))) {
+    console.warn(`[ZZ] Autocomplete captcha (sem resultados): size=${buf.byteLength}`);
+    throw new Error('ZZ_BLOCKED');
+  }
   return parseZzAutocompleteResults(html);
 }
 
@@ -1371,7 +1430,7 @@ function firstAndSecondLastName(fullName: string): string | null {
 /**
  * Multi-strategy ZeroZero search using autocomplete with progressively shorter name variants.
  * The autocomplete endpoint works best with 1-3 word queries. Longer names often return empty.
- * Strategy: first+second+last → first+last → first+second-to-last → surname only
+ * Strategy: name+club variants first (most precise), then name-only variants as fallback.
  * Collects all candidates from all variants, then picks the best match by score.
  */
 async function searchZzMultiStrategy(
@@ -1382,9 +1441,9 @@ async function searchZzMultiStrategy(
 ): Promise<ZzSearchCandidate | null> {
   // Build list of unique name variants to try (most specific → least specific)
   // ZZ autocomplete works best with 2-3 word queries; 4+ words usually returns nothing
-  const variants: string[] = [];
+  const nameVariants: string[] = [];
   const seen = new Set<string>();
-  const addVariant = (v: string | null) => { if (v && !seen.has(v)) { seen.add(v); variants.push(v); } };
+  const addVariant = (v: string | null) => { if (v && !seen.has(v)) { seen.add(v); nameVariants.push(v); } };
 
   const parts = fullName.trim().split(/\s+/);
   // 3-word names: try as-is first (ideal for autocomplete)
@@ -1399,37 +1458,76 @@ async function searchZzMultiStrategy(
   // Last name alone — catches players known by surname
   if (parts.length >= 3) addVariant(parts[parts.length - 1]);
 
+  // ZZ autocomplete searches player names only — adding club to the query returns 0 results
+  const variants = nameVariants;
+
   // Collect ALL candidates from ALL variants, then pick the best overall
   const allCandidates: ZzSearchCandidate[] = [];
   const seenUrls = new Set<string>();
+
+  console.log(`[ZZ Search] "${fullName}" club="${club}" age=${expectedAge} dob=${dob} variants=${JSON.stringify(variants)}`);
 
   for (let i = 0; i < variants.length; i++) {
     if (i > 0) await humanDelay(2000, 4000);
 
     const candidates = await searchZzAutocomplete(variants[i]);
+    console.log(`[ZZ Search] variant "${variants[i]}" → ${candidates.length} results: ${candidates.map((c) => `${c.name}(${c.age},${c.club})`).join(', ')}`);
     for (const c of candidates) {
       if (!seenUrls.has(c.url)) {
         seenUrls.add(c.url);
         allCandidates.push(c);
       }
     }
+
+    // Early exit: skip remaining variants if we have a high-confidence candidate
+    // Club match OR exact age + strong name overlap (≥2 parts in common) — DOB verification is the real safety net
+    const earlyMatch = shortlistCandidates(allCandidates, expectedAge, club, fullName);
+    if (earlyMatch.length > 0) {
+      const best = earlyMatch[0];
+      const hasClubMatch = best.club && club && clubsMatch(best.club, club);
+      const hasStrongName = countNameOverlap(best.name, fullName) >= 2 && best.age === expectedAge;
+      if (hasClubMatch || hasStrongName) {
+        console.log(`[ZZ Search] Early exit: found ${best.name} (age=${best.age}, club=${best.club}) clubMatch=${!!hasClubMatch} nameOverlap=${countNameOverlap(best.name, fullName)}`);
+        break;
+      }
+    }
   }
 
   // Pre-filter: keep only candidates with matching age (exact or ±1 for birthday boundary)
   const shortlisted = shortlistCandidates(allCandidates, expectedAge, club, fullName);
+  console.log(`[ZZ Search] ${allCandidates.length} total candidates → ${shortlisted.length} shortlisted`);
   if (shortlisted.length === 0) return null;
 
   // Verify the best candidate by scraping their ZZ profile page to check exact DOB
   // This eliminates false positives (same age but different person)
+  let bestUnverified: ZzSearchCandidate | null = null;
   for (const candidate of shortlisted) {
     await humanDelay(1500, 3000);
     const zzData = await fetchZeroZeroData(candidate.url).catch(() => null);
-    if (!zzData?.dob) continue;
+    console.log(`[ZZ Search] DOB check: ${candidate.name} (${candidate.url}) → zz_dob=${zzData?.dob} expected=${dob} match=${zzData?.dob === dob}`);
 
-    // DOB must match exactly — this is the definitive check
-    if (zzData.dob === dob) return candidate;
+    if (zzData?.dob) {
+      // DOB must match exactly — this is the definitive check
+      if (zzData.dob === dob) return candidate;
+      // DOB exists but doesn't match — skip (wrong person)
+      continue;
+    }
+
+    // Profile page blocked/empty — track best unverified candidate for fallback
+    // Only accept if high confidence: exact age + club match + name overlap
+    if (!bestUnverified && candidate.age === expectedAge && candidate.club && club && clubsMatch(candidate.club, club)) {
+      bestUnverified = candidate;
+    }
   }
 
+  // Fallback: if all profile pages were blocked but we have a high-confidence candidate,
+  // return it — the user still has to confirm in the RefreshPlayerButton dialog
+  if (bestUnverified) {
+    console.log(`[ZZ Search] DOB unverifiable (page blocked), accepting high-confidence match: ${bestUnverified.name} (${bestUnverified.club})`);
+    return bestUnverified;
+  }
+
+  console.log(`[ZZ Search] No DOB match found for "${fullName}"`);
   return null;
 }
 

@@ -126,6 +126,7 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
       await applyScrapedData(player.id, updates);
       setShowDialog(false);
       setFeedback('Dados atualizados');
+      setTimeout(() => setFeedback(null), 3000);
     });
   }
 
