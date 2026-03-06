@@ -1301,9 +1301,8 @@ function parseZzAutocompleteResults(html: string): ZzSearchCandidate[] {
 
     const position = parts.length >= 2 ? parts[1] : null;
 
-    // Name from the text div
-    const nameMatch = html.slice(Math.max(0, match.index - 200), match.index + match[0].length)
-      .match(/class="text">([^<]+)/);
+    // Name from the text div — search WITHIN the matched <a> block (after href, before </a>)
+    const nameMatch = match[0].match(/class="text">([^<]+)/);
     const name = nameMatch ? nameMatch[1].trim() : '';
 
     candidates.push({ url: `https://www.zerozero.pt${url}`, name, age, club, position });
