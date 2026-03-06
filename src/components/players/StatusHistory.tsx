@@ -31,9 +31,15 @@ const MAX_VISIBLE_DEFAULT = 6;
 
 /* ───────────── Formatting helpers ───────────── */
 
+/** Map DC sub-slots to readable labels */
+const SLOT_LABELS: Record<string, string> = {
+  DC_E: 'Defesa Central (E)',
+  DC_D: 'Defesa Central (D)',
+};
+
 function posLabel(v: string | null): string {
   if (!v) return '—';
-  return POSITION_LABELS[v as PositionCode] ?? v;
+  return POSITION_LABELS[v as PositionCode] ?? SLOT_LABELS[v] ?? v;
 }
 
 function recruitLabel(v: string | null): string {
@@ -162,8 +168,20 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
     /* ── Position change ── */
     case 'shadow_position':
     case 'position_normalized': {
-      const suffix = fieldChanged === 'shadow_position' ? ' (sombra)' : '';
-      // First assignment vs change
+      // New format: notes = "Sombra Sub-14" or "Plantel Sub-15"
+      // Old format: notes = "Movido de X para Y" or "Plantel Sombra: movido de X para Y"
+      const isSombra = fieldChanged === 'shadow_position';
+      let squadTag = isSombra ? 'Sombra' : 'Plantel';
+      if (notes) {
+        // New format — short squad label without "movido"
+        if (!notes.toLowerCase().includes('movido')) {
+          squadTag = notes;
+        } else {
+          // Old format — try to extract squad prefix
+          const prefixMatch = notes.match(/^((?:Sombra|Plantel)\s+Sub-\d+|Plantel Sombra|Plantel Real)/i);
+          if (prefixMatch) squadTag = prefixMatch[1];
+        }
+      }
       const isFirstAssignment = !oldValue;
       return {
         icon: <MapPin className={IC} />,
@@ -173,35 +191,37 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
           ? (
             <span className="text-sm">
               Posição definida: <span className="inline-block rounded bg-orange-50 px-1.5 py-px text-xs font-medium text-orange-700">{posLabel(newValue)}</span>
-              {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
+              <span className={`ml-1 inline-block rounded px-1.5 py-px text-[10px] font-medium ${isSombra ? 'bg-purple-50 text-purple-600' : 'bg-green-50 text-green-600'}`}>{squadTag}</span>
             </span>
           )
           : (
-            <div className="flex items-center gap-1.5 text-sm">
+            <div className="flex flex-wrap items-center gap-1.5 text-sm">
               <span className="inline-block rounded bg-neutral-100 px-1.5 py-px text-xs font-medium">{posLabel(oldValue)}</span>
               <span className="text-muted-foreground">→</span>
               <span className="inline-block rounded bg-orange-50 px-1.5 py-px text-xs font-medium text-orange-700">{posLabel(newValue)}</span>
-              {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
+              <span className={`inline-block rounded px-1.5 py-px text-[10px] font-medium ${isSombra ? 'bg-purple-50 text-purple-600' : 'bg-green-50 text-green-600'}`}>{squadTag}</span>
             </div>
           ),
       };
     }
 
     /* ── Department opinion ── */
-    case 'department_opinion':
+    case 'department_opinion': {
+      const newPills = parseOpinionArray(newValue);
       return {
         icon: <Star className={IC} />,
         iconBg: 'bg-yellow-50 text-yellow-600',
         accent: 'border-l-yellow-400',
         content: (
-          <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">Opinião</span>
-            <span className="inline-block rounded bg-neutral-100 px-1.5 py-px text-xs">{oldValue || '—'}</span>
-            <span className="text-muted-foreground">→</span>
-            <span className="inline-block rounded bg-yellow-50 px-1.5 py-px text-xs font-medium text-yellow-700">{newValue || '—'}</span>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm">
+            <span className="inline-block rounded bg-neutral-100 px-1.5 py-px text-xs font-medium">Opinião atualizada</span>
+            {newPills.map((op) => (
+              <span key={op} className="inline-block rounded bg-yellow-50 px-1.5 py-px text-[11px] font-medium text-yellow-700">{op}</span>
+            ))}
           </div>
         ),
       };
+    }
 
     /* ── Meeting date ── */
     case 'meeting_date':
@@ -322,6 +342,20 @@ function normalizeEmpty(v: string | null | undefined): string | null {
   const trimmed = v.trim();
   if (trimmed === '' || trimmed === '[]' || trimmed === '—') return null;
   return trimmed;
+}
+
+/** Parse opinion value into individual pills — handles JSON arrays and comma-separated strings */
+function parseOpinionArray(v: string | null | undefined): string[] {
+  const norm = normalizeEmpty(v);
+  if (!norm) return [];
+  if (norm.startsWith('[')) {
+    try {
+      const arr = JSON.parse(norm) as string[];
+      if (Array.isArray(arr)) return arr.filter(Boolean);
+    } catch { /* not JSON */ }
+  }
+  // Comma-separated fallback
+  return norm.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 export function StatusHistory({ entries, maxVisible = MAX_VISIBLE_DEFAULT }: StatusHistoryProps) {

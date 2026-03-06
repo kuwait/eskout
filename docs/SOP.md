@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 4.0 | **Date:** March 5, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.0 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -205,6 +205,11 @@ All PDFs follow the same Boavista FC template. Fields to extract:
 | Meeting date | **Yes** — tracked on player profile for recruitment pipeline. |
 | Pipeline ordering | **Yes** — manual ordering within pipeline status columns. |
 | Squad ordering | **Yes** — manual ordering within position groups in squads. |
+| Multi-position | **Yes** — players can have primary, secondary, and tertiary positions. Displayed with color-coded dots (green/yellow/orange) on profile and mini pitch. |
+| Note priorities | **Yes** — observation notes can be normal, importante, or urgente. Urgente/importante notes appear in a dedicated flagged notes page (`/alertas`). |
+| Note deletion | **Yes** — admins can delete any note; authors can delete their own notes. Confirmation dialog before delete. |
+| Profile export | **Yes** — player profile can be exported as PNG image or printed. Cross-origin images resolved via server-side proxy. |
+| Flagged notes page | **Yes** — `/alertas` page showing all important/urgent notes with player photo, priority styling, and dismissal. Navigation badges show counts. |
 
 ---
 
@@ -277,9 +282,11 @@ Multiple views available via tabs/sub-routes (`/campo`, `/campo/real`, `/campo/s
 - Football pitch graphic with position zones (formation slots)
 - Visual overlay of players on a pitch layout
 - DC sub-slots (DC_E/DC_D) for left/right central defenders
-- **Desktop:** horizontal pitch layout with columns for position groups (GR → defense → midfield → attack → PL)
-- **Mobile:** vertical pitch layout, positions stacked top-to-bottom (GR top, PL bottom). Compact cards showing name + club; tap to expand for details and actions.
+- **Desktop (lg+):** horizontal pitch layout with columns for position groups (GR → defense → midfield → attack → PL)
+- **Mobile/Tablet (<lg):** vertical pitch layout, positions stacked top-to-bottom (GR top, PL bottom). Compact cards showing name + club; tap to expand for details and actions.
 - Drag-and-drop between positions and within positions for reordering
+- **Conditional rendering:** Desktop and mobile layouts are conditionally rendered (not CSS-hidden) to avoid duplicate `@dnd-kit` droppable IDs. Uses `useIsDesktop()` media query hook at the 1024px breakpoint. This is critical — having both layouts in the DOM simultaneously breaks DnD collision detection.
+- **iPhone landscape fix:** Breakpoint at `lg` (1024px) ensures iPhone landscape (~844px) uses the mobile vertical layout, not the desktop horizontal layout
 
 ### 4.5. Player Database
 Full table/list of all players (fetched once, filtered client-side):
@@ -316,21 +323,32 @@ Full table/list of all players (fetched once, filtered client-side):
 ### 4.6. Player Profile
 Dedicated page `/jogadores/{id}` — see Section 2 of this SOP for all available fields. Display:
 
-**Header:** Name, age group, position, foot, opinion badge, status badge
+**Header:** Name, age group, position dots (color-coded: green=primary, yellow=secondary, orange=tertiary), opinion badge. Photo avatar with fallback to initials.
+
+**Multi-position support:** Each player can have up to 3 positions:
+- **Primary** (`position_normalized`) — always shown, green dot
+- **Secondary** (`secondary_position`) — optional, yellow dot
+- **Tertiary** (`tertiary_position`) — optional, orange dot
+- All three shown on the mini pitch visualization with color-coded highlights
+- Edit form has 3 position dropdowns (Principal, Secundaria, Terciaria)
 
 **Sections (collapsible):**
-1. **Basic Info** — DOB, age, club, number, contact, referred by, observer, eval, decision, notes
+1. **Basic Info** — DOB, age, club, number, foot (full labels: Direito/Esquerdo/Ambidestro), contact, referred by, observer(s) (label pluralizes: "Observador"/"Observadores"), eval, decision, notes. Multiple observers displayed as individual cards with left border bar for visual separation.
 2. **External Links** — FPF button, ZeroZero button (+ editable URL field for admin)
 3. **Club Verification** — FPF current club vs DB club vs ZeroZero club (if scraped). Alert if mismatch.
 4. **ZeroZero Data** — Games, goals, height, weight, photo, team history (if scraped)
 5. **Scouting Reports** — Chronological cards from extracted PDFs. Each shows: date, match, scout, rating, decision. Expandable for full text (physical profile, strengths, weaknesses, analysis). Link to original PDF.
-6. **Observation Notes** — Notes added by scouts in the app. Chronological. Shows author and date.
-7. **Recruitment** — Current status badge + dropdown to change (admin). Notes field. Full change history log.
+6. **Observation Notes** — Notes added by scouts in the app. Chronological. Shows author, date, and priority. Delete button (admin or author). See Section 4.12.
+7. **Recruitment** — Current status badge + dropdown to change (admin). Notes field. Full change history log (deduped: entries where old=new are filtered out).
+
+**Profile export:**
+- **Export as image (PNG):** Uses `html2canvas-pro` to capture the profile DOM. External images (FPF/ZeroZero photos) are pre-converted to data URLs via server-side proxy (`/api/image-proxy`) to bypass CORS. Buttons/headers hidden during capture via `data-export-hide` attribute. 24px padding added.
+- **Print:** Captures profile as image, opens in new window with `window.print()`. Uses `@page { margin: 0 }` to remove browser headers/footers.
 
 **Actions by role:**
-- **Admin:** Edit any field, change status, add/remove shadow squad, edit ZeroZero link, set photo URL, set meeting date, set signing date, delete player
+- **Admin:** Edit any field (including 3 positions), change status, add/remove shadow squad, edit ZeroZero link, set photo URL, set meeting date, set signing date, delete player, delete any observation note
 - **Master:** Same as Admin except: cannot delete players
-- **Scout:** Same as Master
+- **Scout:** Same as Master, can delete own observation notes
 - **Scout Externo:** No access to this page
 
 ### 4.7. Recruitment Pipeline
@@ -403,9 +421,26 @@ Dedicated, simplified page for Scout Externo users.
 
 ### 4.12. Observation Notes (Scout Feature)
 - Add from player profile page
-- Fields: Content (text, required), Match context (text, optional)
+- Fields: Content (text, required), Match context (text, optional), Priority (normal/importante/urgente)
+- **Priority system:**
+  - **Normal** (default) — standard note, no special styling
+  - **Importante** — yellow left border, yellow background tint, star icon
+  - **Urgente** — red left border, red background tint, alert icon
+- Priority selector: 3 pill buttons (Normal/Importante/Urgente) in the note creation form
+- Notes display with priority-based visual styling (border color, background color, icon)
 - Auto-set author and timestamp
+- **Deletion:** Admin can delete any note; author can delete own notes. Uses styled confirmation dialog (not browser `confirm()`). RLS policy enforces ownership check.
 - Mobile-optimized: large text area, minimal fields
+
+### 4.17. Flagged Notes Page (`/alertas`)
+A dedicated page showing all observation notes marked as "importante" or "urgente" across all players.
+
+- **Navigation:** Accessible via "Notas Prioritarias" tab in sidebar (desktop) and "Prioritarias" tab in mobile nav
+- **Badge counts:** Red badge for urgent count, yellow badge for important count — shown on both sidebar and mobile nav. Counts fetched server-side in AppShell.
+- **Display:** Each note shows player photo (via next/image), player name (clickable link to profile), note content, priority styling, author name, date
+- **Dismissal:** Notes can be deleted (same delete action as in player profile). Optimistic removal from list.
+- **Empty state:** Bell icon + "Tudo limpo" message when no flagged notes exist
+- **Server component:** Page fetches flagged notes server-side via `getFlaggedNotes()` query
 
 ### 4.13. Calendar (Scouting Schedule)
 A calendar for scheduling and tracking scouting activities.
@@ -472,7 +507,10 @@ sikout/
 │   │   ├── pipeline/page.tsx          # Recruitment pipeline
 │   │   ├── posicoes/page.tsx          # Position view
 │   │   ├── calendario/page.tsx        # Scouting calendar
+│   │   ├── alertas/page.tsx            # Flagged notes inbox (importante/urgente)
 │   │   ├── mais/page.tsx              # "More" page (mobile overflow menu)
+│   │   ├── api/
+│   │   │   └── image-proxy/route.ts   # Server-side image proxy for CORS bypass (profile export)
 │   │   ├── submeter/page.tsx          # External scout submission page — PLANNED
 │   │   ├── importar/page.tsx          # Excel import (admin) — PLANNED
 │   │   ├── exportar/page.tsx          # Export (admin) — PLANNED
@@ -490,12 +528,13 @@ sikout/
 │   │   │   ├── AppShell.tsx           # Server-side app shell
 │   │   │   ├── AppShellClient.tsx     # Client-side app shell with responsive nav
 │   │   │   ├── Sidebar.tsx            # Desktop sidebar nav
-│   │   │   ├── MobileNav.tsx          # Bottom tab navigation (6 tabs)
+│   │   │   ├── MobileNav.tsx          # Bottom tab navigation (6 tabs, with alert badges)
 │   │   │   └── AgeGroupSelector.tsx
 │   │   ├── dashboard/
 │   │   │   ├── StatsCards.tsx
 │   │   │   ├── RecentChanges.tsx
-│   │   │   └── PositionCoverage.tsx
+│   │   │   ├── PositionCoverage.tsx
+│   │   │   └── FlaggedNotesInbox.tsx  # Flagged notes display for /alertas page
 │   │   ├── squad/
 │   │   │   ├── CampoView.tsx          # Main campo orchestrator
 │   │   │   ├── SquadCompareView.tsx   # Side-by-side comparison
@@ -557,6 +596,7 @@ sikout/
 │   │       └── index.ts               # All TypeScript types
 │   └── hooks/
 │       ├── useAgeGroup.tsx            # Age group selector hook
+│       ├── usePageAgeGroup.tsx        # Per-page age group with localStorage persistence
 │       ├── usePlayerProfilePopup.tsx  # Inline player profile popup
 │       └── useResizableColumns.ts     # Table column resizing
 ├── scripts/
@@ -577,7 +617,13 @@ sikout/
 │       ├── 009_assinou_status_and_signing_date.sql
 │       ├── 010_photo_url.sql
 │       ├── 011_calendar_events.sql
-│       └── 012_dc_sub_slots.sql
+│       ├── 012_dc_sub_slots.sql
+│       ├── 013_dc_sub_slots_squad.sql
+│       ├── 014_zz_photo_url.sql
+│       ├── 015_migrate_notes.sql          # Migrate player.notes to observation_notes table
+│       ├── 016_multi_position.sql         # Add secondary_position, tertiary_position columns
+│       ├── 017_note_delete_rls.sql        # RLS policies for note deletion (admin + author)
+│       └── 018_note_priority.sql          # Add priority column to observation_notes
 ├── data/
 │   └── all_players.json               # 1,982 players extracted from Excel
 ├── docs/
@@ -692,6 +738,12 @@ CREATE TABLE players (
   dc_sub_slot TEXT                       -- Sub-slot for DC position (e.g., 'left', 'right')
     CHECK (dc_sub_slot IN ('left', 'right') OR dc_sub_slot IS NULL),
 
+  -- Multi-position
+  secondary_position TEXT                -- Secondary position (optional)
+    CHECK (secondary_position IN ('GR','DD','DE','DC','MDC','MC','MOC','ED','EE','PL') OR secondary_position IS NULL),
+  tertiary_position TEXT                 -- Tertiary position (optional)
+    CHECK (tertiary_position IN ('GR','DD','DE','DC','MDC','MC','MOC','ED','EE','PL') OR tertiary_position IS NULL),
+
   -- Player media
   photo_url TEXT,                        -- URL to player photo
 
@@ -776,6 +828,8 @@ CREATE TABLE observation_notes (
   author_id UUID REFERENCES auth.users(id),
   content TEXT NOT NULL,
   match_context TEXT,
+  priority TEXT NOT NULL DEFAULT 'normal'
+    CHECK (priority IN ('normal', 'importante', 'urgente')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -819,6 +873,7 @@ CREATE INDEX idx_reports_player ON scouting_reports(player_id);
 CREATE INDEX idx_reports_status ON scouting_reports(extraction_status);
 CREATE INDEX idx_history_player ON status_history(player_id);
 CREATE INDEX idx_notes_player ON observation_notes(player_id);
+CREATE INDEX idx_notes_priority ON observation_notes(priority);
 CREATE INDEX idx_calendar_date ON calendar_events(event_date);
 CREATE INDEX idx_calendar_age_group ON calendar_events(age_group_id);
 CREATE INDEX idx_calendar_players_event ON calendar_event_players(event_id);
@@ -889,6 +944,14 @@ CREATE POLICY "anyone_insert_notes" ON observation_notes FOR INSERT WITH CHECK (
   auth.uid() = author_id
 );
 
+-- Notes: admin can delete any note; authors can delete their own notes
+CREATE POLICY "admin_delete_notes" ON observation_notes FOR DELETE USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "author_delete_own_notes" ON observation_notes FOR DELETE USING (
+  auth.uid() = author_id
+);
+
 -- System inserts history (via triggers or app logic)
 CREATE POLICY "system_insert_history" ON status_history FOR INSERT WITH CHECK (true);
 ```
@@ -912,6 +975,8 @@ type RecruitmentStatus =
 
 type DcSubSlot = 'left' | 'right';
 
+type NotePriority = 'normal' | 'importante' | 'urgente';
+
 type CalendarEventType = 'observacao' | 'jogo' | 'reuniao' | 'outro';
 
 type UserRole = 'admin' | 'master' | 'scout' | 'scout_externo';
@@ -924,6 +989,8 @@ interface Player {
   club: string;
   positionOriginal: string;
   positionNormalized: PositionCode | '';
+  secondaryPosition: PositionCode | null;
+  tertiaryPosition: PositionCode | null;
   foot: 'Dir' | 'Esq' | 'Amb' | '';
   shirtNumber: string;
   contact: string;
@@ -1023,7 +1090,14 @@ interface ObservationNote {
   authorName: string;
   content: string;
   matchContext: string | null;
+  priority: NotePriority;
   createdAt: string;
+}
+
+/** Flagged note (for /alertas page) — extends ObservationNote with player info */
+interface FlaggedNote extends ObservationNote {
+  playerName: string;
+  playerPhotoUrl: string | null;
 }
 ```
 
@@ -1133,22 +1207,25 @@ python scripts/extract_reports.py --retry-errors
 - **Portuguese throughout** — all labels, buttons, messages in PT-PT
 
 ### 7.2. Mobile Navigation (Bottom Tabs — 6 tabs)
-1. **Jogadores** (people icon) — Player database
-2. **Plantel** (shield-check icon) — Real squad
-3. **Sombra** (shield icon) — Shadow squad
-4. **Abordagens** (git-branch icon) — Recruitment pipeline
-5. **Agenda** (calendar icon) — Calendar
-6. **Mais** (menu icon) — Import, Export, Admin (Utilizadores)
+1. **Jogadores** (Users icon) — Player database
+2. **Plantel** (ShieldCheck icon) — Real squad
+3. **Sombra** (Shield icon) — Shadow squad
+4. **Abordagens** (GitBranch icon) — Recruitment pipeline
+5. **Prioritarias** (Bell icon) — Flagged notes inbox (`/alertas`). Shows red badge (urgent count) + yellow badge (important count).
+6. **Mais** (Menu icon) — Calendar, Import, Export, Admin (Utilizadores)
 
 ### 7.3. Desktop Navigation (Sidebar)
 - Jogadores
 - Planteis (Real squad)
 - Planteis Sombra (Shadow squad)
 - Abordagens (Pipeline)
-- Calendário
-- Importar (admin) — planned
-- Exportar (admin) — planned
-- Utilizadores (admin) — planned
+- Calendario
+- Notas Prioritarias (Bell icon) — with red badge (urgent count) + yellow badge (important count)
+- **Admin section:**
+  - Definicoes
+  - Importar — planned
+  - Exportar — planned
+  - Utilizadores — planned
 
 ---
 
@@ -1223,9 +1300,10 @@ Add the core planning tools.
 - [x] Position view: all 10 positions with real/shadow/pool breakdown
 - [x] Recruitment pipeline: status management with Kanban board on all screens (horizontal desktop, vertical mobile), DnD, manual ordering
 - [x] Status change with automatic history logging
-- [x] Observation notes (scout feature)
+- [x] Observation notes (scout feature) with priority system (normal/importante/urgente)
+- [x] Note deletion (admin or author) with confirmation dialog
 - [x] Dashboard: counters, position coverage, recent changes
-- [x] Formation view: football pitch graphic with position slots
+- [x] Formation view: football pitch graphic with position slots, conditional rendering for DnD
 - [x] Squad export: PDF, image, text, WhatsApp, print
 - [x] DC sub-slots for left/right central defenders
 - [x] Calendar: scouting schedule with events, player linking, month/list views
@@ -1233,6 +1311,9 @@ Add the core planning tools.
 - [x] "Assinou" recruitment status + signing date
 - [x] Meeting date tracking
 - [x] Player profile popup (inline view without page navigation)
+- [x] Player profile export (PNG image + print) with cross-origin image proxy
+- [x] Multi-position support (primary/secondary/tertiary with color-coded display)
+- [x] Flagged notes page (`/alertas`) with navigation badges
 - [x] "Mais" overflow page for mobile
 
 **Deliverable:** Full planning workflow — scouts and admins can manage the recruitment process.
@@ -1257,9 +1338,10 @@ Enrich player profiles with external data.
 Final refinements.
 
 - [x] Squad export: PDF, image, text, WhatsApp, print (done in Phase 2)
+- [x] Player profile export as image/print (done in Phase 2)
 - [ ] Excel export: filtered database download
 - [x] Dashboard with core metrics (done in Phase 2)
-- [ ] Mobile optimizations (touch targets, swipe gestures, responsive layouts)
+- [x] Mobile optimizations: iPhone landscape DnD fix, touch sensors with activation constraints, conditional rendering for responsive layouts
 - [ ] Role system upgrade: 4 roles (admin, master, scout, scout_externo) — DB migration + middleware + UI guards
 - [ ] User management page (`/admin/utilizadores`) — admin: create/edit/delete users, assign 4 roles
 - [ ] External scout submission page (`/submeter`) — simplified form for scout_externo role

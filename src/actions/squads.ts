@@ -236,14 +236,15 @@ export async function moveSquadPlayerPosition(
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
   const positionField = squadType === 'shadow' ? 'shadow_position' : 'position_normalized';
 
-  // Get old position for history
+  // Get old position + age group for history context
   const { data: player } = await supabase
     .from('players')
-    .select(positionField)
+    .select(`${positionField}, age_groups!inner(name)`)
     .eq('id', playerId)
     .single();
 
   const oldPosition = player ? (player as Record<string, unknown>)[positionField] as string | null : null;
+  const ageGroupName = player ? ((player as Record<string, unknown>).age_groups as { name: string } | null)?.name : null;
 
   const { error } = await supabase
     .from('players')
@@ -254,10 +255,12 @@ export async function moveSquadPlayerPosition(
     return { success: false, error: `Erro ao mover jogador: ${error.message}` };
   }
 
+  const squadPrefix = squadType === 'shadow' ? 'Sombra' : 'Plantel';
+  const squadLabel = ageGroupName ? `${squadPrefix} ${ageGroupName}` : (squadType === 'shadow' ? 'Plantel Sombra' : 'Plantel');
   await logStatusChange(
     supabase, playerId, positionField,
     oldPosition as string, newPosition, user.id,
-    `Movido de ${oldPosition ?? '?'} para ${newPosition}`
+    squadLabel
   );
 
   revalidatePath('/campo');
