@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.0 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.2 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -562,7 +562,7 @@ sikout/
 │   │   │   ├── PlayerCard.tsx         # Mobile card view
 │   │   │   ├── PlayerFilters.tsx      # Multi-filter panel
 │   │   │   ├── PlayerProfile.tsx      # Full player profile
-│   │   │   ├── PlayerForm.tsx         # Add/edit player form
+│   │   │   ├── PlayerForm.tsx         # Link-first add player (FPF/ZeroZero auto-scrape + manual fallback)
 │   │   │   ├── ObservationNotes.tsx   # Scout notes display + add
 │   │   │   ├── StatusHistory.tsx      # Change history log
 │   │   │   ├── ZeroZeroData.tsx       # ZeroZero data display — PLANNED
@@ -608,7 +608,7 @@ sikout/
 │   └── hooks/
 │       ├── useAgeGroup.tsx            # Age group selector hook
 │       ├── usePageAgeGroup.tsx        # Per-page age group with localStorage persistence
-│       ├── usePlayerProfilePopup.tsx  # Inline player profile popup
+│       ├── usePlayerProfilePopup.tsx  # DEPRECATED — replaced by navigation to /jogadores/{id}
 │       └── useResizableColumns.ts     # Table column resizing
 ├── scripts/
 │   ├── import_initial_data.ts         # One-time JSON → Supabase import (TypeScript)
@@ -1352,6 +1352,13 @@ Enrich player profiles with external data.
 - [x] ZeroZero scraper built into `full_reset.py`: scrape stats/history from ZeroZero, update `zz_*` fields
 - [ ] ZeroZero data display on player profile (stats, history, photo) — `ZeroZeroData.tsx`
 - [ ] Dashboard alerts for club changes (FPF club ≠ DB club)
+- [x] Link-first Add Player flow — paste FPF/ZeroZero URLs, auto-scrape name/DOB/club/position/foot/photo/height/weight/nationality, review & save
+  - `scrapeFromLinks()` server action: scrapes both sources without needing a player ID
+  - DOB + name extraction added to both FPF (`var model`) and ZeroZero (JSON-LD + HTML sidebar) scrapers
+  - Merge logic: FPF priority for name/nationality, ZeroZero for position/foot/height/weight/photo
+  - Manual entry fallback when no external links available
+- [x] Fix: player click in squad/pipeline views now navigates to `/jogadores/{id}` instead of showing stale popup
+- [x] Fix: opinion badges overflow in add-to-squad/pipeline dialogs — show single primary badge inline with name
 
 **Deliverable:** Enriched player profiles with scouting reports, current club verification, and match statistics.
 
