@@ -4,6 +4,7 @@
 // RELEVANT FILES: src/components/players/PlayersView.tsx, src/components/common/OpinionBadge.tsx, src/lib/constants.ts
 
 import Link from 'next/link';
+import { ClubBadge } from '@/components/common/ClubBadge';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -64,7 +65,7 @@ export function PlayerCard({ player }: PlayerCardProps) {
             {player.positionNormalized && (
               <span className="font-medium text-neutral-600">{player.positionNormalized}</span>
             )}
-            {player.club && <span className="truncate">{player.club}</span>}
+            {player.club && <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" />}
           </div>
           {player.dob && (
             <p className="mt-0.5 text-xs text-muted-foreground">

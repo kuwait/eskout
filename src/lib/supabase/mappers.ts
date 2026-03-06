@@ -59,6 +59,14 @@ function formatShirtNumber(raw: string | null): string {
   return raw;
 }
 
+/** Reject relative paths and FPF placeholder images — only accept absolute http(s) URLs */
+function isValidImageUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (!url.startsWith('http')) return false;
+  if (url.includes('placeholder')) return false;
+  return true;
+}
+
 /** Map a Supabase PlayerRow (snake_case) to the domain Player type (camelCase) */
 export function mapPlayerRow(row: PlayerRow): Player {
   return {
@@ -104,8 +112,9 @@ export function mapPlayerRow(row: PlayerRow): Player {
     weight: row.weight ?? null,
     birthCountry: row.birth_country ?? null,
     nationality: row.nationality ?? null,
-    photoUrl: row.photo_url ?? null,
-    zzPhotoUrl: row.zz_photo_url,
+    photoUrl: isValidImageUrl(row.photo_url) ? row.photo_url : null,
+    zzPhotoUrl: isValidImageUrl(row.zz_photo_url) ? row.zz_photo_url : null,
+    clubLogoUrl: row.club_logo_url ?? null,
     zzTeamHistory: row.zz_team_history,
     zzLastChecked: row.zz_last_checked,
     recruitmentStatus: mapRecruitmentStatus(row.recruitment_status),

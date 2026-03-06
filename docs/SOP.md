@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.6 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.7 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -545,6 +545,21 @@ A calendar for scheduling and tracking scouting activities.
   - Links: full-width mono inputs
   - Interactive pitch position picker: click dots to assign primary→secondary→tertiary, click again to remove
 - **Refresh button**: compact "Atualizar" with temporary check icon state (no text feedback)
+
+### 4.23. Club Logos (Emblemas de Clube)
+- Club logo URL scraped from **FPF** (`model.CurrentClubImage`) and **ZeroZero** (`zz-enthdr-club` img)
+- Stored in `club_logo_url` column on `players` table (migration 020)
+- ZeroZero logo preferred (higher res), FPF as fallback
+- **ClubBadge component** (`src/components/common/ClubBadge.tsx`): shows logo + club name inline; hover popover with larger logo
+- Used in: PlayerProfile (Info Básica), PlayerTable (under name), PlayerCard (mobile)
+- If no logo URL: renders plain text only (no placeholder icon)
+- FPF placeholder images (`/Portals/.../placeholder_Male.png`) rejected by scraper and mapper
+
+### 4.24. Table UX Improvements
+- **Middle-click** on player row opens profile in new tab (`onAuxClick`)
+- **Photo hover**: hovering over player photo in table shows 288px popover preview
+- Profile completeness suggestions: core fields + FPF/ZeroZero links only (no evaluation, no recruitment status, no photo)
+- Invalid/placeholder photo URLs filtered at mapper level (`isValidImageUrl`)
 
 ---
 

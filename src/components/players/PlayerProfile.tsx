@@ -45,6 +45,7 @@ import {
 import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { ClubBadge } from '@/components/common/ClubBadge';
 import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes, AddNoteButton } from '@/components/players/ObservationNotes';
@@ -612,8 +613,18 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             <Section title="Informação Básica">
               <InfoGrid>
                 {p.dob && <InfoItem label="Data Nascimento" value={formatDate(p.dob)} />}
-                {p.club && <InfoItem label="Clube" value={p.club} highlight />}
-                {p.shirtNumber && <InfoItem label="Número" value={p.shirtNumber} />}
+                {p.club && (
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Clube</p>
+                    <ClubBadge club={p.club} logoUrl={p.clubLogoUrl} size="md" />
+                  </div>
+                )}
+                {p.shirtNumber && (
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">Número</p>
+                    <JerseySvg number={p.shirtNumber} className="h-10 w-8 text-neutral-800" />
+                  </div>
+                )}
                 {p.foot && <InfoItem label="Pé" value={FOOT_LABEL_MAP[p.foot] ?? p.foot} />}
                 {p.height && <InfoItem label="Altura" value={`${p.height} cm`} />}
                 {p.weight && <InfoItem label="Peso" value={`${p.weight} kg`} />}
@@ -828,9 +839,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               const optional = [
                 { done: !!p.fpfLink, label: 'Link FPF' },
                 { done: !!p.zerozeroLink, label: 'Link ZeroZero' },
-                { done: !!(p.photoUrl || p.zzPhotoUrl), label: 'Foto' },
-                { done: !!p.recruitmentStatus, label: 'Estado recrutamento' },
-                { done: scoutEvaluations.length > 0, label: 'Avaliação' },
               ];
               const done = core.filter((c) => c.done).length;
               const total = core.length;

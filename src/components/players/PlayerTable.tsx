@@ -12,6 +12,7 @@ import { User } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { ClubBadge } from '@/components/common/ClubBadge';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -162,6 +163,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
                 key={player.id}
                 className="cursor-pointer hover:bg-neutral-50"
                 onClick={() => router.push(`/jogadores/${player.id}`)}
+                onAuxClick={(e) => { if (e.button === 1) window.open(`/jogadores/${player.id}`, '_blank'); }}
               >
                 <TableCell style={{ width: widths.eval }}>
                   <EvalCell player={player} />
@@ -169,14 +171,28 @@ export function PlayerTable({ players }: PlayerTableProps) {
                 <TableCell style={{ width: widths.name }}>
                   <div className="flex items-center gap-2 min-w-0">
                     {photoUrl ? (
-                      <Image
-                        src={photoUrl}
-                        alt=""
-                        width={56}
-                        height={56}
-                        className="h-14 w-14 shrink-0 rounded-full object-cover"
-                        unoptimized
-                      />
+                      <HoverCard openDelay={300} closeDelay={100}>
+                        <HoverCardTrigger asChild>
+                          <Image
+                            src={photoUrl}
+                            alt=""
+                            width={56}
+                            height={56}
+                            className="h-14 w-14 shrink-0 rounded-full object-cover"
+                            unoptimized
+                          />
+                        </HoverCardTrigger>
+                        <HoverCardContent side="right" align="start" className="w-auto p-1">
+                          <Image
+                            src={photoUrl}
+                            alt={player.name}
+                            width={320}
+                            height={320}
+                            className="h-72 w-72 rounded-lg object-cover"
+                            unoptimized
+                          />
+                        </HoverCardContent>
+                      </HoverCard>
                     ) : (
                       <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
                         <User className="h-6 w-6" />
@@ -188,7 +204,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
                         <span className="truncate">{player.name}</span>
                       </p>
                       {player.club && (
-                        <p className="truncate text-xs text-muted-foreground">{player.club}</p>
+                        <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
                       )}
                     </div>
                   </div>

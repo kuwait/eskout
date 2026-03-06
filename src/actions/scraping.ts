@@ -79,13 +79,23 @@ async function fetchFpfData(fpfLink: string) {
       }
     }
 
+    // Club logo from model.CurrentClubImage (most reliable) or first Clubs entry
+    const clubLogoUrl = (model.CurrentClubImage as string)
+      || (Array.isArray(model.Clubs) && model.Clubs.length > 0 ? (model.Clubs[0].Image as string) : null)
+      || null;
+
+    // Reject FPF placeholder images (relative path, not a real player photo)
+    const rawPhoto = (model.Image as string) || null;
+    const photoUrl = rawPhoto && rawPhoto.startsWith('http') && !rawPhoto.includes('placeholder') ? rawPhoto : null;
+
     return {
       currentClub: (model.CurrentClub as string) || null,
-      photoUrl: (model.Image as string) || null,
+      photoUrl,
       fullName: (model.FullName as string) || null,
       dob,
       birthCountry: (model.BirthCountry || model.CountryOfBirth || model.PaisNascimento || model.BirthPlace) as string | null,
       nationality: (model.Nationality || model.Nacionalidade) as string | null,
+      clubLogoUrl,
     };
   } catch {
     return null;
@@ -107,10 +117,11 @@ export async function scrapePlayerFpf(playerId: number): Promise<FpfScrapeResult
   const data = await fetchFpfData(player.fpf_link);
   if (!data) return { success: false, club: null, photoUrl: null, birthCountry: null, nationality: null, clubChanged: false };
 
-  // Always update fpf_current_club and fpf_last_checked
+  // Always update fpf_current_club, club_logo_url, and fpf_last_checked
   await supabase.from('players').update({
     fpf_current_club: data.currentClub,
     fpf_last_checked: new Date().toISOString(),
+    ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
   }).eq('id', playerId);
 
   const clubChanged = data.currentClub ? !clubsMatch(data.currentClub, player.club ?? '') : false;
@@ -155,6 +166,7 @@ async function fetchZeroZeroData(zzLink: string) {
       currentClub: null as string | null,
       currentTeam: null as string | null,
       photoUrl: null as string | null,
+      clubLogoUrl: null as string | null,
       height: null as number | null,
       weight: null as number | null,
       nationality: null as string | null,
@@ -348,6 +360,12 @@ async function fetchZeroZeroData(zzLink: string) {
       }
     }
 
+    // Club logo from header — <a class="zz-enthdr-club" ...><span>...</span><img src="/img/logos/equipas/XXX.png"></a>
+    const clubLogoMatch = html.match(/zz-enthdr-club[\s\S]*?<img[^>]*src="(\/img\/logos\/equipas\/[^"]+)"/);
+    if (clubLogoMatch) {
+      result.clubLogoUrl = `https://www.zerozero.pt${clubLogoMatch[1]}`;
+    }
+
     // Photo fallback from HTML img
     if (!result.photoUrl) {
       const imgMatch = html.match(/src="([^"]*(?:cdn-img\.zerozero\.pt|zerozero\.pt)\/img\/jogadores\/[^"]+)"/);
@@ -435,6 +453,7 @@ export async function scrapePlayerZeroZero(playerId: number): Promise<ZzScrapeRe
     zz_photo_url: data.photoUrl,
     zz_team_history: data.teamHistory.length > 0 ? data.teamHistory : null,
     zz_last_checked: new Date().toISOString(),
+    ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
   }).eq('id', playerId);
 
   const clubChanged = data.currentClub ? !clubsMatch(data.currentClub, player.club ?? '') : false;
@@ -548,6 +567,9 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     cacheUpdates.zz_team_history = zzResult.teamHistory?.length ? zzResult.teamHistory : null;
     cacheUpdates.zz_last_checked = new Date().toISOString();
   }
+  // Club logo: prefer ZeroZero (higher res), fallback to FPF
+  const mergedLogo = zzResult?.clubLogoUrl || fpfResult?.clubLogoUrl || null;
+  if (mergedLogo) cacheUpdates.club_logo_url = mergedLogo;
   await supabase.from('players').update(cacheUpdates).eq('id', playerId);
 
   // Merge: ZeroZero takes priority for photo, height, weight; FPF for nationality/birthCountry
@@ -784,11 +806,16 @@ export async function bulkScrapeExternalData(
           await supabase.from('players').update({
             fpf_current_club: data.currentClub,
             fpf_last_checked: new Date().toISOString(),
+            ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
           }).eq('id', player.id);
 
           // Auto-apply: photo if player has none
           if (data.photoUrl && !player.photo_url && !player.zz_photo_url) {
             autoUpdates.photo_url = data.photoUrl;
+          }
+          // Club logo from FPF
+          if (data.clubLogoUrl) {
+            autoUpdates.club_logo_url = data.clubLogoUrl;
           }
           // Club if changed
           if (data.currentClub && !clubsMatch(data.currentClub, player.club ?? '')) {
@@ -819,11 +846,16 @@ export async function bulkScrapeExternalData(
             zz_photo_url: data.photoUrl,
             zz_team_history: data.teamHistory?.length ? data.teamHistory : null,
             zz_last_checked: new Date().toISOString(),
+            ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
           }).eq('id', player.id);
 
           // ZZ photo takes priority
           if (data.photoUrl) {
             autoUpdates.photo_url = data.photoUrl;
+          }
+          // Club logo
+          if (data.clubLogoUrl) {
+            autoUpdates.club_logo_url = data.clubLogoUrl;
           }
           if (data.currentClub && !clubsMatch(data.currentClub, player.club ?? '')) {
             autoUpdates.club = data.currentClub;
