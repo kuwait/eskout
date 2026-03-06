@@ -15,10 +15,11 @@ export interface AlertCounts {
 export async function AppShell({ children }: { children: React.ReactNode }) {
   let ageGroups: AgeGroup[] = [];
   let alertCounts: AlertCounts = { urgente: 0, importante: 0 };
+  let userRole = 'scout';
 
   try {
     const supabase = await createClient();
-    const [agRes, urgRes, impRes] = await Promise.all([
+    const [agRes, urgRes, impRes, userRes] = await Promise.all([
       supabase
         .from('age_groups')
         .select('id, name, generation_year, season')
@@ -31,6 +32,16 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         .from('observation_notes')
         .select('id', { count: 'exact', head: true })
         .eq('priority', 'importante'),
+      // Fetch current user's role
+      supabase.auth.getUser().then(async ({ data: { user } }) => {
+        if (!user) return null;
+        const { data } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        return data;
+      }),
     ]);
 
     if (agRes.data) {
@@ -46,12 +57,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       urgente: urgRes.count ?? 0,
       importante: impRes.count ?? 0,
     };
+
+    if (userRes?.role) userRole = userRes.role;
   } catch {
     // Supabase not configured yet — app still renders without age groups
   }
 
   return (
-    <AppShellClient ageGroups={ageGroups} alertCounts={alertCounts}>
+    <AppShellClient ageGroups={ageGroups} alertCounts={alertCounts} userRole={userRole}>
       {children}
     </AppShellClient>
   );

@@ -1,24 +1,29 @@
 // src/app/mais/page.tsx
-// "More" menu page for mobile — links to Position view, Import, Export, Admin sections
-// Provides navigation to pages not in the bottom tab bar
-// RELEVANT FILES: src/components/layout/MobileNav.tsx, src/app/posicoes/page.tsx, src/app/layout.tsx
+// "More" menu page for mobile — links to Import, Export, Admin sections
+// Provides navigation to pages not in the bottom tab bar. Admin items hidden for non-admins.
+// RELEVANT FILES: src/components/layout/MobileNav.tsx, src/lib/supabase/queries.ts, src/app/layout.tsx
 
 import Link from 'next/link';
 import { Upload, Download, UserCog, Settings } from 'lucide-react';
+import { getCurrentUserRole } from '@/lib/supabase/queries';
 
 const ITEMS = [
-  { href: '/definicoes', label: 'Definições', icon: Settings, description: 'Atualizar dados externos (FPF, ZeroZero)' },
-  { href: '/importar', label: 'Importar', icon: Upload, description: 'Importar ficheiro Excel' },
-  { href: '/exportar', label: 'Exportar', icon: Download, description: 'Exportar PDF / Excel' },
-  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, description: 'Gestão de utilizadores' },
+  { href: '/definicoes', label: 'Definições', icon: Settings, description: 'Atualizar dados externos (FPF, ZeroZero)', adminOnly: false },
+  { href: '/importar', label: 'Importar', icon: Upload, description: 'Importar ficheiro Excel', adminOnly: true },
+  { href: '/exportar', label: 'Exportar', icon: Download, description: 'Exportar PDF / Excel', adminOnly: true },
+  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, description: 'Gestão de utilizadores', adminOnly: true },
 ];
 
-export default function MaisPage() {
+export default async function MaisPage() {
+  const role = await getCurrentUserRole();
+  const isAdmin = role === 'admin';
+  const visibleItems = isAdmin ? ITEMS : ITEMS.filter((item) => !item.adminOnly);
+
   return (
     <div className="p-4 lg:p-6">
       <h1 className="mb-4 text-xl font-bold lg:text-2xl">Mais</h1>
       <div className="space-y-2">
-        {ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           return (
             <Link

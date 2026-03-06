@@ -6,7 +6,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_ROUTES = ['/login'];
+const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password'];
+// Routes that require admin role — editors and scouts are redirected
+const ADMIN_ONLY_ROUTES = ['/admin'];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -41,8 +43,9 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const pathname = request.nextUrl.pathname;
   const isPublicRoute = PUBLIC_ROUTES.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
+    pathname.startsWith(route)
   );
 
   // Redirect unauthenticated users to login
@@ -53,10 +56,26 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from login
-  if (user && request.nextUrl.pathname === '/login') {
+  if (user && pathname === '/login') {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);
+  }
+
+  // Admin-only route protection — check role from profiles table
+  const isAdminRoute = ADMIN_ONLY_ROUTES.some((route) => pathname.startsWith(route));
+  if (user && isAdminRoute) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (data?.role !== 'admin') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

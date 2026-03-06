@@ -33,7 +33,7 @@ const ADMIN_ITEMS = [
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog },
 ];
 
-export function Sidebar({ alertCounts }: { alertCounts: AlertCounts }) {
+export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; userRole: string }) {
   const pathname = usePathname();
 
   return (
@@ -84,7 +84,8 @@ export function Sidebar({ alertCounts }: { alertCounts: AlertCounts }) {
           })}
         </ul>
 
-        {/* Admin section */}
+        {/* Admin section — only visible to admins */}
+        {userRole === 'admin' && (
         <div className="mt-6">
           <p className="px-3 text-xs font-semibold uppercase text-neutral-400">Admin</p>
           <ul className="mt-2 space-y-1">
@@ -110,6 +111,7 @@ export function Sidebar({ alertCounts }: { alertCounts: AlertCounts }) {
             })}
           </ul>
         </div>
+        )}
       </nav>
 
       {/* Logout */}

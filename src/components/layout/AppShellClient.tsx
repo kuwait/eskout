@@ -19,10 +19,12 @@ export function AppShellClient({
   children,
   ageGroups,
   alertCounts,
+  userRole,
 }: {
   children: React.ReactNode;
   ageGroups: AgeGroup[];
   alertCounts: AlertCounts;
+  userRole: string;
 }) {
   const pathname = usePathname();
   const isPublic = PUBLIC_ROUTES.includes(pathname);
@@ -33,7 +35,7 @@ export function AppShellClient({
 
   return (
     <AgeGroupProvider ageGroups={ageGroups}>
-      <Sidebar alertCounts={alertCounts} />
+      <Sidebar alertCounts={alertCounts} userRole={userRole} />
       {/* Mobile header */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2">

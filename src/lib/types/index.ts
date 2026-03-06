@@ -35,7 +35,7 @@ export type RecruitmentStatus =
   | 'assinou'
   | 'rejeitado';
 
-export type UserRole = 'admin' | 'scout';
+export type UserRole = 'admin' | 'editor' | 'scout';
 
 export type Foot = 'Dir' | 'Esq' | 'Amb' | '';
 

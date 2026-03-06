@@ -41,7 +41,7 @@ export async function getPlayerById(id: number): Promise<Player | null> {
 
 /* ───────────── Profile (current user role) ───────────── */
 
-export async function getCurrentUserRole(): Promise<'admin' | 'scout' | null> {
+export async function getCurrentUserRole(): Promise<'admin' | 'editor' | 'scout' | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -52,7 +52,7 @@ export async function getCurrentUserRole(): Promise<'admin' | 'scout' | null> {
     .eq('id', user.id)
     .single();
 
-  return (data?.role as 'admin' | 'scout') ?? null;
+  return (data?.role as 'admin' | 'editor' | 'scout') ?? null;
 }
 
 /* ───────────── Scouting Reports ───────────── */
