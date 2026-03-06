@@ -50,6 +50,10 @@ __pycache__/
 .venv/
 venv/
 
+# Google Service Account credentials
+*-sa-key.json
+service-account*.json
+
 # Misc
 *.log
 *.pem

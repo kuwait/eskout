@@ -8,6 +8,7 @@ import {
   getPlayerById,
   getCurrentUserRole,
   getObservationNotes,
+  getScoutingReports,
   getStatusHistory,
 } from '@/lib/supabase/queries';
 import { createClient } from '@/lib/supabase/server';
@@ -26,11 +27,12 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   if (isNaN(playerId)) notFound();
 
-  const [player, role, notes, statusHistory] = await Promise.all([
+  const [player, role, notes, statusHistory, scoutingReports] = await Promise.all([
     getPlayerById(playerId),
     getCurrentUserRole(),
     getObservationNotes(playerId),
     getStatusHistory(playerId),
+    getScoutingReports(playerId),
   ]);
 
   if (!player) notFound();
@@ -50,6 +52,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         userRole={role ?? 'scout'}
         notes={notes}
         statusHistory={statusHistory}
+        scoutingReports={scoutingReports}
         ageGroupName={ageGroup?.name ?? null}
       />
     </div>

@@ -33,6 +33,7 @@ import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes, AddNoteButton } from '@/components/players/ObservationNotes';
 import { StatusHistory } from '@/components/players/StatusHistory';
+import { ScoutingReports } from '@/components/players/ScoutingReports';
 import {
   POSITION_LABELS,
   POSITIONS,
@@ -53,6 +54,7 @@ import type {
   DepartmentOpinion,
   Foot,
   RecruitmentStatus,
+  ScoutingReport,
 } from '@/lib/types';
 
 interface PlayerProfileProps {
@@ -60,13 +62,14 @@ interface PlayerProfileProps {
   userRole: UserRole;
   notes?: ObservationNote[];
   statusHistory?: StatusHistoryEntry[];
+  scoutingReports?: ScoutingReport[];
   /** If provided, "Voltar" calls this instead of router.back() */
   onClose?: () => void;
   /** Age group name (e.g. "Sub-17") for display in squad badge */
   ageGroupName?: string | null;
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], onClose, ageGroupName }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], onClose, ageGroupName }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -600,49 +603,14 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.observerEval && <EvalRating label="Avaliação" value={p.observerEval} />}
               </InfoGrid>
 
-              {/* Relatórios */}
-              {p.reportLabels.length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">Relatórios ({p.reportLabels.length})</p>
-                  {p.reportLabels.map((rawLabel, i) => {
-                    // Strip .pdf extension and parse label: "YYYY Nome - Clube" → extract club name
-                    const label = rawLabel.replace(/\.pdf$/i, '');
-                    const clubMatch = label.match(/\s-\s(.+)$/);
-                    const clubName = clubMatch ? clubMatch[1] : null;
-                    const link = p.reportLinks[i];
-
-                    return (
-                      <a
-                        key={i}
-                        href={link || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-center gap-3 rounded-md border-l-[3px] border-l-neutral-300 bg-neutral-50/60 px-3 py-2 transition-colors hover:border-l-blue-400 hover:bg-blue-50/40"
-                      >
-                        {/* Report number badge */}
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-bold text-neutral-500 group-hover:bg-blue-100 group-hover:text-blue-600">
-                          {i + 1}
-                        </div>
-
-                        {/* Info */}
-                        <div className="min-w-0 flex-1">
-                          {clubName ? (
-                            <p className="truncate text-sm font-medium">{clubName}</p>
-                          ) : (
-                            <p className="truncate text-sm font-medium">{label}</p>
-                          )}
-                          <p className="text-[11px] text-muted-foreground">
-                            Relatório de observação {link ? '· PDF' : ''}
-                          </p>
-                        </div>
-
-                        {/* External link icon */}
-                        {link && (
-                          <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                        )}
-                      </a>
-                    );
-                  })}
+              {/* Relatórios — extracted reports or fallback to old-style links */}
+              {(scoutingReports.length > 0 || p.reportLabels.length > 0) && (
+                <div className="mt-3">
+                  <ScoutingReports
+                    reports={scoutingReports}
+                    reportLabels={p.reportLabels}
+                    reportLinks={p.reportLinks}
+                  />
                 </div>
               )}
             </Section>

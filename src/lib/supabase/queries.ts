@@ -4,8 +4,8 @@
 // RELEVANT FILES: src/lib/supabase/server.ts, src/lib/supabase/mappers.ts, src/actions/players.ts
 
 import { createClient } from '@/lib/supabase/server';
-import { mapPlayerRow, mapCalendarEventRow } from '@/lib/supabase/mappers';
-import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, StatusHistoryEntry, ObservationNote } from '@/lib/types';
+import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow } from '@/lib/supabase/mappers';
+import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutingReport, ScoutingReportRow, StatusHistoryEntry, ObservationNote } from '@/lib/types';
 
 /* ───────────── Players ───────────── */
 
@@ -47,6 +47,24 @@ export async function getCurrentUserRole(): Promise<'admin' | 'scout' | null> {
     .single();
 
   return (data?.role as 'admin' | 'scout') ?? null;
+}
+
+/* ───────────── Scouting Reports ───────────── */
+
+export async function getScoutingReports(playerId: number): Promise<ScoutingReport[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('scouting_reports')
+    .select('*')
+    .eq('player_id', playerId)
+    .order('report_number', { ascending: true });
+
+  if (error) {
+    console.error('[getScoutingReports] Failed to fetch:', error);
+    return [];
+  }
+
+  return (data ?? []).map((row) => mapScoutingReportRow(row as ScoutingReportRow));
 }
 
 /* ───────────── Status History ───────────── */

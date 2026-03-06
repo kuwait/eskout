@@ -170,6 +170,7 @@ export interface ScoutingReport {
   gdriveFileId: string;
   gdriveLink: string;
   reportNumber: number;
+  pdfFilename: string;
   competition: string;
   ageGroup: string;
   match: string;
@@ -190,6 +191,41 @@ export interface ScoutingReport {
   contactInfo: string;
   scoutName: string;
   extractionStatus: 'pending' | 'success' | 'partial' | 'error';
+  extractedAt: string | null;
+}
+
+/** Raw row shape from scouting_reports table (snake_case) */
+export interface ScoutingReportRow {
+  id: number;
+  player_id: number;
+  gdrive_file_id: string;
+  gdrive_link: string | null;
+  report_number: number | null;
+  pdf_filename: string | null;
+  competition: string | null;
+  age_group: string | null;
+  match: string | null;
+  match_date: string | null;
+  match_result: string | null;
+  player_name_report: string | null;
+  shirt_number_report: string | null;
+  birth_year_report: string | null;
+  foot_report: string | null;
+  team_report: string | null;
+  position_report: string | null;
+  physical_profile: string | null;
+  strengths: string | null;
+  weaknesses: string | null;
+  rating: number | null;
+  decision: string | null;
+  analysis: string | null;
+  contact_info: string | null;
+  scout_name: string | null;
+  raw_text: string | null;
+  extraction_status: string | null;
+  extraction_error: string | null;
+  extracted_at: string | null;
+  created_at: string;
 }
 
 /* ───────────── Status History ───────────── */

@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow } from '@/lib/types';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
 function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
@@ -121,6 +121,41 @@ export function mapPlayerRow(row: PlayerRow): Player {
     pipelineOrder: row.pipeline_order ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Scouting Report Mapper ───────────── */
+
+/** Map a Supabase ScoutingReportRow (snake_case) to the domain ScoutingReport type (camelCase) */
+export function mapScoutingReportRow(row: ScoutingReportRow): ScoutingReport {
+  return {
+    id: row.id,
+    playerId: row.player_id,
+    gdriveFileId: row.gdrive_file_id,
+    gdriveLink: row.gdrive_link ?? '',
+    reportNumber: row.report_number ?? 0,
+    pdfFilename: row.pdf_filename ?? '',
+    competition: row.competition ?? '',
+    ageGroup: row.age_group ?? '',
+    match: row.match ?? '',
+    matchDate: row.match_date,
+    matchResult: row.match_result ?? '',
+    playerNameReport: row.player_name_report ?? '',
+    shirtNumberReport: row.shirt_number_report ?? '',
+    birthYearReport: row.birth_year_report ?? '',
+    footReport: row.foot_report ?? '',
+    teamReport: row.team_report ?? '',
+    positionReport: row.position_report ?? '',
+    physicalProfile: row.physical_profile ?? '',
+    strengths: row.strengths ?? '',
+    weaknesses: row.weaknesses ?? '',
+    rating: row.rating,
+    decision: row.decision ?? '',
+    analysis: row.analysis ?? '',
+    contactInfo: row.contact_info ?? '',
+    scoutName: row.scout_name ?? '',
+    extractionStatus: (row.extraction_status as ScoutingReport['extractionStatus']) ?? 'pending',
+    extractedAt: row.extracted_at,
   };
 }
 
