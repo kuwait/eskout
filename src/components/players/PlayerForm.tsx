@@ -100,7 +100,7 @@ export function PlayerForm() {
         club: result.club || prev.club,
         positionNormalized: result.position || prev.positionNormalized,
         foot: result.foot || prev.foot,
-        shirtNumber: result.shirtNumber || prev.shirtNumber,
+        shirtNumber: result.shirtNumber ? String(result.shirtNumber) : prev.shirtNumber,
         photoUrl: result.photoUrl || prev.photoUrl,
         height: result.height ? String(result.height) : prev.height,
         weight: result.weight ? String(result.weight) : prev.weight,

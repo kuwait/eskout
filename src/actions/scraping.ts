@@ -215,8 +215,10 @@ async function fetchZeroZeroData(zzLink: string) {
       nationality: null as string | null,
       birthCountry: null as string | null,
       position: null as string | null,
+      secondaryPosition: null as string | null,
+      tertiaryPosition: null as string | null,
       foot: null as string | null,
-      shirtNumber: null as string | null,
+      shirtNumber: null as number | null,
       gamesSeason: null as number | null,
       goalsSeason: null as number | null,
       teamHistory: [] as { club: string; season: string; games: number; goals: number }[],
@@ -296,35 +298,111 @@ async function fetchZeroZeroData(zzLink: string) {
       } catch { /* JSON-LD parse failed, continue with HTML parsing */ }
     }
 
-    /* ── 2. HTML card-data sidebar (most reliable source on ZeroZero) ── */
-    // Helper: extract value after a card-data__label
+    /* ── 2. HTML card-data sidebar — multiple extraction strategies per field ── */
+    // ZeroZero HTML varies between players/pages. Each field has multiple fallbacks.
+
+    // Helper: extract the full HTML block for a card-data row by label regex
+    function cardRowHtml(label: string): string | null {
+      const re = new RegExp(`card-data__label">${label}</span>([\\s\\S]*?)(?=card-data__label|card-data__footer|card-data__header|$)`, 'i');
+      const m = html.match(re);
+      return m ? m[1] : null;
+    }
+
+    // Helper: extract plain-text value from a card-data row
     function cardValue(label: string): string | null {
-      // Pattern: card-data__label">Label</span>...<span class="card-data__value">Value</span>
-      const re = new RegExp(`card-data__label">${label}</span>[\\s\\S]*?card-data__value[^>]*>([^<]+)`, 'i');
-      const m = html.match(re);
-      return m ? m[1].trim() : null;
+      const block = cardRowHtml(label);
+      if (!block) return null;
+      const valMatch = block.match(/card-data__value[^>]*>([^<]+)/);
+      return valMatch ? valMatch[1].trim() : null;
     }
-    // Helper: for fields using micrologo_and_text (nationality, birth country)
+
+    // Helper: extract ALL plain-text values from a card-data row (multi-value fields)
+    function cardValues(label: string): string[] {
+      const block = cardRowHtml(label);
+      if (!block) return [];
+      const values: string[] = [];
+      const re = /card-data__value[^>]*>([^<]+)/g;
+      let m;
+      while ((m = re.exec(block)) !== null) {
+        const v = m[1].trim();
+        if (v) values.push(v);
+      }
+      return values;
+    }
+
+    // Helper: extract text from micrologo_and_text structure (nationality, country, club)
     function cardValueWithFlag(label: string): string | null {
-      const re = new RegExp(`card-data__label">${label}</span>[\\s\\S]*?class="text">([^<]+)`, 'i');
-      const m = html.match(re);
+      const block = cardRowHtml(label);
+      if (!block) return null;
+      // Try class="text"> first (standard micrologo_and_text)
+      const textMatch = block.match(/class="text">([^<]+)/);
+      if (textMatch) return textMatch[1].trim();
+      // Fallback: title attribute in flag/link
+      const titleMatch = block.match(/title="([^"]+)"/);
+      if (titleMatch) return titleMatch[1].trim();
+      // Fallback: plain value
+      const valMatch = block.match(/card-data__value[^>]*>([^<]+)/);
+      return valMatch ? valMatch[1].trim() : null;
+    }
+
+    // Generic fallback: search the full page for a pattern near a keyword
+    function findNearby(keyword: string, valuePattern: RegExp): string | null {
+      const idx = html.indexOf(keyword);
+      if (idx < 0) return null;
+      const slice = html.slice(idx, idx + 500);
+      const m = slice.match(valuePattern);
       return m ? m[1].trim() : null;
     }
 
-    // Position — from sidebar card-data (e.g. "Ponta de Lança") — overrides JSON-LD description
-    // which only has a generic "Avançado" while sidebar has the precise "Ponta de Lança"
-    const sidebarPos = cardValue('Posi[çc][ãa]o');
-    if (sidebarPos && sidebarPos.length < 40) result.position = sidebarPos;
-
-    // Club from hidden "Clube atual" row in sidebar
-    if (!result.currentClub) {
-      const sidebarClub = cardValueWithFlag('Clube atual');
-      if (sidebarClub) result.currentClub = sidebarClub;
+    /* ── Name — sidebar > header h1 > JSON-LD > og:title ── */
+    if (!result.fullName) result.fullName = cardValue('Nome');
+    if (!result.fullName) {
+      // Header: <h1><span class="name">7.André Ferreira</span></h1> — strip leading number
+      const h1 = html.match(/<h1[^>]*>(?:<[^>]+>)*\s*(?:\d+\.\s*)?([A-ZÀ-ÿ][^<]+)/i);
+      if (h1) result.fullName = h1[1].trim();
+    }
+    if (!result.fullName) {
+      const og = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/);
+      if (og) result.fullName = og[1].replace(/\s*[-|].*/, '').trim();
     }
 
-    // Preferred foot — "Pé preferencial" → "Direito" / "Esquerdo" / "Ambidextro"
+    /* ── DOB — sidebar > JSON-LD > any ISO date near "nascimento" ── */
+    if (!result.dob) {
+      const dobVal = cardValue('Data de Nascimento') || cardValue('Nascimento');
+      if (dobVal) {
+        const ddMM = dobVal.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+        if (ddMM) result.dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`;
+        else {
+          const iso = dobVal.match(/(\d{4})-(\d{2})-(\d{2})/);
+          if (iso) result.dob = `${iso[1]}-${iso[2]}-${iso[3]}`;
+        }
+      }
+    }
+    // Fallback: any yyyy-MM-dd near "Nascimento" in the page
+    if (!result.dob) {
+      const nearby = findNearby('Nascimento', /(\d{4}-\d{2}-\d{2})/);
+      if (nearby) result.dob = nearby;
+    }
+
+    /* ── Position — sidebar (multi-value) > JSON-LD description > meta tags ── */
+    const sidebarPositions = cardValues('Posi[çc][ãa]o');
+    if (sidebarPositions.length > 0 && sidebarPositions[0].length < 40) {
+      result.position = sidebarPositions[0];
+      if (sidebarPositions[1] && sidebarPositions[1].length < 40) result.secondaryPosition = sidebarPositions[1];
+      if (sidebarPositions[2] && sidebarPositions[2].length < 40) result.tertiaryPosition = sidebarPositions[2];
+    }
+    if (!result.position) {
+      // og:description often has "Joga como Médio Ofensivo"
+      const ogDesc = html.match(/<meta\s+property="og:description"\s+content="([^"]+)"/);
+      if (ogDesc) {
+        const posMatch = ogDesc[1].match(/Joga(?:va)? como\s+([^,\.]+?)(?:\s+em\s+|\s*[,\.])/);
+        if (posMatch) result.position = posMatch[1].trim();
+      }
+    }
+
+    /* ── Foot — sidebar > any "Direito"/"Esquerdo" near "Pé" ── */
     if (!result.foot) {
-      const foot = cardValue('P[ée]\\s*[Pp]referencial');
+      const foot = cardValue('P[ée]\\s*[Pp]referencial') || cardValue('P[ée]');
       if (foot) {
         const raw = foot.toLowerCase();
         if (raw.includes('direito') || raw === 'right') result.foot = 'Dir';
@@ -332,70 +410,23 @@ async function fetchZeroZeroData(zzLink: string) {
         else if (raw.includes('ambidextro') || raw.includes('amb')) result.foot = 'Amb';
       }
     }
-
-    // DOB from sidebar — "dd/MM/yyyy", "dd-MM-yyyy", or "yyyy-MM-dd (XX anos)"
-    if (!result.dob) {
-      const dobVal = cardValue('Data de Nascimento');
-      if (dobVal) {
-        // Try dd/MM/yyyy or dd-MM-yyyy first
-        const ddMM = dobVal.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-        if (ddMM) {
-          result.dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`;
-        } else {
-          // Handle "2009-11-27 (16 anos)" or plain "2009-11-27"
-          const isoMatch = dobVal.match(/(\d{4})-(\d{2})-(\d{2})/);
-          if (isoMatch) result.dob = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-        }
+    // Fallback: search near keyword
+    if (!result.foot) {
+      const nearby = findNearby('referencial', />(Direito|Esquerdo|Ambidextro)</i);
+      if (nearby) {
+        const raw = nearby.toLowerCase();
+        if (raw.includes('direito')) result.foot = 'Dir';
+        else if (raw.includes('esquerdo')) result.foot = 'Esq';
+        else if (raw.includes('ambidextro')) result.foot = 'Amb';
       }
     }
 
-    // Name from sidebar card-data (most reliable on ZeroZero)
-    if (!result.fullName) {
-      const sidebarName = cardValue('Nome');
-      if (sidebarName) result.fullName = sidebarName;
-    }
-
-    // Name from page header as last fallback
-    if (!result.fullName) {
-      const nameMatch = html.match(/<h1[^>]*class="[^"]*zz-enthdr-name[^"]*"[^>]*>([^<]+)/);
-      if (nameMatch) result.fullName = nameMatch[1].trim();
-    }
-
-    // Shirt number from header — <span class="number">7.</span>
-    if (!result.shirtNumber) {
-      const numMatch = html.match(/<span\s+class="number"[^>]*>(\d+)\./);
-      if (numMatch) result.shirtNumber = numMatch[1];
-    }
-
-    // Birth country — uses flag icon + text
-    if (!result.birthCountry) {
-      result.birthCountry = cardValueWithFlag('Pa[ií]s de Nascimento');
-    }
-
-    // Nationality from sidebar (overrides JSON-LD if available since it's more reliable)
-    const sidebarNat = cardValueWithFlag('Nacionalidade');
-    if (sidebarNat) result.nationality = sidebarNat;
-
-    // Height from sidebar — "185 cm"
-    if (result.height === null) {
-      const h = cardValue('Altura');
-      if (h) {
-        const hNum = parseInt(h, 10);
-        if (hNum > 0) result.height = hNum;
-      }
-    }
-
-    // Weight from sidebar — "70 kg"
-    if (result.weight === null) {
-      const w = cardValue('Peso');
-      if (w) {
-        const wNum = parseInt(w, 10);
-        if (wNum > 0) result.weight = wNum;
-      }
-    }
-
-    // Club fallback from header or description
+    /* ── Club — sidebar (with flag) > header > JSON-LD description ── */
     if (!result.currentClub) {
+      result.currentClub = cardValueWithFlag('Clube atual') || cardValueWithFlag('Clube');
+    }
+    if (!result.currentClub) {
+      // Header club link
       const clubMatch = html.match(/class="zz-enthdr-club"[^>]*>([^<]+)/);
       if (clubMatch) {
         const club = clubMatch[1].trim();
@@ -403,18 +434,93 @@ async function fetchZeroZeroData(zzLink: string) {
       }
     }
 
-    // Club logo from header — <a class="zz-enthdr-club" ...><span>...</span><img src="/img/logos/equipas/XXX.png"></a>
+    /* ── Nationality — sidebar (with flag) > JSON-LD (already set above) ── */
+    if (!result.nationality) {
+      result.nationality = cardValueWithFlag('Nacionalidade');
+    }
+    // Fallback: nearby keyword search
+    if (!result.nationality) {
+      const nearby = findNearby('Nacionalidade', /class="text">([^<]+)/);
+      if (nearby) result.nationality = nearby;
+    }
+
+    /* ── Birth country — sidebar (with flag) > nearby keyword ── */
+    if (!result.birthCountry) {
+      result.birthCountry = cardValueWithFlag('Pa[ií]s de Nascimento') || cardValueWithFlag('Pa[ií]s');
+    }
+    if (!result.birthCountry) {
+      const nearby = findNearby('Nascimento', /class="text">([^<]+)/);
+      // Only use if it looks like a country, not a date
+      if (nearby && !/\d/.test(nearby)) result.birthCountry = nearby;
+    }
+    // Fallback: if no birth country but nationality exists, assume same
+    if (!result.birthCountry && result.nationality) {
+      result.birthCountry = result.nationality;
+    }
+
+    /* ── Height — sidebar > JSON-LD (already set above) > nearby keyword ── */
+    if (!result.height) {
+      const hVal = cardValue('Altura');
+      if (hVal) {
+        const hMatch = hVal.match(/(\d{2,3})/);
+        if (hMatch) result.height = parseInt(hMatch[1], 10);
+      }
+    }
+    if (!result.height) {
+      const nearby = findNearby('Altura', /(\d{2,3})\s*(?:cm)?/);
+      if (nearby) result.height = parseInt(nearby, 10);
+    }
+
+    /* ── Weight — sidebar > JSON-LD (already set above) > nearby keyword ── */
+    if (!result.weight) {
+      const wVal = cardValue('Peso');
+      if (wVal) {
+        const wMatch = wVal.match(/(\d{2,3})/);
+        if (wMatch) result.weight = parseInt(wMatch[1], 10);
+      }
+    }
+    if (!result.weight) {
+      const nearby = findNearby('Peso', /(\d{2,3})\s*(?:kg)?/);
+      if (nearby) result.weight = parseInt(nearby, 10);
+    }
+
+    /* ── Shirt number — sidebar > header ── */
+    if (!result.shirtNumber) {
+      const shirtVal = cardValue('N[úu]mero') || cardValue('Camisola');
+      if (shirtVal) {
+        const num = shirtVal.match(/(\d{1,3})/);
+        if (num) result.shirtNumber = parseInt(num[1], 10);
+      }
+    }
+    if (!result.shirtNumber) {
+      // Header: <span class="number" ...>7.</span> before player name
+      const hdrNum = html.match(/class="number"[^>]*>\s*(\d{1,3})/);
+      if (hdrNum) result.shirtNumber = parseInt(hdrNum[1], 10);
+    }
+
+    /* ── Club logo — header img > sidebar img ── */
     const clubLogoMatch = html.match(/zz-enthdr-club[\s\S]*?<img[^>]*src="(\/img\/logos\/equipas\/[^"]+)"/);
     if (clubLogoMatch) {
       result.clubLogoUrl = `https://www.zerozero.pt${clubLogoMatch[1]}`;
     }
+    // Fallback: sidebar club row logo
+    if (!result.clubLogoUrl) {
+      const sidebarLogo = cardRowHtml('Clube atual') || cardRowHtml('Clube');
+      if (sidebarLogo) {
+        const logoMatch = sidebarLogo.match(/<img[^>]*src="(\/img\/logos\/equipas\/[^"]+)"/);
+        if (logoMatch) result.clubLogoUrl = `https://www.zerozero.pt${logoMatch[1]}`;
+      }
+    }
 
-    // Photo fallback from HTML img
+    /* ── Photo — JSON-LD (already set) > og:image > page img tag ── */
+    if (!result.photoUrl) {
+      const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/);
+      if (ogImage && /jogadores/i.test(ogImage[1])) result.photoUrl = ogImage[1];
+    }
     if (!result.photoUrl) {
       const imgMatch = html.match(/src="([^"]*(?:cdn-img\.zerozero\.pt|zerozero\.pt)\/img\/jogadores\/[^"]+)"/);
       if (imgMatch) result.photoUrl = imgMatch[1];
     }
-
     // Fix protocol-relative URLs
     if (result.photoUrl && result.photoUrl.startsWith('//')) {
       result.photoUrl = 'https:' + result.photoUrl;
@@ -553,6 +659,14 @@ export interface ScrapedChanges {
   /** Raw position text from ZeroZero (e.g. "Médio Defensivo") for display */
   positionRaw: string | null;
   positionChanged: boolean;
+  /** Secondary position from ZZ (normalized code, '' if unknown) */
+  secondaryPosition: string | null;
+  /** Raw secondary position text from ZZ */
+  secondaryPositionRaw: string | null;
+  /** Tertiary position from ZZ (normalized code, '' if unknown) */
+  tertiaryPosition: string | null;
+  /** Raw tertiary position text from ZZ */
+  tertiaryPositionRaw: string | null;
   /** Preferred foot from ZeroZero (normalized to "Dir"/"Esq"/"Amb") */
   foot: string | null;
   footChanged: boolean;
@@ -584,7 +698,7 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
 
   const { data: player } = await supabase
     .from('players')
-    .select('name, dob, fpf_link, zerozero_link, club, club_logo_url, photo_url, zz_photo_url, height, weight, birth_country, nationality, position_normalized, foot')
+    .select('name, dob, fpf_link, zerozero_link, club, club_logo_url, photo_url, zz_photo_url, height, weight, birth_country, nationality, position_normalized, secondary_position, tertiary_position, foot')
     .eq('id', playerId)
     .single();
 
@@ -595,6 +709,7 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     height: null, heightChanged: false, weight: null, weightChanged: false,
     birthCountry: null, birthCountryChanged: false, nationality: null, nationalityChanged: false,
     position: null, positionRaw: null, positionChanged: false,
+    secondaryPosition: null, secondaryPositionRaw: null, tertiaryPosition: null, tertiaryPositionRaw: null,
     foot: null, footChanged: false, gamesSeason: null, goalsSeason: null,
     zzLinkFound: null, zzCandidateName: null, zzCandidateClub: null, zzCandidateAge: null,
     zzConfirmed: false, hasChanges: false,
@@ -684,8 +799,12 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   // Photos: keep separate so UI can show the right one based on ZZ confirmation
   const fpfPhotoUrl = fpfResult?.photoUrl ?? null;
   const zzPhotoUrl = zzResult?.photoUrl ?? null;
-  // Show photo option if any new photo exists (even if player already has one — allows switching)
-  const hasNewPhoto = !!(fpfPhotoUrl || zzPhotoUrl);
+  // Only show photo option if it's different from current photo
+  const currentPhoto = player.photo_url ?? '';
+  const currentZzPhoto = player.zz_photo_url ?? '';
+  const fpfPhotoNew = !!fpfPhotoUrl && fpfPhotoUrl !== currentPhoto;
+  const zzPhotoNew = !!zzPhotoUrl && zzPhotoUrl !== currentPhoto && zzPhotoUrl !== currentZzPhoto;
+  const hasNewPhoto = fpfPhotoNew || zzPhotoNew;
 
   // ZZ-sourced: height, weight, position, foot, games, goals
   const mergedHeight = zzResult?.height ?? null;
@@ -694,7 +813,15 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   const weightChanged = mergedWeight !== null && mergedWeight !== player.weight;
   const positionRaw = zzResult?.position ?? null;
   const positionNormalized = positionRaw ? normalizePosition(positionRaw) : '';
-  const positionChanged = !!positionNormalized && positionNormalized !== (player.position_normalized ?? '');
+  const secondaryRaw = zzResult?.secondaryPosition ?? null;
+  const secondaryNormalized = secondaryRaw ? normalizePosition(secondaryRaw) : null;
+  const tertiaryRaw = zzResult?.tertiaryPosition ?? null;
+  const tertiaryNormalized = tertiaryRaw ? normalizePosition(tertiaryRaw) : null;
+  // Position changed: true if normalized code differs, OR if raw text exists but normalization failed (user picks via dropdown)
+  const primaryChanged = !!positionRaw && (positionNormalized || '') !== (player.position_normalized ?? '');
+  const secondaryChanged = !!secondaryRaw && (secondaryNormalized || '') !== (player.secondary_position ?? '');
+  const tertiaryChanged = !!tertiaryRaw && (tertiaryNormalized || '') !== (player.tertiary_position ?? '');
+  const positionChanged = primaryChanged || secondaryChanged || tertiaryChanged;
   const mergedFoot = zzResult?.foot ?? null;
   const footChanged = !!mergedFoot && mergedFoot !== (player.foot ?? '');
 
@@ -723,6 +850,10 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     position: positionNormalized || null,
     positionRaw,
     positionChanged,
+    secondaryPosition: secondaryNormalized || null,
+    secondaryPositionRaw: secondaryRaw,
+    tertiaryPosition: tertiaryNormalized || null,
+    tertiaryPositionRaw: tertiaryRaw,
     foot: mergedFoot,
     footChanged,
     gamesSeason: zzResult?.gamesSeason ?? null,
@@ -748,6 +879,8 @@ export async function applyScrapedData(
     birthCountry?: string;
     nationality?: string;
     position?: string;
+    secondaryPosition?: string;
+    tertiaryPosition?: string;
     foot?: string;
     /** Auto-found ZZ link — save to DB + scrape ZZ cache fields */
     zzLinkFound?: string;
@@ -764,6 +897,8 @@ export async function applyScrapedData(
   if (updates.birthCountry) dbUpdates.birth_country = updates.birthCountry;
   if (updates.nationality) dbUpdates.nationality = updates.nationality;
   if (updates.position) dbUpdates.position_normalized = updates.position;
+  if (updates.secondaryPosition) dbUpdates.secondary_position = updates.secondaryPosition;
+  if (updates.tertiaryPosition) dbUpdates.tertiary_position = updates.tertiaryPosition;
   if (updates.foot) dbUpdates.foot = updates.foot;
 
   // Save auto-found ZZ link + scrape full ZZ data
@@ -812,8 +947,10 @@ export interface ScrapedNewPlayerData {
   club: string | null;
   position: string | null;
   positionRaw: string | null;
+  secondaryPosition: string | null;
+  tertiaryPosition: string | null;
   foot: string | null;
-  shirtNumber: string | null;
+  shirtNumber: number | null;
   photoUrl: string | null;
   height: number | null;
   weight: number | null;
@@ -825,7 +962,8 @@ export interface ScrapedNewPlayerData {
 export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promise<ScrapedNewPlayerData> {
   const EMPTY: ScrapedNewPlayerData = {
     success: false, errors: [], name: null, dob: null, club: null,
-    position: null, positionRaw: null, foot: null, shirtNumber: null, photoUrl: null,
+    position: null, positionRaw: null, secondaryPosition: null, tertiaryPosition: null,
+    foot: null, shirtNumber: null, photoUrl: null,
     height: null, weight: null, nationality: null, birthCountry: null,
   };
 
@@ -852,6 +990,10 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promis
   const club = fpfResult?.currentClub || zzResult?.currentClub || null;
   const positionRaw = zzResult?.position ?? null;
   const position = positionRaw ? normalizePosition(positionRaw) : null;
+  const secondaryRaw = zzResult?.secondaryPosition ?? null;
+  const secondaryPosition = secondaryRaw ? normalizePosition(secondaryRaw) : null;
+  const tertiaryRaw = zzResult?.tertiaryPosition ?? null;
+  const tertiaryPosition = tertiaryRaw ? normalizePosition(tertiaryRaw) : null;
   const foot = zzResult?.foot ?? null;
   const shirtNumber = zzResult?.shirtNumber ?? null;
   const photoUrl = zzResult?.photoUrl || fpfResult?.photoUrl || null;
@@ -862,8 +1004,8 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promis
 
   return {
     success: true, errors,
-    name, dob, club, position, positionRaw, foot, shirtNumber,
-    photoUrl, height, weight, nationality, birthCountry,
+    name, dob, club, position, positionRaw, secondaryPosition, tertiaryPosition,
+    foot, shirtNumber, photoUrl, height, weight, nationality, birthCountry,
   };
 }
 

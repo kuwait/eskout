@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.8 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.9 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -24,8 +24,11 @@ The scouting department currently uses a Google Sheets spreadsheet with ~2000 sc
 - Who from the shadow squad should be approached to fill gaps
 - Who is realistically signable based on their current club
 
-### 1.4. Positions (FIXED LIST — use these exactly)
-The app uses exactly these 10 position codes throughout:
+### 1.4. Positions
+
+The app uses two tiers of positions:
+
+**Squad positions (10)** — used in Real Squad, Shadow Squad, and Formation views:
 
 | Code | Portuguese Name | English |
 |------|----------------|---------|
@@ -40,7 +43,17 @@ The app uses exactly these 10 position codes throughout:
 | EE | Extremo Esquerdo | Left Winger |
 | PL | Ponta de Lança | Striker |
 
-**There is NO "EXT" (generic winger) position.** If the original data has "Extremo" or "Ala" without a side, it must be manually classified as ED or EE by the admin, or left blank for later assignment.
+**Extended positions (5)** — available for player profiles and MiniPitch only, NOT in squad/formation views:
+
+| Code | Portuguese Name | English |
+|------|----------------|---------|
+| MD | Médio Direito | Right Midfielder |
+| ME | Médio Esquerdo | Left Midfielder |
+| AD | Ala Direito | Right Wing-Back |
+| AE | Ala Esquerdo | Left Wing-Back |
+| SA | Segundo Avançado | Second Striker |
+
+**There is NO "EXT" (generic winger) position.** If the original data has "Extremo" without a side, it must be manually classified as ED or EE by the admin, or left blank for later assignment.
 
 ### 1.5. Users & Roles
 

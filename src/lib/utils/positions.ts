@@ -69,15 +69,39 @@ const POSITION_MAP: Record<string, PositionCode> = {
   // ED
   'extremo direito': 'ED',
   'ed': 'ED',
-  'ala direito': 'ED',
   'ed/pl': 'ED',
   'ed/de': 'ED',
 
   // EE
   'extremo esquerdo': 'EE',
   'ee': 'EE',
-  'ala esquerdo': 'EE',
   'ee/pl': 'EE',
+
+  // MD
+  'médio direito': 'MD',
+  'medio direito': 'MD',
+  'md': 'MD',
+
+  // ME
+  'médio esquerdo': 'ME',
+  'medio esquerdo': 'ME',
+  'me': 'ME',
+
+  // AD
+  'ala direito': 'AD',
+  'ad': 'AD',
+
+  // AE
+  'ala esquerdo': 'AE',
+  'ae': 'AE',
+
+  // SA
+  'segundo avançado': 'SA',
+  'segundo avancado': 'SA',
+  'sa': 'SA',
+  '2º avançado': 'SA',
+  '2o avançado': 'SA',
+  '2o avancado': 'SA',
 
   // PL
   'ponta de lança': 'PL',
@@ -114,7 +138,10 @@ export function normalizePosition(raw: string | null | undefined): PositionCode 
   if (collapsed2) return collapsed2;
 
   // Ambiguous cases — "Extremo" or "Ala" without side
-  if (cleaned === 'extremo' || cleaned === 'ala' || cleaned === 'ext') {
+  if (cleaned === 'extremo' || cleaned === 'ext') {
+    return '';
+  }
+  if (cleaned === 'ala') {
     return '';
   }
 

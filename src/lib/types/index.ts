@@ -9,7 +9,7 @@ export type ObservationTier = 'observado' | 'referenciado' | 'adicionado';
 
 /* ───────────── Position & Enums ───────────── */
 
-export type PositionCode = 'GR' | 'DD' | 'DE' | 'DC' | 'MDC' | 'MC' | 'MOC' | 'ED' | 'EE' | 'PL';
+export type PositionCode = 'GR' | 'DD' | 'DE' | 'DC' | 'MDC' | 'MD' | 'MC' | 'ME' | 'MOC' | 'ED' | 'EE' | 'AD' | 'AE' | 'SA' | 'PL';
 
 export type DepartmentOpinion =
   | '1ª Escolha'

@@ -23,8 +23,8 @@ import type { Player, PositionCode } from '@/lib/types';
 
 /* ───────────── Formation Groups ───────────── */
 
-/** Visual slot IDs — DC split into two visual groups (by order, not foot) */
-type FormationSlotId = PositionCode | 'DC_E' | 'DC_D';
+/** Visual slot IDs — DC split into two visual groups. AD/AE excluded from squad formations */
+type FormationSlotId = Exclude<PositionCode, 'AD' | 'AE' | 'MD' | 'ME' | 'SA'> | 'DC_E' | 'DC_D';
 
 /** Desktop groups: columns left-to-right on horizontal pitch */
 const DESKTOP_GROUPS: FormationSlotId[][] = [

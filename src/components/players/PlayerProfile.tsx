@@ -639,7 +639,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.height && <InfoItem label="Altura" value={`${p.height} cm`} />}
                 {p.weight && <InfoItem label="Peso" value={`${p.weight} kg`} />}
                 {p.nationality && <InfoItem label="Nacionalidade" value={`${getNationalityFlag(p.nationality)} ${p.nationality}`} />}
-                {p.birthCountry && <InfoItem label="País Nascimento" value={p.birthCountry} />}
+                {p.birthCountry && <InfoItem label="País Nascimento" value={`${getNationalityFlag(p.birthCountry)} ${p.birthCountry}`} />}
                 {p.referredBy && <InfoItem label="Referência" value={p.referredBy} />}
               </InfoGrid>
             </Section>
@@ -1099,15 +1099,20 @@ function ShirtNumberPicker({ value, onChange }: { value: string; onChange: (v: s
 /** Position coordinates on a horizontal pitch (percentage-based) */
 const EDIT_PITCH_POSITIONS: Record<PositionCode, { x: number; y: number }> = {
   GR:  { x: 8,  y: 50 },
-  DE:  { x: 24, y: 82 },
+  DD:  { x: 24, y: 82 },
   DC:  { x: 22, y: 50 },
-  DD:  { x: 24, y: 18 },
-  MDC: { x: 42, y: 38 },
-  MC:  { x: 42, y: 62 },
-  MOC: { x: 58, y: 50 },
-  EE:  { x: 72, y: 86 },
-  ED:  { x: 72, y: 14 },
-  PL:  { x: 85, y: 50 },
+  DE:  { x: 24, y: 18 },
+  MDC: { x: 35, y: 50 },
+  AD:  { x: 36, y: 88 },
+  MD:  { x: 50, y: 82 },
+  MC:  { x: 50, y: 50 },
+  ME:  { x: 50, y: 18 },
+  AE:  { x: 36, y: 12 },
+  MOC: { x: 62.5, y: 50 },
+  ED:  { x: 72, y: 86 },
+  EE:  { x: 72, y: 14 },
+  SA:  { x: 80, y: 50 },
+  PL:  { x: 88, y: 50 },
 };
 
 function EditPitchPicker({ primary, secondary, tertiary, onPrimaryChange, onSecondaryChange, onTertiaryChange }: {

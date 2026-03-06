@@ -13,20 +13,26 @@ export const POSITIONS: { code: PositionCode; labelPt: string; labelEn: string }
   { code: 'DE', labelPt: 'Defesa Esquerdo', labelEn: 'Left Back' },
   { code: 'DC', labelPt: 'Defesa Central', labelEn: 'Centre Back' },
   { code: 'MDC', labelPt: 'Médio Defensivo', labelEn: 'Defensive Midfielder' },
+  { code: 'MD', labelPt: 'Médio Direito', labelEn: 'Right Midfielder' },
   { code: 'MC', labelPt: 'Médio Centro', labelEn: 'Central Midfielder' },
+  { code: 'ME', labelPt: 'Médio Esquerdo', labelEn: 'Left Midfielder' },
   { code: 'MOC', labelPt: 'Médio Ofensivo', labelEn: 'Attacking Midfielder' },
   { code: 'ED', labelPt: 'Extremo Direito', labelEn: 'Right Winger' },
   { code: 'EE', labelPt: 'Extremo Esquerdo', labelEn: 'Left Winger' },
+  { code: 'AD', labelPt: 'Ala Direito', labelEn: 'Right Wing-Back' },
+  { code: 'AE', labelPt: 'Ala Esquerdo', labelEn: 'Left Wing-Back' },
+  { code: 'SA', labelPt: 'Segundo Avançado', labelEn: 'Second Striker' },
   { code: 'PL', labelPt: 'Ponta de Lança', labelEn: 'Striker' },
 ] as const;
 
 export const POSITION_CODES: PositionCode[] = POSITIONS.map((p) => p.code);
 
-/** Extended squad slot codes — includes DC_E / DC_D for formation views */
-export type SquadSlot = PositionCode | 'DC_E' | 'DC_D';
+/** Extended squad slot codes — includes DC_E / DC_D for formation views. AD/AE excluded from squads */
+export type SquadSlot = Exclude<PositionCode, 'AD' | 'AE' | 'MD' | 'ME'> | 'DC_E' | 'DC_D';
 
-/** All valid squad slot codes (10 positions + 2 DC sub-slots) */
-export const SQUAD_SLOT_CODES: SquadSlot[] = [...POSITION_CODES, 'DC_E', 'DC_D'];
+/** All valid squad slot codes (10 positions + 2 DC sub-slots, no AD/AE) */
+const NON_SQUAD_POSITIONS = new Set(['AD', 'AE', 'MD', 'ME', 'SA']);
+export const SQUAD_SLOT_CODES: SquadSlot[] = [...POSITION_CODES.filter((c) => !NON_SQUAD_POSITIONS.has(c)) as SquadSlot[], 'DC_E', 'DC_D'];
 
 /** Squad display slots — DC split into DC (E) and DC (D) for list/compare views */
 export const SQUAD_SLOTS: { slot: SquadSlot; label: string }[] = [

@@ -19,7 +19,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { scrapePlayerAll, applyScrapedData, type ScrapedChanges } from '@/actions/scraping';
-import type { Player } from '@/lib/types';
+import { POSITIONS } from '@/lib/constants';
+import type { Player, PositionCode } from '@/lib/types';
 
 interface RefreshPlayerButtonProps {
   player: Player;
@@ -35,6 +36,8 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   // Track which photo source the user picked ('fpf' | 'zz' | null)
   const [photoSource, setPhotoSource] = useState<'fpf' | 'zz' | null>(null);
+  // User-overridden positions when ZZ returns unknown position text (dropdown selection)
+  const [posOverrides, setPosOverrides] = useState<{ primary?: string; secondary?: string; tertiary?: string }>({});
 
   // Only show if the player has at least one external link
   if (!player.fpfLink && !player.zerozeroLink) return null;
@@ -73,6 +76,7 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
         // Auto-found ZZ link: NOT pre-selected — user must confirm
         if (res.zzLinkFound) sel.zzLink = false;
         setSelected(sel);
+        setPosOverrides({});
         // Default photo source: FPF if available (most reliable), ZZ only if confirmed
         setPhotoSource(res.fpfPhotoUrl ? 'fpf' : res.zzPhotoUrl && res.zzConfirmed ? 'zz' : null);
         setShowDialog(true);
@@ -100,7 +104,15 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
       if (zzEnabled) {
         if (selected.height && result.height) updates.height = result.height;
         if (selected.weight && result.weight) updates.weight = result.weight;
-        if (selected.position && result.position) updates.position = result.position;
+        if (selected.position) {
+          // Use overrides (from dropdown) if set, otherwise use normalized codes
+          const primary = posOverrides.primary || result.position || null;
+          const secondary = posOverrides.secondary || result.secondaryPosition || null;
+          const tertiary = posOverrides.tertiary || result.tertiaryPosition || null;
+          if (primary) updates.position = primary;
+          if (secondary) updates.secondaryPosition = secondary;
+          if (tertiary) updates.tertiaryPosition = tertiary;
+        }
         if (selected.foot && result.foot) updates.foot = result.foot;
       }
       // Only apply ZZ link if user explicitly confirmed it
@@ -309,49 +321,51 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
                       </a>
                     </div>
                   </div>
-                  {/* ZZ-sourced fields — below candidate info, visible when confirmed */}
-                  {zzEnabled && (
-                    <div className="mt-2 space-y-2 border-t border-emerald-200 pt-2">
-                      {result.heightChanged && result.height && (
-                        <ChangeRow
-                          checked={!!selected.height}
-                          onToggle={() => toggleField('height')}
-                          label="Altura"
-                          oldValue={player.height ? `${player.height} cm` : '—'}
-                          newValue={`${result.height} cm`}
-                        />
-                      )}
-                      {result.weightChanged && result.weight && (
-                        <ChangeRow
-                          checked={!!selected.weight}
-                          onToggle={() => toggleField('weight')}
-                          label="Peso"
-                          oldValue={player.weight ? `${player.weight} kg` : '—'}
-                          newValue={`${result.weight} kg`}
-                        />
-                      )}
-                      {result.positionChanged && result.position && (
-                        <ChangeRow
-                          checked={!!selected.position}
-                          onToggle={() => toggleField('position')}
-                          label="Posição"
-                          oldValue={player.positionNormalized || '—'}
-                          newValue={`${result.position}${result.positionRaw ? ` (${result.positionRaw})` : ''}`}
-                        />
-                      )}
-                      {result.footChanged && result.foot && (
-                        <ChangeRow
-                          checked={!!selected.foot}
-                          onToggle={() => toggleField('foot')}
-                          label="Pé"
-                          oldValue={player.foot || '—'}
-                          newValue={result.foot}
-                        />
-                      )}
-                    </div>
-                  )}
                 </div>
               </label>
+            )}
+
+            {/* ── ZZ-sourced fields (visible when ZZ is confirmed or pre-existing) ── */}
+            {zzEnabled && (
+              <>
+                {result?.heightChanged && result.height && (
+                  <ChangeRow
+                    checked={!!selected.height}
+                    onToggle={() => toggleField('height')}
+                    label="Altura"
+                    oldValue={player.height ? `${player.height} cm` : '—'}
+                    newValue={`${result.height} cm`}
+                  />
+                )}
+                {result?.weightChanged && result.weight && (
+                  <ChangeRow
+                    checked={!!selected.weight}
+                    onToggle={() => toggleField('weight')}
+                    label="Peso"
+                    oldValue={player.weight ? `${player.weight} kg` : '—'}
+                    newValue={`${result.weight} kg`}
+                  />
+                )}
+                {result?.positionChanged && (
+                  <PositionChangeRow
+                    checked={!!selected.position}
+                    onToggle={() => toggleField('position')}
+                    player={player}
+                    result={result}
+                    overrides={posOverrides}
+                    onOverride={setPosOverrides}
+                  />
+                )}
+                {result?.footChanged && result.foot && (
+                  <ChangeRow
+                    checked={!!selected.foot}
+                    onToggle={() => toggleField('foot')}
+                    label="Pé"
+                    oldValue={player.foot || '—'}
+                    newValue={result.foot}
+                  />
+                )}
+              </>
             )}
           </div>
           <DialogFooter>
@@ -404,5 +418,84 @@ function ChangeRow({ checked, onToggle, label, oldValue, newValue, disabled, sou
         )}
       </div>
     </label>
+  );
+}
+
+/* ───────────── Position Change Row — with dropdowns for unknown positions ───────────── */
+
+/** Dropdown for selecting a position code when ZZ returned an unknown position text */
+function PositionSelect({ rawText, normalizedCode, value, onChange }: {
+  rawText: string;
+  normalizedCode: string | null;
+  value: string;
+  onChange: (code: string) => void;
+}) {
+  const isUnknown = !normalizedCode;
+  if (!isUnknown) {
+    // Known position — just show the code
+    return <span className="font-medium">{normalizedCode}</span>;
+  }
+  // Unknown position — show raw text + dropdown
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-semibold text-amber-700">{rawText}</span>
+      <span className="text-[10px] text-muted-foreground">→</span>
+      <select
+        className="rounded border border-amber-300 bg-white px-1 py-0.5 text-xs font-medium"
+        value={value}
+        onChange={(e) => { e.stopPropagation(); onChange(e.target.value); }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <option value="">Escolher...</option>
+        {POSITIONS.map((p) => (
+          <option key={p.code} value={p.code}>{p.code} — {p.labelPt}</option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+/** Position row: shows each position slot (primary/secondary/tertiary) with dropdowns for unknowns */
+function PositionChangeRow({ checked, onToggle, player, result, overrides, onOverride }: {
+  checked: boolean;
+  onToggle: () => void;
+  player: Player;
+  result: ScrapedChanges;
+  overrides: { primary?: string; secondary?: string; tertiary?: string };
+  onOverride: (v: { primary?: string; secondary?: string; tertiary?: string }) => void;
+}) {
+  // Build position slots from ZZ data
+  type PosKey = 'primary' | 'secondary' | 'tertiary';
+  const allSlots: { key: PosKey; raw: string | null; normalized: string | null; current: string | null }[] = [
+    { key: 'primary', raw: result.positionRaw, normalized: result.position, current: player.positionNormalized },
+    { key: 'secondary', raw: result.secondaryPositionRaw, normalized: result.secondaryPosition, current: player.secondaryPosition },
+    { key: 'tertiary', raw: result.tertiaryPositionRaw, normalized: result.tertiaryPosition, current: player.tertiaryPosition },
+  ];
+  const slots = allSlots.filter((s) => s.raw); // Only show slots that have ZZ data
+
+  const currentPositions = [player.positionNormalized, player.secondaryPosition, player.tertiaryPosition].filter(Boolean).join(' / ') || '—';
+
+  // NOT a <label> — dropdown clicks would toggle the checkbox
+  return (
+    <div className="flex items-start gap-2">
+      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-0.5 cursor-pointer" />
+      <div>
+        <p className="font-medium cursor-pointer" onClick={onToggle}>Posição</p>
+        <p className="text-muted-foreground">{currentPositions} →</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {slots.map((slot, i) => (
+            <span key={slot.key} className="inline-flex items-center gap-1">
+              {i > 0 && <span className="text-muted-foreground">/</span>}
+              <PositionSelect
+                rawText={slot.raw!}
+                normalizedCode={slot.normalized}
+                value={overrides[slot.key] || slot.normalized || ''}
+                onChange={(code) => onOverride({ ...overrides, [slot.key]: code })}
+              />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
