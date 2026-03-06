@@ -234,21 +234,21 @@ async function fetchZeroZeroData(zzLink: string) {
       headers: browserHeaders({ 'Referer': 'https://www.zerozero.pt/' }),
       next: { revalidate: 0 },
     });
-    if (!res.ok) return null;
+    // Detect redirect to captcha (302 → recaptcha.php followed automatically by fetch)
+    if (!res.ok || res.url.includes('recaptcha') || res.url.includes('captcha')) {
+      console.warn(`[ZZ] Bloqueado (status=${res.status}, url=${res.url}): ${zzLink}`);
+      throw new Error('ZZ_BLOCKED');
+    }
 
     // ZeroZero serves pages in ISO-8859-1 (Latin-1), not UTF-8
     // Using res.text() would corrupt ç, ã, é etc. — decode manually
     const buf = await res.arrayBuffer();
     const html = new TextDecoder('iso-8859-1').decode(buf);
 
-    // Detect captcha/rate-limit pages — ZZ redirects to recaptcha.php when blocked
-    if (html.length < 5000 && (html.includes('recaptcha') || html.includes('g-recaptcha') || html.includes('captcha'))) {
-      console.warn(`[ZZ] Bloqueado por captcha: ${zzLink}`);
-      throw new Error('ZZ_BLOCKED');
-    }
-    // Also detect empty/stub responses (blocked silently)
-    if (buf.byteLength === 0 || (!html.includes('card-data') && !html.includes('ld+json'))) {
-      console.warn(`[ZZ] Resposta vazia ou inválida (possível bloqueio): ${zzLink}`);
+    // Detect captcha page content or empty/invalid responses
+    if (buf.byteLength === 0 || html.includes('recaptcha') || html.includes('g-recaptcha') ||
+        (!html.includes('card-data') && !html.includes('ld+json') && !html.includes('zz-enthdr'))) {
+      console.warn(`[ZZ] Resposta inválida (possível bloqueio): ${zzLink}`);
       throw new Error('ZZ_BLOCKED');
     }
     const result = {
@@ -615,7 +615,9 @@ async function fetchZeroZeroData(zzLink: string) {
     result.goalsSeason = latestGoals;
 
     return result;
-  } catch {
+  } catch (e) {
+    // Re-throw ZZ_BLOCKED so callers can show a specific warning
+    if (e instanceof Error && e.message === 'ZZ_BLOCKED') throw e;
     return null;
   }
 }
@@ -771,13 +773,18 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   // NOTE: Does NOT save to DB — only returns as a proposal for user confirmation
   let zzLinkFound: string | null = null;
   let zzCandidate: ZzSearchCandidate | null = null;
+  let zzBlocked = false;
   if (!player.zerozero_link && player.name && player.dob) {
-    const expectedAge = calcAgeFromDob(player.dob);
-    zzCandidate = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob);
-    if (zzCandidate) {
-      zzLinkFound = zzCandidate.url;
-      // Set in memory so fetchZeroZeroData runs below — but NOT saved to DB yet
-      player.zerozero_link = zzCandidate.url;
+    try {
+      const expectedAge = calcAgeFromDob(player.dob);
+      zzCandidate = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob);
+      if (zzCandidate) {
+        zzLinkFound = zzCandidate.url;
+        // Set in memory so fetchZeroZeroData runs below — but NOT saved to DB yet
+        player.zerozero_link = zzCandidate.url;
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === 'ZZ_BLOCKED') zzBlocked = true;
     }
   }
 
@@ -787,14 +794,13 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   type FpfData = Awaited<ReturnType<typeof fetchFpfData>>;
   type ZzData = Awaited<ReturnType<typeof fetchZeroZeroData>>;
 
-  let zzBlocked = false;
   const [fpfResult, zzResult] = await Promise.all([
     player.fpf_link
       ? fetchFpfData(player.fpf_link).catch(() => null as FpfData)
       : Promise.resolve(null as FpfData),
     player.zerozero_link
-      ? fetchZeroZeroData(player.zerozero_link).catch((e: Error) => {
-          if (e.message === 'ZZ_BLOCKED') zzBlocked = true;
+      ? fetchZeroZeroData(player.zerozero_link).catch((e: unknown) => {
+          if (e instanceof Error && e.message === 'ZZ_BLOCKED') zzBlocked = true;
           return null as ZzData;
         })
       : Promise.resolve(null as ZzData),
@@ -1329,10 +1335,15 @@ async function searchZzAutocomplete(query: string): Promise<ZzSearchCandidate[]>
       next: { revalidate: 0 },
     },
   );
-  if (!res.ok) return [];
+  // Detect blocked: non-200, redirect to captcha, or empty response
+  if (!res.ok || res.url.includes('recaptcha') || res.url.includes('captcha')) {
+    throw new Error('ZZ_BLOCKED');
+  }
   const buf = await res.arrayBuffer();
+  if (buf.byteLength === 0) throw new Error('ZZ_BLOCKED');
   // ZZ autocomplete responds in UTF-8 (unlike player pages which are ISO-8859-1)
   const html = new TextDecoder('utf-8').decode(buf);
+  if (html.includes('recaptcha') || html.includes('g-recaptcha')) throw new Error('ZZ_BLOCKED');
   return parseZzAutocompleteResults(html);
 }
 

@@ -49,6 +49,7 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
     setFeedback(null);
     startTransition(async () => {
       const res = await scrapePlayerAll(player.id);
+      console.log('[RefreshPlayer] result:', JSON.stringify({ success: res.success, errors: res.errors, hasChanges: res.hasChanges, zzConfirmed: res.zzConfirmed }));
       setResult(res);
 
       if (!res.success) {
@@ -80,6 +81,10 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
         // Default photo source: FPF if available (most reliable), ZZ only if confirmed
         setPhotoSource(res.fpfPhotoUrl ? 'fpf' : res.zzPhotoUrl && res.zzConfirmed ? 'zz' : null);
         setShowDialog(true);
+      } else if (res.errors.length > 0) {
+        // No changes but partial errors — show warning (e.g. ZZ blocked)
+        setFeedback(res.errors.join('. '));
+        setTimeout(() => setFeedback(null), 5000);
       } else {
         setFeedback('ok');
         setTimeout(() => setFeedback(null), 2000);
@@ -169,7 +174,7 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
   const anySelected = Object.values(selected).some(Boolean);
 
   return (
-    <>
+    <div className="relative">
       <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending || feedback === 'ok'}>
         {feedback === 'ok' ? (
           <Check className="mr-1 h-3 w-3 text-emerald-500" />
@@ -178,6 +183,12 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
         )}
         {isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar'}
       </Button>
+      {/* Show partial errors as toast-like warning below button */}
+      {feedback && feedback !== 'ok' && (
+        <p className="absolute top-full mt-1 right-0 z-50 whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-700 shadow-sm">
+          ⚠ {feedback}
+        </p>
+      )}
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
@@ -187,7 +198,9 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
           </DialogHeader>
           {/* Partial errors (e.g. ZZ blocked but FPF ok) */}
           {result?.errors && result.errors.length > 0 && (
-            <p className="text-xs text-amber-600">{result.errors.join('. ')}</p>
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              ⚠ {result.errors.join('. ')}
+            </div>
           )}
           <div className="space-y-3 text-sm">
             {/* ── FPF-sourced fields (always visible) ── */}
@@ -382,7 +395,7 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 

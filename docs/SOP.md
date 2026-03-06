@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 6.0 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 6.1 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
