@@ -485,7 +485,10 @@ function PositionChangeRow({ checked, onToggle, player, result, overrides, onOve
       <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-0.5 cursor-pointer" />
       <div>
         <p className="font-medium cursor-pointer" onClick={onToggle}>Posição</p>
-        <p className="text-muted-foreground">{currentPositions} →</p>
+        {currentPositions === '—'
+          ? <p className="text-xs font-semibold text-green-600">Novo</p>
+          : <p className="text-muted-foreground">{currentPositions} →</p>
+        }
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {slots.map((slot, i) => (
             <span key={slot.key} className="inline-flex items-center gap-1">

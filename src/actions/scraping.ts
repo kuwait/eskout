@@ -827,9 +827,12 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     cacheUpdates.zz_team_history = zzResult.teamHistory?.length ? zzResult.teamHistory : null;
     cacheUpdates.zz_last_checked = new Date().toISOString();
   }
-  // Club logo: auto-save best available, show change only if URL actually changed
-  if (fpfResult?.clubLogoUrl) cacheUpdates.club_logo_url = fpfResult.clubLogoUrl;
-  if (zzResult?.clubLogoUrl && !zzLinkFound) cacheUpdates.club_logo_url = zzResult.clubLogoUrl;
+  // Club logo: only auto-save if the scraped club matches the player's current club
+  // (don't overwrite Canidelo's logo with Boavista's just because ZZ says the player moved)
+  const fpfClubMatch = fpfResult?.currentClub && clubsMatch(fpfResult.currentClub, player.club ?? '');
+  const zzClubMatch = zzResult?.currentClub && clubsMatch(zzResult.currentClub, player.club ?? '');
+  if (fpfResult?.clubLogoUrl && fpfClubMatch) cacheUpdates.club_logo_url = fpfResult.clubLogoUrl;
+  if (zzResult?.clubLogoUrl && !zzLinkFound && zzClubMatch) cacheUpdates.club_logo_url = zzResult.clubLogoUrl;
   if (Object.keys(cacheUpdates).length > 0) {
     await supabase.from('players').update(cacheUpdates).eq('id', playerId);
   }
