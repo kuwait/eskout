@@ -315,8 +315,18 @@ Full table/list of all players (fetched once, filtered client-side):
 - 🔴 Red → Sem interesse
 - 🟣 Purple → Potencial
 
-**Mobile:** Card layout (name, position, club, badges). Tap → profile.
-**Desktop:** Full table with all columns.
+**Mobile:** Card layout with eval rating circle (colored), name, position, club, badges. Tap → profile.
+
+**Desktop table columns (in order):**
+1. **Avaliação** — colored circle (h-8) with rating number + label text. Rating colors: 1=red, 2=orange, 3=blue, 4=emerald, 5=dark emerald. Default sort: eval descending.
+2. **Nome** — player photo (h-14, rounded, lazy loaded, `unoptimized` for external URLs) + name + club subtitle. Fallback: neutral User icon.
+3. **Nasc.** — date in dd/MM/yyyy + "X anos" subtitle.
+4. **Posição** — color-coded pills (green=primary, yellow=secondary, orange=tertiary) + "Pé Direito/Esquerdo/Ambidestro" subtitle. Hover shows pitch position map via HoverCard (Radix portal, escapes table overflow).
+5. **Opinião** — OpinionBadge pills.
+6. **Estado** — StatusBadge.
+
+- Entire row clickable → navigates to player profile
+- Columns are resizable (drag handles) and sortable (click header)
 
 **Add player button** → opens form (Section 4.9)
 
@@ -578,7 +588,8 @@ sikout/
 │   │   ├── common/
 │   │   │   ├── StatusBadge.tsx
 │   │   │   ├── OpinionBadge.tsx
-│   │   │   └── PlayerAvatar.tsx       # Avatar with photo or initials
+│   │   │   ├── PlayerAvatar.tsx       # Avatar with photo or initials
+│   │   │   └── MiniPitch.tsx          # Reusable pitch canvas + hover popup (shared by PlayerProfile & PlayerTable)
 │   │   └── ui/                        # shadcn/ui components
 │   ├── lib/
 │   │   ├── supabase/
@@ -1308,6 +1319,9 @@ Add the core planning tools.
 - [x] DC sub-slots for left/right central defenders
 - [x] Calendar: scouting schedule with events, player linking, month/list views
 - [x] Player photos (photo_url + avatar component)
+- [x] Player table redesign: eval column, photos, position pitch hover, row click navigation
+- [x] Shared MiniPitch component (pitch canvas + hover popup)
+- [x] StatusHistory: squad context labels, opinion pill display
 - [x] "Assinou" recruitment status + signing date
 - [x] Meeting date tracking
 - [x] Player profile popup (inline view without page navigation)
