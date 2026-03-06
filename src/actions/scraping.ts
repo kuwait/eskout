@@ -60,6 +60,27 @@ const HEADERS = {
 
 /* ───────────── Helpers ───────────── */
 
+/** Fix common country name misspellings from FPF/ZZ sources */
+const COUNTRY_FIXES: Record<string, string> = {
+  'guine bissau': 'Guiné-Bissau',
+  'guine-bissau': 'Guiné-Bissau',
+  'guiné bissau': 'Guiné-Bissau',
+  'guine equatorial': 'Guiné Equatorial',
+  'guine': 'Guiné',
+  'guiné': 'Guiné',
+  'cabo verde': 'Cabo Verde',
+  'sao tome e principe': 'São Tomé e Príncipe',
+  'são tome e principe': 'São Tomé e Príncipe',
+  'mocambique': 'Moçambique',
+  'timor leste': 'Timor-Leste',
+};
+
+function normalizeCountry(name: string | null): string | null {
+  if (!name) return null;
+  const fixed = COUNTRY_FIXES[name.toLowerCase().trim()];
+  return fixed || name;
+}
+
 /** Normalize club name for comparison — removes "FC", "F.C.", "Futebol Clube", punctuation, etc. */
 function normalizeClubName(name: string): string {
   return name
@@ -786,10 +807,11 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   const mergedClub = fpfResult?.currentClub || (zzConfirmed ? zzResult?.currentClub : null) || null;
   const clubChanged = mergedClub ? !clubsMatch(mergedClub, player.club ?? '') : false;
 
-  // FPF-sourced: nationality, birth country (FPF priority, ZZ fallback only if confirmed)
-  const mergedNationality = fpfResult?.nationality || (zzConfirmed ? zzResult?.nationality : null) || null;
+  // FPF-sourced: nationality, birth country (FPF priority, ZZ fallback if confirmed)
+  // normalizeCountry fixes FPF accent issues (e.g. "Guine Bissau" → "Guiné-Bissau")
+  const mergedNationality = normalizeCountry(fpfResult?.nationality || (zzConfirmed ? zzResult?.nationality : null) || null);
   const nationalityChanged = !!mergedNationality && mergedNationality !== player.nationality;
-  const mergedBirthCountry = fpfResult?.birthCountry || (zzConfirmed ? zzResult?.birthCountry : null) || null;
+  const mergedBirthCountry = normalizeCountry(fpfResult?.birthCountry || (zzConfirmed ? zzResult?.birthCountry : null) || null);
   const birthCountryChanged = !!mergedBirthCountry && mergedBirthCountry !== player.birth_country;
 
   // Club logo: prefer ZZ (higher res), fallback FPF — confirmable, not auto-saved
@@ -999,8 +1021,8 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promis
   const photoUrl = zzResult?.photoUrl || fpfResult?.photoUrl || null;
   const height = zzResult?.height ?? null;
   const weight = zzResult?.weight ?? null;
-  const nationality = fpfResult?.nationality || zzResult?.nationality || null;
-  const birthCountry = fpfResult?.birthCountry || zzResult?.birthCountry || null;
+  const nationality = normalizeCountry(fpfResult?.nationality || zzResult?.nationality || null);
+  const birthCountry = normalizeCountry(fpfResult?.birthCountry || zzResult?.birthCountry || null);
 
   return {
     success: true, errors,
@@ -1114,10 +1136,10 @@ export async function bulkScrapeExternalData(
           }
           // Nationality / birth country if empty
           if (data.nationality && !player.nationality) {
-            autoUpdates.nationality = data.nationality;
+            autoUpdates.nationality = normalizeCountry(data.nationality);
           }
           if (data.birthCountry && !player.birth_country) {
-            autoUpdates.birth_country = data.birthCountry;
+            autoUpdates.birth_country = normalizeCountry(data.birthCountry);
           }
         } else errors++;
       }
@@ -1169,9 +1191,12 @@ export async function bulkScrapeExternalData(
           // Height/weight if missing or different
           if (data.height && !player.height) autoUpdates.height = data.height;
           if (data.weight && !player.weight) autoUpdates.weight = data.weight;
-          // Nationality from ZZ if still empty
+          // Nationality / birth country from ZZ if still empty
           if (data.nationality && !player.nationality && !autoUpdates.nationality) {
-            autoUpdates.nationality = data.nationality;
+            autoUpdates.nationality = normalizeCountry(data.nationality);
+          }
+          if (data.birthCountry && !player.birth_country && !autoUpdates.birth_country) {
+            autoUpdates.birth_country = normalizeCountry(data.birthCountry);
           }
         } else errors++;
       }
@@ -1267,14 +1292,8 @@ async function searchZzAutocomplete(query: string): Promise<ZzSearchCandidate[]>
   );
   if (!res.ok) return [];
   const buf = await res.arrayBuffer();
-  // ZZ autocomplete may respond in UTF-8 or ISO-8859-1 depending on server config.
-  // Try UTF-8 first (handles accented chars natively); fallback to ISO-8859-1.
-  let html: string;
-  try {
-    html = new TextDecoder('utf-8', { fatal: true }).decode(buf);
-  } catch {
-    html = new TextDecoder('iso-8859-1').decode(buf);
-  }
+  // ZZ autocomplete responds in UTF-8 (unlike player pages which are ISO-8859-1)
+  const html = new TextDecoder('utf-8').decode(buf);
   return parseZzAutocompleteResults(html);
 }
 
