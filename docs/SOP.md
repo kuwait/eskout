@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.2 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.3 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -390,11 +390,20 @@ For each of the 10 positions (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL):
 - Remaining candidates (pool) for this position
 - Visual indicator: position is "covered" (enough depth) or "needs attention"
 
-### 4.9. Add New Player (Mobile-Optimized Form)
-- Minimum required: Name, Date of Birth, Position, Club
-- Optional: All other fields (foot, contact, FPF link, ZeroZero link, notes, etc.)
+### 4.9. Add New Player (Link-First Form)
+**Link-first flow** — the primary way to add a player is via FPF/ZeroZero links:
+1. User pastes FPF and/or ZeroZero URL(s) in a dark hero card
+2. Clicks "Buscar dados do jogador" → `scrapeFromLinks()` server action scrapes both in parallel
+3. Form pre-fills with scraped data: name, DOB, club, position, foot, shirt number, photo, height, weight, nationality, birth country
+4. User reviews and edits any field, then saves
+
+**Manual fallback** — "Inserir manualmente" button skips scraping, shows empty form.
+
+- Minimum required: Name, Date of Birth, Club
+- Optional: All other fields (position, foot, contact, FPF link, ZeroZero link, notes, etc.)
 - Age group auto-determined from date of birth
 - New players default to: status=`pool`, opinion=`Por Observar`
+- **Duplicate detection** on save: checks FPF link, ZeroZero link, and name+DOB (case-insensitive). Returns existing player name and ID in error message.
 - Available to: Admin, Master, Scout
 - **Scout Externo** uses a separate dedicated submission page (`/submeter`) — see Section 4.16
 
@@ -1206,6 +1215,31 @@ python scripts/extract_reports.py --retry-errors
 - Local PDF cache (don't re-download)
 - Retry with backoff on 429/500
 
+### 6.6. In-App Scraping (Server Actions)
+The app also scrapes FPF and ZeroZero directly from the browser via server actions in `src/actions/scraping.ts`:
+
+**FPF parsing:** Extracts `var model = {...}` embedded JSON — fields: FullName, CurrentClub, Image, BirthDate, Nationality, BirthCountry.
+
+**ZeroZero parsing:**
+- **Encoding:** ISO-8859-1 (decoded manually via `TextDecoder`)
+- **JSON-LD:** Person schema — image, name, birthDate, nationality, height, weight, worksFor
+  - `worksFor` can be string, object, array, or a string containing a JSON array (e.g. `"[{@type:SportsTeam,name:Padroense}]"`) — all formats handled with JSON.parse + regex fallback
+- **Sidebar card-data** (most reliable): Position, Foot, DOB, Nome, Clube atual, Nacionalidade, País de Nascimento, Altura, Peso
+  - DOB formats: `dd/MM/yyyy`, `dd-MM-yyyy`, `yyyy-MM-dd`, `yyyy-MM-dd (XX anos)`
+- **Header:** Shirt number from `<span class="number">7.</span>`, name from `<h1 class="zz-enthdr-name">`
+- **Career table:** Season, club, games, goals per row
+
+**Server actions:**
+- `scrapePlayerFpf(playerId)` — scrape FPF for existing player
+- `scrapePlayerZeroZero(playerId)` — scrape ZeroZero for existing player
+- `scrapePlayerAll(playerId)` — scrape both, merge, return changes
+- `scrapeFromLinks(fpfLink?, zzLink?)` — scrape from raw URLs (no player needed, for Add Player flow)
+- `applyScrapedData(playerId, updates)` — apply selected scraped fields to player
+- `autoScrapePlayer(playerId, fpfChanged, zzChanged)` — triggered after profile save if links changed
+- `bulkScrapeExternalData(offset, limit, sources)` — batch scrape with rate limiting (2-4s delay)
+
+**Merge priority:** FPF for name/DOB/nationality, ZeroZero for position/foot/height/weight/photo/shirt number. Club: FPF priority, then ZZ.
+
 ---
 
 ## 7. UX & Interface
@@ -1352,7 +1386,10 @@ Enrich player profiles with external data.
 - [x] ZeroZero scraper built into `full_reset.py`: scrape stats/history from ZeroZero, update `zz_*` fields
 - [ ] ZeroZero data display on player profile (stats, history, photo) — `ZeroZeroData.tsx`
 - [ ] Dashboard alerts for club changes (FPF club ≠ DB club)
-- [x] Link-first Add Player flow — paste FPF/ZeroZero URLs, auto-scrape name/DOB/club/position/foot/photo/height/weight/nationality, review & save
+- [x] Link-first Add Player flow — paste FPF/ZeroZero URLs, auto-scrape name/DOB/club/position/foot/shirt number/photo/height/weight/nationality, review & save
+- [x] Duplicate detection on player creation (FPF link, ZeroZero link, name+DOB)
+- [x] Delete player (admin only) with confirmation dialog + cascade delete of related data
+- [x] ZeroZero scraping fixes: club from JSON-LD string, sidebar name extraction, DOB yyyy-MM-dd format
   - `scrapeFromLinks()` server action: scrapes both sources without needing a player ID
   - DOB + name extraction added to both FPF (`var model`) and ZeroZero (JSON-LD + HTML sidebar) scrapers
   - Merge logic: FPF priority for name/nationality, ZeroZero for position/foot/height/weight/photo
