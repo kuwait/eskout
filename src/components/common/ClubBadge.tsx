@@ -19,6 +19,8 @@ interface ClubBadgeProps {
   /** Size variant */
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  /** Callback to remove the logo (shows "Remover" in hover card) */
+  onRemoveLogo?: () => void;
 }
 
 const SIZES = {
@@ -27,7 +29,7 @@ const SIZES = {
   lg: { logo: 24, text: 'text-base', popover: 96 },
 };
 
-export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '' }: ClubBadgeProps) {
+export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '', onRemoveLogo }: ClubBadgeProps) {
   if (!club) return null;
 
   const s = SIZES[size];
@@ -68,7 +70,17 @@ export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', classNa
             style={{ width: s.popover, height: s.popover }}
             unoptimized
           />
-          <span className="text-sm font-medium">{club}</span>
+          <div>
+            <span className="text-sm font-medium">{club}</span>
+            {onRemoveLogo && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRemoveLogo(); }}
+                className="mt-1 block text-[10px] text-red-500 hover:text-red-700 hover:underline"
+              >
+                Logo errado? Remover
+              </button>
+            )}
+          </div>
         </div>
       </HoverCardContent>
     </HoverCard>

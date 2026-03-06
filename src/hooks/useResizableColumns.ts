@@ -5,38 +5,53 @@
 
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
-const STORAGE_KEY = 'eskout-col-widths';
-const MIN_WIDTH = 50;
+// Bump version when column config changes to invalidate stale widths
+const STORAGE_KEY = 'eskout-col-widths-v2';
+const DEFAULT_MIN_WIDTH = 50;
 
 interface UseResizableColumnsOptions {
   /** Column keys in order */
   columnKeys: string[];
   /** Default widths per column key */
   defaultWidths: Record<string, number>;
+  /** Minimum widths per column key (optional — falls back to 50px) */
+  minWidths?: Record<string, number>;
   /** Persist to localStorage */
   persist?: boolean;
 }
 
-export function useResizableColumns({ columnKeys, defaultWidths, persist = true }: UseResizableColumnsOptions) {
-  const [widths, setWidths] = useState<Record<string, number>>(() => {
-    if (persist && typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          // Merge stored with defaults so new columns get defaults
-          return { ...defaultWidths, ...parsed };
-        }
-      } catch { /* ignore */ }
-    }
-    return { ...defaultWidths };
-  });
+export function useResizableColumns({ columnKeys, defaultWidths, minWidths, persist = true }: UseResizableColumnsOptions) {
+  // Initialize with defaults to avoid hydration mismatch (server has no localStorage)
+  const [widths, setWidths] = useState<Record<string, number>>({ ...defaultWidths });
 
+  // Load persisted widths after mount (client-only)
+  useEffect(() => {
+    if (!persist) return;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setWidths((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch { /* ignore */ }
+  }, [persist]);
+
+  const tableRef = useRef<HTMLTableElement | null>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
   const activeKeyRef = useRef<string | null>(null);
+
+  const updateWidth = useCallback((key: string, newWidth: number) => {
+    setWidths((prev) => {
+      const next = { ...prev, [key]: newWidth };
+      if (persist) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      }
+      return next;
+    });
+  }, [persist]);
 
   const handleMouseDown = useCallback((key: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -46,14 +61,9 @@ export function useResizableColumns({ columnKeys, defaultWidths, persist = true 
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const delta = moveEvent.clientX - startXRef.current;
-      const newWidth = Math.max(MIN_WIDTH, startWidthRef.current + delta);
-      setWidths((prev) => {
-        const next = { ...prev, [key]: newWidth };
-        if (persist) {
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-        }
-        return next;
-      });
+      const colMin = minWidths?.[activeKeyRef.current!] ?? DEFAULT_MIN_WIDTH;
+      const newWidth = Math.max(colMin, startWidthRef.current + delta);
+      updateWidth(key, newWidth);
     };
 
     const handleMouseUp = () => {
@@ -64,7 +74,42 @@ export function useResizableColumns({ columnKeys, defaultWidths, persist = true 
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [widths, defaultWidths, persist]);
+  }, [widths, defaultWidths, minWidths, updateWidth]);
 
-  return { widths, handleMouseDown, columnKeys };
+  /** Double-click auto-fit: find the table in DOM, measure content of all cells in the column */
+  const handleDoubleClick = useCallback((key: string) => {
+    const table = tableRef.current;
+    // tableRef may point to the <table> or a wrapper <div> — find the actual <table>
+    const tableEl = table?.tagName === 'TABLE' ? table : table?.querySelector('table');
+    if (!tableEl) return;
+
+    const colIndex = columnKeys.indexOf(key);
+    if (colIndex < 0) return;
+
+    const colMin = minWidths?.[key] ?? DEFAULT_MIN_WIDTH;
+    const PADDING = 24; // cell horizontal padding (12px each side)
+    let maxContentWidth = colMin;
+
+    // Measure every row's cell at this column index
+    const rows = tableEl.querySelectorAll('tr');
+    rows.forEach((row) => {
+      const cell = row.children[colIndex] as HTMLTableCellElement | undefined;
+      if (!cell) return;
+
+      // Measure all direct children's natural width
+      let cellContentWidth = 0;
+      Array.from(cell.children).forEach((child) => {
+        const el = child as HTMLElement;
+        cellContentWidth = Math.max(cellContentWidth, el.scrollWidth);
+      });
+      // Fallback: if no children, use cell's own scrollWidth
+      if (cellContentWidth === 0) cellContentWidth = cell.scrollWidth;
+
+      maxContentWidth = Math.max(maxContentWidth, cellContentWidth + PADDING);
+    });
+
+    updateWidth(key, maxContentWidth);
+  }, [columnKeys, minWidths, updateWidth]);
+
+  return { widths, handleMouseDown, handleDoubleClick, tableRef, columnKeys };
 }

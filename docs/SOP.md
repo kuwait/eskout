@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.7 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.8 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -1476,6 +1476,13 @@ Enrich player profiles with external data.
   - Manual entry fallback when no external links available
 - [x] Fix: player click in squad/pipeline views now navigates to `/jogadores/{id}` instead of showing stale popup
 - [x] Fix: opinion badges overflow in add-to-squad/pipeline dialogs — show single primary badge inline with name
+- [x] ZeroZero auto-link finder: multi-strategy autocomplete search (first+second+last, first+last, first+second-to-last, surname) with DOB verification on candidate profile page — eliminates false positives
+- [x] Refresh player dialog redesign: FPF vs ZZ data separation, ZZ confirmation box (amber/green), photo picker (FPF/ZZ), club logo as confirmable change
+- [x] Anti-blocking for ZeroZero scraping: rotating User-Agents, realistic browser headers, human-like delays
+- [x] Admin can edit observation notes inline (pencil icon on hover)
+- [x] "Logo errado? Remover" feature in ClubBadge hover card
+- [x] Player table: card-style rating badge (matching PlayerProfile), resizable columns with double-click auto-fit, observation notes column with bullet-point previews
+- [x] Fix: hydration mismatch in resizable columns (localStorage loaded after mount)
 
 **Deliverable:** Enriched player profiles with scouting reports, current club verification, and match statistics.
 

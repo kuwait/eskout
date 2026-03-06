@@ -9,8 +9,48 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { normalizePosition } from '@/lib/utils/positions';
 
-/* ───────────── Constants ───────────── */
+/* ───────────── Anti-blocking: rotating User-Agents + realistic headers ───────────── */
 
+const USER_AGENTS = [
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:132.0) Gecko/20100101 Firefox/132.0',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+];
+
+/** Pick a random User-Agent for each request to avoid fingerprinting */
+function randomUA(): string {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+/** Build realistic browser headers — randomized per request */
+function browserHeaders(extra?: Record<string, string>): Record<string, string> {
+  return {
+    'User-Agent': randomUA(),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'pt-PT,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    ...extra,
+  };
+}
+
+/** Random delay between min and max ms — jitter makes traffic look human */
+function humanDelay(minMs = 1500, maxMs = 3500): Promise<void> {
+  const ms = minMs + Math.random() * (maxMs - minMs);
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Keep the old HEADERS for backward compat with FPF (less aggressive detection)
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -153,7 +193,10 @@ export interface ZzScrapeResult {
 /** Parse ZeroZero player page — extracts from JSON-LD + HTML */
 async function fetchZeroZeroData(zzLink: string) {
   try {
-    const res = await fetch(zzLink, { headers: HEADERS, next: { revalidate: 0 } });
+    const res = await fetch(zzLink, {
+      headers: browserHeaders({ 'Referer': 'https://www.zerozero.pt/' }),
+      next: { revalidate: 0 },
+    });
     if (!res.ok) return null;
 
     // ZeroZero serves pages in ISO-8859-1 (Latin-1), not UTF-8
@@ -484,19 +527,27 @@ export interface ScrapedChanges {
   success: boolean;
   /** Errors from individual scrapers */
   errors: string[];
-  /** Fields that have new/changed values */
+
+  /* ── FPF-sourced fields (always shown) ── */
   club: string | null;
   clubChanged: boolean;
-  photoUrl: string | null;
-  hasNewPhoto: boolean;
-  height: number | null;
-  heightChanged: boolean;
-  weight: number | null;
-  weightChanged: boolean;
+  /** New club logo URL (needs user confirmation — may be wrong) */
+  clubLogoUrl: string | null;
+  clubLogoChanged: boolean;
+  /** Photo from FPF (fallback when ZZ not confirmed) */
+  fpfPhotoUrl: string | null;
   birthCountry: string | null;
   birthCountryChanged: boolean;
   nationality: string | null;
   nationalityChanged: boolean;
+
+  /* ── ZZ-sourced fields (disabled until ZZ link confirmed) ── */
+  /** Photo from ZeroZero (may be more recent) */
+  zzPhotoUrl: string | null;
+  height: number | null;
+  heightChanged: boolean;
+  weight: number | null;
+  weightChanged: boolean;
   /** Normalized position code (e.g. "MDC") from ZeroZero raw position text */
   position: string | null;
   /** Raw position text from ZeroZero (e.g. "Médio Defensivo") for display */
@@ -507,6 +558,22 @@ export interface ScrapedChanges {
   footChanged: boolean;
   gamesSeason: number | null;
   goalsSeason: number | null;
+
+  /* ── Merged photo (best of both — for confirmed ZZ) ── */
+  /** True if there's a new photo available (FPF or ZZ) */
+  hasNewPhoto: boolean;
+
+  /* ── ZZ link finder ── */
+  /** ZeroZero link auto-found during refresh (NOT saved — needs user confirmation) */
+  zzLinkFound: string | null;
+  /** Name of the ZZ candidate for user verification */
+  zzCandidateName: string | null;
+  /** Club of the ZZ candidate for user verification */
+  zzCandidateClub: string | null;
+  /** Age of the ZZ candidate for user verification */
+  zzCandidateAge: number | null;
+  /** True if ZZ link was already in DB (not auto-found) — ZZ data always trusted */
+  zzConfirmed: boolean;
   /** True if any field has meaningful changes to show */
   hasChanges: boolean;
 }
@@ -517,14 +584,38 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
 
   const { data: player } = await supabase
     .from('players')
-    .select('fpf_link, zerozero_link, club, photo_url, zz_photo_url, height, weight, birth_country, nationality, position_normalized, foot')
+    .select('name, dob, fpf_link, zerozero_link, club, club_logo_url, photo_url, zz_photo_url, height, weight, birth_country, nationality, position_normalized, foot')
     .eq('id', playerId)
     .single();
 
-  const EMPTY_RESULT: ScrapedChanges = { success: false, errors: [], club: null, clubChanged: false, photoUrl: null, hasNewPhoto: false, height: null, heightChanged: false, weight: null, weightChanged: false, birthCountry: null, birthCountryChanged: false, nationality: null, nationalityChanged: false, position: null, positionRaw: null, positionChanged: false, foot: null, footChanged: false, gamesSeason: null, goalsSeason: null, hasChanges: false };
+  const EMPTY_RESULT: ScrapedChanges = {
+    success: false, errors: [],
+    club: null, clubChanged: false, clubLogoUrl: null, clubLogoChanged: false,
+    fpfPhotoUrl: null, zzPhotoUrl: null, hasNewPhoto: false,
+    height: null, heightChanged: false, weight: null, weightChanged: false,
+    birthCountry: null, birthCountryChanged: false, nationality: null, nationalityChanged: false,
+    position: null, positionRaw: null, positionChanged: false,
+    foot: null, footChanged: false, gamesSeason: null, goalsSeason: null,
+    zzLinkFound: null, zzCandidateName: null, zzCandidateClub: null, zzCandidateAge: null,
+    zzConfirmed: false, hasChanges: false,
+  };
 
   if (!player) {
     return { ...EMPTY_RESULT, errors: ['Jogador não encontrado'] };
+  }
+
+  // Auto-find ZeroZero link if player has name + DOB but no ZZ link
+  // NOTE: Does NOT save to DB — only returns as a proposal for user confirmation
+  let zzLinkFound: string | null = null;
+  let zzCandidate: ZzSearchCandidate | null = null;
+  if (!player.zerozero_link && player.name && player.dob) {
+    const expectedAge = calcAgeFromDob(player.dob);
+    zzCandidate = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob);
+    if (zzCandidate) {
+      zzLinkFound = zzCandidate.url;
+      // Set in memory so fetchZeroZeroData runs below — but NOT saved to DB yet
+      player.zerozero_link = zzCandidate.url;
+    }
   }
 
   const errors: string[] = [];
@@ -550,13 +641,14 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     return { ...EMPTY_RESULT, success: !noLinks, errors: noLinks ? ['Sem links externos'] : errors };
   }
 
-  // Update zz_* and fpf_* cache fields
+  // Update cache fields — FPF always, ZZ only if link was already confirmed (not auto-found)
   const cacheUpdates: Record<string, unknown> = {};
   if (fpfResult) {
     cacheUpdates.fpf_current_club = fpfResult.currentClub;
     cacheUpdates.fpf_last_checked = new Date().toISOString();
   }
-  if (zzResult) {
+  // Only cache ZZ fields if the link was already in the DB (not just auto-found)
+  if (zzResult && !zzLinkFound) {
     cacheUpdates.zz_current_club = zzResult.currentClub;
     cacheUpdates.zz_current_team = zzResult.currentTeam;
     cacheUpdates.zz_games_season = zzResult.gamesSeason;
@@ -567,45 +659,46 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     cacheUpdates.zz_team_history = zzResult.teamHistory?.length ? zzResult.teamHistory : null;
     cacheUpdates.zz_last_checked = new Date().toISOString();
   }
-  // Club logo: prefer ZeroZero (higher res), fallback to FPF
-  const mergedLogo = zzResult?.clubLogoUrl || fpfResult?.clubLogoUrl || null;
-  if (mergedLogo) cacheUpdates.club_logo_url = mergedLogo;
-  await supabase.from('players').update(cacheUpdates).eq('id', playerId);
+  // Club logo: NOT auto-saved — returned as confirmable change
+  if (Object.keys(cacheUpdates).length > 0) {
+    await supabase.from('players').update(cacheUpdates).eq('id', playerId);
+  }
 
-  // Merge: ZeroZero takes priority for photo, height, weight; FPF for nationality/birthCountry
-  // Club: prefer FPF if available, else ZZ
-  const mergedClub = fpfResult?.currentClub || zzResult?.currentClub || null;
+  // Whether ZZ data is from a confirmed (pre-existing) link vs auto-found
+  const zzConfirmed = !!zzResult && !zzLinkFound;
+
+  // FPF-sourced: club (FPF priority), nationality, birth country
+  const mergedClub = fpfResult?.currentClub || (zzConfirmed ? zzResult?.currentClub : null) || null;
   const clubChanged = mergedClub ? !clubsMatch(mergedClub, player.club ?? '') : false;
 
-  // Photo: ZeroZero priority, then FPF
-  const mergedPhoto = zzResult?.photoUrl || fpfResult?.photoUrl || null;
-  const currentPhoto = player.photo_url || player.zz_photo_url;
-  const hasNewPhoto = !!mergedPhoto && !currentPhoto;
+  // FPF-sourced: nationality, birth country (FPF priority, ZZ fallback only if confirmed)
+  const mergedNationality = fpfResult?.nationality || (zzConfirmed ? zzResult?.nationality : null) || null;
+  const nationalityChanged = !!mergedNationality && mergedNationality !== player.nationality;
+  const mergedBirthCountry = fpfResult?.birthCountry || (zzConfirmed ? zzResult?.birthCountry : null) || null;
+  const birthCountryChanged = !!mergedBirthCountry && mergedBirthCountry !== player.birth_country;
 
-  // Height/weight from ZeroZero
+  // Club logo: prefer ZZ (higher res), fallback FPF — confirmable, not auto-saved
+  const mergedLogo = (zzConfirmed ? zzResult?.clubLogoUrl : null) || fpfResult?.clubLogoUrl || null;
+  const clubLogoChanged = !!mergedLogo && mergedLogo !== (player.club_logo_url ?? '');
+
+  // Photos: keep separate so UI can show the right one based on ZZ confirmation
+  const fpfPhotoUrl = fpfResult?.photoUrl ?? null;
+  const zzPhotoUrl = zzResult?.photoUrl ?? null;
+  // Show photo option if any new photo exists (even if player already has one — allows switching)
+  const hasNewPhoto = !!(fpfPhotoUrl || zzPhotoUrl);
+
+  // ZZ-sourced: height, weight, position, foot, games, goals
   const mergedHeight = zzResult?.height ?? null;
   const heightChanged = mergedHeight !== null && mergedHeight !== player.height;
   const mergedWeight = zzResult?.weight ?? null;
   const weightChanged = mergedWeight !== null && mergedWeight !== player.weight;
-
-  // Nationality: FPF priority, then ZZ
-  const mergedNationality = fpfResult?.nationality || zzResult?.nationality || null;
-  const nationalityChanged = !!mergedNationality && mergedNationality !== player.nationality;
-
-  // Birth country: FPF priority, then ZZ (ZeroZero has it in sidebar card-data)
-  const mergedBirthCountry = fpfResult?.birthCountry || zzResult?.birthCountry || null;
-  const birthCountryChanged = !!mergedBirthCountry && mergedBirthCountry !== player.birth_country;
-
-  // Position from ZeroZero — normalize to code, compare with current
   const positionRaw = zzResult?.position ?? null;
   const positionNormalized = positionRaw ? normalizePosition(positionRaw) : '';
   const positionChanged = !!positionNormalized && positionNormalized !== (player.position_normalized ?? '');
-
-  // Foot from ZeroZero
   const mergedFoot = zzResult?.foot ?? null;
   const footChanged = !!mergedFoot && mergedFoot !== (player.foot ?? '');
 
-  const hasChanges = clubChanged || hasNewPhoto || heightChanged || weightChanged || nationalityChanged || birthCountryChanged || positionChanged || footChanged;
+  const hasChanges = clubChanged || clubLogoChanged || hasNewPhoto || heightChanged || weightChanged || nationalityChanged || birthCountryChanged || positionChanged || footChanged || !!zzLinkFound;
 
   revalidatePath(`/jogadores/${playerId}`);
 
@@ -614,7 +707,10 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     errors,
     club: mergedClub,
     clubChanged,
-    photoUrl: mergedPhoto,
+    clubLogoUrl: mergedLogo,
+    clubLogoChanged,
+    fpfPhotoUrl,
+    zzPhotoUrl,
     hasNewPhoto,
     height: mergedHeight,
     heightChanged,
@@ -631,6 +727,11 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     footChanged,
     gamesSeason: zzResult?.gamesSeason ?? null,
     goalsSeason: zzResult?.goalsSeason ?? null,
+    zzLinkFound,
+    zzCandidateName: zzCandidate?.name ?? null,
+    zzCandidateClub: zzCandidate?.club ?? null,
+    zzCandidateAge: zzCandidate?.age ?? null,
+    zzConfirmed,
     hasChanges,
   };
 }
@@ -640,6 +741,7 @@ export async function applyScrapedData(
   playerId: number,
   updates: {
     club?: string;
+    clubLogoUrl?: string;
     photoUrl?: string;
     height?: number;
     weight?: number;
@@ -647,12 +749,15 @@ export async function applyScrapedData(
     nationality?: string;
     position?: string;
     foot?: string;
+    /** Auto-found ZZ link — save to DB + scrape ZZ cache fields */
+    zzLinkFound?: string;
   }
 ): Promise<{ success: boolean }> {
   const supabase = await createClient();
   const dbUpdates: Record<string, unknown> = {};
 
   if (updates.club) dbUpdates.club = updates.club;
+  if (updates.clubLogoUrl) dbUpdates.club_logo_url = updates.clubLogoUrl;
   if (updates.photoUrl) dbUpdates.photo_url = updates.photoUrl;
   if (updates.height) dbUpdates.height = updates.height;
   if (updates.weight) dbUpdates.weight = updates.weight;
@@ -661,10 +766,36 @@ export async function applyScrapedData(
   if (updates.position) dbUpdates.position_normalized = updates.position;
   if (updates.foot) dbUpdates.foot = updates.foot;
 
+  // Save auto-found ZZ link + scrape full ZZ data
+  if (updates.zzLinkFound) {
+    const idMatch = updates.zzLinkFound.match(/\/jogador\/[^/]+\/(\d+)/);
+    dbUpdates.zerozero_link = updates.zzLinkFound;
+    dbUpdates.zerozero_player_id = idMatch ? idMatch[1] : '';
+  }
+
   if (Object.keys(dbUpdates).length === 0) return { success: true };
 
   const { error } = await supabase.from('players').update(dbUpdates).eq('id', playerId);
   if (error) return { success: false };
+
+  // Now scrape ZZ cache fields since the link is saved
+  if (updates.zzLinkFound) {
+    const zzData = await fetchZeroZeroData(updates.zzLinkFound);
+    if (zzData) {
+      await supabase.from('players').update({
+        zz_current_club: zzData.currentClub,
+        zz_current_team: zzData.currentTeam,
+        zz_games_season: zzData.gamesSeason,
+        zz_goals_season: zzData.goalsSeason,
+        zz_height: zzData.height,
+        zz_weight: zzData.weight,
+        zz_photo_url: zzData.photoUrl,
+        zz_team_history: zzData.teamHistory?.length ? zzData.teamHistory : null,
+        zz_last_checked: new Date().toISOString(),
+        ...(zzData.clubLogoUrl ? { club_logo_url: zzData.clubLogoUrl } : {}),
+      }).eq('id', playerId);
+    }
+  }
 
   revalidatePath(`/jogadores/${playerId}`);
   return { success: true };
@@ -748,6 +879,24 @@ export async function autoScrapePlayer(
   if (fpfLinkChanged) promises.push(scrapePlayerFpf(playerId));
   if (zzLinkChanged) promises.push(scrapePlayerZeroZero(playerId));
   await Promise.all(promises);
+
+  // After FPF scrape, try to auto-find ZeroZero link if player doesn't have one
+  if (fpfLinkChanged && !zzLinkChanged) {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from('players')
+      .select('zerozero_link, dob, name')
+      .eq('id', playerId)
+      .single();
+    // Only attempt if player has name + DOB but no ZZ link
+    if (data && data.dob && data.name && !data.zerozero_link) {
+      const result = await findZeroZeroLinkForPlayer(playerId);
+      // If ZZ link found, also scrape the ZZ profile for full data
+      if (result.success && result.url) {
+        await scrapePlayerZeroZero(playerId);
+      }
+    }
+  }
 }
 
 /* ───────────── Bulk Update ───────────── */
@@ -768,7 +917,7 @@ export async function bulkScrapeExternalData(
 ): Promise<BulkUpdateProgress & { hasMore: boolean }> {
   const supabase = await createClient();
 
-  let query = supabase.from('players').select('id, fpf_link, zerozero_link, club, photo_url, zz_photo_url, height, weight, birth_country, nationality', { count: 'exact' });
+  let query = supabase.from('players').select('id, name, dob, fpf_link, zerozero_link, club, photo_url, zz_photo_url, height, weight, birth_country, nationality', { count: 'exact' });
 
   if (sources.length === 1 && sources[0] === 'fpf') {
     query = query.not('fpf_link', 'is', null).neq('fpf_link', '');
@@ -831,6 +980,21 @@ export async function bulkScrapeExternalData(
         } else errors++;
       }
 
+      // Auto-find ZeroZero link if player has FPF data but no ZZ link
+      if (sources.includes('fpf') && !player.zerozero_link && player.name && player.dob) {
+        const expectedAge = calcAgeFromDob(player.dob);
+        const zzMatch = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob);
+        if (zzMatch) {
+          const idMatch = zzMatch.url.match(/\/jogador\/[^/]+\/(\d+)/);
+          await supabase.from('players').update({
+            zerozero_link: zzMatch.url,
+            zerozero_player_id: idMatch ? idMatch[1] : '',
+          }).eq('id', player.id);
+          // Update local reference so ZZ scrape runs below
+          player.zerozero_link = zzMatch.url;
+        }
+      }
+
       if (sources.includes('zerozero') && player.zerozero_link) {
         const data = await fetchZeroZeroData(player.zerozero_link);
         if (data) {
@@ -881,4 +1045,329 @@ export async function bulkScrapeExternalData(
 
   const hasMore = offset + players.length < (count ?? 0);
   return { total: count ?? 0, processed: offset + players.length, fpfUpdated, zzUpdated, errors, hasMore };
+}
+
+/* ───────────── ZeroZero Link Finder ───────────── */
+
+/** Calculate age from DOB string (yyyy-MM-dd) */
+function calcAgeFromDob(dob: string): number {
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+/** Remove diacritics from a string for fuzzy comparison */
+function removeDiacritics(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+interface ZzSearchCandidate {
+  url: string;
+  name: string;
+  age: number | null;
+  club: string | null;
+  position: string | null;
+}
+
+/** Parse ZeroZero autocomplete search results HTML into structured candidates */
+function parseZzAutocompleteResults(html: string): ZzSearchCandidate[] {
+  const candidates: ZzSearchCandidate[] = [];
+
+  // Each result: <a href="/jogador/slug/ID?search=1" ...>...<span>Jogadores | Posição | XX anos | Clube</span>...</a>
+  const linkRegex = /href="(\/jogador\/[^"?]+)[^"]*"[\s\S]*?<span>([^<]*)<\/span>/g;
+  let match;
+  while ((match = linkRegex.exec(html)) !== null) {
+    const url = match[1];
+    const info = match[2];
+
+    // Parse info: "Jogadores | Médio | 12 anos | Sporting [Jun.C S15 C]"
+    const parts = info.split('|').map((p) => p.trim());
+    // Skip non-player results
+    if (!parts[0]?.includes('Jogador')) continue;
+
+    const ageMatch = info.match(/(\d+)\s*anos/);
+    const age = ageMatch ? parseInt(ageMatch[1], 10) : null;
+
+    // Club is usually the last part, remove age group brackets
+    const clubPart = parts.length >= 4 ? parts[3] : null;
+    const club = clubPart ? clubPart.replace(/\s*\[.*\]/, '').trim() : null;
+
+    const position = parts.length >= 2 ? parts[1] : null;
+
+    // Name from the text div
+    const nameMatch = html.slice(Math.max(0, match.index - 200), match.index + match[0].length)
+      .match(/class="text">([^<]+)/);
+    const name = nameMatch ? nameMatch[1].trim() : '';
+
+    candidates.push({ url: `https://www.zerozero.pt${url}`, name, age, club, position });
+  }
+
+  return candidates;
+}
+
+/** Fetch ZeroZero autocomplete results */
+async function searchZzAutocomplete(query: string): Promise<ZzSearchCandidate[]> {
+  const res = await fetch(
+    `https://www.zerozero.pt/jqc_search_search.php?queryString=${encodeURIComponent(query)}`,
+    {
+      headers: browserHeaders({
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://www.zerozero.pt/',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+      }),
+      next: { revalidate: 0 },
+    },
+  );
+  if (!res.ok) return [];
+  const buf = await res.arrayBuffer();
+  // ZZ autocomplete may respond in UTF-8 or ISO-8859-1 depending on server config.
+  // Try UTF-8 first (handles accented chars natively); fallback to ISO-8859-1.
+  let html: string;
+  try {
+    html = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    html = new TextDecoder('iso-8859-1').decode(buf);
+  }
+  return parseZzAutocompleteResults(html);
+}
+
+/** Extract first + last name from a full name string */
+function firstLastName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 2) return fullName;
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+/** Extract first + second name + last name (e.g. "Afonso Maciel Monteiro" from "Afonso Maciel Valentin Monteiro") */
+function firstSecondLastName(fullName: string): string | null {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length < 4) return null;
+  return `${parts[0]} ${parts[1]} ${parts[parts.length - 1]}`;
+}
+
+/** Extract first name + second-to-last name (e.g. "Afonso Valentin" from "Afonso Maciel Valentin Monteiro") */
+function firstAndSecondLastName(fullName: string): string | null {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 3) return null;
+  return `${parts[0]} ${parts[parts.length - 2]}`;
+}
+
+/**
+ * Multi-strategy ZeroZero search using autocomplete with progressively shorter name variants.
+ * The autocomplete endpoint works best with 1-3 word queries. Longer names often return empty.
+ * Strategy: first+second+last → first+last → first+second-to-last → surname only
+ * Collects all candidates from all variants, then picks the best match by score.
+ */
+async function searchZzMultiStrategy(
+  fullName: string,
+  club: string | null,
+  expectedAge: number,
+  dob: string,
+): Promise<ZzSearchCandidate | null> {
+  // Build list of unique name variants to try (most specific → least specific)
+  // ZZ autocomplete works best with 2-3 word queries; 4+ words usually returns nothing
+  const variants: string[] = [];
+  const seen = new Set<string>();
+  const addVariant = (v: string | null) => { if (v && !seen.has(v)) { seen.add(v); variants.push(v); } };
+
+  const parts = fullName.trim().split(/\s+/);
+  // 3-word names: try as-is first (ideal for autocomplete)
+  if (parts.length <= 3) addVariant(fullName);
+  // First + second name + last (e.g. "Afonso Maciel Monteiro" — most precise 3-word variant)
+  addVariant(firstSecondLastName(fullName));
+  // First + last (e.g. "Afonso Monteiro")
+  const shortName = firstLastName(fullName);
+  addVariant(shortName);
+  // First + second-to-last (e.g. "Afonso Valentin")
+  addVariant(firstAndSecondLastName(fullName));
+  // Last name alone — catches players known by surname
+  if (parts.length >= 3) addVariant(parts[parts.length - 1]);
+
+  // Collect ALL candidates from ALL variants, then pick the best overall
+  const allCandidates: ZzSearchCandidate[] = [];
+  const seenUrls = new Set<string>();
+
+  for (let i = 0; i < variants.length; i++) {
+    if (i > 0) await humanDelay(2000, 4000);
+
+    const candidates = await searchZzAutocomplete(variants[i]);
+    for (const c of candidates) {
+      if (!seenUrls.has(c.url)) {
+        seenUrls.add(c.url);
+        allCandidates.push(c);
+      }
+    }
+  }
+
+  // Pre-filter: keep only candidates with matching age (exact or ±1 for birthday boundary)
+  const shortlisted = shortlistCandidates(allCandidates, expectedAge, club, fullName);
+  if (shortlisted.length === 0) return null;
+
+  // Verify the best candidate by scraping their ZZ profile page to check exact DOB
+  // This eliminates false positives (same age but different person)
+  for (const candidate of shortlisted) {
+    await humanDelay(1500, 3000);
+    const zzData = await fetchZeroZeroData(candidate.url).catch(() => null);
+    if (!zzData?.dob) continue;
+
+    // DOB must match exactly — this is the definitive check
+    if (zzData.dob === dob) return candidate;
+  }
+
+  return null;
+}
+
+/**
+ * Pre-filter and rank autocomplete candidates before DOB verification.
+ * Returns candidates sorted by likelihood (age match + name overlap + club match).
+ * Only candidates with plausible age (exact or ±1) pass.
+ */
+function shortlistCandidates(
+  candidates: ZzSearchCandidate[],
+  expectedAge: number,
+  expectedClub: string | null,
+  fullName: string,
+): ZzSearchCandidate[] {
+  if (candidates.length === 0) return [];
+
+  const normFull = removeDiacritics(fullName).toLowerCase();
+  const fullParts = normFull.split(/\s+/);
+
+  const scored = candidates
+    .filter((c) => {
+      // Must have age within ±1 year (birthday boundary tolerance)
+      if (c.age === null) return false;
+      return Math.abs(c.age - expectedAge) <= 1;
+    })
+    .map((c) => {
+      let score = 0;
+
+      // Exact age match is preferred over off-by-1
+      if (c.age === expectedAge) score += 3;
+
+      // Club match — strong signal
+      if (c.club && expectedClub && clubsMatch(c.club, expectedClub)) score += 5;
+
+      // Name similarity — count overlapping name parts
+      const normCandidate = removeDiacritics(c.name).toLowerCase();
+      const candidateParts = normCandidate.split(/\s+/);
+      const commonParts = candidateParts.filter((p) => fullParts.includes(p));
+      score += commonParts.length * 2;
+
+      return { candidate: c, score };
+    });
+
+  // Sort by score descending — best candidates verified first
+  scored.sort((a, b) => b.score - a.score);
+
+  // Return top candidates (limit to 3 to avoid excessive scraping)
+  return scored.slice(0, 3).map((s) => s.candidate);
+}
+
+export interface ZzLinkFinderResult {
+  success: boolean;
+  found: number;
+  skipped: number;
+  errors: number;
+  total: number;
+}
+
+/** Find ZeroZero links for players that have FPF data but no ZeroZero link */
+export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFinderResult> {
+  const supabase = await createClient();
+
+  // Get players with FPF data + name + DOB but no ZeroZero link
+  let query = supabase
+    .from('players')
+    .select('id, name, dob, club, fpf_link, zerozero_link')
+    .is('zerozero_link', null)
+    .not('dob', 'is', null)
+    .not('name', 'is', null)
+    .order('id');
+
+  if (ageGroupId) query = query.eq('age_group_id', ageGroupId);
+
+  const { data: players, error } = await query;
+  if (error || !players) return { success: false, found: 0, skipped: 0, errors: 0, total: 0 };
+
+  // Also include players with empty string zerozero_link
+  const filtered = players.filter((p) => !p.zerozero_link && p.dob && p.name);
+
+  let found = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const player of filtered) {
+    // Rate limit — 2-4s between requests (multi-strategy has its own internal delays)
+    if (found + skipped + errors > 0) {
+      const delay = 2000 + Math.random() * 2000;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    try {
+      const expectedAge = calcAgeFromDob(player.dob!);
+      const bestMatch = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob!);
+
+      if (bestMatch) {
+        // Extract ZeroZero player ID from URL: /jogador/slug/ID
+        const idMatch = bestMatch.url.match(/\/jogador\/[^/]+\/(\d+)/);
+        const zzPlayerId = idMatch ? idMatch[1] : '';
+
+        await supabase.from('players').update({
+          zerozero_link: bestMatch.url,
+          zerozero_player_id: zzPlayerId,
+        }).eq('id', player.id);
+
+        found++;
+      } else {
+        skipped++;
+      }
+    } catch {
+      errors++;
+    }
+  }
+
+  return { success: true, found, skipped, errors, total: filtered.length };
+}
+
+/** Find ZeroZero link for a single player by ID */
+export async function findZeroZeroLinkForPlayer(playerId: number): Promise<{ success: boolean; url: string | null; error?: string }> {
+  const supabase = await createClient();
+
+  const { data: player } = await supabase
+    .from('players')
+    .select('id, name, dob, club')
+    .eq('id', playerId)
+    .single();
+
+  if (!player) return { success: false, url: null, error: 'Jogador não encontrado' };
+  if (!player.dob) return { success: false, url: null, error: 'Data de nascimento necessária' };
+  if (!player.name) return { success: false, url: null, error: 'Nome necessário' };
+
+  try {
+    const expectedAge = calcAgeFromDob(player.dob);
+    const bestMatch = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob);
+
+    if (!bestMatch) return { success: true, url: null, error: 'Nenhum resultado corresponde' };
+
+    // Save to DB
+    const idMatch = bestMatch.url.match(/\/jogador\/[^/]+\/(\d+)/);
+    const zzPlayerId = idMatch ? idMatch[1] : '';
+
+    await supabase.from('players').update({
+      zerozero_link: bestMatch.url,
+      zerozero_player_id: zzPlayerId,
+    }).eq('id', player.id);
+
+    revalidatePath(`/jogadores/${playerId}`);
+
+    return { success: true, url: bestMatch.url };
+  } catch {
+    return { success: false, url: null, error: 'Erro ao pesquisar no ZeroZero' };
+  }
 }

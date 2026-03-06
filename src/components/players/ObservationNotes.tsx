@@ -7,12 +7,12 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, AlertTriangle, Flag } from 'lucide-react';
+import { Pencil, Plus, Trash2, AlertTriangle, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { createObservationNote, deleteObservationNote } from '@/actions/notes';
+import { createObservationNote, updateObservationNote, deleteObservationNote } from '@/actions/notes';
 import type { NotePriority, ObservationNote } from '@/lib/types';
 
 interface ObservationNotesProps {
@@ -21,6 +21,8 @@ interface ObservationNotesProps {
   /** Controlled form visibility (optional — uses internal state if not provided) */
   showForm?: boolean;
   onShowFormChange?: (show: boolean) => void;
+  /** Admin can edit any note */
+  isAdmin?: boolean;
 }
 
 /* ───────────── Priority config ───────────── */
@@ -70,7 +72,7 @@ export function AddNoteButton({ onClick }: { onClick: () => void }) {
 
 /* ───────────── Main component ───────────── */
 
-export function ObservationNotes({ playerId, notes, showForm: showFormProp, onShowFormChange }: ObservationNotesProps) {
+export function ObservationNotes({ playerId, notes, showForm: showFormProp, onShowFormChange, isAdmin }: ObservationNotesProps) {
   const router = useRouter();
   const [showFormInternal, setShowFormInternal] = useState(false);
   const showForm = showFormProp ?? showFormInternal;
@@ -80,6 +82,11 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
   const [priority, setPriority] = useState<NotePriority>('normal');
   const [isPending, startTransition] = useTransition();
   const [deleteTarget, setDeleteTarget] = useState<ObservationNote | null>(null);
+  // Inline editing state (admin only)
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editMatchContext, setEditMatchContext] = useState('');
+  const [editPriority, setEditPriority] = useState<NotePriority>('normal');
 
   function handleSubmit() {
     if (!content.trim()) return;
@@ -108,6 +115,31 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
       const result = await deleteObservationNote(deleteTarget.id, playerId);
       if (result.success) {
         setDeleteTarget(null);
+        router.refresh();
+      }
+    });
+  }
+
+  function startEdit(note: ObservationNote) {
+    setEditingId(note.id);
+    setEditContent(note.content);
+    setEditMatchContext(note.matchContext || '');
+    setEditPriority(note.priority);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditContent('');
+    setEditMatchContext('');
+    setEditPriority('normal');
+  }
+
+  function handleSaveEdit() {
+    if (!editingId || !editContent.trim()) return;
+    startTransition(async () => {
+      const result = await updateObservationNote(editingId, playerId, editContent, editMatchContext, editPriority);
+      if (result.success) {
+        cancelEdit();
         router.refresh();
       }
     });
@@ -174,6 +206,59 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
       {notes.map((note) => {
         const cfg = PRIORITY_CONFIG[note.priority] ?? PRIORITY_CONFIG.normal;
         const PriorityIcon = cfg.icon;
+        const isEditing = editingId === note.id;
+
+        if (isEditing) {
+          return (
+            <div key={note.id} className="space-y-2 rounded-md border bg-neutral-50/60 p-3">
+              <Textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={2}
+                className="resize-none bg-white text-sm"
+                autoFocus
+              />
+              <Input
+                placeholder="Contexto — ex: Gondomar x Porto Sub-14"
+                value={editMatchContext}
+                onChange={(e) => setEditMatchContext(e.target.value)}
+                className="bg-white text-sm"
+              />
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Prioridade:</span>
+                {PRIORITY_OPTIONS.map((p) => {
+                  const pcfg = PRIORITY_CONFIG[p];
+                  const isActive = editPriority === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setEditPriority(p)}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-all ${
+                        isActive
+                          ? p === 'urgente' ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+                          : p === 'importante' ? 'bg-yellow-100 text-yellow-700 ring-1 ring-yellow-300'
+                          : 'bg-neutral-200 text-neutral-700 ring-1 ring-neutral-300'
+                        : 'bg-neutral-100 text-muted-foreground hover:bg-neutral-200'
+                      }`}
+                    >
+                      {pcfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" className="h-7 text-xs" onClick={handleSaveEdit} disabled={isPending || !editContent.trim()}>
+                  Guardar
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={cancelEdit}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div key={note.id} className={`group/note rounded-md border-l-[3px] px-3 py-2 ${cfg.borderColor} ${cfg.bgColor}`}>
             <div className="flex items-center justify-between">
@@ -188,6 +273,15 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-muted-foreground">{fmtRelative(note.createdAt)}</span>
+                {isAdmin && (
+                  <button
+                    onClick={() => startEdit(note)}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-blue-50 hover:text-blue-500 group-hover/note:opacity-100"
+                    title="Editar nota"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
                 <button
                   onClick={() => setDeleteTarget(note)}
                   className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover/note:opacity-100"

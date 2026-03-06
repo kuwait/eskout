@@ -616,7 +616,17 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.club && (
                   <div className="min-w-0">
                     <p className="text-[11px] text-muted-foreground">Clube</p>
-                    <ClubBadge club={p.club} logoUrl={p.clubLogoUrl} size="md" />
+                    <ClubBadge
+                      club={p.club}
+                      logoUrl={p.clubLogoUrl}
+                      size="md"
+                      onRemoveLogo={p.clubLogoUrl ? () => {
+                        startTransition(async () => {
+                          const { updatePlayer } = await import('@/actions/players');
+                          await updatePlayer(player.id, { club_logo_url: null });
+                        });
+                      } : undefined}
+                    />
                   </div>
                 )}
                 {p.shirtNumber && (
@@ -680,6 +690,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 notes={notes}
                 showForm={showNoteForm}
                 onShowFormChange={setShowNoteForm}
+                isAdmin={isAdmin}
               />
             </Section>
           </div>

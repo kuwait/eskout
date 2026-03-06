@@ -58,10 +58,26 @@ export function PlayersView() {
       supabase.from('players').select('*').order('name'),
       supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null),
       supabase.from('scout_evaluations').select('player_id, rating'),
-    ]).then(([playersRes, reportsRes, evalsRes]) => {
+      // Latest observation note per player (ordered by newest first)
+      supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }),
+    ]).then(([playersRes, reportsRes, evalsRes, notesRes]) => {
       if (playersRes.error || !playersRes.data) return;
 
-      const mapped = (playersRes.data as PlayerRow[]).map(mapPlayerRow);
+      // Build map: playerId → all note contents (newest first, already sorted)
+      const notesMap = new Map<number, string[]>();
+      if (notesRes.data) {
+        for (const n of notesRes.data) {
+          const arr = notesMap.get(n.player_id) ?? [];
+          arr.push(n.content);
+          notesMap.set(n.player_id, arr);
+        }
+      }
+
+      const mapped = (playersRes.data as PlayerRow[]).map((row) => {
+        const player = mapPlayerRow(row);
+        player.observationNotePreviews = notesMap.get(row.id) ?? [];
+        return player;
+      });
 
       // Build rating aggregates: { playerId → { sum, count } }
       const agg = new Map<number, { sum: number; count: number }>();

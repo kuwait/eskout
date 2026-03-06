@@ -11,14 +11,20 @@ import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, 
 
 export async function getPlayersByAgeGroup(ageGroupId: number): Promise<Player[]> {
   const supabase = await createClient();
+  // Join latest observation note per player (newest first, limit 1)
   const { data, error } = await supabase
     .from('players')
-    .select('*')
+    .select('*, observation_notes(content, created_at)')
     .eq('age_group_id', ageGroupId)
     .order('name');
 
   if (error) throw new Error(error.message);
-  return (data as PlayerRow[]).map(mapPlayerRow);
+  return (data as (PlayerRow & { observation_notes: { content: string; created_at: string }[] })[]).map((row) => {
+    const player = mapPlayerRow(row);
+    const sorted = (row.observation_notes ?? []).sort((a, b) => b.created_at.localeCompare(a.created_at));
+    player.observationNotePreviews = sorted.map((n) => n.content);
+    return player;
+  });
 }
 
 export async function getPlayerById(id: number): Promise<Player | null> {

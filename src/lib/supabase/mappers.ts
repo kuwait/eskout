@@ -133,6 +133,8 @@ export function mapPlayerRow(row: PlayerRow): Player {
     // Report rating fields — populated later by bulk query, default to empty
     reportAvgRating: null,
     reportRatingCount: 0,
+    // Observation notes — populated by PlayersView query
+    observationNotePreviews: [],
   };
 }
 

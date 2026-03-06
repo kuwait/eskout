@@ -100,6 +100,8 @@ export interface Player {
   reportAvgRating: number | null;
   /** Number of scouting reports that have a rating */
   reportRatingCount: number;
+  /** Observation note contents for table preview (newest first) */
+  observationNotePreviews: string[];
 }
 
 /* ───────────── Database Row Types (snake_case from Supabase) ───────────── */

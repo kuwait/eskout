@@ -23,23 +23,23 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
 import type { Player, PositionCode } from '@/lib/types';
 import { ArrowUpDown } from 'lucide-react';
 
-type SortKey = 'eval' | 'name' | 'dob' | 'position' | 'opinion' | 'status';
+type SortKey = 'eval' | 'name' | 'dob' | 'position' | 'opinion' | 'status' | 'notes';
 type SortDir = 'asc' | 'desc';
 
 interface PlayerTableProps {
   players: Player[];
 }
 
-/* ───────────── Rating Colors (matches PlayerProfile) ───────────── */
+/* ───────────── Rating Colors (card-style badge, same palette as PlayerProfile) ───────────── */
 
-const RATING_COLORS: Record<number, { dot: string; num: string }> = {
-  1: { dot: 'bg-red-500', num: 'text-red-600' },
-  2: { dot: 'bg-orange-400', num: 'text-orange-600' },
-  3: { dot: 'bg-blue-400', num: 'text-blue-600' },
-  4: { dot: 'bg-emerald-400', num: 'text-emerald-600' },
-  5: { dot: 'bg-emerald-600', num: 'text-emerald-700' },
+const RATING_COLORS: Record<number, { num: string; bg: string; border: string }> = {
+  1: { num: 'text-red-600', bg: 'bg-red-50/80', border: 'border-red-200' },
+  2: { num: 'text-orange-600', bg: 'bg-orange-50/80', border: 'border-orange-200' },
+  3: { num: 'text-blue-600', bg: 'bg-blue-50/80', border: 'border-blue-200' },
+  4: { num: 'text-emerald-600', bg: 'bg-emerald-50/80', border: 'border-emerald-200' },
+  5: { num: 'text-emerald-700', bg: 'bg-emerald-50/80', border: 'border-emerald-200' },
 };
-const RATING_DEFAULT = { dot: 'bg-neutral-300', num: 'text-neutral-400' };
+const RATING_DEFAULT = { num: 'text-neutral-400', bg: 'bg-neutral-50', border: 'border-neutral-200' };
 
 /** Parse "4 - Muito Bom" → { rating: 4, label: "Muito Bom" } */
 function parseEval(value: string): { rating: number; label: string } {
@@ -51,15 +51,16 @@ function parseEval(value: string): { rating: number; label: string } {
 
 /* ───────────── Column Config ───────────── */
 
-const COLUMN_KEYS: SortKey[] = ['eval', 'name', 'dob', 'position', 'opinion', 'status'];
+const COLUMN_KEYS: SortKey[] = ['eval', 'name', 'dob', 'position', 'opinion', 'status', 'notes'];
 
 const DEFAULT_WIDTHS: Record<string, number> = {
-  eval: 110,
+  eval: 78,
   name: 240,
   dob: 120,
   position: 130,
   opinion: 115,
   status: 105,
+  notes: 200,
 };
 
 const COLUMN_LABELS: Record<SortKey, string> = {
@@ -69,6 +70,7 @@ const COLUMN_LABELS: Record<SortKey, string> = {
   position: 'Posição',
   opinion: 'Opinião',
   status: 'Estado',
+  notes: 'Observações',
 };
 
 /* ───────────── Sort Header Button ───────────── */
@@ -93,9 +95,10 @@ export function PlayerTable({ players }: PlayerTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('eval');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  const { widths, handleMouseDown } = useResizableColumns({
+  const { widths, handleMouseDown, handleDoubleClick, tableRef } = useResizableColumns({
     columnKeys: COLUMN_KEYS,
     defaultWidths: DEFAULT_WIDTHS,
+    minWidths: { eval: 20 },
   });
 
   function handleSort(key: SortKey) {
@@ -122,27 +125,31 @@ export function PlayerTable({ players }: PlayerTableProps) {
       case 'position': return (a.positionNormalized || 'ZZZ').localeCompare(b.positionNormalized || 'ZZZ') * dir;
       case 'opinion':  return (a.departmentOpinion[0] ?? '').localeCompare(b.departmentOpinion[0] ?? '') * dir;
       case 'status':   return (a.recruitmentStatus ?? '').localeCompare(b.recruitmentStatus ?? '') * dir;
+      case 'notes':    return (a.notes || '').localeCompare(b.notes || '') * dir;
       default:         return 0;
     }
   });
 
   return (
     <div className="overflow-x-auto rounded-md border">
-      <Table className="table-fixed">
+      <Table className="table-fixed" ref={tableRef as React.Ref<HTMLTableElement>}>
         <TableHeader>
           <TableRow>
             {COLUMN_KEYS.map((key) => (
               <TableHead
                 key={key}
-                className="relative select-none"
+                className="relative select-none overflow-visible"
                 style={{ width: widths[key] }}
               >
                 <SortHeader label={COLUMN_LABELS[key]} sortKeyName={key} onSort={handleSort} />
-                {/* Resize handle — wider hit area (12px) with visible center line on hover */}
+                {/* Resize handle — always visible separator, wide hit area for drag */}
                 <div
-                  className="absolute -right-1.5 top-0 z-10 flex h-full w-3 cursor-col-resize items-center justify-center hover:after:absolute hover:after:h-full hover:after:w-0.5 hover:after:bg-blue-400"
-                  onMouseDown={(e) => handleMouseDown(key, e)}
-                />
+                  className="absolute -right-[7px] top-0 z-20 flex h-full w-[14px] cursor-col-resize items-center justify-center"
+                  onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(key, e); }}
+                  onDoubleClick={() => handleDoubleClick(key)}
+                >
+                  <div className="h-full w-px bg-neutral-200 hover:w-[2px] hover:bg-blue-400" />
+                </div>
               </TableHead>
             ))}
           </TableRow>
@@ -165,7 +172,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
                 onClick={() => router.push(`/jogadores/${player.id}`)}
                 onAuxClick={(e) => { if (e.button === 1) window.open(`/jogadores/${player.id}`, '_blank'); }}
               >
-                <TableCell style={{ width: widths.eval }}>
+                <TableCell style={{ width: widths.eval }} className="!py-1 overflow-hidden">
                   <EvalCell player={player} />
                 </TableCell>
                 <TableCell style={{ width: widths.name }}>
@@ -256,12 +263,15 @@ export function PlayerTable({ players }: PlayerTableProps) {
                     <StatusBadge status={player.recruitmentStatus} />
                   )}
                 </TableCell>
+                <TableCell style={{ width: widths.notes }} className="overflow-hidden">
+                  <NotesCell notes={player.observationNotePreviews} fallback={player.notes} />
+                </TableCell>
               </TableRow>
             );
           })}
           {sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+              <TableCell colSpan={COLUMN_KEYS.length} className="py-8 text-center text-muted-foreground">
                 Nenhum jogador encontrado.
               </TableCell>
             </TableRow>
@@ -288,12 +298,33 @@ function EvalCell({ player }: { player: Player }) {
     ? `${player.reportRatingCount} aval.`
     : (player.observerEval ? parseEval(player.observerEval).label : '');
 
+  // Card-style badge matching PlayerProfile desktop widget (compact, fixed size)
   return (
-    <div className="inline-flex items-center gap-2">
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${primary.isAverage ? 'text-xs' : 'text-sm'} font-bold text-white ${c.dot}`}>
+    <div className={`flex h-[58px] w-[62px] flex-col items-center justify-center rounded-xl border ${c.bg} ${c.border}`}>
+      <span className={`text-lg font-black leading-tight ${c.num}`}>
         {displayValue}
       </span>
-      <span className={`text-xs font-medium ${c.num}`}>{label}</span>
+      {label && <span className={`text-[10px] font-semibold leading-tight ${c.num} opacity-70`}>{label}</span>}
+    </div>
+  );
+}
+
+/* ───────────── Notes Cell (observation notes as compact bullet list) ───────────── */
+
+function NotesCell({ notes, fallback }: { notes: string[]; fallback: string }) {
+  // Combine observation notes + fallback field notes
+  const all = [...notes];
+  if (fallback && !all.includes(fallback)) all.push(fallback);
+
+  if (all.length === 0) return <span className="text-xs text-neutral-300">—</span>;
+
+  return (
+    <div className="max-h-[72px] overflow-hidden">
+      {all.map((note, i) => (
+        <p key={i} className="truncate text-[10px] leading-[14px] text-muted-foreground">
+          <span className="text-neutral-300">•</span> {note}
+        </p>
+      ))}
     </div>
   );
 }
