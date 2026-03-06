@@ -272,7 +272,6 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">{fmtRelative(note.createdAt)}</span>
                 {isAdmin && (
                   <button
                     onClick={() => startEdit(note)}
@@ -289,6 +288,7 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
+                <span className="text-[11px] text-muted-foreground">{fmtRelative(note.createdAt)}</span>
               </div>
             </div>
             {note.matchContext && (

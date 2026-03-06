@@ -179,11 +179,25 @@ export async function getObservationNotes(playerId: number): Promise<Observation
     );
   }
 
+  // Get player's referred_by to show as author for imported notes (no author_id)
+  const hasImported = (data ?? []).some((r) => !r.author_id);
+  let referredBy: string | null = null;
+  if (hasImported) {
+    const { data: player } = await supabase
+      .from('players')
+      .select('referred_by')
+      .eq('id', playerId)
+      .single();
+    referredBy = player?.referred_by || null;
+  }
+
   return (data ?? []).map((row) => ({
     id: row.id,
     playerId: row.player_id,
     authorId: row.author_id,
-    authorName: row.author_id ? (profileMap[row.author_id] || 'Desconhecido') : 'Importado',
+    authorName: row.author_id
+      ? (profileMap[row.author_id] || 'Desconhecido')
+      : (referredBy || 'Importado'),
     content: row.content,
     matchContext: row.match_context,
     priority: row.priority ?? 'normal',
@@ -203,7 +217,7 @@ export async function getFlaggedNotes(ageGroupId?: number): Promise<FlaggedNote[
 
   let query = supabase
     .from('observation_notes')
-    .select('*, players:player_id(name, age_group_id, photo_url, zz_photo_url)')
+    .select('*, players:player_id(name, age_group_id, photo_url, zz_photo_url, referred_by)')
     .in('priority', ['importante', 'urgente'])
     .order('created_at', { ascending: false })
     .limit(50);
@@ -235,16 +249,16 @@ export async function getFlaggedNotes(ageGroupId?: number): Promise<FlaggedNote[
     .filter((row) => {
       // Filter by age group if provided
       if (!ageGroupId) return true;
-      const player = row.players as { name: string; age_group_id: number; photo_url: string | null; zz_photo_url: string | null } | null;
+      const player = row.players as { name: string; age_group_id: number; photo_url: string | null; zz_photo_url: string | null; referred_by: string | null } | null;
       return player?.age_group_id === ageGroupId;
     })
     .map((row) => {
-      const player = row.players as { name: string; age_group_id: number; photo_url: string | null; zz_photo_url: string | null } | null;
+      const player = row.players as { name: string; age_group_id: number; photo_url: string | null; zz_photo_url: string | null; referred_by: string | null } | null;
       return {
         id: row.id,
         playerId: row.player_id,
         authorId: row.author_id,
-        authorName: row.author_id ? (profileMap[row.author_id] || 'Desconhecido') : 'Importado',
+        authorName: row.author_id ? (profileMap[row.author_id] || 'Desconhecido') : (player?.referred_by || 'Importado'),
         content: row.content,
         matchContext: row.match_context,
         priority: (row.priority ?? 'normal') as NotePriority,

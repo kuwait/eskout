@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.9 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 6.0 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -1311,27 +1311,39 @@ python scripts/extract_reports.py --retry-errors
 ### 6.6. In-App Scraping (Server Actions)
 The app also scrapes FPF and ZeroZero directly from the browser via server actions in `src/actions/scraping.ts`:
 
-**FPF parsing:** Extracts `var model = {...}` embedded JSON — fields: FullName, CurrentClub, Image, BirthDate, Nationality, BirthCountry.
+**FPF parsing:** Extracts `var model = {...}` embedded JSON — fields: FullName, CurrentClub, Image, BirthDate, Nationality, PlaceOfBirth.
+- **Date formats:** `dd/MM/yyyy`, `yyyy-MM-dd`, Portuguese text (e.g. "27 de março de 2012")
+- **Birth country fallback:** If no explicit birth country field, uses Nationality as fallback
 
 **ZeroZero parsing:**
-- **Encoding:** ISO-8859-1 (decoded manually via `TextDecoder`)
+- **Encoding:** ISO-8859-1 for player pages (decoded manually via `TextDecoder`), UTF-8 for autocomplete
 - **JSON-LD:** Person schema — image, name, birthDate, nationality, height, weight, worksFor
   - `worksFor` can be string, object, array, or a string containing a JSON array (e.g. `"[{@type:SportsTeam,name:Padroense}]"`) — all formats handled with JSON.parse + regex fallback
 - **Sidebar card-data** (most reliable): Position, Foot, DOB, Nome, Clube atual, Nacionalidade, País de Nascimento, Altura, Peso
   - DOB formats: `dd/MM/yyyy`, `dd-MM-yyyy`, `yyyy-MM-dd`, `yyyy-MM-dd (XX anos)`
 - **Header:** Shirt number from `<span class="number">7.</span>`, name from `<h1 class="zz-enthdr-name">`
 - **Career table:** Season, club, games, goals per row
+- **Captcha detection:** Detects recaptcha redirects and empty/invalid responses, returns clear "blocked" error to user
+
+**Country name normalization:** `normalizeCountry()` fixes common FPF accent issues (e.g. "Guine Bissau" → "Guiné-Bissau"). Applied in all merge points.
+
+**Photo dedup logic:**
+- FPF photo only shown if player has NO photo yet — avoids repeatedly asking user to switch
+- ZZ photo only shown if URL genuinely changed (vs cached `zz_photo_url`)
+- Club logo auto-saved silently, only shown as change if URL genuinely different
 
 **Server actions:**
 - `scrapePlayerFpf(playerId)` — scrape FPF for existing player
 - `scrapePlayerZeroZero(playerId)` — scrape ZeroZero for existing player
-- `scrapePlayerAll(playerId)` — scrape both, merge, return changes
+- `scrapePlayerAll(playerId)` — scrape both, merge, return changes (with captcha detection)
 - `scrapeFromLinks(fpfLink?, zzLink?)` — scrape from raw URLs (no player needed, for Add Player flow)
 - `applyScrapedData(playerId, updates)` — apply selected scraped fields to player
 - `autoScrapePlayer(playerId, fpfChanged, zzChanged)` — triggered after profile save if links changed
 - `bulkScrapeExternalData(offset, limit, sources)` — batch scrape with rate limiting (2-4s delay)
 
-**Merge priority:** FPF for name/DOB/nationality, ZeroZero for position/foot/height/weight/photo/shirt number. Club: FPF priority, then ZZ.
+**Merge priority:** FPF for name/DOB/nationality/birthCountry, ZeroZero for position/foot/height/weight/photo/shirt number. Club: FPF priority, then ZZ.
+
+**Observation notes:** Imported notes (no `author_id`) show player's `referred_by` name instead of "Importado".
 
 ---
 

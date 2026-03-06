@@ -128,7 +128,7 @@ async function fetchFpfData(fpfLink: string) {
 
     const model = JSON.parse(modelMatch[1]);
 
-    // BirthDate: FPF model typically has "dd/MM/yyyy" or ISO format
+    // BirthDate: FPF model uses various formats — "dd/MM/yyyy", ISO, or "27 de março de 2012"
     let dob: string | null = null;
     const rawDob = (model.BirthDate || model.DateOfBirth || model.DataNascimento) as string | null;
     if (rawDob) {
@@ -137,6 +137,18 @@ async function fetchFpfData(fpfLink: string) {
         dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`; // → yyyy-MM-dd
       } else if (/^\d{4}-\d{2}-\d{2}/.test(rawDob)) {
         dob = rawDob.slice(0, 10);
+      } else {
+        // Portuguese format: "27 de março de 2012"
+        const PT_MONTHS: Record<string, string> = {
+          janeiro: '01', fevereiro: '02', 'março': '03', marco: '03', abril: '04',
+          maio: '05', junho: '06', julho: '07', agosto: '08',
+          setembro: '09', outubro: '10', novembro: '11', dezembro: '12',
+        };
+        const ptMatch = rawDob.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
+        if (ptMatch) {
+          const mm = PT_MONTHS[ptMatch[2].toLowerCase()];
+          if (mm) dob = `${ptMatch[3]}-${mm}-${ptMatch[1].padStart(2, '0')}`;
+        }
       }
     }
 
@@ -149,13 +161,17 @@ async function fetchFpfData(fpfLink: string) {
     const rawPhoto = (model.Image as string) || null;
     const photoUrl = rawPhoto && rawPhoto.startsWith('http') && !rawPhoto.includes('placeholder') ? rawPhoto : null;
 
+    const nationality = (model.Nationality || model.Nacionalidade) as string | null;
+    // Fallback: if no birth country data, assume same as nationality
+    const birthCountry = (model.BirthCountry || model.CountryOfBirth || model.PlaceOfBirth || model.PaisNascimento || model.BirthPlace || nationality) as string | null;
+
     return {
       currentClub: (model.CurrentClub as string) || null,
       photoUrl,
       fullName: (model.FullName as string) || null,
       dob,
-      birthCountry: (model.BirthCountry || model.CountryOfBirth || model.PaisNascimento || model.BirthPlace) as string | null,
-      nationality: (model.Nationality || model.Nacionalidade) as string | null,
+      birthCountry,
+      nationality,
       clubLogoUrl,
     };
   } catch {
@@ -224,6 +240,17 @@ async function fetchZeroZeroData(zzLink: string) {
     // Using res.text() would corrupt ç, ã, é etc. — decode manually
     const buf = await res.arrayBuffer();
     const html = new TextDecoder('iso-8859-1').decode(buf);
+
+    // Detect captcha/rate-limit pages — ZZ redirects to recaptcha.php when blocked
+    if (html.length < 5000 && (html.includes('recaptcha') || html.includes('g-recaptcha') || html.includes('captcha'))) {
+      console.warn(`[ZZ] Bloqueado por captcha: ${zzLink}`);
+      throw new Error('ZZ_BLOCKED');
+    }
+    // Also detect empty/stub responses (blocked silently)
+    if (buf.byteLength === 0 || (!html.includes('card-data') && !html.includes('ld+json'))) {
+      console.warn(`[ZZ] Resposta vazia ou inválida (possível bloqueio): ${zzLink}`);
+      throw new Error('ZZ_BLOCKED');
+    }
     const result = {
       fullName: null as string | null,
       dob: null as string | null,
@@ -760,17 +787,22 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   type FpfData = Awaited<ReturnType<typeof fetchFpfData>>;
   type ZzData = Awaited<ReturnType<typeof fetchZeroZeroData>>;
 
+  let zzBlocked = false;
   const [fpfResult, zzResult] = await Promise.all([
     player.fpf_link
       ? fetchFpfData(player.fpf_link).catch(() => null as FpfData)
       : Promise.resolve(null as FpfData),
     player.zerozero_link
-      ? fetchZeroZeroData(player.zerozero_link).catch(() => null as ZzData)
+      ? fetchZeroZeroData(player.zerozero_link).catch((e: Error) => {
+          if (e.message === 'ZZ_BLOCKED') zzBlocked = true;
+          return null as ZzData;
+        })
       : Promise.resolve(null as ZzData),
   ]);
 
-  if (!fpfResult && player.fpf_link) errors.push('FPF');
-  if (!zzResult && player.zerozero_link) errors.push('ZeroZero');
+  if (!fpfResult && player.fpf_link) errors.push('FPF indisponível');
+  if (zzBlocked) errors.push('ZeroZero bloqueou o acesso (captcha). Tenta mais tarde.');
+  else if (!zzResult && player.zerozero_link) errors.push('ZeroZero indisponível');
 
   if (!fpfResult && !zzResult) {
     const noLinks = !player.fpf_link && !player.zerozero_link;
@@ -795,7 +827,9 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
     cacheUpdates.zz_team_history = zzResult.teamHistory?.length ? zzResult.teamHistory : null;
     cacheUpdates.zz_last_checked = new Date().toISOString();
   }
-  // Club logo: NOT auto-saved — returned as confirmable change
+  // Club logo: auto-save best available, show change only if URL actually changed
+  if (fpfResult?.clubLogoUrl) cacheUpdates.club_logo_url = fpfResult.clubLogoUrl;
+  if (zzResult?.clubLogoUrl && !zzLinkFound) cacheUpdates.club_logo_url = zzResult.clubLogoUrl;
   if (Object.keys(cacheUpdates).length > 0) {
     await supabase.from('players').update(cacheUpdates).eq('id', playerId);
   }
@@ -814,17 +848,20 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   const mergedBirthCountry = normalizeCountry(fpfResult?.birthCountry || (zzConfirmed ? zzResult?.birthCountry : null) || null);
   const birthCountryChanged = !!mergedBirthCountry && mergedBirthCountry !== player.birth_country;
 
-  // Club logo: prefer ZZ (higher res), fallback FPF — confirmable, not auto-saved
+  // Club logo: auto-saved in cacheUpdates above, only show as change if genuinely different
   const mergedLogo = (zzConfirmed ? zzResult?.clubLogoUrl : null) || fpfResult?.clubLogoUrl || null;
   const clubLogoChanged = !!mergedLogo && mergedLogo !== (player.club_logo_url ?? '');
 
   // Photos: keep separate so UI can show the right one based on ZZ confirmation
   const fpfPhotoUrl = fpfResult?.photoUrl ?? null;
   const zzPhotoUrl = zzResult?.photoUrl ?? null;
-  // Only show photo option if it's different from current photo
+  // Only show photo option if URL is genuinely new (not seen before in any stored field)
   const currentPhoto = player.photo_url ?? '';
   const currentZzPhoto = player.zz_photo_url ?? '';
-  const fpfPhotoNew = !!fpfPhotoUrl && fpfPhotoUrl !== currentPhoto;
+  // FPF photo: only "new" if player has no photo yet OR if the FPF URL actually changed
+  // (if user already has a photo from any source, they already decided — don't nag)
+  const fpfPhotoNew = !!fpfPhotoUrl && !currentPhoto;
+  // ZZ photo: "new" only if URL genuinely changed from what we cached
   const zzPhotoNew = !!zzPhotoUrl && zzPhotoUrl !== currentPhoto && zzPhotoUrl !== currentZzPhoto;
   const hasNewPhoto = fpfPhotoNew || zzPhotoNew;
 

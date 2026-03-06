@@ -185,6 +185,10 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
             <DialogTitle>Novos dados encontrados</DialogTitle>
             <DialogDescription>Seleciona os dados que queres atualizar.</DialogDescription>
           </DialogHeader>
+          {/* Partial errors (e.g. ZZ blocked but FPF ok) */}
+          {result?.errors && result.errors.length > 0 && (
+            <p className="text-xs text-amber-600">{result.errors.join('. ')}</p>
+          )}
           <div className="space-y-3 text-sm">
             {/* ── FPF-sourced fields (always visible) ── */}
             {result?.clubChanged && result.club && (
