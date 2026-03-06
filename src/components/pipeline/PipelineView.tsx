@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Search, X } from 'lucide-react';
 import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
@@ -16,7 +17,6 @@ import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } fr
 import { updateRecruitmentStatus, reorderPipelineCards } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
 import { StatusList } from '@/components/pipeline/StatusList';
-import { PlayerProfile } from '@/components/players/PlayerProfile';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -34,9 +34,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { DepartmentOpinion, ObservationNote, Player, PlayerRow, RecruitmentStatus, StatusHistoryEntry, UserRole } from '@/lib/types';
+import type { DepartmentOpinion, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
 export function PipelineView() {
+  const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -44,103 +45,9 @@ export function PipelineView() {
   // Show birth year on cards when viewing all age groups
   const showBirthYear = selectedId === null;
 
-  /* ───────────── Player Profile Dialog ───────────── */
-
-  const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
-  const [profileFetchKey, setProfileFetchKey] = useState(0);
-  const [profileNotes, setProfileNotes] = useState<ObservationNote[]>([]);
-  const [profileHistory, setProfileHistory] = useState<StatusHistoryEntry[]>([]);
-  const [profileRole, setProfileRole] = useState<UserRole>('scout');
-
-  const profilePlayer = profilePlayerId
-    ? allPlayers.find((p) => p.id === profilePlayerId) ?? null
-    : null;
-
-  // Fetch notes, history, and role when opening the profile popup
-  // profileFetchKey forces re-fetch even for the same player
-  useEffect(() => {
-    if (!profilePlayerId) return;
-    let cancelled = false;
-    const supabase = createClient();
-
-    async function fetchProfileData() {
-      try {
-        // Fetch history, notes, and role in parallel
-        const [historyRes, notesRes, userRes] = await Promise.all([
-          supabase.from('status_history').select('*').eq('player_id', profilePlayerId).order('created_at', { ascending: false }),
-          supabase.from('observation_notes').select('*').eq('player_id', profilePlayerId).order('created_at', { ascending: false }),
-          supabase.auth.getUser(),
-        ]);
-
-        if (cancelled) return;
-
-        // Resolve author names for both history and notes
-        const allUserIds = new Set<string>();
-        for (const r of historyRes.data ?? []) { if (r.changed_by) allUserIds.add(r.changed_by); }
-        for (const r of notesRes.data ?? []) { if (r.author_id) allUserIds.add(r.author_id); }
-
-        const nameMap: Record<string, string> = {};
-        if (allUserIds.size > 0) {
-          const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', [...allUserIds]);
-          for (const p of profiles ?? []) nameMap[p.id] = p.full_name;
-        }
-
-        if (cancelled) return;
-
-        // Set history
-        setProfileHistory(
-          (historyRes.data ?? []).map((row) => ({
-            id: row.id as number,
-            playerId: row.player_id as number,
-            fieldChanged: row.field_changed as string,
-            oldValue: row.old_value as string | null,
-            newValue: row.new_value as string | null,
-            changedBy: row.changed_by as string,
-            changedByName: nameMap[row.changed_by] ?? 'Sistema',
-            notes: row.notes as string | null,
-            createdAt: row.created_at as string,
-          }))
-        );
-
-        // Set notes
-        setProfileNotes(
-          (notesRes.data ?? []).map((row) => ({
-            id: row.id as number,
-            playerId: row.player_id as number,
-            authorId: row.author_id as string,
-            authorName: nameMap[row.author_id] ?? 'Desconhecido',
-            content: row.content as string,
-            matchContext: row.match_context as string | null,
-            priority: ((row.priority as string) ?? 'normal') as import('@/lib/types').NotePriority,
-            createdAt: row.created_at as string,
-          }))
-        );
-
-        // Set role
-        const user = userRes.data?.user;
-        if (user) {
-          const { data: roleData } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-          if (!cancelled) setProfileRole((roleData?.role as UserRole) ?? 'scout');
-        }
-      } catch (err) {
-        console.error('[CLIENT] fetchProfileData error:', err);
-      }
-    }
-
-    fetchProfileData();
-    return () => { cancelled = true; };
-  }, [profilePlayerId, profileFetchKey]);
-
+  // Navigate to player profile page (always fresh data)
   function handlePlayerClick(playerId: number) {
-    setProfileNotes([]);
-    setProfileHistory([]);
-    setProfilePlayerId(playerId);
-    // Increment key to force re-fetch even if same player
-    setProfileFetchKey((k) => k + 1);
-  }
-
-  function handleProfileClose() {
-    setProfilePlayerId(null);
+    router.push(`/jogadores/${playerId}`);
   }
 
   /* ───────────── Fetch ───────────── */
@@ -311,24 +218,6 @@ export function PipelineView() {
         onDateChange={handleDateChange}
         onReorder={handleReorder}
       />
-
-      {/* Player profile popup */}
-      <Dialog open={profilePlayerId !== null} onOpenChange={(open) => { if (!open) handleProfileClose(); }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogTitle className="sr-only">
-            {profilePlayer?.name ?? 'Perfil do Jogador'}
-          </DialogTitle>
-          {profilePlayer && (
-            <PlayerProfile
-              player={profilePlayer}
-              userRole={profileRole}
-              notes={profileNotes}
-              statusHistory={profileHistory}
-              onClose={handleProfileClose}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Add to abordagens dialog — shows ALL players, always adds as 'por_tratar' */}
       <AddToPipelineDialog
@@ -513,24 +402,24 @@ function AddToPipelineDialog({
             </p>
           )}
           {filtered.map((player) => (
-            <div key={player.id} className="flex items-center justify-between rounded-md border p-2">
+            <div key={player.id} className="flex items-center gap-2 rounded-md border p-2">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{player.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-sm font-medium">{player.name}</p>
+                  <OpinionBadge opinion={player.departmentOpinion[0] ?? null} className="shrink-0" />
+                  {player.recruitmentStatus && (
+                    <StatusBadge status={player.recruitmentStatus} />
+                  )}
+                </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {player.club}
                   {player.positionNormalized ? ` · ${player.positionNormalized}` : ''}
                   {player.foot ? ` · ${player.foot}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5">
-                <OpinionBadge opinion={player.departmentOpinion} />
-                {player.recruitmentStatus && (
-                  <StatusBadge status={player.recruitmentStatus} />
-                )}
-                <Button size="sm" variant="outline" onClick={() => onAdd(player.id)}>
-                  Adicionar
-                </Button>
-              </div>
+              <Button size="sm" variant="outline" className="shrink-0" onClick={() => onAdd(player.id)}>
+                Adicionar
+              </Button>
             </div>
           ))}
         </div>

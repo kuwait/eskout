@@ -67,11 +67,23 @@ async function fetchFpfData(fpfLink: string) {
 
     const model = JSON.parse(modelMatch[1]);
 
+    // BirthDate: FPF model typically has "dd/MM/yyyy" or ISO format
+    let dob: string | null = null;
+    const rawDob = (model.BirthDate || model.DateOfBirth || model.DataNascimento) as string | null;
+    if (rawDob) {
+      const ddMM = rawDob.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (ddMM) {
+        dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`; // → yyyy-MM-dd
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(rawDob)) {
+        dob = rawDob.slice(0, 10);
+      }
+    }
+
     return {
       currentClub: (model.CurrentClub as string) || null,
       photoUrl: (model.Image as string) || null,
       fullName: (model.FullName as string) || null,
-      // FPF model keys for nationality/birth country — try common variants
+      dob,
       birthCountry: (model.BirthCountry || model.CountryOfBirth || model.PaisNascimento || model.BirthPlace) as string | null,
       nationality: (model.Nationality || model.Nacionalidade) as string | null,
     };
@@ -138,6 +150,8 @@ async function fetchZeroZeroData(zzLink: string) {
     const buf = await res.arrayBuffer();
     const html = new TextDecoder('iso-8859-1').decode(buf);
     const result = {
+      fullName: null as string | null,
+      dob: null as string | null,
       currentClub: null as string | null,
       currentTeam: null as string | null,
       photoUrl: null as string | null,
@@ -158,6 +172,20 @@ async function fetchZeroZeroData(zzLink: string) {
       try {
         const ld = JSON.parse(jsonLdMatch[1]);
         if (typeof ld.image === 'string' && ld.image) result.photoUrl = ld.image;
+
+        // Name from JSON-LD Person schema
+        if (typeof ld.name === 'string' && ld.name) result.fullName = ld.name;
+
+        // birthDate: JSON-LD uses ISO format "yyyy-MM-dd" or "dd/MM/yyyy"
+        if (ld.birthDate && typeof ld.birthDate === 'string') {
+          const raw = ld.birthDate.trim();
+          if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+            result.dob = raw.slice(0, 10);
+          } else {
+            const ddMM = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (ddMM) result.dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`;
+          }
+        }
 
         // Nationality (usually works)
         if (ld.nationality) {
@@ -233,6 +261,21 @@ async function fetchZeroZeroData(zzLink: string) {
         else if (raw.includes('esquerdo') || raw === 'left') result.foot = 'Esq';
         else if (raw.includes('ambidextro') || raw.includes('amb')) result.foot = 'Amb';
       }
+    }
+
+    // DOB from sidebar — "dd/MM/yyyy" or "dd-MM-yyyy"
+    if (!result.dob) {
+      const dobVal = cardValue('Data de Nascimento');
+      if (dobVal) {
+        const ddMM = dobVal.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+        if (ddMM) result.dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`;
+      }
+    }
+
+    // Name from page header if not found in JSON-LD
+    if (!result.fullName) {
+      const nameMatch = html.match(/<h1[^>]*class="[^"]*zz-enthdr-name[^"]*"[^>]*>([^<]+)/);
+      if (nameMatch) result.fullName = nameMatch[1].trim();
     }
 
     // Birth country — uses flag icon + text
@@ -569,6 +612,70 @@ export async function applyScrapedData(
 
   revalidatePath(`/jogadores/${playerId}`);
   return { success: true };
+}
+
+/* ───────────── Scrape from Links (no player ID — for "Add Player" flow) ───────────── */
+
+/** Data returned from scraping links for a new player */
+export interface ScrapedNewPlayerData {
+  success: boolean;
+  errors: string[];
+  name: string | null;
+  dob: string | null;
+  club: string | null;
+  position: string | null;
+  positionRaw: string | null;
+  foot: string | null;
+  photoUrl: string | null;
+  height: number | null;
+  weight: number | null;
+  nationality: string | null;
+  birthCountry: string | null;
+}
+
+/** Scrape FPF and/or ZeroZero from raw URLs — no player needed, used for creating new players */
+export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promise<ScrapedNewPlayerData> {
+  const EMPTY: ScrapedNewPlayerData = {
+    success: false, errors: [], name: null, dob: null, club: null,
+    position: null, positionRaw: null, foot: null, photoUrl: null,
+    height: null, weight: null, nationality: null, birthCountry: null,
+  };
+
+  if (!fpfLink && !zzLink) return { ...EMPTY, errors: ['Nenhum link fornecido'] };
+
+  const errors: string[] = [];
+
+  type FpfData = Awaited<ReturnType<typeof fetchFpfData>>;
+  type ZzData = Awaited<ReturnType<typeof fetchZeroZeroData>>;
+
+  const [fpfResult, zzResult] = await Promise.all([
+    fpfLink ? fetchFpfData(fpfLink).catch(() => null as FpfData) : Promise.resolve(null as FpfData),
+    zzLink ? fetchZeroZeroData(zzLink).catch(() => null as ZzData) : Promise.resolve(null as ZzData),
+  ]);
+
+  if (!fpfResult && fpfLink) errors.push('Não foi possível aceder ao FPF');
+  if (!zzResult && zzLink) errors.push('Não foi possível aceder ao ZeroZero');
+
+  if (!fpfResult && !zzResult) return { ...EMPTY, errors };
+
+  // Merge: FPF for name/DOB/nationality, ZZ for position/foot/height/weight/photo
+  const name = fpfResult?.fullName || zzResult?.fullName || null;
+  const dob = fpfResult?.dob || zzResult?.dob || null;
+  const club = fpfResult?.currentClub || zzResult?.currentClub || null;
+  const positionRaw = zzResult?.position ?? null;
+  const position = positionRaw ? normalizePosition(positionRaw) : null;
+  const foot = zzResult?.foot ?? null;
+  const photoUrl = zzResult?.photoUrl || fpfResult?.photoUrl || null;
+  const height = zzResult?.height ?? null;
+  const weight = zzResult?.weight ?? null;
+  const nationality = fpfResult?.nationality || zzResult?.nationality || null;
+  const birthCountry = fpfResult?.birthCountry || zzResult?.birthCountry || null;
+
+  return {
+    success: true, errors,
+    name, dob, club, position, positionRaw, foot,
+    photoUrl, height, weight, nationality, birthCountry,
+  };
 }
 
 /* ───────────── Auto-scrape on Link Change ───────────── */

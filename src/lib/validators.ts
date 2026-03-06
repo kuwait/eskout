@@ -52,6 +52,12 @@ export const playerFormSchema = z.object({
   fpfLink: z.string().url('URL FPF inválido').or(z.literal('')).default(''),
   zerozeroLink: z.string().url('URL ZeroZero inválido').or(z.literal('')).default(''),
   recruitmentStatus: z.enum(RECRUITMENT_VALUES).optional(),
+  // Scraped fields — auto-filled from FPF/ZeroZero, stored on player creation
+  photoUrl: z.string().default(''),
+  height: z.string().default(''),
+  weight: z.string().default(''),
+  nationality: z.string().default(''),
+  birthCountry: z.string().default(''),
 });
 
 export type PlayerFormData = z.infer<typeof playerFormSchema>;

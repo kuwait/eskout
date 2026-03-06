@@ -73,6 +73,12 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
       fpf_link: rest.fpfLink || null,
       zerozero_link: rest.zerozeroLink || null,
       recruitment_status: rest.recruitmentStatus || null,
+      // Scraped fields (populated when creating from FPF/ZeroZero links)
+      photo_url: rest.photoUrl || null,
+      height: rest.height ? parseInt(rest.height, 10) : null,
+      weight: rest.weight ? parseInt(rest.weight, 10) : null,
+      nationality: rest.nationality || null,
+      birth_country: rest.birthCountry || null,
       created_by: user?.id,
     })
     .select('id')

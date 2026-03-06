@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
@@ -18,9 +19,6 @@ import { SquadCompareView } from '@/components/squad/SquadCompareView';
 import { AddToSquadDialog } from '@/components/squad/AddToSquadDialog';
 import { addToShadowSquad, removeFromShadowSquad, toggleRealSquad, bulkReorderSquad, moveSquadPlayerPosition } from '@/actions/squads';
 import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
-import { usePlayerProfilePopup } from '@/hooks/usePlayerProfilePopup';
-import { PlayerProfile } from '@/components/players/PlayerProfile';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { Player, PlayerRow, PositionCode } from '@/lib/types';
 
 type ViewMode = 'campo' | 'lista' | 'comparar';
@@ -40,6 +38,7 @@ interface SquadPanelViewProps {
 }
 
 export function SquadPanelView({ squadType }: SquadPanelViewProps) {
+  const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({
     pageId: `squad-${squadType}`,
   });
@@ -65,8 +64,10 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
     [allPlayers, selectedId]
   );
 
-  // Player profile popup
-  const profile = usePlayerProfilePopup(players);
+  // Navigate to player profile page (always fresh data, unlike stale client cache)
+  const handlePlayerClick = useCallback((playerId: number) => {
+    router.push(`/jogadores/${playerId}`);
+  }, [router]);
 
   /* ───────────── Fetch ───────────── */
 
@@ -349,7 +350,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
               squadType={squadType}
               onAdd={(pos) => { setDialogPosition(pos); setDialogOpen(true); }}
               onRemovePlayer={handleRemove}
-              onPlayerClick={profile.open}
+              onPlayerClick={handlePlayerClick}
               onDragEnd={handleDragEnd}
             />
           ) : (
@@ -372,7 +373,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
           squadType={squadType}
           onAdd={(pos) => { setDialogPosition(pos); setDialogOpen(true); }}
           onRemovePlayer={handleRemove}
-          onPlayerClick={profile.open}
+          onPlayerClick={handlePlayerClick}
         />
       )}
 
@@ -381,7 +382,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         <SquadCompareView
           realByPosition={realPos}
           shadowByPosition={shadowPos}
-          onPlayerClick={profile.open}
+          onPlayerClick={handlePlayerClick}
         />
       )}
 
@@ -399,21 +400,6 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         onAddPlayer={(player) => { handleAdd(player, dialogPosition); setDialogOpen(false); }}
       />
 
-      {/* Player profile popup */}
-      <Dialog open={profile.isOpen} onOpenChange={(open) => { if (!open) profile.close(); }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogTitle className="sr-only">Ficha do Jogador</DialogTitle>
-          {profile.player && (
-            <PlayerProfile
-              player={profile.player}
-              userRole={profile.role}
-              notes={profile.notes}
-              statusHistory={profile.history}
-              onClose={profile.close}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

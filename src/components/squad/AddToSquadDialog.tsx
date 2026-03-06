@@ -286,27 +286,28 @@ export function AddToSquadDialog({
             </p>
           )}
           {filtered.map((player) => (
-            <div key={player.id} className="flex items-center justify-between rounded-md border p-2">
+            <div key={player.id} className="flex items-center gap-2 rounded-md border p-2">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{player.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-sm font-medium">{player.name}</p>
+                  <OpinionBadge opinion={player.departmentOpinion[0] ?? null} className="shrink-0" />
+                </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {player.club}
                   {player.positionNormalized ? ` · ${player.positionNormalized}` : ''}
                   {player.foot ? ` · ${player.foot}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5">
-                <OpinionBadge opinion={player.departmentOpinion} />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={(e) => { e.stopPropagation(); handleAdd(player); }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  Adicionar
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                disabled={isPending}
+                onClick={(e) => { e.stopPropagation(); handleAdd(player); }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                Adicionar
+              </Button>
             </div>
           ))}
         </div>
