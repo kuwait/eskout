@@ -12,6 +12,7 @@ import { User } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
@@ -182,7 +183,10 @@ export function PlayerTable({ players }: PlayerTableProps) {
                       </span>
                     )}
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-neutral-900">{player.name}</p>
+                      <p className="flex items-center gap-1.5 truncate font-medium text-neutral-900">
+                        <ObservationBadge player={player} />
+                        <span className="truncate">{player.name}</span>
+                      </p>
                       {player.club && (
                         <p className="truncate text-xs text-muted-foreground">{player.club}</p>
                       )}

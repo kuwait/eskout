@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { X, CalendarRange } from 'lucide-react';
-import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, RECRUITMENT_STATUSES } from '@/lib/constants';
+import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, RECRUITMENT_STATUSES, OBSERVATION_TIERS } from '@/lib/constants';
 import type { PlayerFilterState } from '@/components/players/PlayersView';
 
 interface PlayerFiltersProps {
@@ -45,6 +45,7 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, birthYears }: P
       birthYear: '',
       dobFrom: '',
       dobTo: '',
+      observationTier: '',
     });
     setShowDateRange(false);
   }
@@ -129,6 +130,19 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, birthYears }: P
             <SelectItem value="all">Estado</SelectItem>
             {RECRUITMENT_STATUSES.map((s) => (
               <SelectItem key={s.value} value={s.value}>{s.labelPt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Observation Tier */}
+        <Select value={filters.observationTier || 'all'} onValueChange={(v) => update('observationTier', v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-[150px]" aria-label="Filtrar por estado de observação">
+            <SelectValue placeholder="Observação" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Observação</SelectItem>
+            {OBSERVATION_TIERS.map((t) => (
+              <SelectItem key={t.value} value={t.value}>{t.labelPt}</SelectItem>
             ))}
           </SelectContent>
         </Select>

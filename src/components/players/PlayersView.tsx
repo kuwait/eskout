@@ -10,6 +10,7 @@ import { Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { fuzzyMatch } from '@/lib/utils';
+import { getObservationTier } from '@/lib/constants';
 import { Input } from '@/components/ui/input';
 import { PlayerTable } from '@/components/players/PlayerTable';
 import { PlayerCard } from '@/components/players/PlayerCard';
@@ -27,6 +28,7 @@ export interface PlayerFilterState {
   birthYear: string;
   dobFrom: string;
   dobTo: string;
+  observationTier: string;
 }
 
 const EMPTY_FILTERS: PlayerFilterState = {
@@ -40,6 +42,7 @@ const EMPTY_FILTERS: PlayerFilterState = {
   birthYear: '',
   dobFrom: '',
   dobTo: '',
+  observationTier: '',
 };
 
 export function PlayersView() {
@@ -79,6 +82,11 @@ export function PlayersView() {
     if (filters.shadowSquad === 'no') result = result.filter((p) => !p.isShadowSquad);
     if (filters.realSquad === 'yes') result = result.filter((p) => p.isRealSquad);
     if (filters.realSquad === 'no') result = result.filter((p) => !p.isRealSquad);
+
+    // Observation tier filter
+    if (filters.observationTier) {
+      result = result.filter((p) => getObservationTier(p) === filters.observationTier);
+    }
 
     // Birth year filter
     if (filters.birthYear) {

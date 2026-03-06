@@ -4,6 +4,7 @@
 // RELEVANT FILES: src/components/players/PlayersView.tsx, src/components/common/OpinionBadge.tsx, src/lib/constants.ts
 
 import Link from 'next/link';
+import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import type { Player } from '@/lib/types';
@@ -52,7 +53,10 @@ export function PlayerCard({ player }: PlayerCardProps) {
 
         {/* Content — middle */}
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-neutral-900">{player.name}</p>
+          <p className="flex items-center gap-1.5 truncate font-medium text-neutral-900">
+            <ObservationBadge player={player} />
+            <span className="truncate">{player.name}</span>
+          </p>
           <div className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
             {player.positionNormalized && (
               <span className="font-medium text-neutral-600">{player.positionNormalized}</span>

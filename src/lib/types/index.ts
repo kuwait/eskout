@@ -3,6 +3,10 @@
 // Central type definitions matching the Supabase schema (SOP 5.5)
 // RELEVANT FILES: src/lib/constants.ts, src/lib/validators.ts, src/lib/supabase/server.ts
 
+/* ───────────── Observation Tier (computed, not stored) ───────────── */
+
+export type ObservationTier = 'observado' | 'referenciado' | 'adicionado';
+
 /* ───────────── Position & Enums ───────────── */
 
 export type PositionCode = 'GR' | 'DD' | 'DE' | 'DC' | 'MDC' | 'MC' | 'MOC' | 'ED' | 'EE' | 'PL';

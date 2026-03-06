@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
@@ -354,7 +355,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               className="text-xl font-bold"
             />
           ) : (
-            <h1 className="text-2xl font-bold">{p.name}</h1>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-2xl font-bold">{p.name}</h1>
+              <ObservationBadge player={p} showLabel />
+            </div>
           )}
           <div className="flex flex-wrap items-center gap-2 text-sm">
             {p.positionNormalized && (
@@ -381,7 +385,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           {!editing && p.observerEval && (() => {
             const { rating, ratingText, colors: c } = parseRating(p.observerEval);
             return (
-              <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 sm:hidden ${c.bg} ${c.border}`}>
+              <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 xl:hidden ${c.bg} ${c.border}`}>
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${c.ring}`}>
                   <span className={`text-lg font-black ${c.num}`}>{rating}</span>
                 </div>
@@ -432,7 +436,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
         {/* ───────────── Mini pitch + Rating widget (right side, desktop) ───────────── */}
         {!editing && p.positionNormalized && (
-          <div className="hidden shrink-0 self-center sm:block">
+          <div className="hidden shrink-0 self-center xl:block">
             <MiniPitch
               primaryPosition={p.positionNormalized as PositionCode}
               secondaryPosition={p.secondaryPosition as PositionCode | null}
@@ -443,7 +447,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         {!editing && p.observerEval && (() => {
           const { rating, ratingText, colors: c } = parseRating(p.observerEval);
           return (
-            <div className={`hidden shrink-0 self-center rounded-2xl border px-6 py-3 sm:flex ${c.bg} ${c.border}`}>
+            <div className={`hidden shrink-0 self-center rounded-2xl border px-6 py-3 xl:flex ${c.bg} ${c.border}`}>
               <div className="flex items-center gap-4">
                 {/* Circle with number */}
                 <div className={`flex h-16 w-16 items-center justify-center rounded-full border-[3px] ${c.ring}`}>

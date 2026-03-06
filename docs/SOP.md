@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.3 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.4 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -210,6 +210,7 @@ All PDFs follow the same Boavista FC template. Fields to extract:
 | Note deletion | **Yes** — admins can delete any note; authors can delete their own notes. Confirmation dialog before delete. |
 | Profile export | **Yes** — player profile can be exported as PNG image or printed. Cross-origin images resolved via server-side proxy. |
 | Flagged notes page | **Yes** — `/alertas` page showing all important/urgent notes with player photo, priority styling, and dismissal. Navigation badges show counts. |
+| Observation tier | **Yes** — computed field classifying players as Observado (has reports), Referenciado (has referred_by), or Adicionado (neither). Icon badge on cards/table/profile + filter dropdown. |
 
 ---
 
@@ -480,6 +481,18 @@ A calendar for scheduling and tracking scouting activities.
 ### 4.15. DC Sub-Slots
 - The DC (Defesa Central) position supports sub-slot classification for finer tactical granularity
 - Allows distinguishing between left-sided DC and right-sided DC within the squad view
+
+### 4.18. Observation Tier (Estado de Observação)
+- Computed field (not stored in DB) that classifies players by their information level
+- **Exclusive hierarchy** — shows only the highest tier:
+  1. **Observado** (green `FileText` icon) — has at least one scouting report (`report_link_*`)
+  2. **Referenciado** (amber `Eye` icon) — has `referred_by` field filled, no reports
+  3. **Adicionado** (gray `Plus` icon) — neither reports nor referral
+- **Displayed in:** PlayerCard (icon only), PlayerTable (icon only), PlayerProfile (icon + label on desktop, icon only on mobile/tablet)
+- **Filterable** in the player list via "Observação" dropdown
+- Utility: `getObservationTier(player)` in `src/lib/constants.ts`
+- Component: `src/components/common/ObservationBadge.tsx`
+- Profile header breakpoint: mini pitch + rating widget only visible at `xl:` (1280px+); below that, mobile layout with inline rating bar
 
 ---
 

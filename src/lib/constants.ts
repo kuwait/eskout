@@ -3,7 +3,7 @@
 // Single source of truth for all domain enums and their display properties
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/utils/positions.ts, src/lib/validators.ts
 
-import type { DepartmentOpinion, PositionCode, RecruitmentStatus } from '@/lib/types';
+import type { CalendarEventType, DepartmentOpinion, ObservationTier, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
 
 /* ───────────── Positions ───────────── */
 
@@ -153,8 +153,6 @@ export function birthYearToAgeGroup(year: number): string | null {
 
 /* ───────────── Calendar Event Types ───────────── */
 
-import type { CalendarEventType } from '@/lib/types';
-
 export const CALENDAR_EVENT_TYPES: {
   value: CalendarEventType;
   labelPt: string;
@@ -175,6 +173,52 @@ export const EVENT_TYPE_LABEL_MAP: Record<CalendarEventType, string> = Object.fr
 export const EVENT_TYPE_COLOR_MAP: Record<CalendarEventType, string> = Object.fromEntries(
   CALENDAR_EVENT_TYPES.map((t) => [t.value, t.tailwind])
 ) as Record<CalendarEventType, string>;
+
+/* ───────────── Observation Tier (Estado de Observação) ───────────── */
+
+export const OBSERVATION_TIERS: {
+  value: ObservationTier;
+  labelPt: string;
+  icon: string;
+  tooltip: string;
+  tailwind: string;
+}[] = [
+  {
+    value: 'observado',
+    labelPt: 'Observado',
+    icon: 'FileText',
+    tooltip: 'Este jogador tem pelo menos um relatório de observação.',
+    tailwind: 'text-emerald-600',
+  },
+  {
+    value: 'referenciado',
+    labelPt: 'Referenciado',
+    icon: 'Eye',
+    tooltip: 'Este jogador foi sinalizado por um observador.',
+    tailwind: 'text-amber-500',
+  },
+  {
+    value: 'adicionado',
+    labelPt: 'Adicionado',
+    icon: 'Plus',
+    tooltip: 'Jogador apenas registado na base de dados.',
+    tailwind: 'text-neutral-400',
+  },
+];
+
+/** Compute observation tier from player data — has reports > has referred_by > default */
+export function getObservationTier(player: Player): ObservationTier {
+  // Has at least one non-empty report link
+  const hasReports = player.reportLinks.some((link) => Boolean(link));
+  if (hasReports) return 'observado';
+
+  if (player.referredBy.trim()) return 'referenciado';
+
+  return 'adicionado';
+}
+
+export const OBSERVATION_TIER_MAP: Record<ObservationTier, (typeof OBSERVATION_TIERS)[number]> =
+  Object.fromEntries(OBSERVATION_TIERS.map((t) => [t.value, t])) as Record<ObservationTier, (typeof OBSERVATION_TIERS)[number]>;
 
 /* ───────────── Navigation ───────────── */
 
