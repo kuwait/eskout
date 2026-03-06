@@ -338,19 +338,28 @@ export async function getRecentChanges(ageGroupId: number, limit = 10): Promise<
 
 /* ───────────── Calendar Events ───────────── */
 
-/** Fetch calendar events for a given month, merged with player pipeline dates (training/meeting/signing) */
+/** Fetch calendar events for a given date range, merged with player pipeline dates (training/meeting/signing) */
 export async function getCalendarEvents(
   year: number,
   month: number,
-  ageGroupId?: number
+  ageGroupId?: number,
+  /** Optional explicit date range (overrides year/month) */
+  dateRange?: { start: string; end: string }
 ): Promise<CalendarEvent[]> {
   const supabase = await createClient();
 
-  // Build date range for the month
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0); // last day of month
-  const start = startDate.toISOString().split('T')[0];
-  const end = endDate.toISOString().split('T')[0];
+  // Build date range — explicit range or fall back to month
+  let start: string;
+  let end: string;
+  if (dateRange) {
+    start = dateRange.start;
+    end = dateRange.end;
+  } else {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0); // last day of month
+    start = startDate.toISOString().split('T')[0];
+    end = endDate.toISOString().split('T')[0];
+  }
 
   // 1. Fetch manual calendar events
   let eventsQuery = supabase
