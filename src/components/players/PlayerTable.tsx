@@ -15,6 +15,7 @@ import {
 import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { getPrimaryRating } from '@/lib/constants';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { PitchCanvas } from '@/components/common/MiniPitch';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
@@ -105,11 +106,10 @@ export function PlayerTable({ players }: PlayerTableProps) {
     }
   }
 
-  /** Extract numeric rating (0 if none) for sorting */
+  /** Extract hybrid rating for sorting (report avg > manual eval > 0) */
   const evalNum = (p: Player) => {
-    if (!p.observerEval) return 0;
-    const m = p.observerEval.match(/^(\d)/);
-    return m ? parseInt(m[1], 10) : 0;
+    const primary = getPrimaryRating(p);
+    return primary ? primary.value : 0;
   };
 
   const sorted = [...players].sort((a, b) => {
@@ -164,7 +164,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
                 onClick={() => router.push(`/jogadores/${player.id}`)}
               >
                 <TableCell style={{ width: widths.eval }}>
-                  <EvalCell value={player.observerEval} />
+                  <EvalCell player={player} />
                 </TableCell>
                 <TableCell style={{ width: widths.name }}>
                   <div className="flex items-center gap-2 min-w-0">
@@ -256,18 +256,26 @@ export function PlayerTable({ players }: PlayerTableProps) {
   );
 }
 
-/* ───────────── Eval Cell (compact rating — circle + label) ───────────── */
+/* ───────────── Eval Cell (hybrid rating — report avg > manual eval) ───────────── */
 
-function EvalCell({ value }: { value: string }) {
-  if (!value) return <span className="text-xs text-neutral-300">—</span>;
+function EvalCell({ player }: { player: Player }) {
+  const primary = getPrimaryRating(player);
+  if (!primary) return <span className="text-xs text-neutral-300">—</span>;
 
-  const { rating, label } = parseEval(value);
-  const c = RATING_COLORS[rating] ?? RATING_DEFAULT;
+  const ratingInt = Math.round(primary.value);
+  const c = RATING_COLORS[ratingInt] ?? RATING_DEFAULT;
+
+  // Display value: decimal for averages, integer for manual
+  const displayValue = primary.isAverage ? primary.value.toFixed(1) : String(primary.value);
+  // Label: report count for averages, text label for manual
+  const label = primary.isAverage
+    ? `${player.reportRatingCount} aval.`
+    : (player.observerEval ? parseEval(player.observerEval).label : '');
 
   return (
     <div className="inline-flex items-center gap-2">
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${c.dot}`}>
-        {rating}
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${primary.isAverage ? 'text-xs' : 'text-sm'} font-bold text-white ${c.dot}`}>
+        {displayValue}
       </span>
       <span className={`text-xs font-medium ${c.num}`}>{label}</span>
     </div>

@@ -8,6 +8,7 @@ import {
   getPlayerById,
   getCurrentUserRole,
   getObservationNotes,
+  getScoutEvaluations,
   getScoutingReports,
   getStatusHistory,
 } from '@/lib/supabase/queries';
@@ -27,18 +28,29 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   if (isNaN(playerId)) notFound();
 
-  const [player, role, notes, statusHistory, scoutingReports] = await Promise.all([
+  const [player, role, notes, statusHistory, scoutingReports, scoutEvaluations] = await Promise.all([
     getPlayerById(playerId),
     getCurrentUserRole(),
     getObservationNotes(playerId),
     getStatusHistory(playerId),
     getScoutingReports(playerId),
+    getScoutEvaluations(playerId),
   ]);
 
   if (!player) notFound();
 
-  // Fetch age group name for display
+  // Compute hybrid rating: report ratings + scout evaluations
+  const reportRatings = scoutingReports.filter((r) => r.rating !== null).map((r) => r.rating!);
+  const scoutRatings = scoutEvaluations.map((e) => e.rating);
+  const allRatings = [...reportRatings, ...scoutRatings];
+  if (allRatings.length > 0) {
+    player.reportAvgRating = Math.round((allRatings.reduce((a, b) => a + b, 0) / allRatings.length) * 10) / 10;
+    player.reportRatingCount = allRatings.length;
+  }
+
+  // Fetch age group name + current user ID
   const supabase = await createClient();
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
   const { data: ageGroup } = await supabase
     .from('age_groups')
     .select('name')
@@ -53,6 +65,8 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         notes={notes}
         statusHistory={statusHistory}
         scoutingReports={scoutingReports}
+        scoutEvaluations={scoutEvaluations}
+        currentUserId={currentUser?.id ?? null}
         ageGroupName={ageGroup?.name ?? null}
       />
     </div>

@@ -123,6 +123,51 @@ export const FOOT_LABEL_MAP: Record<string, string> = {
   Amb: 'Ambidestro',
 };
 
+/* ───────────── Nationalities (common in Portuguese youth football) ───────────── */
+
+export const NATIONALITIES = [
+  { value: 'Portugal', flag: '🇵🇹' },
+  { value: 'Brasil', flag: '🇧🇷' },
+  { value: 'Angola', flag: '🇦🇴' },
+  { value: 'Moçambique', flag: '🇲🇿' },
+  { value: 'Cabo Verde', flag: '🇨🇻' },
+  { value: 'Guiné-Bissau', flag: '🇬🇼' },
+  { value: 'São Tomé e Príncipe', flag: '🇸🇹' },
+  { value: 'Espanha', flag: '🇪🇸' },
+  { value: 'França', flag: '🇫🇷' },
+  { value: 'Alemanha', flag: '🇩🇪' },
+  { value: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+  { value: 'Itália', flag: '🇮🇹' },
+  { value: 'Holanda', flag: '🇳🇱' },
+  { value: 'Bélgica', flag: '🇧🇪' },
+  { value: 'Suíça', flag: '🇨🇭' },
+  { value: 'Roménia', flag: '🇷🇴' },
+  { value: 'Ucrânia', flag: '🇺🇦' },
+  { value: 'Polónia', flag: '🇵🇱' },
+  { value: 'Sérvia', flag: '🇷🇸' },
+  { value: 'Croácia', flag: '🇭🇷' },
+  { value: 'Turquia', flag: '🇹🇷' },
+  { value: 'Nigéria', flag: '🇳🇬' },
+  { value: 'Senegal', flag: '🇸🇳' },
+  { value: 'Gana', flag: '🇬🇭' },
+  { value: 'Camarões', flag: '🇨🇲' },
+  { value: 'Costa do Marfim', flag: '🇨🇮' },
+  { value: 'Guiné', flag: '🇬🇳' },
+  { value: 'Marrocos', flag: '🇲🇦' },
+  { value: 'Argélia', flag: '🇩🇿' },
+  { value: 'Colômbia', flag: '🇨🇴' },
+  { value: 'Argentina', flag: '🇦🇷' },
+  { value: 'Venezuela', flag: '🇻🇪' },
+  { value: 'Uruguai', flag: '🇺🇾' },
+] as const;
+
+/** Get flag emoji for a nationality, or generic globe if not found */
+export function getNationalityFlag(nationality: string | null): string {
+  if (!nationality) return '';
+  const entry = NATIONALITIES.find((n) => n.value.toLowerCase() === nationality.toLowerCase());
+  return entry?.flag ?? '🌍';
+}
+
 /* ───────────── Age Groups (season 2025/2026) ───────────── */
 
 export const AGE_GROUPS: { name: string; generationYear: number }[] = [
@@ -219,6 +264,22 @@ export function getObservationTier(player: Player): ObservationTier {
 
 export const OBSERVATION_TIER_MAP: Record<ObservationTier, (typeof OBSERVATION_TIERS)[number]> =
   Object.fromEntries(OBSERVATION_TIERS.map((t) => [t.value, t])) as Record<ObservationTier, (typeof OBSERVATION_TIERS)[number]>;
+
+/* ───────────── Hybrid Rating ───────────── */
+
+/** Primary rating: report average if available, else manual observer eval, else null */
+export function getPrimaryRating(player: Player): { value: number; isAverage: boolean } | null {
+  // Prefer report average (from scouting reports)
+  if (player.reportAvgRating !== null) {
+    return { value: player.reportAvgRating, isAverage: true };
+  }
+  // Fall back to manual observer eval ("4 - Muito Bom" → 4)
+  if (player.observerEval) {
+    const m = player.observerEval.match(/^(\d)/);
+    if (m) return { value: parseInt(m[1], 10), isAverage: false };
+  }
+  return null;
+}
 
 /* ───────────── Navigation ───────────── */
 

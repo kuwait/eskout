@@ -51,15 +51,44 @@ export function PlayersView() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<PlayerFilterState>(EMPTY_FILTERS);
 
-  // Fetch all players once
+  // Fetch all players + report ratings + scout evaluations for hybrid rating
   useEffect(() => {
     const supabase = createClient();
-    supabase.from('players').select('*').order('name').then(({ data, error }) => {
-      if (!error && data) {
-        startTransition(() => {
-          setPlayers((data as PlayerRow[]).map(mapPlayerRow));
-        });
+    Promise.all([
+      supabase.from('players').select('*').order('name'),
+      supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null),
+      supabase.from('scout_evaluations').select('player_id, rating'),
+    ]).then(([playersRes, reportsRes, evalsRes]) => {
+      if (playersRes.error || !playersRes.data) return;
+
+      const mapped = (playersRes.data as PlayerRow[]).map(mapPlayerRow);
+
+      // Build rating aggregates: { playerId → { sum, count } }
+      const agg = new Map<number, { sum: number; count: number }>();
+      const addRating = (playerId: number, rating: number) => {
+        const existing = agg.get(playerId) ?? { sum: 0, count: 0 };
+        existing.sum += rating;
+        existing.count += 1;
+        agg.set(playerId, existing);
+      };
+
+      if (!reportsRes.error && reportsRes.data) {
+        for (const r of reportsRes.data) addRating(r.player_id, r.rating!);
       }
+      if (!evalsRes.error && evalsRes.data) {
+        for (const e of evalsRes.data) addRating(e.player_id, e.rating);
+      }
+
+      // Merge into players
+      for (const p of mapped) {
+        const stats = agg.get(p.id);
+        if (stats) {
+          p.reportAvgRating = Math.round((stats.sum / stats.count) * 10) / 10;
+          p.reportRatingCount = stats.count;
+        }
+      }
+
+      startTransition(() => setPlayers(mapped));
     });
   }, []);
 

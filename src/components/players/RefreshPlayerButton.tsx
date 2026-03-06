@@ -6,7 +6,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { RefreshCw } from 'lucide-react';
+import Image from 'next/image';
+import { Check, RefreshCw, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -61,7 +62,8 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
         setSelected(sel);
         setShowDialog(true);
       } else {
-        setFeedback('Dados externos verificados — sem alterações');
+        setFeedback('ok');
+        setTimeout(() => setFeedback(null), 2000);
       }
     });
   }
@@ -93,12 +95,14 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending}>
-        <RefreshCw className={`mr-1 h-3 w-3 ${isPending ? 'animate-spin' : ''}`} />
-        {isPending ? 'A verificar...' : 'Atualizar Atleta'}
+      <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending || feedback === 'ok'}>
+        {feedback === 'ok' ? (
+          <Check className="mr-1 h-3 w-3 text-emerald-500" />
+        ) : (
+          <RefreshCw className={`mr-1 h-3 w-3 ${isPending ? 'animate-spin' : ''}`} />
+        )}
+        {isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar'}
       </Button>
-
-      {feedback && <span className="text-xs text-muted-foreground">{feedback}</span>}
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
@@ -117,13 +121,25 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
               />
             )}
             {result?.hasNewPhoto && result.photoUrl && (
-              <ChangeRow
-                checked={!!selected.photo}
-                onToggle={() => toggleField('photo')}
-                label="Foto"
-                oldValue="Sem foto"
-                newValue="Disponível"
-              />
+              <label className="flex items-start gap-2 cursor-pointer">
+                <Checkbox checked={!!selected.photo} onCheckedChange={() => toggleField('photo')} className="mt-0.5" />
+                <div>
+                  <p className="font-medium">Foto</p>
+                  <div className="mt-1 flex items-center gap-3">
+                    {/* Old: current photo or placeholder */}
+                    {player.photoUrl || player.zzPhotoUrl ? (
+                      <Image src={player.photoUrl || player.zzPhotoUrl!} alt="" width={64} height={64} className="h-16 w-16 rounded-lg border object-cover" unoptimized />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-lg border bg-neutral-100">
+                        <User className="h-6 w-6 text-neutral-300" />
+                      </div>
+                    )}
+                    <span className="text-muted-foreground">→</span>
+                    {/* New: scraped photo */}
+                    <Image src={result.photoUrl} alt="" width={64} height={64} className="h-16 w-16 rounded-lg border object-cover" unoptimized />
+                  </div>
+                </div>
+              </label>
             )}
             {result?.heightChanged && result.height && (
               <ChangeRow
@@ -210,16 +226,26 @@ function ChangeRow({ checked, onToggle, label, oldValue, newValue }: {
   oldValue: string;
   newValue: string;
 }) {
+  // Distinguish "adding new data" vs "updating existing data"
+  const isNew = !oldValue || oldValue === '—';
+
   return (
     <label className="flex items-start gap-2 cursor-pointer">
       <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-0.5" />
       <div>
         <p className="font-medium">{label}</p>
-        <p>
-          <span className="text-muted-foreground">{oldValue}</span>
-          {' → '}
-          <span className="font-medium">{newValue}</span>
-        </p>
+        {isNew ? (
+          <p className="flex items-center gap-1.5">
+            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">Novo</span>
+            <span className="font-medium">{newValue}</span>
+          </p>
+        ) : (
+          <p>
+            <span className="text-muted-foreground">{oldValue}</span>
+            {' → '}
+            <span className="font-medium">{newValue}</span>
+          </p>
+        )}
       </div>
     </label>
   );

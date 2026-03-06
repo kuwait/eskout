@@ -31,6 +31,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -44,6 +49,7 @@ import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes, AddNoteButton } from '@/components/players/ObservationNotes';
 import { StatusHistory } from '@/components/players/StatusHistory';
+import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
 import {
   POSITION_LABELS,
@@ -51,8 +57,11 @@ import {
   DEPARTMENT_OPINIONS,
   FOOT_OPTIONS,
   FOOT_LABEL_MAP,
+  OBSERVER_DECISIONS,
   RECRUITMENT_STATUSES,
   RECRUITMENT_LABEL_MAP,
+  NATIONALITIES,
+  getNationalityFlag,
 } from '@/lib/constants';
 import { updatePlayer, deletePlayer } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
@@ -64,7 +73,9 @@ import type {
   StatusHistoryEntry,
   DepartmentOpinion,
   Foot,
+  ObserverDecision,
   RecruitmentStatus,
+  ScoutEvaluation,
   ScoutingReport,
 } from '@/lib/types';
 
@@ -74,13 +85,15 @@ interface PlayerProfileProps {
   notes?: ObservationNote[];
   statusHistory?: StatusHistoryEntry[];
   scoutingReports?: ScoutingReport[];
+  scoutEvaluations?: ScoutEvaluation[];
+  currentUserId?: string | null;
   /** If provided, "Voltar" calls this instead of router.back() */
   onClose?: () => void;
   /** Age group name (e.g. "Sub-17") for display in squad badge */
   ageGroupName?: string | null;
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], onClose, ageGroupName }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], currentUserId = null, onClose, ageGroupName }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -90,6 +103,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [isDeleting, startDelete] = useTransition();
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
+
+  // Hybrid rating from player (pre-computed: report ratings + scout evaluations)
+  const hybridAvgRating = player.reportAvgRating;
+  const hybridRatingCount = player.reportRatingCount;
 
   function handleEdit() {
     setDraft(player);
@@ -111,6 +128,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         secondary_position: draft.secondaryPosition || null,
         tertiary_position: draft.tertiaryPosition || null,
         foot: draft.foot || null,
+        nationality: draft.nationality || null,
         shirt_number: draft.shirtNumber || null,
         contact: draft.contact || null,
         department_opinion: draft.departmentOpinion.length > 0 ? draft.departmentOpinion : [],
@@ -381,25 +399,17 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             )}
             <OpinionBadge opinion={p.departmentOpinion} />
           </div>
-          {/* Mobile-only rating bar */}
-          {!editing && p.observerEval && (() => {
-            const { rating, ratingText, colors: c } = parseRating(p.observerEval);
+          {/* Mobile-only rating pill — compact */}
+          {!editing && (hybridAvgRating !== null || p.observerEval) && (() => {
+            const primaryValue = hybridAvgRating ?? (p.observerEval ? parseRating(p.observerEval).rating : 0);
+            const primaryInt = Math.round(primaryValue);
+            const c = RATING_COLOR_MAP[primaryInt] ?? RATING_DEFAULT;
+            const isAvg = hybridAvgRating !== null;
+            const displayValue = isAvg ? hybridAvgRating.toFixed(1) : String(primaryValue);
             return (
-              <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 xl:hidden ${c.bg} ${c.border}`}>
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${c.ring}`}>
-                  <span className={`text-lg font-black ${c.num}`}>{rating}</span>
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex items-baseline justify-between">
-                    <span className={`text-sm font-bold ${c.num}`}>{ratingText}</span>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">Avaliação</span>
-                  </div>
-                  <div className="flex h-1.5 gap-[3px]">
-                    {Array.from({ length: 5 }, (_, i) => (
-                      <div key={i} className={`flex-1 rounded-full ${i < rating ? c.dot : 'bg-neutral-200/60'}`} />
-                    ))}
-                  </div>
-                </div>
+              <div className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 xl:hidden ${c.bg} ${c.border}`}>
+                <span className={`text-xl font-black leading-none ${c.num}`}>{displayValue}</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">Aval.</span>
               </div>
             );
           })()}
@@ -444,26 +454,18 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             />
           </div>
         )}
-        {!editing && p.observerEval && (() => {
-          const { rating, ratingText, colors: c } = parseRating(p.observerEval);
+        {/* Desktop rating widget — tall card matching MiniPitch height */}
+        {!editing && (hybridAvgRating !== null || p.observerEval) && (() => {
+          const primaryValue = hybridAvgRating ?? (p.observerEval ? parseRating(p.observerEval).rating : 0);
+          const primaryInt = Math.round(primaryValue);
+          const c = RATING_COLOR_MAP[primaryInt] ?? RATING_DEFAULT;
+          const isAvg = hybridAvgRating !== null;
+          const displayValue = isAvg ? hybridAvgRating.toFixed(1) : String(primaryValue);
+          const label = isAvg ? `${hybridRatingCount} aval.` : (p.observerEval ? parseRating(p.observerEval).ratingText : '');
           return (
-            <div className={`hidden shrink-0 self-center rounded-2xl border px-6 py-3 xl:flex ${c.bg} ${c.border}`}>
-              <div className="flex items-center gap-4">
-                {/* Circle with number */}
-                <div className={`flex h-16 w-16 items-center justify-center rounded-full border-[3px] ${c.ring}`}>
-                  <span className={`text-3xl font-black ${c.num}`}>{rating}</span>
-                </div>
-                {/* Right side: label + bar + text */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Avaliação</span>
-                  <span className={`text-base font-extrabold leading-none ${c.num}`}>{ratingText}</span>
-                  <div className="flex h-1.5 w-24 gap-[3px]">
-                    {Array.from({ length: 5 }, (_, i) => (
-                      <div key={i} className={`flex-1 rounded-full ${i < rating ? c.dot : 'bg-neutral-200/60'}`} />
-                    ))}
-                  </div>
-                </div>
-              </div>
+            <div className={`hidden shrink-0 self-center xl:flex h-24 w-20 flex-col items-center justify-center rounded-2xl ${c.bg} border ${c.border}`}>
+              <span className={`text-3xl font-black leading-none ${c.num}`}>{displayValue}</span>
+              {label && <span className={`mt-1 text-[10px] font-semibold ${c.num} opacity-70`}>{label}</span>}
             </div>
           );
         })()}
@@ -475,123 +477,129 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
       {/* In edit mode: single column (forms need more space) */}
       {editing ? (
         <div className="space-y-3">
-          {/* ───────────── Informação Básica (Edit) ───────────── */}
-          <Section title="Informação Básica">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <EditField label="Data Nascimento">
-                <Input type="date" value={draft.dob ?? ''} onChange={(e) => updateDraft('dob', e.target.value)} />
-              </EditField>
-              <EditField label="Clube">
-                <Input value={draft.club} onChange={(e) => updateDraft('club', e.target.value)} />
-              </EditField>
-              <EditField label="Posição Principal">
-                <Select value={draft.positionNormalized || 'none'} onValueChange={(v) => updateDraft('positionNormalized', v === 'none' ? '' : v as PositionCode)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {POSITIONS.map((pos) => (
-                      <SelectItem key={pos.code} value={pos.code}>{pos.code} — {pos.labelPt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </EditField>
-              <EditField label="Posição Secundária">
-                <Select value={draft.secondaryPosition || 'none'} onValueChange={(v) => updateDraft('secondaryPosition', v === 'none' ? null : v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {POSITIONS.map((pos) => (
-                      <SelectItem key={pos.code} value={pos.code}>{pos.code} — {pos.labelPt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </EditField>
-              <EditField label="Posição Terciária">
-                <Select value={draft.tertiaryPosition || 'none'} onValueChange={(v) => updateDraft('tertiaryPosition', v === 'none' ? null : v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {POSITIONS.map((pos) => (
-                      <SelectItem key={pos.code} value={pos.code}>{pos.code} — {pos.labelPt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </EditField>
-              <EditField label="Pé">
-                <Select value={draft.foot || 'none'} onValueChange={(v) => updateDraft('foot', (v === 'none' ? '' : v) as Foot)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
+          {/* ───────────── Info Básica + Posição — side by side ───────────── */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <Section title="Informação Básica" stretch>
+              <div className="grid h-full grid-cols-2 content-between gap-x-4">
+                <EditField label="Data Nascimento">
+                  <Input type="date" value={draft.dob ?? ''} onChange={(e) => updateDraft('dob', e.target.value)} />
+                </EditField>
+                <EditField label="Clube">
+                  <Input value={draft.club} onChange={(e) => updateDraft('club', e.target.value)} />
+                </EditField>
+                <EditField label="Nacionalidade">
+                  <Select value={draft.nationality || 'none'} onValueChange={(v) => updateDraft('nationality', v === 'none' ? null : v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {draft.nationality ? `${getNationalityFlag(draft.nationality)} ${draft.nationality}` : '—'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {NATIONALITIES.map((n) => (
+                        <SelectItem key={n.value} value={n.value}>{n.flag} {n.value}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </EditField>
+                <EditField label="Número">
+                  <ShirtNumberPicker value={draft.shirtNumber} onChange={(v) => updateDraft('shirtNumber', v)} />
+                </EditField>
+                <EditField label="Pé">
+                  <div className="flex gap-1">
                     {FOOT_OPTIONS.map((f) => (
-                      <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                      <button
+                        key={f.value}
+                        type="button"
+                        onClick={() => updateDraft('foot', (draft.foot === f.value ? '' : f.value) as Foot)}
+                        className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${draft.foot === f.value ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400'}`}
+                      >
+                        {f.label}
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
-              </EditField>
-              <EditField label="Número">
-                <Input value={draft.shirtNumber} onChange={(e) => updateDraft('shirtNumber', e.target.value)} />
-              </EditField>
-              <EditField label="Contacto">
-                <Input type="tel" value={draft.contact} onChange={(e) => updateDraft('contact', e.target.value)} placeholder="+351 912 345 678" />
-              </EditField>
-              <EditField label="Referenciado por">
+                  </div>
+                </EditField>
+                <EditField label="Contacto">
+                  <Input type="tel" value={draft.contact} onChange={(e) => updateDraft('contact', e.target.value)} placeholder="+351 912 345 678" />
+                </EditField>
+              </div>
+            </Section>
+
+            <Section title="Posição" stretch>
+              <div className="flex h-full flex-col items-center justify-center gap-2">
+                <EditPitchPicker
+                  primary={draft.positionNormalized as PositionCode | ''}
+                  secondary={draft.secondaryPosition as PositionCode | null}
+                  tertiary={draft.tertiaryPosition as PositionCode | null}
+                  onPrimaryChange={(v) => updateDraft('positionNormalized', v as PositionCode)}
+                  onSecondaryChange={(v) => updateDraft('secondaryPosition', v)}
+                  onTertiaryChange={(v) => updateDraft('tertiaryPosition', v)}
+                />
+                <div className="flex items-center gap-3 text-[10px] font-medium text-neutral-400">
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Principal</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-400" /> Secundária</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-400" /> Terciária</span>
+                </div>
+              </div>
+            </Section>
+          </div>
+
+          {/* ───────────── Observação & Recrutamento (Edit) ───────────── */}
+          <Section title="Observação & Recrutamento">
+            <div className="space-y-3">
+              <EditField label="Referência">
                 <Input value={draft.referredBy} onChange={(e) => updateDraft('referredBy', e.target.value)} />
               </EditField>
-              <EditField label="Observador">
-                <Input value={draft.observer} onChange={(e) => updateDraft('observer', e.target.value)} />
+              <EditField label="Decisão">
+                <div className="flex flex-wrap gap-1">
+                  {OBSERVER_DECISIONS.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => updateDraft('observerDecision', (draft.observerDecision === d ? '' : d) as ObserverDecision)}
+                      className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${draft.observerDecision === d ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400'}`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
               </EditField>
               <EditField label="Opinião Departamento">
-                <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   {DEPARTMENT_OPINIONS.map((o) => {
                     const checked = draft.departmentOpinion.includes(o.value);
                     return (
-                      <label key={o.value} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const next = checked
-                              ? draft.departmentOpinion.filter((v) => v !== o.value)
-                              : [...draft.departmentOpinion, o.value];
-                            updateDraft('departmentOpinion', next as DepartmentOpinion[]);
-                          }}
-                          className="h-4 w-4 rounded border-neutral-300"
-                        />
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.tailwind}`}>
-                          {o.value}
-                        </span>
-                      </label>
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => {
+                          const next = checked
+                            ? draft.departmentOpinion.filter((v) => v !== o.value)
+                            : [...draft.departmentOpinion, o.value];
+                          updateDraft('departmentOpinion', next as DepartmentOpinion[]);
+                        }}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${checked ? `${o.tailwind} border-current` : 'border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300'}`}
+                      >
+                        {o.value}
+                      </button>
                     );
                   })}
                 </div>
               </EditField>
-              <EditField label="Estado Recrutamento">
-                <Select value={draft.recruitmentStatus ?? 'none'} onValueChange={(v) => updateDraft('recruitmentStatus', v === 'none' ? null : v as RecruitmentStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {RECRUITMENT_STATUSES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.labelPt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </EditField>
             </div>
           </Section>
 
-          {/* ───────────── Links Externos (Edit) ───────────── */}
-          <Section title="Links Externos">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <EditField label="URL da Foto">
-                  <Input value={draft.photoUrl ?? ''} onChange={(e) => updateDraft('photoUrl', e.target.value || null)} placeholder="https://... (FPF, ZeroZero, etc.)" />
-                </EditField>
-              </div>
+          {/* ───────────── Links & Foto (Edit) ───────────── */}
+          <Section title="Links & Foto">
+            <div className="space-y-3">
               <EditField label="Link FPF">
-                <Input value={draft.fpfLink} onChange={(e) => updateDraft('fpfLink', e.target.value)} placeholder="https://..." />
+                <Input value={draft.fpfLink} onChange={(e) => updateDraft('fpfLink', e.target.value)} placeholder="https://www.fpf.pt/..." className="font-mono text-xs" />
               </EditField>
               <EditField label="Link ZeroZero">
-                <Input value={draft.zerozeroLink} onChange={(e) => updateDraft('zerozeroLink', e.target.value)} placeholder="https://..." />
+                <Input value={draft.zerozeroLink} onChange={(e) => updateDraft('zerozeroLink', e.target.value)} placeholder="https://www.zerozero.pt/..." className="font-mono text-xs" />
+              </EditField>
+              <EditField label="URL da Foto">
+                <Input value={draft.photoUrl ?? ''} onChange={(e) => updateDraft('photoUrl', e.target.value || null)} placeholder="https://..." className="font-mono text-xs" />
               </EditField>
             </div>
           </Section>
@@ -603,53 +611,80 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           <div className="space-y-3">
             <Section title="Informação Básica">
               <InfoGrid>
-                <InfoItem label="Data Nascimento" value={p.dob ? formatDate(p.dob) : '—'} />
-                <InfoItem label="Clube" value={p.club || '—'} highlight={!!p.club} />
-                <InfoItem label="Número" value={p.shirtNumber || '—'} />
-                <InfoItem label="Pé" value={p.foot ? FOOT_LABEL_MAP[p.foot] ?? p.foot : '—'} />
-                <InfoItem label="Altura" value={p.height ? `${p.height} cm` : '—'} />
-                <InfoItem label="Peso" value={p.weight ? `${p.weight} kg` : '—'} />
-                <InfoItem label="Nacionalidade" value={p.nationality || '—'} />
-                <InfoItem label="País Nascimento" value={p.birthCountry || '—'} />
+                {p.dob && <InfoItem label="Data Nascimento" value={formatDate(p.dob)} />}
+                {p.club && <InfoItem label="Clube" value={p.club} highlight />}
+                {p.shirtNumber && <InfoItem label="Número" value={p.shirtNumber} />}
+                {p.foot && <InfoItem label="Pé" value={FOOT_LABEL_MAP[p.foot] ?? p.foot} />}
+                {p.height && <InfoItem label="Altura" value={`${p.height} cm`} />}
+                {p.weight && <InfoItem label="Peso" value={`${p.weight} kg`} />}
+                {p.nationality && <InfoItem label="Nacionalidade" value={`${getNationalityFlag(p.nationality)} ${p.nationality}`} />}
+                {p.birthCountry && <InfoItem label="País Nascimento" value={p.birthCountry} />}
+                {p.referredBy && <InfoItem label="Referência" value={p.referredBy} />}
               </InfoGrid>
             </Section>
 
-            {/* Observação — scout info, evaluation, and reports */}
-            <Section title="Observação">
-              <InfoGrid>
-                {/* Observers — each on its own line if multiple */}
-                <div>
-                  {(() => {
-                    const names = [p.observer, p.referredBy].filter(Boolean).join(', ').split(',').map((n) => n.trim()).filter(Boolean);
-                    const label = names.length > 1 ? 'Observadores' : 'Observador';
-                    if (names.length === 0) return <><p className="text-xs font-medium text-muted-foreground">Observador</p><p className="text-sm">—</p></>;
-                    return (
-                      <><p className="text-xs font-medium text-muted-foreground">{label}</p>
-                      <div className="mt-1 space-y-1.5">
-                        {names.map((name, i) => (
-                          <div key={i} className="rounded border-l-[3px] border-l-neutral-400 bg-neutral-50 py-1 pl-2.5 pr-2 text-sm font-medium">{name}</div>
-                        ))}
-                      </div></>
-                    );
-                  })()}
-                </div>
-                <InfoItem label="Decisão" value={p.observerDecision || '—'} />
-                {p.observerEval && <EvalRating label="Avaliação" value={p.observerEval} />}
-              </InfoGrid>
+            {/* Observação — scout info, decision, and reports (hidden if completely empty) */}
+            {(() => {
+              const observerNames = p.observer ? p.observer.split(',').map((n) => n.trim()).filter(Boolean) : [];
+              const hasObservation = observerNames.length > 0 || p.observerDecision || scoutingReports.length > 0 || p.reportLabels.length > 0;
+              if (!hasObservation) return null;
+              return (
+                <Section title="Observação">
+                  {(observerNames.length > 0 || p.observerDecision) && (
+                    <InfoGrid>
+                      {observerNames.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">{observerNames.length > 1 ? 'Observadores' : 'Observador'}</p>
+                          <div className="mt-1 space-y-1.5">
+                            {observerNames.map((name, i) => (
+                              <div key={i} className="rounded border-l-[3px] border-l-neutral-400 bg-neutral-50 py-1 pl-2.5 pr-2 text-sm font-medium">{name}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {p.observerDecision && <InfoItem label="Decisão" value={p.observerDecision} />}
+                    </InfoGrid>
+                  )}
 
-              {/* Relatórios — extracted reports or fallback to old-style links */}
-              {(scoutingReports.length > 0 || p.reportLabels.length > 0) && (
-                <div className="mt-3">
-                  <ScoutingReports
-                    reports={scoutingReports}
-                    reportLabels={p.reportLabels}
-                    reportLinks={p.reportLinks}
-                  />
-                </div>
-              )}
+                  {/* Relatórios — extracted reports or fallback to old-style links */}
+                  {(scoutingReports.length > 0 || p.reportLabels.length > 0) && (
+                    <div className="mt-3">
+                      <ScoutingReports
+                        reports={scoutingReports}
+                        reportLabels={p.reportLabels}
+                        reportLinks={p.reportLinks}
+                      />
+                    </div>
+                  )}
+                </Section>
+              );
+            })()}
+
+            <Section
+              title="Notas de Observação"
+              action={<AddNoteButton onClick={() => setShowNoteForm(true)} />}
+            >
+              <ObservationNotes
+                playerId={player.id}
+                notes={notes}
+                showForm={showNoteForm}
+                onShowFormChange={setShowNoteForm}
+              />
             </Section>
+          </div>
 
-            <Section title="Recrutamento">
+          {/* Right column: activity */}
+          <div className="space-y-3">
+            {/* Scout evaluations — interactive stars + team aggregate */}
+            <ScoutEvaluations
+              playerId={p.id}
+              evaluations={scoutEvaluations}
+              currentUserId={currentUserId}
+              reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
+            />
+
+            {/* Recrutamento — hidden when completely empty */}
+            {(p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.contact || p.recruitmentNotes) && <Section title="Recrutamento">
               {(() => {
                 // Find when player entered current recruitment status
                 const statusEntry = statusHistory.find(
@@ -771,26 +806,78 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                   </div>
                 );
               })()}
-            </Section>
-          </div>
+            </Section>}
 
-          {/* Right column: activity */}
-          <div className="space-y-3">
-            <Section
-              title="Notas de Observação"
-              action={<AddNoteButton onClick={() => setShowNoteForm(true)} />}
-            >
-              <ObservationNotes
-                playerId={player.id}
-                notes={notes}
-                showForm={showNoteForm}
-                onShowFormChange={setShowNoteForm}
-              />
-            </Section>
+            {statusHistory.length > 0 && (
+              <Section title="Histórico">
+                <StatusHistory entries={statusHistory} />
+              </Section>
+            )}
 
-            <Section title="Histórico">
-              <StatusHistory entries={statusHistory} />
-            </Section>
+            {/* ───────────── Profile completeness — progress + actionable suggestions ───────────── */}
+            {(() => {
+              // Core fields — count toward progress bar
+              const core = [
+                { done: !!p.dob, label: 'Data nascimento' },
+                { done: !!p.club, label: 'Clube' },
+                { done: !!p.positionNormalized, label: 'Posição' },
+                { done: !!p.foot, label: 'Pé preferido' },
+                { done: !!p.nationality, label: 'Nacionalidade' },
+              ];
+              // Optional — shown as suggestions but don't affect progress
+              const optional = [
+                { done: !!p.fpfLink, label: 'Link FPF' },
+                { done: !!p.zerozeroLink, label: 'Link ZeroZero' },
+                { done: !!(p.photoUrl || p.zzPhotoUrl), label: 'Foto' },
+                { done: !!p.recruitmentStatus, label: 'Estado recrutamento' },
+                { done: scoutEvaluations.length > 0, label: 'Avaliação' },
+              ];
+              const done = core.filter((c) => c.done).length;
+              const total = core.length;
+              const pct = Math.round((done / total) * 100);
+              const missingCore = core.filter((c) => !c.done);
+              const missingOptional = optional.filter((c) => !c.done);
+              const missing = [...missingCore, ...missingOptional];
+              // Hide when nothing to suggest
+              if (missing.length === 0) return null;
+              // Hide progress bar when core is 100% (only optional suggestions remain)
+              const showBar = missingCore.length > 0;
+              // Color based on completeness
+              const barColor = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-red-400';
+              const textColor = pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500';
+              return (
+                <div className="rounded-lg border bg-neutral-50/50 px-3 py-3">
+                  {/* Progress header + bar (only when core fields are incomplete) */}
+                  {showBar && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Perfil</span>
+                        <span className={`text-xs font-bold ${textColor}`}>{pct}%</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
+                        <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </>
+                  )}
+                  {!showBar && (
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Sugestões</span>
+                  )}
+                  {/* Missing items as clickable chips */}
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {missing.map((m) => (
+                      <button
+                        key={m.label}
+                        type="button"
+                        onClick={() => { setDraft(player); setEditing(true); }}
+                        className="rounded-full border border-dashed border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-500 transition-colors hover:border-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+                      >
+                        + {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -823,16 +910,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
 /* ───────────── Helper Components ───────────── */
 
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, action, children, stretch }: { title: string; action?: React.ReactNode; children: React.ReactNode; stretch?: boolean }) {
   return (
-    <Card>
+    <Card className={stretch ? 'flex h-full flex-col' : ''}>
       <CardHeader className="px-4 pb-1.5 pt-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
           {action}
         </div>
       </CardHeader>
-      <CardContent className="px-4 pb-3 pt-0">{children}</CardContent>
+      <CardContent className={`px-4 pb-3 pt-0 ${stretch ? 'flex-1' : ''}`}>{children}</CardContent>
     </Card>
   );
 }
@@ -861,6 +948,214 @@ function InfoItem({ label, value, highlight }: { label: string; value: string; h
       ) : (
         <p className="text-sm">{value}</p>
       )}
+    </div>
+  );
+}
+
+/* ───────────── Shirt Number Picker ───────────── */
+
+/** SVG jersey silhouette (back view) with number */
+function JerseySvg({ number, className }: { number?: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 120 130" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Main body — torso + sleeves as one smooth shape */}
+      <path
+        d="M36 8 L28 5 C22 3 14 8 6 18 L2 24 C0 27 0 31 2 34 L12 50 C14 53 18 54 20 52 L24 48 L22 110 C22 116 26 120 32 120 L88 120 C94 120 98 116 98 110 L96 48 L100 52 C102 54 106 53 108 50 L118 34 C120 31 120 27 118 24 L114 18 C106 8 98 3 92 5 L84 8 C78 14 66 18 60 18 C54 18 42 14 36 8 Z"
+        fill="currentColor"
+      />
+      {/* Collar — round neckline */}
+      <path
+        d="M36 8 C42 14 54 18 60 18 C66 18 78 14 84 8"
+        fill="none"
+        stroke="white"
+        strokeWidth="2.5"
+        strokeOpacity="0.4"
+        strokeLinecap="round"
+      />
+      {/* Collar inner shadow */}
+      <path
+        d="M40 11 C46 15 54 17 60 17 C66 17 74 15 80 11"
+        fill="none"
+        stroke="white"
+        strokeWidth="1"
+        strokeOpacity="0.15"
+        strokeLinecap="round"
+      />
+      {/* Left sleeve seam */}
+      <path d="M24 48 L22 110" stroke="white" strokeWidth="1" strokeOpacity="0.12" />
+      {/* Right sleeve seam */}
+      <path d="M96 48 L98 110" stroke="white" strokeWidth="1" strokeOpacity="0.12" />
+      {/* Bottom hem */}
+      <path d="M32 120 L88 120" stroke="white" strokeWidth="2" strokeOpacity="0.2" strokeLinecap="round" />
+      {/* Shoulder highlight (left) */}
+      <path d="M28 5 C22 3 14 8 6 18" stroke="white" strokeWidth="1" strokeOpacity="0.1" />
+      {/* Shoulder highlight (right) */}
+      <path d="M92 5 C98 3 106 8 114 18" stroke="white" strokeWidth="1" strokeOpacity="0.1" />
+      {/* Number on back */}
+      {number && (
+        <text
+          x="60"
+          y="78"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="white"
+          fontSize={number.length > 1 ? '44' : '52'}
+          fontWeight="900"
+          fontFamily="system-ui, sans-serif"
+          letterSpacing="-2"
+        >
+          {number}
+        </text>
+      )}
+    </svg>
+  );
+}
+
+function ShirtNumberPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [hoverNum, setHoverNum] = useState<string | null>(null);
+  // Jersey shows: hovered number > selected number > '?'
+  const previewNum = (hoverNum ?? value) || '?';
+  const hasValue = !!(hoverNum ?? value);
+
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setHoverNum(null); }}>
+      <PopoverTrigger asChild>
+        <button type="button" className="group flex items-center justify-center transition-transform hover:scale-105">
+          <JerseySvg
+            number={value || undefined}
+            className={`h-14 w-12 transition-colors ${value ? 'text-neutral-800' : 'text-neutral-300 group-hover:text-neutral-400'}`}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-3" align="start">
+        <div className="flex flex-col items-center gap-2">
+          {/* Jersey preview — updates on hover */}
+          <JerseySvg
+            number={previewNum}
+            className={`h-20 w-16 shrink-0 transition-colors ${hasValue ? 'text-neutral-800' : 'text-neutral-300'}`}
+          />
+          {/* Number grid — all 99 visible, no scroll */}
+          <div className="rounded-lg border bg-white p-1.5">
+            <div className="grid grid-cols-10 gap-0.5">
+              {Array.from({ length: 99 }, (_, i) => {
+                const num = String(i + 1);
+                const selected = value === num;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => { onChange(selected ? '' : num); setOpen(false); }}
+                    onMouseEnter={() => setHoverNum(num)}
+                    onMouseLeave={() => setHoverNum(null)}
+                    className={`flex h-7 w-7 items-center justify-center rounded text-[11px] font-bold transition-all ${
+                      selected
+                        ? 'bg-neutral-900 text-white shadow-md scale-110'
+                        : 'text-neutral-600 hover:bg-neutral-100 hover:scale-110'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {value && (
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false); }}
+              className="text-[11px] font-medium text-neutral-400 hover:text-neutral-600"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ───────────── Interactive Pitch Position Picker ───────────── */
+
+/** Position coordinates on a horizontal pitch (percentage-based) */
+const EDIT_PITCH_POSITIONS: Record<PositionCode, { x: number; y: number }> = {
+  GR:  { x: 8,  y: 50 },
+  DE:  { x: 24, y: 82 },
+  DC:  { x: 22, y: 50 },
+  DD:  { x: 24, y: 18 },
+  MDC: { x: 42, y: 38 },
+  MC:  { x: 42, y: 62 },
+  MOC: { x: 58, y: 50 },
+  EE:  { x: 72, y: 86 },
+  ED:  { x: 72, y: 14 },
+  PL:  { x: 85, y: 50 },
+};
+
+function EditPitchPicker({ primary, secondary, tertiary, onPrimaryChange, onSecondaryChange, onTertiaryChange }: {
+  primary: PositionCode | '';
+  secondary: PositionCode | null;
+  tertiary: PositionCode | null;
+  onPrimaryChange: (v: string) => void;
+  onSecondaryChange: (v: string | null) => void;
+  onTertiaryChange: (v: string | null) => void;
+}) {
+  function handleClick(pos: PositionCode) {
+    // If already selected at any level, remove it
+    if (pos === primary) { onPrimaryChange(''); return; }
+    if (pos === secondary) { onSecondaryChange(null); return; }
+    if (pos === tertiary) { onTertiaryChange(null); return; }
+    // Assign to first available slot
+    if (!primary) { onPrimaryChange(pos); return; }
+    if (!secondary) { onSecondaryChange(pos); return; }
+    if (!tertiary) { onTertiaryChange(pos); return; }
+    // All 3 filled — replace tertiary
+    onTertiaryChange(pos);
+  }
+
+  function getLevel(pos: PositionCode): 'primary' | 'secondary' | 'tertiary' | null {
+    if (pos === primary) return 'primary';
+    if (pos === secondary) return 'secondary';
+    if (pos === tertiary) return 'tertiary';
+    return null;
+  }
+
+  const levelStyles = {
+    primary:   'bg-green-500 border-white shadow-md shadow-green-500/40 scale-125',
+    secondary: 'bg-yellow-400 border-white shadow-md shadow-yellow-400/40 scale-110',
+    tertiary:  'bg-orange-400 border-white shadow-md shadow-orange-400/40 scale-110',
+  };
+
+  return (
+    <div className="relative h-60 w-full max-w-md overflow-hidden rounded-lg bg-emerald-700/90">
+      {/* Pitch markings */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-1.5 rounded-sm border border-white/20" />
+        <div className="absolute inset-y-1.5 left-1/2 border-l border-white/20" />
+        <div className="absolute left-1/2 top-1/2 h-[25%] w-[14%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
+        <div className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/25" />
+        <div className="absolute left-1.5 top-1/2 h-[45%] w-[12%] -translate-y-1/2 border-y border-r border-white/20" />
+        <div className="absolute left-1.5 top-1/2 h-[25%] w-[6%] -translate-y-1/2 border-y border-r border-white/20" />
+        <div className="absolute right-1.5 top-1/2 h-[45%] w-[12%] -translate-y-1/2 border-y border-l border-white/20" />
+        <div className="absolute right-1.5 top-1/2 h-[25%] w-[6%] -translate-y-1/2 border-y border-l border-white/20" />
+      </div>
+      {/* Clickable position dots */}
+      {(Object.entries(EDIT_PITCH_POSITIONS) as [PositionCode, { x: number; y: number }][]).map(([pos, coords]) => {
+        const level = getLevel(pos);
+        return (
+          <button
+            key={pos}
+            type="button"
+            onClick={() => handleClick(pos)}
+            className="absolute -translate-x-1/2 -translate-y-1/2 group"
+            style={{ left: `${coords.x}%`, top: `${coords.y}%` }}
+          >
+            <div className="flex flex-col items-center">
+              <div className={`rounded-full border-2 transition-all ${level ? `h-5 w-5 ${levelStyles[level]}` : 'h-3 w-3 bg-white/30 border-transparent group-hover:bg-white/60 group-hover:scale-125'}`} />
+              <span className={`mt-0.5 text-[9px] font-bold leading-none drop-shadow-sm transition-colors ${level ? 'text-white' : 'text-white/40 group-hover:text-white/70'}`}>{pos}</span>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -27,7 +27,7 @@ interface StatusHistoryProps {
   maxVisible?: number;
 }
 
-const MAX_VISIBLE_DEFAULT = 6;
+const MAX_VISIBLE_DEFAULT = 4;
 
 /* ───────────── Formatting helpers ───────────── */
 

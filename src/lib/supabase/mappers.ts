@@ -121,6 +121,9 @@ export function mapPlayerRow(row: PlayerRow): Player {
     pipelineOrder: row.pipeline_order ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // Report rating fields — populated later by bulk query, default to empty
+    reportAvgRating: null,
+    reportRatingCount: 0,
   };
 }
 

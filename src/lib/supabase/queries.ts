@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow } from '@/lib/supabase/mappers';
-import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutingReport, ScoutingReportRow, StatusHistoryEntry, ObservationNote } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, StatusHistoryEntry, ObservationNote } from '@/lib/types';
 
 /* ───────────── Players ───────────── */
 
@@ -65,6 +65,43 @@ export async function getScoutingReports(playerId: number): Promise<ScoutingRepo
   }
 
   return (data ?? []).map((row) => mapScoutingReportRow(row as ScoutingReportRow));
+}
+
+/* ───────────── Scout Evaluations ───────────── */
+
+export async function getScoutEvaluations(playerId: number): Promise<ScoutEvaluation[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('scout_evaluations')
+    .select('id, player_id, user_id, rating, created_at, updated_at')
+    .eq('player_id', playerId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[getScoutEvaluations] Failed to fetch:', error);
+    return [];
+  }
+
+  if (!data || data.length === 0) return [];
+
+  // Fetch profile names for each user (profiles table uses auth.users id as PK)
+  const userIds = [...new Set(data.map((r) => r.user_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', userIds);
+
+  const nameMap = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  return data.map((row) => ({
+    id: row.id,
+    playerId: row.player_id,
+    userId: row.user_id,
+    userName: nameMap.get(row.user_id) ?? 'Scout',
+    rating: row.rating,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
 }
 
 /* ───────────── Status History ───────────── */

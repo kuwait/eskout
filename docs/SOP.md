@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 5.4 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 5.6 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -211,6 +211,8 @@ All PDFs follow the same Boavista FC template. Fields to extract:
 | Profile export | **Yes** — player profile can be exported as PNG image or printed. Cross-origin images resolved via server-side proxy. |
 | Flagged notes page | **Yes** — `/alertas` page showing all important/urgent notes with player photo, priority styling, and dismissal. Navigation badges show counts. |
 | Observation tier | **Yes** — computed field classifying players as Observado (has reports), Referenciado (has referred_by), or Adicionado (neither). Icon badge on cards/table/profile + filter dropdown. |
+| Hybrid rating | **Yes** — primary rating = scouting report average (decimal) when available, else manual observer_eval (integer). Profile shows both when they coexist. |
+| Weekly calendar | **Yes** — calendar supports month and week views with client-side toggle, popover picker, and smart navigation. |
 
 ---
 
@@ -493,6 +495,56 @@ A calendar for scheduling and tracking scouting activities.
 - Utility: `getObservationTier(player)` in `src/lib/constants.ts`
 - Component: `src/components/common/ObservationBadge.tsx`
 - Profile header breakpoint: mini pitch + rating widget only visible at `xl:` (1280px+); below that, mobile layout with inline rating bar
+
+### 4.19. Hybrid Rating System (Avaliação Híbrida)
+- **Primary rating** = report average (from `scouting_reports.rating`) if available, else manual `observer_eval`, else none
+- Report average displayed as decimal (1 decimal place, e.g., "3.8"); manual stays integer format ("4 - Muito Bom")
+- **Cards/Table:** single primary rating circle — uses report avg when available, else manual
+- **Profile header:** shows primary + secondary when both exist (report avg as primary widget, manual as small text below)
+- **Profile detail section:** manual `observer_eval` always shown in Scouting section (editable)
+- Manual eval stays editable even when reports exist — they are independent
+- Null report ratings are ignored when computing average
+- `reportAvgRating` and `reportRatingCount` added to `Player` type (populated at fetch time, not stored in DB)
+- Utility: `getPrimaryRating(player)` in `src/lib/constants.ts`
+- Table/Card label for averages: "N rel." (report count); for manual: text label (e.g., "Muito Bom")
+- Color mapping: based on `Math.round(primaryValue)` using shared `RATING_COLORS` palette
+
+### 4.20. Weekly Calendar View (Vista Semanal do Calendário)
+- Calendar supports two views: **Mês** (month grid/list) and **Semana** (week day-by-day)
+- View toggle is client-side (segmented control, no server roundtrip)
+- Week view shows Monday–Sunday with events grouped by day, sorted by time
+- Month/week picker via popover: year nav + month grid (month view) or month selector + weeks list (week view)
+- Smart navigation: stays client-side within loaded month data, navigates to server when crossing month boundaries
+- URL params: `?view=week&date=YYYY-MM-DD` for week view, `?year=N&month=N` for month
+- Current month/week highlighted in emerald in the picker
+- Files: `CalendarWeek.tsx`, `CalendarView.tsx`, `dates.ts` (week range utilities)
+
+### 4.21. Scout Evaluations (Avaliações de Scouts)
+- **Per-scout star rating** (1–5) — one evaluation per scout per player, upserted on click
+- Interactive 5-star widget for the current user ("A tua avaliação"), click same star to delete
+- **Global average** combines all scout evaluations + scouting report ratings into one aggregated score
+- Aggregated row: partial-fill stars (SVG clipPath) + decimal average + count label, clickable for detail popup
+- Popup sections: own eval pinned at top, report ratings (with scout name), other scouts (sorted by rating desc)
+- Color-coded by rating: 1=red, 2=orange, 3=blue, 4=emerald, 5=dark emerald
+- Rating labels: 1=Fraco, 2=Dúvida, 3=Bom, 4=Muito Bom, 5=Excelente
+- DB: `scout_evaluations` table with unique constraint on (player_id, user_id)
+- Server actions: `upsertScoutEvaluation()`, `deleteScoutEvaluation()` in `src/actions/evaluations.ts`
+- Component: `src/components/players/ScoutEvaluations.tsx`
+
+### 4.22. Profile UX Improvements
+- **Empty sections hidden**: Info Básica hides empty fields, Recrutamento/Histórico sections hidden when empty
+- **Profile completeness card**: progress bar (core fields only: name, dob, club, position, nationality, foot) + actionable chip suggestions (core + optional fields like photo, links, shirt number)
+- **Referência field**: `referred_by` shown as "Referência" in Info Básica, separate from observer
+- **Edit form redesign**:
+  - Two-column layout: Info Básica (left) + Posição interactive pitch picker (right)
+  - Nationality: Select dropdown with flag emojis
+  - Foot: 3 toggle buttons (Direito/Esquerdo/Ambidestro)
+  - Decision: toggle buttons (Assinar/Acompanhar/Rever/Sem Interesse)
+  - Opinião Departamento: toggle chips with multi-select
+  - Shirt number: Jersey SVG trigger + popup with 99-number grid, hover-preview on jersey
+  - Links: full-width mono inputs
+  - Interactive pitch position picker: click dots to assign primary→secondary→tertiary, click again to remove
+- **Refresh button**: compact "Atualizar" with temporary check icon state (no text feedback)
 
 ---
 

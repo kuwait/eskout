@@ -95,6 +95,10 @@ export interface Player {
   pipelineOrder: number;
   createdAt: string;
   updatedAt: string;
+  /** Average rating from scouting reports (null if no reports with ratings) */
+  reportAvgRating: number | null;
+  /** Number of scouting reports that have a rating */
+  reportRatingCount: number;
 }
 
 /* ───────────── Database Row Types (snake_case from Supabase) ───────────── */
@@ -259,6 +263,18 @@ export interface ObservationNote {
   matchContext: string | null;
   priority: NotePriority;
   createdAt: string;
+}
+
+/* ───────────── Scout Evaluations ───────────── */
+
+export interface ScoutEvaluation {
+  id: number;
+  playerId: number;
+  userId: string;
+  userName: string;
+  rating: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /* ───────────── Age Group ───────────── */

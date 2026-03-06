@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { getPrimaryRating } from '@/lib/constants';
 import type { Player } from '@/lib/types';
 
 /* ───────────── Rating Colors (same as PlayerTable/PlayerProfile) ───────────── */
@@ -24,8 +25,10 @@ interface PlayerCardProps {
 }
 
 export function PlayerCard({ player }: PlayerCardProps) {
-  const evalParsed = player.observerEval ? parseEval(player.observerEval) : null;
-  const evalColors = evalParsed ? (RATING_COLORS[evalParsed.rating] ?? { dot: 'bg-neutral-300', num: 'text-neutral-400' }) : null;
+  const primary = getPrimaryRating(player);
+  // For color lookup, round to nearest integer (report averages can be decimal)
+  const ratingInt = primary ? Math.round(primary.value) : 0;
+  const evalColors = primary ? (RATING_COLORS[ratingInt] ?? { dot: 'bg-neutral-300', num: 'text-neutral-400' }) : null;
 
   return (
     <Link
@@ -33,15 +36,15 @@ export function PlayerCard({ player }: PlayerCardProps) {
       className="block rounded-lg border bg-white p-3 transition-colors hover:bg-neutral-50 active:bg-neutral-100"
     >
       <div className="flex items-start gap-2.5">
-        {/* Rating circle — left side */}
-        {evalParsed && evalColors ? (
+        {/* Rating circle — left side (hybrid: report avg > manual eval > empty) */}
+        {primary && evalColors ? (
           <div className="flex shrink-0 flex-col items-center gap-0.5 pt-0.5">
-            <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black text-white ${evalColors.dot}`}>
-              {evalParsed.rating}
+            <span className={`flex h-8 w-8 items-center justify-center rounded-full ${primary.isAverage ? 'text-xs' : 'text-sm'} font-black text-white ${evalColors.dot}`}>
+              {primary.isAverage ? primary.value.toFixed(1) : primary.value}
             </span>
             <div className="flex gap-[2px]">
               {Array.from({ length: 5 }, (_, i) => (
-                <div key={i} className={`h-1 w-2 rounded-full ${i < evalParsed.rating ? evalColors.dot : 'bg-neutral-200'}`} />
+                <div key={i} className={`h-1 w-2 rounded-full ${i < ratingInt ? evalColors.dot : 'bg-neutral-200'}`} />
               ))}
             </div>
           </div>
@@ -80,13 +83,6 @@ export function PlayerCard({ player }: PlayerCardProps) {
       </div>
     </Link>
   );
-}
-
-function parseEval(value: string): { rating: number; label: string } {
-  const m = value.match(/^(\d)/);
-  const rating = m ? parseInt(m[1], 10) : 0;
-  const label = value.replace(/^\d\s*-\s*/, '');
-  return { rating, label };
 }
 
 function formatDate(dateStr: string): string {
