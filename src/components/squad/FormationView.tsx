@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -85,8 +85,22 @@ function parseDragId(id: string): { playerId: number; position: string } | null 
   return { playerId: parseInt(parts[1], 10), position };
 }
 
+/** true when viewport ≥ 1024px (lg breakpoint) — drives conditional render to avoid duplicate DnD IDs */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 1024px)');
+    setIsDesktop(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+  return isDesktop;
+}
+
 export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd }: FormationViewProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
+  const isDesktop = useIsDesktop();
 
   // Require 8px movement before activating — prevents accidental drags on tap
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 8 } });
@@ -166,13 +180,12 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      {/* ───────────── Desktop: horizontal pitch (md+) ───────────── */}
-      <div className="hidden md:block">
+      {/* Conditional render (not CSS hidden) — avoids duplicate DnD droppable IDs */}
+      {isDesktop ? (
+        /* ───────────── Desktop: horizontal pitch (lg+) ───────────── */
         <div className="relative overflow-x-auto rounded-xl">
           <div className="relative bg-green-700 p-4" style={{ width: 'max(100%, 720px)', minHeight: 520 }}>
-            {/* Pitch markings — horizontal */}
             <PitchMarkingsHorizontal />
-
             <div className="relative flex h-full items-stretch justify-between gap-2 px-2 py-2" style={{ minHeight: 488 }}>
               {DESKTOP_GROUPS.map((group, i) => (
                 <div
@@ -187,15 +200,10 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
             </div>
           </div>
         </div>
-      </div>
-
-      {/* ───────────── Mobile: vertical pitch (<md) ───────────── */}
-      <div className="md:hidden">
+      ) : (
+        /* ───────────── Mobile/Tablet: vertical pitch (<lg) ───────────── */
         <div className="relative overflow-hidden rounded-xl bg-green-700 p-3">
-          {/* Pitch markings — vertical */}
           <PitchMarkingsVertical />
-
-          {/* GR at top, PL at bottom — rows of positions */}
           <div className="relative flex flex-col gap-1 py-2">
             {MOBILE_GROUPS.map((group, i) => (
               <div
@@ -207,7 +215,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
             ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Drag overlay — floating card that follows the cursor */}
       <DragOverlay>
