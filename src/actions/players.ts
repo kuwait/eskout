@@ -30,6 +30,34 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
 
   const supabase = await createClient();
 
+  // Duplicate detection — check by FPF/ZeroZero links first, then by name+DOB
+  const fpfLink = rest.fpfLink?.trim() || null;
+  const zzLink = rest.zerozeroLink?.trim() || null;
+
+  if (fpfLink) {
+    const { data: dup } = await supabase
+      .from('players').select('id, name').eq('fpf_link', fpfLink).maybeSingle();
+    if (dup) {
+      return { success: false, error: `Jogador já existe com este link FPF: ${dup.name} (ID ${dup.id})` };
+    }
+  }
+  if (zzLink) {
+    const { data: dup } = await supabase
+      .from('players').select('id, name').eq('zerozero_link', zzLink).maybeSingle();
+    if (dup) {
+      return { success: false, error: `Jogador já existe com este link ZeroZero: ${dup.name} (ID ${dup.id})` };
+    }
+  }
+  // Name + DOB match (case-insensitive name)
+  const { data: nameDup } = await supabase
+    .from('players').select('id, name')
+    .ilike('name', rest.name.trim())
+    .eq('dob', dob)
+    .maybeSingle();
+  if (nameDup) {
+    return { success: false, error: `Jogador com o mesmo nome e data de nascimento já existe: ${nameDup.name} (ID ${nameDup.id})` };
+  }
+
   // Find or create age group
   let { data: ageGroup } = await supabase
     .from('age_groups')
@@ -99,6 +127,35 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
 
   revalidatePath('/jogadores');
   return { success: true, data: { id: player!.id } };
+}
+
+export async function deletePlayer(playerId: number): Promise<ActionResponse> {
+  const supabase = await createClient();
+
+  // Get current user and verify admin role
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Não autenticado' };
+
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single();
+  if (profile?.role !== 'admin') {
+    return { success: false, error: 'Apenas administradores podem eliminar jogadores' };
+  }
+
+  // Delete related records first (observation_notes, status_history, scouting_reports)
+  await supabase.from('observation_notes').delete().eq('player_id', playerId);
+  await supabase.from('status_history').delete().eq('player_id', playerId);
+  await supabase.from('scouting_reports').delete().eq('player_id', playerId);
+
+  const { error } = await supabase.from('players').delete().eq('id', playerId);
+  if (error) {
+    return { success: false, error: `Erro ao eliminar jogador: ${error.message}` };
+  }
+
+  revalidatePath('/jogadores');
+  revalidatePath('/pipeline');
+  revalidatePath('/campo');
+  return { success: true };
 }
 
 // Fields that are tracked in status_history when changed via player profile

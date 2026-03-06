@@ -161,6 +161,7 @@ async function fetchZeroZeroData(zzLink: string) {
       birthCountry: null as string | null,
       position: null as string | null,
       foot: null as string | null,
+      shirtNumber: null as string | null,
       gamesSeason: null as number | null,
       goalsSeason: null as number | null,
       teamHistory: [] as { club: string; season: string; games: number; goals: number }[],
@@ -206,9 +207,23 @@ async function fetchZeroZeroData(zzLink: string) {
         }
 
         // Club from worksFor (often empty string on ZeroZero)
+        // worksFor can be: string, object, array, or a string containing a JSON array
         if (ld.worksFor) {
           if (typeof ld.worksFor === 'string' && ld.worksFor) {
-            result.currentClub = ld.worksFor;
+            // Sometimes ZeroZero puts a raw JSON array as a string: "[{@type:SportsTeam,name:Padroense}]"
+            if (ld.worksFor.startsWith('[') || ld.worksFor.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(ld.worksFor);
+                const org = Array.isArray(parsed) ? parsed[0] : parsed;
+                result.currentClub = org?.name || null;
+              } catch {
+                // Not valid JSON — extract name with regex as fallback
+                const nameMatch = ld.worksFor.match(/name[":]+\s*([^,"}\]]+)/i);
+                result.currentClub = nameMatch ? nameMatch[1].trim() : null;
+              }
+            } else {
+              result.currentClub = ld.worksFor;
+            }
           } else if (typeof ld.worksFor === 'object') {
             const org = Array.isArray(ld.worksFor) ? ld.worksFor[0] : ld.worksFor;
             result.currentClub = org?.name || null;
@@ -263,19 +278,38 @@ async function fetchZeroZeroData(zzLink: string) {
       }
     }
 
-    // DOB from sidebar — "dd/MM/yyyy" or "dd-MM-yyyy"
+    // DOB from sidebar — "dd/MM/yyyy", "dd-MM-yyyy", or "yyyy-MM-dd (XX anos)"
     if (!result.dob) {
       const dobVal = cardValue('Data de Nascimento');
       if (dobVal) {
+        // Try dd/MM/yyyy or dd-MM-yyyy first
         const ddMM = dobVal.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-        if (ddMM) result.dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`;
+        if (ddMM) {
+          result.dob = `${ddMM[3]}-${ddMM[2]}-${ddMM[1]}`;
+        } else {
+          // Handle "2009-11-27 (16 anos)" or plain "2009-11-27"
+          const isoMatch = dobVal.match(/(\d{4})-(\d{2})-(\d{2})/);
+          if (isoMatch) result.dob = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+        }
       }
     }
 
-    // Name from page header if not found in JSON-LD
+    // Name from sidebar card-data (most reliable on ZeroZero)
+    if (!result.fullName) {
+      const sidebarName = cardValue('Nome');
+      if (sidebarName) result.fullName = sidebarName;
+    }
+
+    // Name from page header as last fallback
     if (!result.fullName) {
       const nameMatch = html.match(/<h1[^>]*class="[^"]*zz-enthdr-name[^"]*"[^>]*>([^<]+)/);
       if (nameMatch) result.fullName = nameMatch[1].trim();
+    }
+
+    // Shirt number from header — <span class="number">7.</span>
+    if (!result.shirtNumber) {
+      const numMatch = html.match(/<span\s+class="number"[^>]*>(\d+)\./);
+      if (numMatch) result.shirtNumber = numMatch[1];
     }
 
     // Birth country — uses flag icon + text
@@ -626,6 +660,7 @@ export interface ScrapedNewPlayerData {
   position: string | null;
   positionRaw: string | null;
   foot: string | null;
+  shirtNumber: string | null;
   photoUrl: string | null;
   height: number | null;
   weight: number | null;
@@ -637,7 +672,7 @@ export interface ScrapedNewPlayerData {
 export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promise<ScrapedNewPlayerData> {
   const EMPTY: ScrapedNewPlayerData = {
     success: false, errors: [], name: null, dob: null, club: null,
-    position: null, positionRaw: null, foot: null, photoUrl: null,
+    position: null, positionRaw: null, foot: null, shirtNumber: null, photoUrl: null,
     height: null, weight: null, nationality: null, birthCountry: null,
   };
 
@@ -665,6 +700,7 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promis
   const positionRaw = zzResult?.position ?? null;
   const position = positionRaw ? normalizePosition(positionRaw) : null;
   const foot = zzResult?.foot ?? null;
+  const shirtNumber = zzResult?.shirtNumber ?? null;
   const photoUrl = zzResult?.photoUrl || fpfResult?.photoUrl || null;
   const height = zzResult?.height ?? null;
   const weight = zzResult?.weight ?? null;
@@ -673,7 +709,7 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promis
 
   return {
     success: true, errors,
-    name, dob, club, position, positionRaw, foot,
+    name, dob, club, position, positionRaw, foot, shirtNumber,
     photoUrl, height, weight, nationality, birthCountry,
   };
 }

@@ -8,7 +8,17 @@
 import { useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Download, ExternalLink, Camera, Pencil, Printer, Save, User, X } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Camera, Pencil, Printer, Save, Trash2, User, X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,7 +53,7 @@ import {
   RECRUITMENT_STATUSES,
   RECRUITMENT_LABEL_MAP,
 } from '@/lib/constants';
-import { updatePlayer } from '@/actions/players';
+import { updatePlayer, deletePlayer } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
 import type {
   Player,
@@ -75,6 +85,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState(player);
   const [showNoteForm, setShowNoteForm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, startDelete] = useTransition();
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
 
@@ -122,6 +134,15 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         if (fpfChanged || zzChanged) {
           autoScrapePlayer(player.id, fpfChanged, zzChanged);
         }
+      }
+    });
+  }
+
+  function handleDelete() {
+    startDelete(async () => {
+      const result = await deletePlayer(player.id);
+      if (result.success) {
+        router.push('/jogadores');
       }
     });
   }
@@ -282,11 +303,20 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         )}
         {editing && (
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleSave} disabled={isPending}>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isPending || isDeleting}
+            >
+              <Trash2 className="mr-1 h-3 w-3" />
+              Eliminar
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={isPending || isDeleting}>
               <Save className="mr-1 h-3 w-3" />
               Guardar
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleCancel}>
+            <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isDeleting}>
               <X className="mr-1 h-3 w-3" />
               Cancelar
             </Button>
@@ -760,6 +790,29 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           </div>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar jogador?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isto irá eliminar permanentemente <strong>{player.name}</strong> e todos os dados associados
+              (notas, histórico, relatórios). Esta ação não pode ser revertida.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {isDeleting ? 'A eliminar...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
