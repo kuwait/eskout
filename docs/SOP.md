@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 7.0 | **Date:** March 7, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 7.1 | **Date:** March 7, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -205,7 +205,7 @@ All PDFs follow the same Boavista FC template. Fields to extract:
 | Profiles | Admin (full access) / Master (all except admin area) / Scout (all except delete) / Scout Externo (submit only) |
 | Add new players | Directly in the app |
 | Change history | Yes — every status change logged with date, author, old→new |
-| Export | PDF, image, text, WhatsApp-formatted, and print for squads. Excel export for filtered DB (planned). |
+| Export | PDF, image, text, WhatsApp-formatted, and print for squads. Excel/PDF/JSON export at `/exportar`. |
 | Mobile | **Mobile-first** — scouts use phone at the field |
 | UI Language | **Portuguese (PT-PT)** |
 | Shadow squad | Pre-loaded for gen 2012, editable. Other age groups start empty. |
@@ -1552,7 +1552,7 @@ Final refinements.
 
 - [x] Squad export: PDF, image, text, WhatsApp, print (done in Phase 2)
 - [x] Player profile export as image/print (done in Phase 2)
-- [ ] Excel export: filtered database download
+- [x] Export page (`/exportar`) — Excel (filtered), PDF (filtered), JSON (full DB backup) with shared filter UI
 - [x] Dashboard with core metrics (done in Phase 2)
 - [x] Mobile optimizations: iPhone landscape DnD fix, touch sensors with activation constraints, conditional rendering for responsive layouts
 - [x] Role system: 3 roles (admin, editor, scout) — DB migration (022, 023) + middleware route protection + UI guards (canEdit vs isAdmin)
