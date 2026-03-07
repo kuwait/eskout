@@ -1,18 +1,18 @@
 // src/app/mais/page.tsx
-// "More" menu page for mobile — links to Import, Export, Admin sections
+// "More" menu page for mobile — links to Import, Export, Admin sections + theme picker
 // Provides navigation to pages not in the bottom tab bar. Role-filtered items.
-// RELEVANT FILES: src/components/layout/MobileNav.tsx, src/lib/supabase/queries.ts, src/app/layout.tsx
+// RELEVANT FILES: src/components/layout/MobileNav.tsx, src/lib/supabase/queries.ts, src/lib/theme.tsx
 
 import Link from 'next/link';
-import { Upload, Download, UserCog, Settings, LogOut } from 'lucide-react';
+import { Download, UserCog, Settings, LogOut, Palette } from 'lucide-react';
 import { getCurrentUserRole } from '@/lib/supabase/queries';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 
 const ITEMS = [
+  { href: '/preferencias', label: 'Preferências', icon: Palette, description: 'Tema e personalização', adminOnly: false, scoutHidden: false },
   { href: '/definicoes', label: 'Definições', icon: Settings, description: 'Atualizar dados externos (FPF, ZeroZero)', adminOnly: false, scoutHidden: true },
-  { href: '/importar', label: 'Importar', icon: Upload, description: 'Importar ficheiro Excel', adminOnly: true, scoutHidden: true },
-  { href: '/exportar', label: 'Exportar', icon: Download, description: 'Exportar PDF / Excel', adminOnly: true, scoutHidden: true },
+  { href: '/exportar', label: 'Exportar', icon: Download, description: 'Exportar Excel / PDF / JSON', adminOnly: true, scoutHidden: true },
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, description: 'Gestão de utilizadores', adminOnly: true, scoutHidden: true },
 ];
 
@@ -22,7 +22,7 @@ export default async function MaisPage() {
   const isScout = role === 'scout';
 
   const visibleItems = isScout
-    ? [] // Scout sees nothing here except logout
+    ? ITEMS.filter((item) => !item.scoutHidden)
     : isAdmin
       ? ITEMS
       : ITEMS.filter((item) => !item.adminOnly);
@@ -48,7 +48,7 @@ export default async function MaisPage() {
           );
         })}
 
-        {/* Logout — visible to all, especially scouts who have limited nav */}
+        {/* Logout — visible to all */}
         <form action={logout}>
           <Button variant="outline" className="w-full justify-start gap-3 mt-4" type="submit">
             <LogOut className="h-5 w-5 text-neutral-600" />

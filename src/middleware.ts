@@ -10,7 +10,7 @@ const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password'];
 // Routes that require admin role — editors and scouts are redirected
 const ADMIN_ONLY_ROUTES = ['/admin'];
 // Scouts can ONLY access these routes — everything else is blocked
-const SCOUT_ALLOWED_ROUTES = ['/meus-relatorios', '/submeter', '/mais'];
+const SCOUT_ALLOWED_ROUTES = ['/meus-relatorios', '/submeter', '/mais', '/preferencias'];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({

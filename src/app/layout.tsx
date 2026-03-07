@@ -4,13 +4,24 @@
 // RELEVANT FILES: src/components/layout/Sidebar.tsx, src/components/layout/MobileNav.tsx, src/hooks/useAgeGroup.ts
 
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, DM_Sans, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
 import { Toaster } from '@/components/ui/sonner';
+import { ThemeProvider } from '@/lib/theme';
 
 const inter = Inter({
   variable: '--font-inter',
+  subsets: ['latin'],
+});
+
+const dmSans = DM_Sans({
+  variable: '--font-dm-sans',
+  subsets: ['latin'],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
   subsets: ['latin'],
 });
 
@@ -41,10 +52,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt">
-      <body className={`${inter.variable} font-sans antialiased`}>
-        <AppShell>{children}</AppShell>
-        <Toaster position="top-center" />
+    <html lang="pt" suppressHydrationWarning>
+      <head>
+        {/* Anti-FOUC: apply saved theme before React hydrates */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('eskout-theme');if(t&&t!=='eskout')document.documentElement.setAttribute('data-theme',t)}catch(e){}` }} />
+      </head>
+      <body className={`${inter.variable} ${dmSans.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
+        <ThemeProvider>
+          <AppShell>{children}</AppShell>
+          <Toaster position="top-center" />
+        </ThemeProvider>
       </body>
     </html>
   );

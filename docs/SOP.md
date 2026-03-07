@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 7.1 | **Date:** March 7, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 7.2 | **Date:** March 7, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -1564,6 +1564,7 @@ Final refinements.
 - [x] Scout report → scouting_reports integration — approved reports saved as proper scouting reports on the player
 - [x] Dynamic age groups — auto-calculated from current date (season starts July 1), Sénior for players above Sub-19
 - [x] Dynamic season — `CURRENT_SEASON` computed from date, no manual updates needed
+- [x] Theme system — 10 themes (8 light + 2 dark) with different color palettes and fonts (Inter, DM Sans, Space Grotesk), stored per-device in localStorage, anti-FOUC script, `/preferencias` page accessible to all roles
 - [ ] In-app Excel import page (`/importar`) — upload, parse, preview, confirm
 - [ ] PWA setup (installable on phone, offline caching for read-only data)
 

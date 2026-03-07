@@ -1,0 +1,28 @@
+// src/app/preferencias/page.tsx
+// User preferences page — theme picker, accessible to all roles
+// Each user can customize their experience independently
+// RELEVANT FILES: src/lib/theme.tsx, src/components/settings/ThemePicker.tsx, src/components/layout/Sidebar.tsx
+
+import { Palette } from 'lucide-react';
+import { ThemePicker } from '@/components/settings/ThemePicker';
+
+export default function PreferenciasPage() {
+  return (
+    <div className="p-4 lg:p-6">
+      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Preferências</h1>
+
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div className="rounded-lg border bg-white p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <Palette className="h-4 w-4" />
+            <p className="text-sm font-semibold">Tema</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Escolhe o aspeto visual da aplicação. A preferência é guardada neste dispositivo.
+          </p>
+          <ThemePicker />
+        </div>
+      </div>
+    </div>
+  );
+}

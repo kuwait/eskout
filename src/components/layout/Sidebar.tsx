@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell, FileText, PlusCircle,
-  Download, UserCog, Settings, LogOut,
+  Download, UserCog, Settings, LogOut, Palette,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
@@ -43,7 +43,7 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
     : NAV_ITEMS.filter((i) => !i.scoutOnly);
 
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-white lg:h-screen lg:fixed lg:left-0 lg:top-0">
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-card lg:h-screen lg:fixed lg:left-0 lg:top-0">
       {/* Header */}
       <div className="flex items-center gap-2 border-b px-4 py-4">
         <Link href="/" className="flex items-center gap-2">
@@ -67,8 +67,8 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-neutral-900 text-white'
-                      : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -93,7 +93,7 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
         {/* Admin section — only visible to admins */}
         {userRole === 'admin' && (
         <div className="mt-6">
-          <p className="px-3 text-xs font-semibold uppercase text-neutral-400">Admin</p>
+          <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">Admin</p>
           <ul className="mt-2 space-y-1">
             {ADMIN_ITEMS.map((item) => {
               const Icon = item.icon;
@@ -126,10 +126,22 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
         )}
       </nav>
 
-      {/* Logout */}
-      <div className="border-t px-3 py-3">
+      {/* Bottom actions */}
+      <div className="border-t px-3 py-3 space-y-1">
+        <Link
+          href="/preferencias"
+          className={cn(
+            'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            pathname === '/preferencias'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+          )}
+        >
+          <Palette className="h-4 w-4" />
+          Preferências
+        </Link>
         <form action={logout}>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-neutral-600" type="submit">
+          <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" type="submit">
             <LogOut className="h-4 w-4" />
             Sair
           </Button>

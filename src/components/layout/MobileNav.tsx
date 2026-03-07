@@ -30,7 +30,7 @@ export function MobileNav({ alertCounts, userRole }: { alertCounts: AlertCounts;
     : TABS.filter((t) => !t.scoutOnly);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white lg:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card lg:hidden">
       <ul className="flex">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
@@ -44,7 +44,7 @@ export function MobileNav({ alertCounts, userRole }: { alertCounts: AlertCounts;
                 href={tab.href}
                 className={cn(
                   'flex flex-col items-center gap-0.5 py-2 text-xs transition-colors',
-                  isActive ? 'text-neutral-900 font-medium' : 'text-neutral-400'
+                  isActive ? 'text-foreground font-medium' : 'text-muted-foreground'
                 )}
               >
                 <span className="relative">
