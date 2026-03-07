@@ -69,6 +69,7 @@ import {
   RECRUITMENT_LABEL_MAP,
   NATIONALITIES,
   getNationalityFlag,
+  getPositionLabel,
 } from '@/lib/constants';
 import { updatePlayer, deletePlayer } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
@@ -845,9 +846,9 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                               Atleta do Plantel{ageGroupName ? ` ${ageGroupName}` : ''}
                             </span>
                           </div>
-                          {p.positionNormalized && (
+                          {p.realSquadPosition && (
                             <p className="mt-0.5 pl-4 text-xs text-green-700">
-                              Posição: <span className="font-bold">{p.positionNormalized} — {POSITION_LABELS[p.positionNormalized as PositionCode]}</span>
+                              Posição: <span className="font-bold">{getPositionLabel(p.realSquadPosition)}</span>
                             </p>
                           )}
                         </div>
@@ -867,7 +868,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                           </div>
                           {p.shadowPosition && (
                             <p className="mt-0.5 pl-4 text-xs text-purple-700">
-                              Posição: <span className="font-bold">{p.shadowPosition} — {POSITION_LABELS[p.shadowPosition as PositionCode] ?? p.shadowPosition}</span>
+                              Posição: <span className="font-bold">{getPositionLabel(p.shadowPosition)}</span>
                             </p>
                           )}
                         </div>

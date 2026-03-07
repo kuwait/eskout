@@ -76,16 +76,27 @@ export const observationNoteSchema = z.object({
 
 export type ObservationNoteData = z.infer<typeof observationNoteSchema>;
 
+/* ───────────── Squad Position (shared enum for real & shadow squad slots) ───────────── */
+
+const SQUAD_POSITION_CODES = ['GR', 'DD', 'DE', 'DC', 'DC_E', 'DC_D', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'] as const;
+
 /* ───────────── Shadow Squad ───────────── */
 
 export const shadowSquadSchema = z.object({
   playerId: z.number().int().positive('ID de jogador inválido'),
-  position: z.enum(['GR', 'DD', 'DE', 'DC', 'DC_E', 'DC_D', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'], {
-    message: 'Posição inválida',
-  }),
+  position: z.enum(SQUAD_POSITION_CODES, { message: 'Posição inválida' }),
 });
 
 export type ShadowSquadData = z.infer<typeof shadowSquadSchema>;
+
+/* ───────────── Real Squad ───────────── */
+
+export const realSquadSchema = z.object({
+  playerId: z.number().int().positive('ID de jogador inválido'),
+  position: z.enum(SQUAD_POSITION_CODES, { message: 'Posição inválida' }),
+});
+
+export type RealSquadData = z.infer<typeof realSquadSchema>;
 
 /* ───────────── Recruitment Status Change ───────────── */
 

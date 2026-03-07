@@ -881,11 +881,11 @@ CREATE TABLE players (
   -- Squad membership
   is_real_squad BOOLEAN DEFAULT FALSE,   -- Player is at Boavista
   is_shadow_squad BOOLEAN DEFAULT FALSE,
-  shadow_position TEXT                   -- Position in shadow squad (may differ from original)
-    CHECK (shadow_position IN ('GR','DD','DE','DC','MDC','MC','MOC','ED','EE','PL') OR shadow_position IS NULL),
+  real_squad_position TEXT               -- Position slot in real squad formation (separate from position_normalized)
+    CHECK (real_squad_position IN ('GR','DD','DE','DC','DC_E','DC_D','MDC','MC','MOC','ED','EE','PL') OR real_squad_position IS NULL),
+  shadow_position TEXT                   -- Position slot in shadow squad (may differ from original)
+    CHECK (shadow_position IN ('GR','DD','DE','DC','DC_E','DC_D','MDC','MC','MOC','ED','EE','PL') OR shadow_position IS NULL),
   squad_order INT DEFAULT 0,             -- Manual ordering within position groups in squads
-  dc_sub_slot TEXT                       -- Sub-slot for DC position (e.g., 'left', 'right')
-    CHECK (dc_sub_slot IN ('left', 'right') OR dc_sub_slot IS NULL),
 
   -- Multi-position
   secondary_position TEXT                -- Secondary position (optional)

@@ -97,12 +97,11 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
     const map: Record<string, Player[]> = {};
     for (const slot of SQUAD_SLOT_CODES) map[slot] = [];
     for (const p of players) {
-      if (squadType === 'real' && p.isRealSquad && p.positionNormalized) {
-        // DC players without DC_E/DC_D → distribute to DC_E (odd index) and DC_D (even index)
-        if (p.positionNormalized === 'DC') {
+      if (squadType === 'real' && p.isRealSquad && p.realSquadPosition) {
+        // DC players without DC_E/DC_D → distribute to DC_E and DC_D balanced
+        if (p.realSquadPosition === 'DC') {
           const dcE = map['DC_E'] ?? [];
           const dcD = map['DC_D'] ?? [];
-          // Balance: put in whichever sub-slot has fewer players
           if (dcE.length <= dcD.length) {
             dcE.push(p);
             map['DC_E'] = dcE;
@@ -111,7 +110,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
             map['DC_D'] = dcD;
           }
         } else {
-          map[p.positionNormalized]?.push(p);
+          map[p.realSquadPosition]?.push(p);
         }
       }
       if (squadType === 'shadow' && p.isShadowSquad && p.shadowPosition) {
@@ -131,8 +130,8 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
     const map: Record<string, Player[]> = {};
     for (const slot of SQUAD_SLOT_CODES) map[slot] = [];
     for (const p of players) {
-      if (otherType === 'real' && p.isRealSquad && p.positionNormalized) {
-        if (p.positionNormalized === 'DC') {
+      if (otherType === 'real' && p.isRealSquad && p.realSquadPosition) {
+        if (p.realSquadPosition === 'DC') {
           const dcE = map['DC_E'] ?? [];
           const dcD = map['DC_D'] ?? [];
           if (dcE.length <= dcD.length) {
@@ -143,7 +142,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
             map['DC_D'] = dcD;
           }
         } else {
-          map[p.positionNormalized]?.push(p);
+          map[p.realSquadPosition]?.push(p);
         }
       }
       if (otherType === 'shadow' && p.isShadowSquad && p.shadowPosition) {
@@ -192,7 +191,6 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         }
       });
     } else {
-      // DC_E/DC_D stored directly in position_normalized (requires migration 013)
       const dbPos = pos;
       // Move player to current age group so they appear in this squad view ("call up")
       const targetAgeGroupId = selectedId;
@@ -200,10 +198,10 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         const exists = prev.find((p) => p.id === player.id);
         if (exists) {
           return prev.map((p) => p.id === player.id
-            ? { ...p, isRealSquad: true, positionNormalized: dbPos, ageGroupId: targetAgeGroupId! }
+            ? { ...p, isRealSquad: true, realSquadPosition: dbPos, ageGroupId: targetAgeGroupId! }
             : p);
         }
-        return [...prev, { ...player, isRealSquad: true, positionNormalized: dbPos, ageGroupId: targetAgeGroupId! }];
+        return [...prev, { ...player, isRealSquad: true, realSquadPosition: dbPos, ageGroupId: targetAgeGroupId! }];
       });
       toggleRealSquad(player.id, true, dbPos, targetAgeGroupId ?? undefined).then((res) => {
         if (!res.success) {
@@ -223,7 +221,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         if (!res.success) { console.error('removeFromShadowSquad failed:', res.error); fetchAllPlayers(); }
       });
     } else {
-      setAllPlayers((prev) => prev.map((p) => p.id === playerId ? { ...p, isRealSquad: false } : p));
+      setAllPlayers((prev) => prev.map((p) => p.id === playerId ? { ...p, isRealSquad: false, realSquadPosition: null } : p));
       toggleRealSquad(playerId, false).then((res) => {
         if (!res.success) { console.error('toggleRealSquad failed:', res.error); fetchAllPlayers(); }
       });
@@ -262,7 +260,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
       // Move to different position — DC_E/DC_D are valid DB values for both squads
       const dbPosition = targetPosition;
 
-      const posField = squadType === 'shadow' ? 'shadowPosition' : 'positionNormalized';
+      const posField = squadType === 'shadow' ? 'shadowPosition' : 'realSquadPosition';
       setAllPlayers((prev) =>
         prev.map((p) =>
           p.id === playerId

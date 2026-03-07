@@ -90,6 +90,7 @@ export interface Player {
   recruitmentNotes: string;
   isRealSquad: boolean;
   isShadowSquad: boolean;
+  realSquadPosition: string | null;
   shadowPosition: string | null;
   shadowOrder: number;
   realOrder: number;
@@ -165,6 +166,7 @@ export interface PlayerRow {
   recruitment_notes: string | null;
   is_real_squad: boolean;
   is_shadow_squad: boolean;
+  real_squad_position: string | null;
   shadow_position: string | null;
   shadow_order: number;
   real_order: number;

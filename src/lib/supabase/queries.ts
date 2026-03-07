@@ -286,7 +286,7 @@ export async function getDashboardStats(ageGroupId: number): Promise<DashboardSt
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('players')
-    .select('position_normalized, department_opinion, recruitment_status, is_real_squad, is_shadow_squad, shadow_position')
+    .select('position_normalized, department_opinion, recruitment_status, is_real_squad, is_shadow_squad, real_squad_position, shadow_position')
     .eq('age_group_id', ageGroupId);
 
   if (error || !data) {
@@ -318,7 +318,7 @@ export async function getDashboardStats(ageGroupId: number): Promise<DashboardSt
   const positions = ['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'];
   for (const pos of positions) {
     stats.byPosition[pos] = {
-      real: data.filter((p) => p.is_real_squad && p.position_normalized === pos).length,
+      real: data.filter((p) => p.is_real_squad && (p.real_squad_position === pos || p.real_squad_position === `${pos}_E` || p.real_squad_position === `${pos}_D`)).length,
       shadow: data.filter((p) => p.is_shadow_squad && p.shadow_position === pos).length,
     };
   }

@@ -136,10 +136,14 @@ export async function toggleRealSquad(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: 'Não autenticado' };
 
-  // When adding to real squad with a specific position, update position_normalized
+  // When adding to real squad with a specific position, update real_squad_position (NOT position_normalized)
   const updateData: Record<string, unknown> = { is_real_squad: isReal };
   if (isReal && position) {
-    updateData.position_normalized = position;
+    updateData.real_squad_position = position;
+  }
+  // Clear real_squad_position when removing from real squad
+  if (!isReal) {
+    updateData.real_squad_position = null;
   }
   // Cross-age-group add: move player to target age group
   if (isReal && ageGroupId) {
@@ -234,7 +238,7 @@ export async function moveSquadPlayerPosition(
   if (!user) return { success: false, error: 'Não autenticado' };
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
-  const positionField = squadType === 'shadow' ? 'shadow_position' : 'position_normalized';
+  const positionField = squadType === 'shadow' ? 'shadow_position' : 'real_squad_position';
 
   // Get old position + age group for history context
   const { data: player } = await supabase

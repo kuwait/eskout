@@ -57,8 +57,9 @@ export function CampoView() {
     const map: Record<string, Player[]> = {};
     for (const pos of POSITION_CODES) map[pos] = [];
     for (const p of players) {
-      if (p.isRealSquad && p.positionNormalized) {
-        map[p.positionNormalized]?.push(p);
+      if (p.isRealSquad) {
+        const pos = p.realSquadPosition ?? p.positionNormalized;
+        if (pos) map[pos]?.push(p);
       }
     }
     return map;

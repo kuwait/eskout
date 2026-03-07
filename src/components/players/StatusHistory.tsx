@@ -165,8 +165,9 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
       };
     }
 
-    /* ── Position change ── */
+    /* ── Position change (squad slot) ── */
     case 'shadow_position':
+    case 'real_squad_position':
     case 'position_normalized': {
       // New format: notes = "Sombra Sub-14" or "Plantel Sub-15"
       // Old format: notes = "Movido de X para Y" or "Plantel Sombra: movido de X para Y"

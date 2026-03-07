@@ -54,6 +54,17 @@ export const POSITION_LABELS: Record<PositionCode, string> = Object.fromEntries(
   POSITIONS.map((p) => [p.code, p.labelPt])
 ) as Record<PositionCode, string>;
 
+/** Squad slot labels — includes DC_E/DC_D for formation views */
+const SQUAD_SLOT_LABELS: Record<string, string> = Object.fromEntries(
+  SQUAD_SLOTS.map((s) => [s.slot, s.label])
+);
+
+/** Resolve any position or squad slot code to a Portuguese label */
+export function getPositionLabel(code: string | null | undefined): string {
+  if (!code) return '';
+  return POSITION_LABELS[code as PositionCode] ?? SQUAD_SLOT_LABELS[code] ?? code;
+}
+
 /* ───────────── Department Opinions ───────────── */
 
 export const DEPARTMENT_OPINIONS: { value: DepartmentOpinion; color: string; tailwind: string }[] = [

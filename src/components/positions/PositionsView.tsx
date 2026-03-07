@@ -47,13 +47,17 @@ export function PositionsView() {
     }
 
     for (const p of players) {
-      // Real squad
-      if (p.isRealSquad && p.positionNormalized) {
-        result[p.positionNormalized as PositionCode]?.real.push(p);
+      // Real squad — use realSquadPosition (squad slot), fall back to natural position
+      const realPos = p.realSquadPosition ?? p.positionNormalized;
+      if (p.isRealSquad && realPos) {
+        // DC_E/DC_D → DC for position-level grouping
+        const basePos = realPos === 'DC_E' || realPos === 'DC_D' ? 'DC' : realPos;
+        result[basePos as PositionCode]?.real.push(p);
       }
       // Shadow squad
       if (p.isShadowSquad && p.shadowPosition) {
-        result[p.shadowPosition as PositionCode]?.shadow.push(p);
+        const baseShadow = p.shadowPosition === 'DC_E' || p.shadowPosition === 'DC_D' ? 'DC' : p.shadowPosition;
+        result[baseShadow as PositionCode]?.shadow.push(p);
       }
       // Pool: not in real or shadow, has a normalized position
       if (!p.isRealSquad && !p.isShadowSquad && p.positionNormalized) {

@@ -124,6 +124,7 @@ export function mapPlayerRow(row: PlayerRow): Player {
     recruitmentNotes: row.recruitment_notes ?? '',
     isRealSquad: row.is_real_squad,
     isShadowSquad: row.is_shadow_squad,
+    realSquadPosition: (row.real_squad_position as Player['realSquadPosition']) ?? null,
     shadowPosition: (row.shadow_position as Player['shadowPosition']) ?? null,
     shadowOrder: row.shadow_order ?? 0,
     realOrder: row.real_order ?? 0,
