@@ -1472,8 +1472,8 @@ Build the core app that replaces the spreadsheet.
 - [x] Add new player form (mobile-optimized)
 - [x] Deploy to Vercel
 - [x] SQL migrations (001 schema + 002 seed age groups)
-- [ ] In-app Excel import page (`/importar`) — not yet built
-- [ ] Seed data: pre-load the 2012 shadow squad — depends on running import script
+- [x] ~~In-app Excel import~~ — not needed, handled by `import_initial_data.ts` script
+- [x] ~~Seed data~~ — handled by `full_reset.py` script
 
 **Deliverable:** Working app where users can log in, browse players, search/filter, view profiles.
 
