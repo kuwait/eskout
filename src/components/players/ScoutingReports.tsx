@@ -287,7 +287,7 @@ export function ScoutingReports({ reports, reportLabels = [], reportLinks = [] }
                     </p>
                   </div>
                   {link && (
-                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100" />
                   )}
                 </a>
               );

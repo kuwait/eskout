@@ -275,7 +275,7 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
                 {canEdit && (
                   <button
                     onClick={() => startEdit(note)}
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-blue-50 hover:text-blue-500 group-hover/note:opacity-100"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 opacity-100 transition-all hover:bg-blue-50 hover:text-blue-500 lg:opacity-0 lg:group-hover/note:opacity-100"
                     title="Editar nota"
                   >
                     <Pencil className="h-3 w-3" />
@@ -283,7 +283,7 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
                 )}
                 <button
                   onClick={() => setDeleteTarget(note)}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover/note:opacity-100"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50 opacity-100 transition-all hover:bg-red-50 hover:text-red-500 lg:opacity-0 lg:group-hover/note:opacity-100"
                   title="Apagar nota"
                 >
                   <Trash2 className="h-3.5 w-3.5" />

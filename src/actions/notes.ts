@@ -84,6 +84,29 @@ export async function updateObservationNote(
   return { success: true };
 }
 
+/** Dismiss a flagged note from the inbox — downgrades priority to 'normal' without deleting */
+export async function dismissFlaggedNote(
+  noteId: number,
+  playerId: number
+): Promise<ActionResponse> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Não autenticado' };
+
+  const { error } = await supabase
+    .from('observation_notes')
+    .update({ priority: 'normal' })
+    .eq('id', noteId);
+
+  if (error) {
+    return { success: false, error: `Erro ao dispensar nota: ${error.message}` };
+  }
+
+  revalidatePath(`/jogadores/${playerId}`);
+  revalidatePath('/');
+  return { success: true };
+}
+
 export async function deleteObservationNote(
   noteId: number,
   playerId: number

@@ -54,7 +54,7 @@ export function SquadPlayerCard({ player, onRemove, compact }: SquadPlayerCardPr
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 shrink-0 p-0 opacity-0 group-hover:opacity-100"
+          className="h-6 w-6 shrink-0 p-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
           onClick={(e) => {
             e.preventDefault();
             onRemove();
