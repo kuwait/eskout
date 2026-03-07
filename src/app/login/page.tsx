@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { login } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -109,7 +109,39 @@ export default function LoginPage() {
     meta.name = 'theme-color';
     meta.content = '#1a1a1a';
     document.head.appendChild(meta);
-    return () => { meta.remove(); };
+    // Only paint body dark on mobile (desktop has split layout with white right side)
+    const isMobile = window.innerWidth < 1024;
+    if (isMobile) document.body.style.backgroundColor = '#1a1a1a';
+    return () => {
+      meta.remove();
+      document.body.style.backgroundColor = '';
+    };
+  }, []);
+
+  /* Resize mobile container to match visualViewport — follows keyboard in real time */
+  const mobileRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || !mobileRef.current) return;
+    const el = mobileRef.current;
+
+    let raf = 0;
+    const sync = () => {
+      el.style.height = `${vv.height}px`;
+    };
+    const onResize = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(sync);
+    };
+
+    sync();
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
   }, []);
 
   async function handleSubmit(formData: FormData) {
@@ -140,7 +172,7 @@ export default function LoginPage() {
       </div>
 
       {/* ───────────── Mobile — full dark bg + floating card ───────────── */}
-      <div className="fixed inset-0 flex flex-col bg-primary px-5 lg:hidden">
+      <div ref={mobileRef} className="fixed inset-x-0 top-0 flex flex-col bg-primary px-5 lg:hidden" style={{ height: '100dvh' }}>
         <FloatingPills />
         {/* Top spacer + branding — pushes card to center */}
         <div className="relative z-10 flex flex-1 flex-col items-center justify-end pb-4">
