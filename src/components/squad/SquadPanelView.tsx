@@ -78,6 +78,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
       .from('players')
       .select('*')
       .order('name')
+      .range(0, 4999)
       .then(({ data, error }) => {
         if (!error && data) {
           setAllPlayers((data as PlayerRow[]).map(mapPlayerRow));
@@ -307,12 +308,12 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
   return (
     <div className="space-y-4">
       {/* Sticky header — age group tabs always visible while scrolling on mobile */}
-      <div className="sticky top-0 z-20 -mx-4 border-b border-transparent bg-white px-4 pb-2 pt-1 shadow-[0_1px_3px_rgba(0,0,0,0.05)] lg:-mx-6 lg:px-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="sticky top-0 z-20 -mx-4 border-b border-transparent bg-card px-4 pb-2 pt-1 shadow-[0_1px_3px_rgba(0,0,0,0.05)] lg:-mx-6 lg:px-6 flex items-center justify-between gap-2">
         <AgeGroupSelector showAll={false} variant="navigator" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} labelFn={labelFn} />
 
         {/* View mode toggle + export */}
         <div className="flex items-center gap-2">
-        <div className="flex shrink-0 rounded-lg border bg-white p-0.5">
+        <div className="flex shrink-0 rounded-lg border bg-card p-0.5">
           {([
             { mode: 'campo' as ViewMode, icon: LayoutGrid, label: 'Campo' },
             { mode: 'lista' as ViewMode, icon: List, label: 'Lista' },

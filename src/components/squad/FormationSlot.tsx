@@ -108,7 +108,7 @@ function DraggablePlayerCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`relative w-full min-w-[120px] max-w-[160px] cursor-grab rounded-md bg-white/95 shadow-sm touch-none active:cursor-grabbing ${
+      className={`relative w-full min-w-[100px] max-w-[160px] cursor-grab rounded-md bg-white/95 shadow-sm touch-none active:cursor-grabbing ${
         squadType === 'shadow' ? RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200' : ''
       }`}
       onClick={handleCardClick}
@@ -201,7 +201,7 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
   return (
     <div
       ref={setDropRef}
-      className={`flex min-w-[130px] flex-col items-center gap-1 rounded-lg p-1 transition-colors ${
+      className={`flex min-w-[110px] flex-col items-center gap-1 rounded-lg p-1 transition-colors ${
         isOver ? 'bg-white/20' : ''
       }`}
     >

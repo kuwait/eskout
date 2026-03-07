@@ -42,7 +42,8 @@ const MOBILE_GROUPS: FormationSlotId[][] = [
   ['DE', 'DD'],                        // Full-backs
   ['MDC', 'MC'],                       // Midfield
   ['MOC'],                             // Attacking mid
-  ['EE', 'PL', 'ED'],                 // Wingers + Striker
+  ['EE', 'ED'],                        // Wingers — separate row, no overflow
+  ['PL'],                              // Striker — own row at bottom
 ];
 
 const SLOT_CONFIG: Record<FormationSlotId, { position: PositionCode; label: string }> = {
@@ -205,14 +206,21 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
         <div className="relative overflow-hidden rounded-xl bg-green-700 p-3">
           <PitchMarkingsVertical />
           <div className="relative flex flex-col gap-1 py-2">
-            {MOBILE_GROUPS.map((group, i) => (
-              <div
-                key={i}
-                className="flex items-start justify-center gap-1"
-              >
-                {group.map(renderSlot)}
-              </div>
-            ))}
+            {MOBILE_GROUPS.map((group, i) => {
+              // Full-backs (DE,DD) and wingers (EE,ED) spread to edges
+              const isWideRow = group.length === 2 && (
+                (group.includes('DE') && group.includes('DD')) ||
+                (group.includes('EE') && group.includes('ED'))
+              );
+              return (
+                <div
+                  key={i}
+                  className={`flex items-start ${isWideRow ? 'justify-between px-[5px]' : 'justify-center gap-1'}`}
+                >
+                  {group.map(renderSlot)}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

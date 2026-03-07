@@ -17,13 +17,14 @@ interface ClubBadgeProps {
   /** Show club name next to the logo (default: true) */
   showName?: boolean;
   /** Size variant */
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
   /** Callback to remove the logo (shows "Remover" in hover card) */
   onRemoveLogo?: () => void;
 }
 
 const SIZES = {
+  xs: { logo: 12, text: 'text-[9px]', popover: 48 },
   sm: { logo: 16, text: 'text-xs', popover: 64 },
   md: { logo: 20, text: 'text-sm', popover: 80 },
   lg: { logo: 24, text: 'text-base', popover: 96 },

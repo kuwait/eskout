@@ -79,7 +79,7 @@ export function AgeGroupSelector({
     };
 
     return (
-      <div className="inline-flex items-center rounded-lg border border-neutral-200 bg-white">
+      <div className="inline-flex shrink-0 items-center rounded-lg border border-neutral-200 bg-white">
         {/* Previous */}
         <button
           type="button"
@@ -99,7 +99,7 @@ export function AgeGroupSelector({
           onOpenChange={setDropdownOpen}
         >
           <SelectTrigger
-            className="h-9 w-auto min-w-[100px] justify-center rounded-none border-x border-y-0 border-neutral-200 bg-transparent px-3 text-sm font-semibold shadow-none focus:ring-0 [&_svg:last-child]:hidden"
+            className="h-9 w-auto min-w-[80px] max-w-[140px] justify-center rounded-none border-x border-y-0 border-neutral-200 bg-transparent px-3 text-sm font-semibold shadow-none focus:ring-0 [&_svg:last-child]:hidden"
             aria-label="Selecionar escalão"
           >
             <SelectValue>
