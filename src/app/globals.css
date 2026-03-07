@@ -474,6 +474,19 @@
   }
 }
 
+/* ───────────── Safe area insets for iPhone notch/dynamic island/home bar ───────────── */
+@supports (padding: env(safe-area-inset-top)) {
+  /* Mobile header respects top safe area (notch / dynamic island) */
+  header.sticky {
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+  }
+
+  /* Drawer content respects top safe area */
+  [data-slot="sheet-content"] {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
 /* ───────────── Print styles ───────────── */
 @media print {
   /* Hide navigation, toolbars, dialogs, overlays */

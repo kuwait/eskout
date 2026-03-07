@@ -1,7 +1,7 @@
 // src/app/alertas/page.tsx
 // Alertas page showing all important and urgent observation notes across players
 // Acts as an action queue for scouts and admins to address flagged items
-// RELEVANT FILES: src/components/dashboard/FlaggedNotesInbox.tsx, src/lib/supabase/queries.ts, src/components/layout/MobileNav.tsx
+// RELEVANT FILES: src/components/dashboard/FlaggedNotesInbox.tsx, src/lib/supabase/queries.ts, src/components/layout/MobileDrawer.tsx
 
 import { getFlaggedNotes } from '@/lib/supabase/queries';
 import { FlaggedNotesInbox } from '@/components/dashboard/FlaggedNotesInbox';

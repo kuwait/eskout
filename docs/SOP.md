@@ -676,7 +676,7 @@ sikout/
 │   │   │   ├── AppShell.tsx           # Server-side app shell
 │   │   │   ├── AppShellClient.tsx     # Client-side app shell with responsive nav
 │   │   │   ├── Sidebar.tsx            # Desktop sidebar nav
-│   │   │   ├── MobileNav.tsx          # Bottom tab navigation (6 tabs, with alert badges)
+│   │   │   ├── MobileDrawer.tsx        # Hamburger slide-out menu (mirrors sidebar)
 │   │   │   └── AgeGroupSelector.tsx
 │   │   ├── dashboard/
 │   │   │   ├── StatsCards.tsx

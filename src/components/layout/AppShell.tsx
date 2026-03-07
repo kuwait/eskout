@@ -1,7 +1,7 @@
 // src/components/layout/AppShell.tsx
 // Application shell that fetches age groups and alert counts server-side
 // Wraps authenticated pages with sidebar (desktop) and bottom nav (mobile)
-// RELEVANT FILES: src/app/layout.tsx, src/components/layout/Sidebar.tsx, src/components/layout/MobileNav.tsx
+// RELEVANT FILES: src/app/layout.tsx, src/components/layout/Sidebar.tsx, src/components/layout/MobileDrawer.tsx
 
 import { createClient } from '@/lib/supabase/server';
 import { AppShellClient } from '@/components/layout/AppShellClient';

@@ -1,9 +1,9 @@
 // src/app/layout.tsx
 // Root layout: Inter font, AgeGroupProvider, conditional sidebar/mobile nav
 // Wraps all pages with authentication-aware layout and persistent age group context
-// RELEVANT FILES: src/components/layout/Sidebar.tsx, src/components/layout/MobileNav.tsx, src/hooks/useAgeGroup.ts
+// RELEVANT FILES: src/components/layout/Sidebar.tsx, src/components/layout/MobileDrawer.tsx, src/hooks/useAgeGroup.ts
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, DM_Sans, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout/AppShell';
@@ -24,6 +24,13 @@ const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
   subsets: ['latin'],
 });
+
+/* viewport-fit=cover enables env(safe-area-inset-*) for iPhone notch/dynamic island */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   title: 'Eskout — Plataforma de Scouting',

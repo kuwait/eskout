@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 // Desktop sidebar navigation for the Eskout application
 // Jogadores is the home page. Plantel Real and Plantel Sombra separated.
-// RELEVANT FILES: src/components/layout/MobileNav.tsx, src/components/layout/AgeGroupSelector.tsx, src/app/layout.tsx
+// RELEVANT FILES: src/components/layout/MobileDrawer.tsx, src/components/layout/AgeGroupSelector.tsx, src/app/layout.tsx
 
 'use client';
 
