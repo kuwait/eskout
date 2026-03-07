@@ -10,16 +10,17 @@ import type { AgeGroup } from '@/lib/types';
 export interface AlertCounts {
   urgente: number;
   importante: number;
+  pendingReports: number;
 }
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   let ageGroups: AgeGroup[] = [];
-  let alertCounts: AlertCounts = { urgente: 0, importante: 0 };
+  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0 };
   let userRole = 'scout';
 
   try {
     const supabase = await createClient();
-    const [agRes, urgRes, impRes, userRes] = await Promise.all([
+    const [agRes, urgRes, impRes, pendingRes, userRes] = await Promise.all([
       supabase
         .from('age_groups')
         .select('id, name, generation_year, season')
@@ -32,6 +33,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         .from('observation_notes')
         .select('id', { count: 'exact', head: true })
         .eq('priority', 'importante'),
+      supabase
+        .from('scout_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pendente'),
       // Fetch current user's role
       supabase.auth.getUser().then(async ({ data: { user } }) => {
         if (!user) return null;
@@ -56,6 +61,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     alertCounts = {
       urgente: urgRes.count ?? 0,
       importante: impRes.count ?? 0,
+      pendingReports: pendingRes.count ?? 0,
     };
 
     if (userRes?.role) userRole = userRes.role;

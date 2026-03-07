@@ -29,6 +29,7 @@ const NAV_ITEMS = [
 ];
 
 const ADMIN_ITEMS = [
+  { href: '/admin/relatorios', label: 'Relatórios', icon: FileText },
   { href: '/definicoes', label: 'Definições', icon: Settings },
   { href: '/importar', label: 'Importar', icon: Upload },
   { href: '/exportar', label: 'Exportar', icon: Download },
@@ -111,6 +112,12 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
                   >
                     <Icon className="h-4 w-4" />
                     {item.label}
+                    {/* Pending reports badge */}
+                    {item.href === '/admin/relatorios' && alertCounts.pendingReports > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 px-1.5 text-[10px] font-bold text-neutral-800">
+                        {alertCounts.pendingReports}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );
