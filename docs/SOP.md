@@ -1569,6 +1569,44 @@ Final refinements.
 
 **Deliverable:** Production-ready application.
 
+### Phase 5 — Mobile UX & New Features ⬚ PLANNED
+
+Post-launch improvements based on real usage feedback.
+
+#### 5A. Mobile UX Overhaul
+The app is mobile-first but the current iPhone experience needs significant improvement.
+
+- [ ] **Bottom navigation redesign** — current tab bar is hard to use on iPhone; needs larger touch targets, better spacing, clearer visual feedback, possibly swipe gestures
+- [ ] **Full mobile UX audit** — go through every feature on iPhone and fix usability issues:
+  - Player table/list scrolling and interaction
+  - Player profile layout on small screens
+  - Squad/formation view touch interactions
+  - Pipeline kanban on mobile
+  - Filter panels and dropdowns
+  - Form inputs (add player, submit report, etc.)
+  - Dialog/modal sizing and scrolling
+  - Export page layout
+
+#### 5B. YouTube Media Links
+Add video content to player profiles — scouts can attach YouTube clips of players in action.
+
+- [ ] **DB**: add `youtube_links` table (player_id, url, title, added_by, created_at) or JSONB array field on players
+- [ ] **Player profile**: new "Vídeos" section with YouTube links
+- [ ] **Embedded player**: inline YouTube embed (iframe) to watch clips directly in the app
+- [ ] **Add/remove links**: admin/editor can add YouTube URLs, auto-extract video title/thumbnail
+- [ ] **Validation**: only accept youtube.com and youtu.be URLs
+
+#### 5C. Tactical Formations per Age Group
+Allow choosing the tactical system (formation) for each escalão's real and shadow squads.
+
+- [ ] **DB**: add `formation` field to age_groups (e.g. '4-3-3', '4-4-2', '3-5-2') or separate config table
+- [ ] **Formation selector**: dropdown in squad view header to pick system per escalão
+- [ ] **Dynamic pitch layout**: MiniPitch/FieldView adapts positions to the chosen formation
+- [ ] **Position slots**: squad slots match the formation (e.g. 4-3-3 = 1 GR + 2 DC + 1 DD + 1 DE + 3 MC + 2 EXT + 1 PL)
+- [ ] **Persist per age group**: each escalão remembers its formation choice
+
+**Deliverable:** Polished mobile experience, video-enriched player profiles, tactical flexibility per escalão.
+
 ---
 
 ## 10. Data Files & Scripts
