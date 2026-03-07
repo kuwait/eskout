@@ -1,6 +1,6 @@
 // src/app/jogadores/page.tsx
 // Player database page — lists all players for the selected age group
-// Server component that passes data to client-side table/card/filter components
+// Server component that renders client-side table/card/filter components
 // RELEVANT FILES: src/components/players/PlayerTable.tsx, src/components/players/PlayerCard.tsx, src/components/players/PlayerFilters.tsx
 
 import { PlayersView } from '@/components/players/PlayersView';

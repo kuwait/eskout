@@ -597,6 +597,61 @@ export async function getAllProfiles(): Promise<Profile[]> {
   }));
 }
 
+/** Fetch all players with ratings and notes — used by home page and jogadores page for instant render */
+export async function fetchAllPlayers(): Promise<Player[]> {
+  const supabase = await createClient();
+  const MAX = 4999;
+
+  const [playersRes, reportsRes, evalsRes, notesRes] = await Promise.all([
+    supabase.from('players').select('*').order('name').range(0, MAX),
+    supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(0, MAX),
+    supabase.from('scout_evaluations').select('player_id, rating').range(0, MAX),
+    supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(0, MAX),
+  ]);
+
+  // Build note previews map
+  const notesMap = new Map<number, string[]>();
+  if (notesRes.data) {
+    for (const n of notesRes.data) {
+      const arr = notesMap.get(n.player_id) ?? [];
+      arr.push(n.content);
+      notesMap.set(n.player_id, arr);
+    }
+  }
+
+  const players: Player[] = ((playersRes.data ?? []) as unknown as PlayerRow[]).map((row) => {
+    const player = mapPlayerRow(row);
+    player.observationNotePreviews = notesMap.get(row.id) ?? [];
+    return player;
+  });
+
+  // Build rating aggregates
+  const agg = new Map<number, { sum: number; count: number }>();
+  const addRating = (playerId: number, rating: number) => {
+    const existing = agg.get(playerId) ?? { sum: 0, count: 0 };
+    existing.sum += rating;
+    existing.count += 1;
+    agg.set(playerId, existing);
+  };
+
+  if (reportsRes.data) {
+    for (const r of reportsRes.data) addRating(r.player_id, r.rating!);
+  }
+  if (evalsRes.data) {
+    for (const e of evalsRes.data) addRating(e.player_id, e.rating);
+  }
+
+  for (const p of players) {
+    const stats = agg.get(p.id);
+    if (stats) {
+      p.reportAvgRating = Math.round((stats.sum / stats.count) * 10) / 10;
+      p.reportRatingCount = stats.count;
+    }
+  }
+
+  return players;
+}
+
 /** Fetch all players (full objects) for player picker dialogs */
 export async function getAllPlayers(): Promise<Player[]> {
   const supabase = await createClient();

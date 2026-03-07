@@ -16,7 +16,7 @@ export default function HomePage() {
         <Button asChild size="sm">
           <Link href="/jogadores/novo">
             <Plus className="mr-1 h-4 w-4" />
-            <span className="hidden sm:inline">Adicionar</span>
+            Adicionar
           </Link>
         </Button>
       </div>

@@ -185,7 +185,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
                             alt=""
                             width={56}
                             height={56}
-                            className="h-14 w-14 shrink-0 rounded-full object-cover"
+                            className="h-14 w-14 shrink-0 rounded-xl object-cover"
                             unoptimized
                           />
                         </HoverCardTrigger>
@@ -201,7 +201,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
                         </HoverCardContent>
                       </HoverCard>
                     ) : (
-                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-400">
                         <User className="h-6 w-6" />
                       </span>
                     )}
