@@ -1110,6 +1110,67 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promis
   };
 }
 
+/* ───────────── Scout Report: FPF + auto-find ZZ ───────────── */
+
+export interface ScoutReportScrapeResult extends ScrapedNewPlayerData {
+  zzLinkFound: string | null;
+  zzCandidateName: string | null;
+  zzCandidateAge: number | null;
+  zzCandidateClub: string | null;
+  zzPhotoUrl: string | null;
+}
+
+/** Used by /submeter — scrapes FPF, tries to auto-find ZZ link, then scrapes ZZ too */
+export async function scrapeForScoutReport(
+  fpfLink: string,
+  zzLink?: string,
+): Promise<ScoutReportScrapeResult> {
+  const EMPTY_ZZ = { zzLinkFound: null, zzCandidateName: null, zzCandidateAge: null, zzCandidateClub: null, zzPhotoUrl: null };
+
+  // Step 1: scrape FPF first to get name + DOB
+  const fpfData = await fetchFpfData(fpfLink).catch(() => null);
+  if (!fpfData || !fpfData.fullName) {
+    return {
+      success: false, errors: ['Não foi possível obter dados do FPF'],
+      name: null, dob: null, club: null, position: null, positionRaw: null,
+      secondaryPosition: null, tertiaryPosition: null, foot: null,
+      shirtNumber: null, photoUrl: null, height: null, weight: null,
+      nationality: null, birthCountry: null, ...EMPTY_ZZ,
+    };
+  }
+
+  // Step 2: if no ZZ link provided, try to find one automatically
+  let resolvedZzLink = zzLink?.trim() || null;
+  let candidate: ZzSearchCandidate | null = null;
+  if (!resolvedZzLink && fpfData.fullName && fpfData.dob) {
+    const birthDate = new Date(fpfData.dob);
+    const age = Math.floor((Date.now() - birthDate.getTime()) / 31557600000);
+    candidate = await searchZzMultiStrategy(
+      fpfData.fullName,
+      fpfData.currentClub || null,
+      age,
+      fpfData.dob,
+    ).catch(() => null);
+    if (candidate?.url) {
+      resolvedZzLink = candidate.url.startsWith('http')
+        ? candidate.url
+        : `https://www.zerozero.pt${candidate.url}`;
+    }
+  }
+
+  // Step 3: scrape both with the resolved ZZ link
+  const result = await scrapeFromLinks(fpfLink, resolvedZzLink || undefined);
+
+  return {
+    ...result,
+    zzLinkFound: resolvedZzLink,
+    zzCandidateName: candidate?.name || result.name || null,
+    zzCandidateAge: candidate?.age || null,
+    zzCandidateClub: candidate?.club || result.club || null,
+    zzPhotoUrl: result.photoUrl || null,
+  };
+}
+
 /* ───────────── Auto-scrape on Link Change ───────────── */
 
 /** Called after saving a player profile — scrapes any links that changed */
