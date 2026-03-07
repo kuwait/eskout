@@ -176,14 +176,19 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
 
   return (
     <div className="relative">
-      <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending || feedback === 'ok'}>
+      <button
+        type="button"
+        onClick={handleRefresh}
+        disabled={isPending || feedback === 'ok'}
+        className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50"
+      >
         {feedback === 'ok' ? (
-          <Check className="mr-1 h-3 w-3 text-emerald-500" />
+          <Check className="h-3.5 w-3.5 text-emerald-500" />
         ) : (
-          <RefreshCw className={`mr-1 h-3 w-3 ${isPending ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${isPending ? 'animate-spin' : ''}`} />
         )}
-        {isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar'}
-      </Button>
+        <span className="hidden sm:inline">{isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar'}</span>
+      </button>
       {/* Show partial errors as toast-like warning below button */}
       {feedback && feedback !== 'ok' && (
         <p className="absolute top-full mt-1 right-0 z-50 whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-700 shadow-sm">

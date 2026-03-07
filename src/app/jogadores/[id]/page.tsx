@@ -58,7 +58,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     .single();
 
   return (
-    <div className="p-4 lg:p-6">
+    <div className="px-3 py-2 sm:p-4 lg:p-6">
       <PlayerProfile
         player={player}
         userRole={role ?? 'scout'}

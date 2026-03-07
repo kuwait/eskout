@@ -6,13 +6,14 @@
 'use client';
 
 import { useId, useState, useTransition } from 'react';
-import { Star, ChevronRight } from 'lucide-react';
+import { Star, ChevronRight, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { upsertScoutEvaluation, deleteScoutEvaluation } from '@/actions/evaluations';
 import type { ScoutEvaluation } from '@/lib/types';
@@ -93,11 +94,17 @@ interface ScoutEvaluationsProps {
   currentUserId: string | null;
   /** Individual ratings extracted from scouting reports (included in global average) */
   reportRatings?: { rating: number; scoutName: string }[];
+  /** Which part to render: 'all' (default), 'personal' (my stars only), 'team' (aggregate bar only) */
+  part?: 'all' | 'personal' | 'team';
+  /** Compact mode — smaller stars, less padding (for embedding in header) */
+  compact?: boolean;
+  /** Extra className for the root container */
+  className?: string;
 }
 
 /* ───────────── Component ───────────── */
 
-export function ScoutEvaluations({ playerId, evaluations, currentUserId, reportRatings = [] }: ScoutEvaluationsProps) {
+export function ScoutEvaluations({ playerId, evaluations, currentUserId, reportRatings = [], part = 'all', compact = false, className }: ScoutEvaluationsProps) {
   const [isPending, startTransition] = useTransition();
   const [hoverRating, setHoverRating] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -134,13 +141,16 @@ export function ScoutEvaluations({ playerId, evaluations, currentUserId, reportR
     });
   }
 
+  const showPersonal = part === 'all' || part === 'personal';
+  const showTeam = part === 'all' || part === 'team';
+
   return (
-    <div className="space-y-3">
+    <div className={className ?? 'space-y-3'}>
       {/* ───────────── My rating — interactive stars ───────────── */}
-      {currentUserId && (
-        <div className="flex flex-col items-center gap-2 rounded-lg border bg-neutral-50/50 py-4">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">A tua avaliação</span>
-          <div className={`flex gap-1 ${isPending ? 'opacity-50' : ''}`}>
+      {showPersonal && currentUserId && (
+        <div className={`flex flex-col items-center rounded-lg border bg-neutral-50/50 ${compact ? 'h-full w-full justify-center gap-1 px-2 py-1' : 'gap-2 py-4'}`}>
+          <span className={`font-semibold uppercase tracking-widest text-muted-foreground ${compact ? 'text-[9px]' : 'text-[10px]'}`}>A tua avaliação</span>
+          <div className={`flex gap-0.5 ${isPending ? 'opacity-50' : ''}`}>
             {Array.from({ length: 5 }, (_, i) => {
               const starNum = i + 1;
               const filled = hoverRating > 0 ? starNum <= hoverRating : (myEval ? starNum <= myEval.rating : false);
@@ -152,11 +162,11 @@ export function ScoutEvaluations({ playerId, evaluations, currentUserId, reportR
                   onClick={() => handleRate(starNum)}
                   onMouseEnter={() => setHoverRating(starNum)}
                   onMouseLeave={() => setHoverRating(0)}
-                  className="p-0.5 transition-transform hover:scale-125"
+                  className={`transition-transform hover:scale-125 ${compact ? 'p-0' : 'p-0.5'}`}
                   title={RATING_LABELS[starNum]}
                 >
                   <Star
-                    className={`h-7 w-7 ${filled ? activeColors.star : 'text-neutral-200'}`}
+                    className={`${compact ? 'h-5 w-5' : 'h-7 w-7'} ${filled ? activeColors.star : 'text-neutral-200'}`}
                     fill={filled ? 'currentColor' : 'none'}
                     strokeWidth={1.5}
                   />
@@ -167,23 +177,23 @@ export function ScoutEvaluations({ playerId, evaluations, currentUserId, reportR
           {myEval && (() => {
             const c = RATING_COLORS[myEval.rating] ?? DEFAULT_COLORS;
             return (
-              <span className={`rounded-full px-3 py-0.5 text-xs font-bold ${c.text} ${c.bg}`}>
+              <span className={`rounded-full font-bold ${c.text} ${c.bg} ${compact ? 'px-2 py-0 text-[10px]' : 'px-3 py-0.5 text-xs'}`}>
                 {RATING_LABELS[myEval.rating]}
               </span>
             );
           })()}
           {!myEval && hoverRating > 0 && (
-            <span className={`text-xs font-medium ${activeColors.text}`}>{RATING_LABELS[hoverRating]}</span>
+            <span className={`font-medium ${activeColors.text} ${compact ? 'text-[10px]' : 'text-xs'}`}>{RATING_LABELS[hoverRating]}</span>
           )}
           {!myEval && hoverRating === 0 && (
-            <span className="text-[11px] text-muted-foreground/60">Clica para avaliar</span>
+            <span className={`text-muted-foreground/60 ${compact ? 'text-[9px]' : 'text-[11px]'}`}>Clica para avaliar</span>
           )}
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
       )}
 
       {/* ───────────── Global average — scout evals + report ratings, clickable for detail ───────────── */}
-      {globalCount > 0 && (
+      {showTeam && globalCount > 0 && (
         <Dialog>
           <DialogTrigger asChild>
             <button
@@ -200,89 +210,98 @@ export function ScoutEvaluations({ playerId, evaluations, currentUserId, reportR
               </div>
             </button>
           </DialogTrigger>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Avaliação Global</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 pt-1">
-              {/* Current user's evaluation — pinned at top */}
-              {myEval && (() => {
-                const c = RATING_COLORS[myEval.rating] ?? DEFAULT_COLORS;
-                return (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">A tua avaliação</p>
-                    <div className={`flex items-center gap-2.5 rounded-md border px-3 py-2 ${c.bg} ${c.border}`}>
-                      <span className={`text-lg font-black ${c.text}`}>{myEval.rating}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-neutral-800">{myEval.userName}</p>
-                        <p className={`text-[10px] font-semibold ${c.text}`}>{RATING_LABELS[myEval.rating]}</p>
-                      </div>
-                      <div className="flex gap-0.5">
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <Star key={i} className={`h-3.5 w-3.5 ${i < myEval.rating ? c.star : 'text-neutral-200'}`} fill={i < myEval.rating ? 'currentColor' : 'none'} strokeWidth={1.5} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-              {/* Scouting report ratings */}
-              {reportRatings.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Relatórios ({reportRatings.length})</p>
-                  {reportRatings.map((r, i) => {
-                    const c = RATING_COLORS[r.rating] ?? DEFAULT_COLORS;
-                    return (
-                      <div key={`report-${i}`} className={`flex items-center gap-2.5 rounded-md border px-3 py-2 ${c.bg} ${c.border}`}>
-                        <span className={`text-lg font-black ${c.text}`}>{r.rating}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-neutral-800">{r.scoutName || `Relatório #${i + 1}`}</p>
-                          <p className={`text-[10px] font-semibold ${c.text}`}>{RATING_LABELS[r.rating]}</p>
-                        </div>
-                        <div className="flex gap-0.5">
-                          {Array.from({ length: 5 }, (_, j) => (
-                            <Star key={j} className={`h-3.5 w-3.5 ${j < r.rating ? c.star : 'text-neutral-200'}`} fill={j < r.rating ? 'currentColor' : 'none'} strokeWidth={1.5} />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {/* Other scouts' evaluations */}
-              {otherEvals.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Scouts ({otherEvals.length})</p>
-                  {[...otherEvals]
-                    .sort((a, b) => b.rating - a.rating || a.userName.localeCompare(b.userName))
-                    .map((ev) => {
-                      const c = RATING_COLORS[ev.rating] ?? DEFAULT_COLORS;
-                      return (
-                        <div key={ev.id} className={`flex items-center gap-2.5 rounded-md border px-3 py-2 ${c.bg} ${c.border}`}>
-                          <span className={`text-lg font-black ${c.text}`}>{ev.rating}</span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-neutral-800">{ev.userName}</p>
-                            <p className={`text-[10px] font-semibold ${c.text}`}>{RATING_LABELS[ev.rating]}</p>
-                          </div>
-                          <div className="flex gap-0.5">
-                            {Array.from({ length: 5 }, (_, i) => (
-                              <Star key={i} className={`h-3.5 w-3.5 ${i < ev.rating ? c.star : 'text-neutral-200'}`} fill={i < ev.rating ? 'currentColor' : 'none'} strokeWidth={1.5} />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
+          <DialogContent showCloseButton={false} className="flex max-h-[85dvh] max-w-sm flex-col gap-0 overflow-hidden p-0 sm:max-h-[70vh]">
+            {/* ── Minimal top bar — drag handle + close ── */}
+            <div className="relative shrink-0 pb-1 pt-3">
+              <div className="mx-auto h-1 w-10 rounded-full bg-neutral-300" />
+              <DialogClose className="absolute right-2 top-2 rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700">
+                <X className="h-4 w-4" />
+                <span className="sr-only">Fechar</span>
+              </DialogClose>
+              <DialogTitle className="sr-only">Avaliações</DialogTitle>
+            </div>
+
+            {/* ── Scrollable evaluation list — grouped by source ── */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-1 px-3 pb-4">
+                {/* My evaluation — highlighted card */}
+                {myEval && (
+                  <EvalSection label="A tua avaliação">
+                    <EvalRow name={myEval.userName} rating={myEval.rating} highlight />
+                  </EvalSection>
+                )}
+                {/* Scouting report ratings */}
+                {reportRatings.length > 0 && (
+                  <EvalSection label={`Relatórios (${reportRatings.length})`}>
+                    {reportRatings.map((r, i) => (
+                      <EvalRow key={`report-${i}`} name={r.scoutName || `Relatório #${i + 1}`} rating={r.rating} />
+                    ))}
+                  </EvalSection>
+                )}
+                {/* Other scouts */}
+                {otherEvals.length > 0 && (
+                  <EvalSection label={`Scouts (${otherEvals.length})`}>
+                    {[...otherEvals]
+                      .sort((a, b) => b.rating - a.rating || a.userName.localeCompare(b.userName))
+                      .map((ev) => (
+                        <EvalRow key={ev.id} name={ev.userName} rating={ev.rating} />
+                      ))}
+                  </EvalSection>
+                )}
+              </div>
             </div>
           </DialogContent>
         </Dialog>
       )}
 
       {/* Empty state */}
-      {evaluations.length === 0 && !currentUserId && (
+      {showTeam && evaluations.length === 0 && !currentUserId && (
         <p className="text-sm text-muted-foreground">Sem avaliações</p>
       )}
+    </div>
+  );
+}
+
+/* ───────────── EvalRow — compact evaluation row for the detail popup ───────────── */
+
+/** Section wrapper — label + grouped card with dividers between rows */
+function EvalSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="pt-3 first:pt-0">
+      <div className="mb-2 flex items-center gap-2 px-0.5">
+        <span className="text-[8px] font-extrabold uppercase tracking-[0.15em] text-neutral-400">{label}</span>
+        <div className="h-px flex-1 bg-neutral-100" />
+      </div>
+      <div className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-100 bg-white">{children}</div>
+    </div>
+  );
+}
+
+/** Individual evaluation row — colored accent strip, avatar, name, stars, rating number */
+function EvalRow({ name, rating, highlight }: { name: string; rating: number; highlight?: boolean }) {
+  const c = RATING_COLORS[rating] ?? DEFAULT_COLORS;
+  return (
+    <div className={`group relative flex items-center gap-2.5 py-3 pl-4 pr-2 ${highlight ? c.bg : 'hover:bg-neutral-50/50'}`}>
+      {/* Left accent strip */}
+      <div className={`absolute left-0 top-[25%] h-[50%] w-[3px] rounded-r-full ${c.star.replace('text-', 'bg-')}`} />
+      {/* Avatar — small, colored */}
+      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${c.star.replace('text-', 'bg-')}`}>
+        {name.charAt(0).toUpperCase()}
+      </div>
+      {/* Name + stars row */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold leading-tight text-neutral-500">{name}</p>
+        <div className="mt-0.5 flex gap-0.5">
+          {Array.from({ length: 5 }, (_, i) => (
+            <Star key={i} className={`h-2.5 w-2.5 ${i < rating ? c.star : 'text-neutral-300'}`} fill="currentColor" strokeWidth={i < rating ? 1.5 : 0} />
+          ))}
+        </div>
+      </div>
+      {/* Rating number + label — fixed width so they align across rows */}
+      <div className="flex w-12 shrink-0 flex-col items-center">
+        <span className={`text-sm font-black leading-none ${c.text} opacity-50`}>{rating}</span>
+        <span className={`mt-0.5 text-[8px] font-medium ${c.text} opacity-40`}>{RATING_LABELS[rating]}</span>
+      </div>
     </div>
   );
 }

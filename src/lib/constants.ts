@@ -103,7 +103,7 @@ export const RECRUITMENT_STATUSES: {
   { value: 'a_decidir', labelPt: 'A decidir', color: '#1e40af', tailwind: 'bg-blue-800 text-white' },
   { value: 'confirmado', labelPt: 'Confirmado', color: '#22c55e', tailwind: 'bg-green-500 text-white' },
   { value: 'assinou', labelPt: 'Assinou', color: '#16a34a', tailwind: 'bg-green-700 text-white' },
-  { value: 'rejeitado', labelPt: 'Rejeitado', color: '#ef4444', tailwind: 'bg-red-500 text-white' },
+  { value: 'rejeitado', labelPt: 'Recusou vir', color: '#ef4444', tailwind: 'bg-red-500 text-white' },
 ];
 
 export const RECRUITMENT_STATUS_MAP: Record<RecruitmentStatus, string> = Object.fromEntries(

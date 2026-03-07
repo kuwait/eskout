@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, ExternalLink, Camera, Pencil, Printer, Save, Trash2, User, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, CircleCheckBig, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, MessageCircle, Pencil, PenLine, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// Card components used by other pages — Section below uses custom layout
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
@@ -48,6 +48,11 @@ import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { ClubBadge } from '@/components/common/ClubBadge';
 import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
+import {
+  Dialog as PitchDialog,
+  DialogContent as PitchDialogContent,
+  DialogTitle as PitchDialogTitle,
+} from '@/components/ui/dialog';
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes, AddNoteButton } from '@/components/players/ObservationNotes';
 import { StatusHistory } from '@/components/players/StatusHistory';
@@ -104,6 +109,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [savedDraft, setSavedDraft] = useState<typeof player | null>(null);
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPitchPopup, setShowPitchPopup] = useState(false);
   const [isDeleting, startDelete] = useTransition();
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
@@ -303,19 +309,23 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
   return (
     <div ref={profileRef} className="mx-auto max-w-5xl space-y-3">
-      {/* Back + Edit buttons (hidden during export/print capture) */}
-      <div data-export-hide className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={onClose ?? (() => router.back())}>
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Voltar
-        </Button>
+      {/* Action bar — back + contextual actions */}
+      <div data-export-hide className="flex items-center justify-between rounded-xl border bg-neutral-50/50 px-2 py-1.5 shadow-sm sm:px-3">
+        <button
+          onClick={onClose ?? (() => router.back())}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Voltar</span>
+        </button>
         {!editing && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" title="Exportar">
-                  <Download className="h-4 w-4" />
-                </Button>
+                <button className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm" title="Partilhar">
+                  <Share2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Partilhar</span>
+                </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={handleExportImage}>
@@ -328,44 +338,45 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <div className="mx-0.5 h-4 w-px bg-neutral-200" />
             <RefreshPlayerButton player={player} />
             {canEdit && (
-              <Button variant="outline" size="sm" onClick={handleEdit}>
-                <Pencil className="mr-1 h-3 w-3" />
-                Editar
-              </Button>
+              <button onClick={handleEdit} className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm">
+                <Pencil className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Editar</span>
+              </button>
             )}
           </div>
         )}
         {editing && (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1">
             {isAdmin && (
-              <Button
-                variant="destructive"
-                size="sm"
+              <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={isPending || isDeleting}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 hover:shadow-sm disabled:opacity-50"
               >
-                <Trash2 className="mr-1 h-3 w-3" />
-                Eliminar
-              </Button>
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Eliminar</span>
+              </button>
             )}
-            <Button size="sm" onClick={handleSave} disabled={isPending || isDeleting}>
-              <Save className="mr-1 h-3 w-3" />
-              Guardar
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isDeleting}>
-              <X className="mr-1 h-3 w-3" />
-              Cancelar
-            </Button>
+            <button onClick={handleSave} disabled={isPending || isDeleting} className="flex items-center gap-1 rounded-lg bg-neutral-900 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50">
+              <Save className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Guardar</span>
+            </button>
+            <button onClick={handleCancel} disabled={isDeleting} className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50">
+              <X className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Cancelar</span>
+            </button>
           </div>
         )}
       </div>
 
       {/* ───────────── Header with Photo ───────────── */}
+      {/* Left column (photo+pitch) defines height; right column clips to fit on mobile */}
       <div className="flex gap-4">
-        {/* Photo: manual URL > ZeroZero > fallback icon */}
-        <div className="shrink-0">
+        {/* Photo + MiniPitch + positions — defines header height */}
+        <div className="flex shrink-0 flex-col items-center gap-1.5">
           {(() => {
             const photoSrc = p.photoUrl || p.zzPhotoUrl;
             return photoSrc ? (
@@ -383,8 +394,47 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </div>
             );
           })()}
+          {/* MiniPitch + positions below photo — mobile/tablet only */}
+          {!editing && p.positionNormalized && (
+            <div className="flex flex-col items-center gap-1 xl:hidden">
+              <div
+                className="cursor-pointer"
+                onClick={() => setShowPitchPopup(true)}
+                role="button"
+                tabIndex={0}
+                title="Ver campo maior"
+              >
+                <PitchCanvas
+                  primaryPosition={p.positionNormalized as PositionCode}
+                  secondaryPosition={p.secondaryPosition as PositionCode | null}
+                  tertiaryPosition={p.tertiaryPosition as PositionCode | null}
+                  size="sm"
+                  className="h-[75px] w-28 sm:h-[85px] sm:w-32"
+                />
+              </div>
+              {/* Position badges below pitch */}
+              <div className="flex flex-wrap justify-center gap-1">
+                <span className="flex items-center gap-1 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                  {p.positionNormalized}
+                </span>
+                {p.secondaryPosition && (
+                  <span className="flex items-center gap-1 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                    {p.secondaryPosition}
+                  </span>
+                )}
+                {p.tertiaryPosition && (
+                  <span className="flex items-center gap-1 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-400" />
+                    {p.tertiaryPosition}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-        <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 xl:gap-2">
           {editing ? (
             <Input
               value={draft.name}
@@ -393,11 +443,18 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             />
           ) : (
             <div className="flex items-baseline gap-2">
-              <h1 className="text-2xl font-bold">{p.name}</h1>
+              <h1 className="truncate font-bold xl:text-2xl" style={{ fontSize: 'clamp(1rem, 4.5vw, 1.5rem)' }}>{shortenName(p.name)}</h1>
               <ObservationBadge player={p} showLabel />
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-2 text-sm">
+          {/* Club — mobile only (desktop shows in Info Básica) */}
+          {!editing && p.club && (
+            <div className="xl:hidden">
+              <ClubBadge club={p.club} logoUrl={p.clubLogoUrl} size="sm" />
+            </div>
+          )}
+          {/* Positions row — hidden on mobile (shown under MiniPitch instead) */}
+          <div className="hidden flex-wrap items-center gap-2 text-sm xl:flex">
             {p.positionNormalized && (
               <span className="flex items-center gap-1.5 rounded bg-neutral-100 px-2 py-0.5 font-medium">
                 <span className="inline-block h-2 w-2 rounded-full bg-green-500" title="Principal" />
@@ -416,49 +473,26 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.tertiaryPosition}
               </span>
             )}
-            <OpinionBadge opinion={p.departmentOpinion} />
+            <OpinionBadge opinion={p.departmentOpinion} variant="compact" />
           </div>
-          {/* Mobile-only rating pill — compact */}
-          {!editing && (hybridAvgRating !== null || p.observerEval) && (() => {
-            const primaryValue = hybridAvgRating ?? (p.observerEval ? parseRating(p.observerEval).rating : 0);
-            const primaryInt = Math.round(primaryValue);
-            const c = RATING_COLOR_MAP[primaryInt] ?? RATING_DEFAULT;
-            const isAvg = hybridAvgRating !== null;
-            const displayValue = isAvg ? hybridAvgRating.toFixed(1) : String(primaryValue);
-            return (
-              <div className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 xl:hidden ${c.bg} ${c.border}`}>
-                <span className={`text-xl font-black leading-none ${c.num}`}>{displayValue}</span>
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">Aval.</span>
-              </div>
-            );
-          })()}
-          {/* External links */}
-          {!editing && (p.fpfLink || p.zerozeroLink) && (
-            <div className="flex flex-wrap gap-1.5">
-              {p.fpfLink && (
-                <a
-                  href={p.fpfLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors hover:bg-neutral-50"
-                >
-                  <Image src="https://upload.wikimedia.org/wikipedia/pt/7/75/Portugal_FPF.png" alt="FPF" width={16} height={16} className="h-4 w-4 object-contain" unoptimized />
-                  FPF
-                  <ExternalLink className="h-2.5 w-2.5 text-muted-foreground" />
-                </a>
-              )}
-              {p.zerozeroLink && (
-                <a
-                  href={p.zerozeroLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors hover:bg-neutral-50"
-                >
-                  <Image src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Zerozero-logo.svg/1280px-Zerozero-logo.svg.png" alt="ZeroZero" width={16} height={16} className="h-4 w-4 object-contain" unoptimized />
-                  ZeroZero
-                  <ExternalLink className="h-2.5 w-2.5 text-muted-foreground" />
-                </a>
-              )}
+          {/* Opinion badge — mobile only */}
+          {p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
+            <div className="xl:hidden">
+              <OpinionBadge opinion={p.departmentOpinion} variant="compact" />
+            </div>
+          )}
+          {/* My rating — mobile only, fills remaining header height defined by left column */}
+          {!editing && (
+            <div className="min-h-0 flex-1 overflow-hidden xl:hidden">
+              <ScoutEvaluations
+                playerId={p.id}
+                evaluations={scoutEvaluations}
+                currentUserId={currentUserId}
+                reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
+                part="personal"
+                className="flex h-full w-full items-center justify-center"
+                compact
+              />
             </div>
           )}
         </div>
@@ -625,41 +659,89 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         </div>
       ) : (
         /* ───────────── View mode: two columns on lg ───────────── */
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {/* Left column: player data & docs */}
-          <div className="space-y-3">
-            <Section title="Informação Básica">
-              <InfoGrid>
-                {p.dob && <InfoItem label="Data Nascimento" value={formatDate(p.dob)} />}
+        /* Mobile order: Avaliação → Info Básica → Observação → Notas → Recrutamento → Histórico */
+        <>
+        {/* Aggregate rating bar — mobile only, above the grid */}
+        <div className="xl:hidden">
+          <ScoutEvaluations
+            playerId={p.id}
+            evaluations={scoutEvaluations}
+            currentUserId={currentUserId}
+            reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
+            part="team"
+          />
+        </div>
+
+        <div className="mt-3 flex flex-col gap-3 lg:mt-0 lg:grid lg:grid-cols-2">
+          {/* ── Col Left (desktop): Info, Observação, Notas ── */}
+          <div className="order-1 space-y-3 lg:order-none">
+            <Section
+              title="Informação Básica"
+              action={
+                /* FPF/ZZ icon links in section title */
+                (p.fpfLink || p.zerozeroLink) ? (
+                  <div className="flex gap-1">
+                    {p.fpfLink && (
+                      <a href={p.fpfLink} target="_blank" rel="noopener noreferrer" className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors hover:bg-neutral-50" title="FPF">
+                        <Image src="https://upload.wikimedia.org/wikipedia/pt/7/75/Portugal_FPF.png" alt="FPF" width={16} height={16} className="h-4 w-4 object-contain" unoptimized />
+                      </a>
+                    )}
+                    {p.zerozeroLink && (
+                      <a href={p.zerozeroLink} target="_blank" rel="noopener noreferrer" className="flex h-7 w-7 items-center justify-center rounded-md border transition-colors hover:bg-neutral-50" title="ZeroZero">
+                        <Image src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Zerozero-logo.svg/1280px-Zerozero-logo.svg.png" alt="ZeroZero" width={16} height={16} className="h-4 w-4 object-contain" unoptimized />
+                      </a>
+                    )}
+                  </div>
+                ) : undefined
+              }
+            >
+              <div className="grid grid-cols-2 gap-1.5">
+                {/* Full name — spans both columns when name was shortened in header */}
+                {p.name.trim().split(/\s+/).length > 2 && (
+                  <div className="col-span-2">
+                    <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Nome completo" value={p.name} />
+                  </div>
+                )}
+                {p.dob && (
+                  <InfoChip icon={<Calendar className="h-3.5 w-3.5" />} label="Nascimento" value={formatDate(p.dob)} />
+                )}
                 {p.club && (
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Clube</p>
-                    <ClubBadge
-                      club={p.club}
-                      logoUrl={p.clubLogoUrl}
-                      size="md"
-                      onRemoveLogo={p.clubLogoUrl ? () => {
-                        startTransition(async () => {
-                          const { updatePlayer } = await import('@/actions/players');
-                          await updatePlayer(player.id, { club_logo_url: null });
-                        });
-                      } : undefined}
-                    />
+                  <div className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white shadow-sm ring-1 ring-neutral-200/60">
+                      {p.clubLogoUrl ? (
+                        <Image src={p.clubLogoUrl} alt={p.club} width={18} height={18} className="h-[18px] w-[18px] object-contain" unoptimized />
+                      ) : (
+                        <Shirt className="h-3.5 w-3.5 text-neutral-500" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">Clube</p>
+                      <p className="line-clamp-2 font-semibold leading-snug" style={{ fontSize: 'clamp(0.65rem, 3vw, 0.875rem)' }}>{p.club}</p>
+                    </div>
                   </div>
                 )}
                 {p.shirtNumber && (
-                  <div>
-                    <p className="text-[11px] text-muted-foreground">Número</p>
-                    <JerseySvg number={p.shirtNumber} className="h-10 w-8 text-neutral-800" />
-                  </div>
+                  <InfoChip icon={<JerseySvg number={p.shirtNumber} className="h-5 w-4 text-neutral-700" />} label="Número" value={String(p.shirtNumber)} />
                 )}
-                {p.foot && <InfoItem label="Pé" value={FOOT_LABEL_MAP[p.foot] ?? p.foot} />}
-                {p.height && <InfoItem label="Altura" value={`${p.height} cm`} />}
-                {p.weight && <InfoItem label="Peso" value={`${p.weight} kg`} />}
-                {p.nationality && <InfoItem label="Nacionalidade" value={`${getNationalityFlag(p.nationality)} ${p.nationality}`} />}
-                {p.birthCountry && <InfoItem label="País Nascimento" value={`${getNationalityFlag(p.birthCountry)} ${p.birthCountry}`} />}
-                {p.referredBy && <InfoItem label="Referência" value={p.referredBy} />}
-              </InfoGrid>
+                {p.foot && (
+                  <InfoChip icon={<Footprints className="h-3.5 w-3.5" />} label="Pé" value={FOOT_LABEL_MAP[p.foot] ?? p.foot} />
+                )}
+                {p.height && (
+                  <InfoChip icon={<Ruler className="h-3.5 w-3.5" />} label="Altura" value={`${p.height} cm`} />
+                )}
+                {p.weight && (
+                  <InfoChip icon={<Weight className="h-3.5 w-3.5" />} label="Peso" value={`${p.weight} kg`} />
+                )}
+                {p.nationality && (
+                  <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.nationality)}</span>} label="Nacionalidade" value={p.nationality} />
+                )}
+                {p.birthCountry && (
+                  <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.birthCountry)}</span>} label="País Nasc." value={p.birthCountry} />
+                )}
+                {p.referredBy && (
+                  <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Referência" value={p.referredBy} />
+                )}
+              </div>
             </Section>
 
             {/* Observação — scout info, decision, and reports (hidden if completely empty) */}
@@ -670,19 +752,24 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               return (
                 <Section title="Observação">
                   {(observerNames.length > 0 || p.observerDecision) && (
-                    <InfoGrid>
+                    <div className="flex flex-col gap-2.5">
+                      {/* Decision badge — prominent colored pill */}
+                      {p.observerDecision && <DecisionBadge decision={p.observerDecision} />}
+                      {/* Observers */}
                       {observerNames.length > 0 && (
                         <div>
-                          <p className="text-xs font-medium text-muted-foreground">{observerNames.length > 1 ? 'Observadores' : 'Observador'}</p>
-                          <div className="mt-1 space-y-1.5">
+                          <p className="mb-1.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">{observerNames.length > 1 ? 'Observadores' : 'Observador'}</p>
+                          <div className="space-y-1">
                             {observerNames.map((name, i) => (
-                              <div key={i} className="rounded border-l-[3px] border-l-neutral-400 bg-neutral-50 py-1 pl-2.5 pr-2 text-sm font-medium">{name}</div>
+                              <div key={i} className="flex items-center gap-2 rounded-lg bg-neutral-50/80 px-2.5 py-1.5">
+                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[9px] font-bold text-neutral-600">{name.charAt(0).toUpperCase()}</div>
+                                <span className="truncate text-xs font-medium" style={{ fontSize: 'clamp(0.65rem, 3vw, 0.875rem)' }}>{name}</span>
+                              </div>
                             ))}
                           </div>
                         </div>
                       )}
-                      {p.observerDecision && <InfoItem label="Decisão" value={p.observerDecision} />}
-                    </InfoGrid>
+                    </div>
                   )}
 
                   {/* Relatórios — extracted reports or fallback to old-style links */}
@@ -713,15 +800,17 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             </Section>
           </div>
 
-          {/* Right column: activity */}
-          <div className="space-y-3">
-            {/* Scout evaluations — interactive stars + team aggregate */}
-            <ScoutEvaluations
-              playerId={p.id}
-              evaluations={scoutEvaluations}
-              currentUserId={currentUserId}
-              reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
-            />
+          {/* Right column: Avaliação (desktop), Recrutamento, Histórico */}
+          <div className="order-2 space-y-3 lg:order-none">
+            {/* Scout evaluations — desktop only (mobile splits personal/team) */}
+            <div className="hidden xl:block">
+              <ScoutEvaluations
+                playerId={p.id}
+                evaluations={scoutEvaluations}
+                currentUserId={currentUserId}
+                reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
+              />
+            </div>
 
             {/* Recrutamento — hidden when completely empty */}
             {(p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.contact || p.recruitmentNotes) && <Section title="Recrutamento">
@@ -743,21 +832,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                   <div className="space-y-3">
                     {/* Status card with description */}
                     {p.recruitmentStatus && (
-                      <div className={`rounded-lg border-l-[3px] px-3 py-2.5 ${statusCardStyle(p.recruitmentStatus).border} ${statusCardStyle(p.recruitmentStatus).bg}`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <StatusBadge status={p.recruitmentStatus} />
-                            {daysInStatus !== null && daysInStatus > 0 && (
-                              <span className="text-[11px] text-muted-foreground">
-                                há {daysInStatus} {daysInStatus === 1 ? 'dia' : 'dias'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          {statusDescription(p.recruitmentStatus)}
-                        </p>
-                      </div>
+                      <RecruitmentCard status={p.recruitmentStatus} daysInStatus={daysInStatus} trainingDate={p.trainingDate} meetingDate={p.meetingDate} signingDate={p.signingDate} />
                     )}
 
                     {/* Squad cards */}
@@ -804,29 +879,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                       </div>
                     )}
 
-                    {/* Key dates */}
-                    {(p.trainingDate || p.meetingDate || p.signingDate) && (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                        {p.trainingDate && (
-                          <div className="rounded-md border bg-blue-50 p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">Treino</p>
-                            <p className="text-sm font-medium">{formatDateTime(p.trainingDate)}</p>
-                          </div>
-                        )}
-                        {p.meetingDate && (
-                          <div className="rounded-md border bg-orange-50 p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-600">Reunião</p>
-                            <p className="text-sm font-medium">{formatDateTime(p.meetingDate)}</p>
-                          </div>
-                        )}
-                        {p.signingDate && (
-                          <div className="rounded-md border bg-green-50 p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600">Assinatura</p>
-                            <p className="text-sm font-medium">{formatDateTime(p.signingDate)}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
 
                     {/* Contact */}
                     {p.contact && (
@@ -917,6 +969,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             })()}
           </div>
         </div>
+        </>
       )}
 
       {/* Delete confirmation dialog */}
@@ -941,6 +994,22 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* MiniPitch enlarged popup (mobile click-to-expand) */}
+      {p.positionNormalized && (
+        <PitchDialog open={showPitchPopup} onOpenChange={setShowPitchPopup}>
+          <PitchDialogContent className="flex max-w-sm items-center justify-center border-0 bg-transparent p-2 shadow-none [&>button]:hidden">
+            <PitchDialogTitle className="sr-only">Posições no campo</PitchDialogTitle>
+            <PitchCanvas
+              primaryPosition={p.positionNormalized as PositionCode}
+              secondaryPosition={p.secondaryPosition as PositionCode | null}
+              tertiaryPosition={p.tertiaryPosition as PositionCode | null}
+              size="lg"
+              className="h-56 w-full max-w-[340px]"
+            />
+          </PitchDialogContent>
+        </PitchDialog>
+      )}
     </div>
   );
 }
@@ -949,15 +1018,20 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
 function Section({ title, action, children, stretch }: { title: string; action?: React.ReactNode; children: React.ReactNode; stretch?: boolean }) {
   return (
-    <Card className={stretch ? 'flex h-full flex-col' : ''}>
-      <CardHeader className="px-4 pb-1.5 pt-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
-          {action}
+    <div className={`rounded-xl border bg-card px-4 py-3 shadow-sm ${stretch ? 'flex h-full flex-col' : ''}`}>
+      {/* Title bar — accent pill + compact layout */}
+      <div className="flex items-center justify-between pb-2">
+        <div className="flex items-center gap-2">
+          <div className="h-3.5 w-1 rounded-full bg-neutral-800" />
+          <span className="text-xs font-bold uppercase tracking-wider text-neutral-600">{title}</span>
         </div>
-      </CardHeader>
-      <CardContent className={`px-4 pb-3 pt-0 ${stretch ? 'flex-1' : ''}`}>{children}</CardContent>
-    </Card>
+        {action}
+      </div>
+      {/* Separator */}
+      <div className="-mx-4 border-b" />
+      {/* Content */}
+      <div className={`pt-3 ${stretch ? 'flex-1' : ''}`}>{children}</div>
+    </div>
   );
 }
 
@@ -970,20 +1044,59 @@ function EditField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
+/** Decision colors — matches ScoutingReports.tsx DECISION_STYLES */
+const DECISION_BADGE_STYLES: Record<string, { icon: string; bg: string; text: string; border: string }> = {
+  'Assinar':        { icon: 'text-green-600',  bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200' },
+  'Acompanhar':     { icon: 'text-yellow-500', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
+  'Rever':          { icon: 'text-blue-500',   bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
+  'Sem Interesse':  { icon: 'text-red-500',    bg: 'bg-red-50',    text: 'text-red-600',    border: 'border-red-200' },
+  'Sem interesse':  { icon: 'text-red-500',    bg: 'bg-red-50',    text: 'text-red-600',    border: 'border-red-200' },
+};
+const DECISION_DEFAULT_STYLE = { icon: 'text-neutral-400', bg: 'bg-neutral-50', text: 'text-neutral-600', border: 'border-neutral-200' };
+
+/** Colored decision badge with icon — used in Observação section */
+function DecisionBadge({ decision }: { decision: string }) {
+  const s = DECISION_BADGE_STYLES[decision] ?? DECISION_DEFAULT_STYLE;
+  return (
+    <div className={`flex items-center gap-2.5 rounded-lg border ${s.border} ${s.bg} px-3 py-2`}>
+      <CircleCheckBig className={`h-5 w-5 shrink-0 ${s.icon}`} />
+      <div className="min-w-0">
+        <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">Decisão</p>
+        <p className={`text-sm font-bold ${s.text}`}>{decision}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Compact info chip — icon + label/value, used in Info Básica grid */
+function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200/60">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">{label}</p>
+        <p className="truncate text-sm font-semibold leading-snug">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 function InfoGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">{children}</div>
+    <div className="grid grid-cols-2 gap-2">{children}</div>
   );
 }
 
 function InfoItem({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    <div className="rounded-lg bg-neutral-50 px-2.5 py-2">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">{label}</p>
       {highlight ? (
-        <p className="text-sm font-bold tracking-tight">{value}</p>
+        <p className="mt-0.5 truncate text-sm font-bold">{value}</p>
       ) : (
-        <p className="text-sm">{value}</p>
+        <p className="mt-0.5 truncate text-sm font-medium">{value}</p>
       )}
     </div>
   );
@@ -1202,6 +1315,101 @@ function EditPitchPicker({ primary, secondary, tertiary, onPrimaryChange, onSeco
   );
 }
 
+/* ───────────── Recruitment Card — visual pipeline tracker ───────────── */
+
+/** Pipeline steps in order (rejeitado is special — shown as end state) */
+const PIPELINE_STEPS = ['por_tratar', 'a_observar', 'em_contacto', 'vir_treinar', 'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou'] as const;
+
+/** Icon + color per status */
+const STATUS_VISUAL: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string; ring: string }> = {
+  por_tratar:      { icon: Clock,          color: 'text-neutral-500', bg: 'bg-neutral-100',   ring: 'ring-neutral-300' },
+  a_observar:      { icon: Eye,            color: 'text-yellow-600',  bg: 'bg-yellow-100',    ring: 'ring-yellow-300' },
+  em_contacto:     { icon: MessageCircle,  color: 'text-purple-600',  bg: 'bg-purple-100',    ring: 'ring-purple-300' },
+  vir_treinar:     { icon: User,           color: 'text-blue-600',    bg: 'bg-blue-100',      ring: 'ring-blue-300' },
+  reuniao_marcada: { icon: Handshake,      color: 'text-orange-600',  bg: 'bg-orange-100',    ring: 'ring-orange-300' },
+  a_decidir:       { icon: Clock,          color: 'text-blue-800',    bg: 'bg-blue-100',      ring: 'ring-blue-400' },
+  confirmado:      { icon: Check,          color: 'text-green-600',   bg: 'bg-green-100',     ring: 'ring-green-300' },
+  assinou:         { icon: PenLine,        color: 'text-green-700',   bg: 'bg-green-100',     ring: 'ring-green-400' },
+  rejeitado:       { icon: XCircle,        color: 'text-red-600',     bg: 'bg-red-100',       ring: 'ring-red-300' },
+};
+const STATUS_DEFAULT_VIS = { icon: Clock, color: 'text-neutral-500', bg: 'bg-neutral-100', ring: 'ring-neutral-300' };
+
+function RecruitmentCard({ status, daysInStatus, trainingDate, meetingDate, signingDate }: {
+  status: RecruitmentStatus;
+  daysInStatus: number | null;
+  trainingDate?: string | null;
+  meetingDate?: string | null;
+  signingDate?: string | null;
+}) {
+  const vis = STATUS_VISUAL[status] ?? STATUS_DEFAULT_VIS;
+  const Icon = vis.icon;
+  const label = RECRUITMENT_LABEL_MAP[status as RecruitmentStatus] ?? status;
+  const desc = statusDescription(status);
+  const isRejected = status === 'rejeitado';
+
+  // Current step index in the pipeline (rejeitado maps to end)
+  const currentIdx = isRejected ? -1 : PIPELINE_STEPS.indexOf(status as typeof PIPELINE_STEPS[number]);
+
+  // Collect relevant dates
+  const dates: { label: string; value: string; color: string }[] = [];
+  if (trainingDate) dates.push({ label: 'Treino', value: formatDateTime(trainingDate), color: 'text-blue-600' });
+  if (meetingDate) dates.push({ label: 'Reunião', value: formatDateTime(meetingDate), color: 'text-orange-600' });
+  if (signingDate) dates.push({ label: 'Assinatura', value: formatDateTime(signingDate), color: 'text-green-600' });
+
+  return (
+    <div className="rounded-xl border bg-white">
+      {/* Mini pipeline progress — dots connected by lines */}
+      {!isRejected && (
+        <div className="flex items-center justify-between px-4 pt-3">
+          {PIPELINE_STEPS.map((step, i) => {
+            const stepVis = STATUS_VISUAL[step] ?? STATUS_DEFAULT_VIS;
+            const isActive = i === currentIdx;
+            const isPast = i < currentIdx;
+            const dotColor = isActive ? stepVis.bg.replace('bg-', 'bg-') : isPast ? 'bg-neutral-300' : 'bg-neutral-200';
+            return (
+              <div key={step} className="flex flex-1 items-center">
+                <div className={`shrink-0 rounded-full ${isActive ? `h-2.5 w-2.5 ${dotColor} ring-2 ${stepVis.ring} ring-offset-1` : `h-1.5 w-1.5 ${dotColor}`}`} title={RECRUITMENT_LABEL_MAP[step as RecruitmentStatus]} />
+                {i < PIPELINE_STEPS.length - 1 && (
+                  <div className={`h-px flex-1 ${isPast ? 'bg-neutral-300' : 'bg-neutral-100'}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {/* Status content */}
+      <div className="flex items-start gap-3 px-3 py-3">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${vis.bg}`}>
+          <Icon className={`h-5 w-5 ${vis.color}`} />
+        </div>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <div className="flex items-baseline gap-2">
+            <span className={`text-sm font-bold ${vis.color}`}>{label}</span>
+            {daysInStatus !== null && daysInStatus > 0 && (
+              <span className="text-[10px] text-muted-foreground/50">há {daysInStatus}d</span>
+            )}
+          </div>
+          {desc && <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground/60">{desc}</p>}
+        </div>
+      </div>
+      {/* Dates — inline inside the card */}
+      {dates.length > 0 && (
+        <div className="border-t border-neutral-100 px-3 py-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {dates.map((d) => (
+              <div key={d.label} className="flex items-center gap-1.5">
+                <Calendar className="h-3 w-3 text-muted-foreground/40" />
+                <span className={`text-[10px] font-semibold ${d.color}`}>{d.label}</span>
+                <span className="text-[10px] text-muted-foreground/70">{d.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ───────────── Recruitment status descriptions & styles ───────────── */
 
 function statusDescription(status: RecruitmentStatus | null): string {
@@ -1214,7 +1422,7 @@ function statusDescription(status: RecruitmentStatus | null): string {
     a_decidir: 'Processo avançado, aguarda decisão do departamento.',
     confirmado: 'Jogador confirmado, a preparar assinatura.',
     assinou: 'Processo concluído — jogador assinou.',
-    rejeitado: 'Descartado — não se adequa ao perfil.',
+    rejeitado: 'Jogador rejeitou a proposta ou não quer vir.',
   };
   return map[status ?? ''] ?? '';
 }
@@ -1298,6 +1506,13 @@ function EvalRating({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+/** First name + last name (e.g. "Leonardo Diego Baptista Santos" → "Leonardo Santos") */
+function shortenName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 2) return fullName;
+  return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
 function formatDate(dateStr: string): string {

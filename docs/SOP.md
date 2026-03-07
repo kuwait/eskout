@@ -1579,13 +1579,19 @@ The app is mobile-first but the current iPhone experience needs significant impr
 - [ ] **Bottom navigation redesign** — current tab bar is hard to use on iPhone; needs larger touch targets, better spacing, clearer visual feedback, possibly swipe gestures
 - [ ] **Full mobile UX audit** — go through every feature on iPhone and fix usability issues:
   - Player table/list scrolling and interaction
-  - Player profile layout on small screens
+  - ~~Player profile layout on small screens~~ DONE
   - Squad/formation view touch interactions
   - Pipeline kanban on mobile
   - Filter panels and dropdowns
   - Form inputs (add player, submit report, etc.)
-  - Dialog/modal sizing and scrolling
+  - ~~Dialog/modal sizing and scrolling~~ DONE
   - Export page layout
+- [x] **Player profile mobile revamp** — MiniPitch below photo (clickable popup), position badges, personal rating in header, shortened name, InfoChip-based Info Basica, Section visual revamp (accent pill + separator), observer avatars, DecisionBadge, action bar icon-only on mobile, FPF/ZZ links in Info Basica title
+- [x] **Scout evaluations popup revamp** — bottom sheet with drag handle, scrollable, grouped sections (Tu/Relatorios/Scouts), accent strip rows with avatar + inline stars + rating number
+- [x] **OpinionBadge compact variant** — tinted border + text style for header (mobile + desktop)
+- [x] **RecruitmentCard** — mini pipeline progress tracker with step dots, status icon circle, integrated date display (treino/reuniao/assinatura), status descriptions
+- [x] **RefreshPlayerButton** — unified button styling matching action bar
+- [x] **"Recusou vir"** — renamed "Rejeitado" label to clarify it means the player refused
 
 #### 5B. YouTube Media Links
 Add video content to player profiles — scouts can attach YouTube clips of players in action.

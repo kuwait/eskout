@@ -10,18 +10,18 @@ import type { PositionCode } from '@/lib/types';
 /** Position coordinates on a horizontal pitch (percentage-based, GR at left, PL at right) */
 const PITCH_POSITIONS: Record<PositionCode, { x: number; y: number }> = {
   GR:  { x: 8,  y: 50 },
-  DD:  { x: 24, y: 82 },
+  DD:  { x: 24, y: 80 },
   DC:  { x: 22, y: 50 },
-  DE:  { x: 24, y: 18 },
+  DE:  { x: 24, y: 20 },
   MDC: { x: 35, y: 50 },
-  AD:  { x: 36, y: 88 },
-  MD:  { x: 50, y: 82 },
+  AD:  { x: 36, y: 84 },
+  MD:  { x: 50, y: 80 },
   MC:  { x: 50, y: 50 },
-  ME:  { x: 50, y: 18 },
-  AE:  { x: 36, y: 12 },
+  ME:  { x: 50, y: 20 },
+  AE:  { x: 36, y: 16 },
   MOC: { x: 62.5, y: 50 },
-  ED:  { x: 72, y: 86 },
-  EE:  { x: 72, y: 14 },
+  ED:  { x: 72, y: 82 },
+  EE:  { x: 72, y: 18 },
   SA:  { x: 80, y: 50 },
   PL:  { x: 88, y: 50 },
 };
@@ -40,10 +40,13 @@ interface PitchProps {
   secondaryPosition?: PositionCode | null;
   tertiaryPosition?: PositionCode | null;
   size: 'sm' | 'lg';
+  /** Override default dimensions — replaces the size-based width/height classes */
+  className?: string;
 }
 
-export function PitchCanvas({ primaryPosition, secondaryPosition, tertiaryPosition, size }: PitchProps) {
+export function PitchCanvas({ primaryPosition, secondaryPosition, tertiaryPosition, size, className }: PitchProps) {
   const isSm = size === 'sm';
+  const sizeClass = className ?? (isSm ? 'h-24 w-36' : 'h-80 w-[480px]');
 
   // Build a map of position → level for quick lookup
   const positionLevels = new Map<PositionCode, keyof typeof POSITION_LEVEL_COLORS>();
@@ -52,7 +55,7 @@ export function PitchCanvas({ primaryPosition, secondaryPosition, tertiaryPositi
   if (tertiaryPosition) positionLevels.set(tertiaryPosition, 'tertiary');
 
   return (
-    <div className={`relative overflow-hidden rounded-lg bg-emerald-700/90 ${isSm ? 'h-24 w-36' : 'h-80 w-[480px]'}`}>
+    <div className={`relative overflow-hidden rounded-lg bg-emerald-700/90 ${sizeClass}`}>
       {/* Pitch markings */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-1.5 rounded-sm border border-white/20" />
