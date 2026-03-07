@@ -17,7 +17,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, arrayMove, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SortableStatusColumn } from '@/components/pipeline/StatusColumn';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
@@ -99,19 +99,42 @@ function resolveStatus(id: string): RecruitmentStatus | null {
 
 /* ───────────── Component ───────────── */
 
+/** true when viewport ≥ 768px (md breakpoint) */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)');
+    setIsDesktop(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+  return isDesktop;
+}
+
 export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick }: KanbanBoardProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(DEFAULT_ORDER);
+  const isDragging = activePlayer !== null || activeColumnId !== null;
+  const isDesktop = useIsDesktop();
 
   // Load from localStorage on mount (SSR safe)
   useEffect(() => {
     setColumnOrder(loadColumnOrder());
   }, []);
 
+  // Lock body scroll while dragging to prevent scroll interference on mobile
+  useEffect(() => {
+    if (!isDragging) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isDragging]);
+
   // Require movement before activating — prevents accidental drags on tap
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 8 } });
-  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 8 } });
   const sensors = useSensors(pointerSensor, touchSensor);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -217,10 +240,29 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      {/* Single layout: vertical stack on mobile, horizontal scroll on desktop */}
-      <ScrollArea className="w-full">
-        <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-          <div className="flex flex-col gap-3 p-1 pb-4 md:flex-row">
+      {/* Vertical stack on mobile, horizontal scroll on desktop */}
+      {isDesktop ? (
+        <ScrollArea className="w-full">
+          <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+            <div className="flex flex-row gap-3 p-1 pb-4">
+              {columnOrder.map((status) => (
+                <SortableStatusColumn
+                  key={status}
+                  status={status}
+                  players={playersByStatus[status] ?? []}
+                  showBirthYear={showBirthYear}
+                  onPlayerClick={onPlayerClick}
+                  onRemove={onRemove}
+                  onDateChange={onDateChange}
+                />
+              ))}
+            </div>
+          </SortableContext>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      ) : (
+        <SortableContext items={columnIds} strategy={verticalListSortingStrategy}>
+          <div className={`flex flex-col gap-3 pb-4 ${isDragging ? 'overflow-hidden' : ''}`}>
             {columnOrder.map((status) => (
               <SortableStatusColumn
                 key={status}
@@ -234,13 +276,12 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
             ))}
           </div>
         </SortableContext>
-        <ScrollBar orientation="horizontal" className="hidden md:flex" />
-      </ScrollArea>
+      )}
 
       {/* Ghost card that follows the cursor while dragging */}
       <DragOverlay>
         {activePlayer && (
-          <div className="w-[220px] opacity-90">
+          <div className="w-[220px] scale-105 rounded-lg shadow-xl ring-2 ring-blue-400">
             <PipelineCard player={activePlayer} />
           </div>
         )}

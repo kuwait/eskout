@@ -56,7 +56,7 @@ export function PipelineView() {
     const supabase = createClient();
     let query = supabase.from('players').select('*');
     if (selectedId) query = query.eq('age_group_id', selectedId);
-    query.order('name').then(({ data, error }) => {
+    query.order('name').range(0, 4999).then(({ data, error }) => {
       if (!error && data) {
         startTransition(() => {
           setAllPlayers((data as PlayerRow[]).map(mapPlayerRow));
@@ -191,7 +191,7 @@ export function PipelineView() {
   }
 
   return (
-    <>
+    <div className="min-w-0 max-w-full overflow-x-hidden">
       {/* Title + Add button */}
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-xl font-bold lg:text-2xl">Abordagens</h1>
@@ -208,7 +208,7 @@ export function PipelineView() {
         {pipelinePlayers.length} jogador{pipelinePlayers.length !== 1 ? 'es' : ''} em abordagens
       </p>
 
-      {/* Kanban — same component for all screen sizes, horizontal scroll on mobile */}
+      {/* Kanban — same component for all screen sizes */}
       <KanbanBoard
         playersByStatus={playersByStatus}
         showBirthYear={showBirthYear}
@@ -229,8 +229,7 @@ export function PipelineView() {
           setDialogOpen(false);
         }}
       />
-
-    </>
+    </div>
   );
 }
 

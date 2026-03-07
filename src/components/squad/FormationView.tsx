@@ -105,7 +105,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
 
   // Require 8px movement before activating — prevents accidental drags on tap
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 8 } });
-  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 20 } });
   const sensors = useSensors(pointerSensor, touchSensor);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {

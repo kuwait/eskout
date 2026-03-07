@@ -148,7 +148,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
   return (
     <>
       <div
-        className="group relative rounded-md border bg-white p-2.5 pr-7 shadow-sm transition-shadow hover:shadow-md"
+        className="group relative select-none rounded-md border bg-white p-2.5 pr-7 shadow-sm transition-shadow hover:shadow-md"
       >
         <button
           type="button"

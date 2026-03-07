@@ -5,7 +5,7 @@
 
 'use client';
 
-import { forwardRef } from 'react';
+import { forwardRef, useRef, useEffect, useState, useCallback } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -50,15 +50,113 @@ function SortablePipelineCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
+  // Track if drag activated so we can distinguish tap from drag-and-release
+  const wasDragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) wasDragged.current = true;
+  }, [isDragging]);
+
+  // Long-press visual: show blue ring after 400ms hold (matches TouchSensor delay)
+  const [isHolding, setIsHolding] = useState(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHold = useCallback(() => {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    setIsHolding(false);
+  }, []);
+
+  // Store previous body overflow to restore on release
+  const prevOverflow = useRef<string>('');
+
+  // Cancel long press if finger moves — uses global touchmove because
+  // the browser stops sending pointermove to the element once scroll starts
+  const startPos = useRef<{ x: number; y: number } | null>(null);
+  const moveListener = useRef<((e: TouchEvent) => void) | null>(null);
+
+  function cleanupMoveListener() {
+    if (moveListener.current) {
+      document.removeEventListener('touchmove', moveListener.current);
+      moveListener.current = null;
+    }
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    startPos.current = { x: e.clientX, y: e.clientY };
+
+    // Global touchmove listener to detect scroll and cancel hold
+    cleanupMoveListener();
+    moveListener.current = (te: TouchEvent) => {
+      if (!startPos.current || !holdTimer.current) return;
+      const touch = te.touches[0];
+      const dx = touch.clientX - startPos.current.x;
+      const dy = touch.clientY - startPos.current.y;
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        clearTimeout(holdTimer.current);
+        holdTimer.current = null;
+        cleanupMoveListener();
+      }
+    };
+    document.addEventListener('touchmove', moveListener.current, { passive: true });
+
+    holdTimer.current = setTimeout(() => {
+      cleanupMoveListener();
+      setIsHolding(true);
+      wasLongPress.current = true;
+      // Lock body scroll immediately on long press activation
+      prevOverflow.current = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 400);
+  }
+
+  function handlePointerUp() {
+    startPos.current = null;
+    cleanupMoveListener();
+    // Restore body scroll if we locked it
+    if (wasLongPress.current || isHolding) {
+      document.body.style.overflow = prevOverflow.current;
+    }
+    clearHold();
+  }
+
+  // Clear hold state when drag starts (DragOverlay takes over)
+  useEffect(() => {
+    if (isDragging) clearHold();
+  }, [isDragging, clearHold]);
+
+  // wasLongPress tracks if hold timer fired (even without actual drag movement)
+  const wasLongPress = useRef(false);
+
+  function handleClick() {
+    if (wasDragged.current || wasLongPress.current) {
+      wasDragged.current = false;
+      wasLongPress.current = false;
+      return;
+    }
+    onPlayerClick?.(player.id);
+  }
+
+  const showRing = isHolding || isDragging;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="cursor-grab active:cursor-grabbing"
+      className={`touch-manipulation transition-all duration-150 ${
+        showRing ? 'scale-[1.03] rounded-lg shadow-lg ring-2 ring-blue-400' : ''
+      }`}
       {...attributes}
       {...listeners}
+      onPointerDown={(e: React.PointerEvent) => {
+        (listeners as any)?.onPointerDown?.(e);
+        handlePointerDown(e);
+      }}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onClick={handleClick}
     >
-      <PipelineCard player={player} showBirthYear={showBirthYear} onPlayerClick={onPlayerClick} onRemove={onRemove} onDateChange={onDateChange} />
+      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} />
     </div>
   );
 }
@@ -93,7 +191,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
           else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }}
         style={style}
-        className={`flex w-full flex-col rounded-lg bg-neutral-50 transition-colors md:min-w-[220px] md:w-auto ${
+        className={`flex w-full max-w-full flex-col overflow-hidden rounded-lg bg-neutral-50 transition-colors md:min-w-[220px] md:w-auto ${
           isOver ? 'border-2 border-blue-400' : 'border border-transparent'
         }`}
       >
