@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 6.1 | **Date:** March 6, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 7.0 | **Date:** March 7, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -233,14 +233,17 @@ All PDFs follow the same Boavista FC template. Fields to extract:
 
 ### 4.1. Authentication & User Management
 - Login page: email + password (Supabase Auth)
-- Four roles: `admin`, `master`, `scout`, `scout_externo`
-- Admin: create/edit/delete users, assign roles
+- Three roles: `admin`, `editor`, `scout`
+- Admin: full access — create/edit/delete users, assign roles, approve/reject scout reports, delete players
+- Editor: can edit players, manage squads/pipeline, approve/reject scout reports — cannot delete players or manage users
+- Scout: can only access `/submeter` (report submission) and `/meus-relatorios` (own reports) — redirected away from all other routes
+- User management: invite via email (Supabase Auth), set password on first login, soft delete (deactivate/reactivate)
 - Session persistence across browser sessions
 - Protected routes → redirect to login if unauthenticated
-- Role-based route protection:
-  - **Admin only:** `/admin/utilizadores`, `/importar`, `/exportar`
-  - **Admin + Master + Scout:** All main pages (dashboard, campo, jogadores, pipeline, posições, calendário)
-  - **Scout Externo:** Only `/submeter` (dedicated submission page) — redirected away from all other routes
+- Role-based route protection via middleware:
+  - **Admin only:** `/admin/*` (utilizadores, relatórios)
+  - **Admin + Editor:** All main pages (dashboard, campo, jogadores, pipeline, posições, calendário, alertas)
+  - **Scout:** Only `/submeter`, `/meus-relatorios`, `/mais` — all other routes redirect to `/meus-relatorios`
 
 ### 4.2. Age Group Selector
 - Three display variants:
@@ -420,18 +423,46 @@ For each of the 10 positions (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL):
 - Age group auto-determined from date of birth
 - New players default to: status=`pool`, opinion=`Por Observar`
 - **Duplicate detection** on save: checks FPF link, ZeroZero link, and name+DOB (case-insensitive). Returns existing player name and ID in error message.
-- Available to: Admin, Master, Scout
-- **Scout Externo** uses a separate dedicated submission page (`/submeter`) — see Section 4.16
+- Available to: Admin, Editor
+- **Scout** uses a separate submission page (`/submeter`) — see Section 4.16
 
-### 4.16. External Scout Submission Page (`/submeter`)
-Dedicated, simplified page for Scout Externo users.
+### 4.16. Scout Report Submission (`/submeter`)
+Dedicated mobile-first page for scouts to submit player observation reports.
 
-- Only page accessible to Scout Externo role (all other routes redirect here)
-- Simplified form: Name, Date of Birth, Position, Club, Foot, Notes
-- Auto-set: `created_by` = current user, `status` = `pool`, `opinion` = `Por Observar`
-- No access to existing player data, squads, pipeline, or any other feature
-- Mobile-optimized: designed for quick field submissions
-- Success feedback: toast confirmation, form reset for next submission
+- **FPF link required** — paste link, auto-scrape player data (name, club, DOB, nationality, birth country)
+- **ZeroZero auto-find** — after FPF scrape, auto-searches ZeroZero via multi-strategy autocomplete. Shows confirmation card (amber) with photo/name/age/club/position — scout accepts or rejects
+- **Auto-saved scraped data** — nationality, birth country, height, weight, photo, DOB, positions (primary/secondary/tertiary), FPF/ZZ player IDs — all stored silently, no input fields
+- **Scout evaluation fields:** position (if not from ZZ), competition, match (team vs team), date, score, physical profile, strengths, weaknesses, star rating (1-5 with hover preview), decision, phone contact
+- **Inline validation** — required fields (position, rating, decision) highlighted on submit attempt
+- **FPF link validation** — rejects non-player URLs (club pages, etc.)
+- **Phone auto-format** — digits formatted as `912 345 678` or `+351 912 345 678`
+- **Limpar button** — resets entire form, only visible after data fetched
+- After submit → redirects to `/meus-relatorios`
+- Reports stored in `scout_reports` table with all data needed to create a player on approval
+
+### 4.18. My Reports (`/meus-relatorios`)
+Scout's view of their own submitted reports.
+
+- List of all reports submitted by the current scout, ordered by date
+- Each card shows: player name, club, position, match, decision, rating stars, strengths/weaknesses preview, status badge (Pendente/Aprovado/Rejeitado)
+- Cards are clickable → detail page (`/meus-relatorios/[id]`) with full report data
+- Detail page shows all submitted data: player info with photo, match context, evaluation, contact, submission timestamp
+
+### 4.19. Admin Report Review (`/admin/relatorios`)
+Admin page to review, approve, or reject scout-submitted reports.
+
+- Lists all scout reports from all scouts with author name
+- **Filter tabs:** Pendentes (default) / Aprovados / Rejeitados / Todos
+- **Pending count badge** — red badge on Pendentes tab and sidebar, dynamically updated
+- Each report clickable → detail view with full data + action buttons
+- **Approve** → creates player from report data:
+  - All scraped data maps to player fields (name, club, DOB, positions, foot, shirt, photo, height, weight, nationality, links, IDs)
+  - Age group auto-detected from DOB (including Sénior for players born before Sub-19 range)
+  - Duplicate detection by FPF link — if player exists, links report to existing player instead
+  - Scout evaluation saved as `scouting_reports` entry (not observation note)
+  - Recruitment status set to `por_tratar`
+  - Redirects admin to the created/linked player profile
+- **Reject** → marks report as rejected
 
 ### 4.10. Excel Import
 - Upload `.xlsx` file
@@ -623,7 +654,12 @@ sikout/
 │   │   ├── mais/page.tsx              # "More" page (mobile overflow menu)
 │   │   ├── api/
 │   │   │   └── image-proxy/route.ts   # Server-side image proxy for CORS bypass (profile export)
-│   │   ├── submeter/page.tsx          # External scout submission page — PLANNED
+│   │   ├── submeter/page.tsx          # Scout report submission form
+│   │   ├── meus-relatorios/
+│   │   │   ├── page.tsx              # Scout's own reports list
+│   │   │   └── [id]/page.tsx         # Report detail view
+│   │   ├── definir-password/page.tsx # Set password after invite
+│   │   ├── auth/confirm/route.ts     # Token exchange for invite flow
 │   │   ├── importar/page.tsx          # Excel import (admin) — PLANNED
 │   │   ├── exportar/page.tsx          # Export (admin) — PLANNED
 │   │   └── admin/
@@ -1511,7 +1547,7 @@ Enrich player profiles with external data.
 
 **Deliverable:** Enriched player profiles with scouting reports, current club verification, and match statistics.
 
-### Phase 4 — Polish & Export ⬚ PARTIAL
+### Phase 4 — Polish & Export ⬚ IN PROGRESS
 Final refinements.
 
 - [x] Squad export: PDF, image, text, WhatsApp, print (done in Phase 2)
@@ -1519,9 +1555,15 @@ Final refinements.
 - [ ] Excel export: filtered database download
 - [x] Dashboard with core metrics (done in Phase 2)
 - [x] Mobile optimizations: iPhone landscape DnD fix, touch sensors with activation constraints, conditional rendering for responsive layouts
-- [ ] Role system upgrade: 4 roles (admin, master, scout, scout_externo) — DB migration + middleware + UI guards
-- [ ] User management page (`/admin/utilizadores`) — admin: create/edit/delete users, assign 4 roles
-- [ ] External scout submission page (`/submeter`) — simplified form for scout_externo role
+- [x] Role system: 3 roles (admin, editor, scout) — DB migration (022, 023) + middleware route protection + UI guards (canEdit vs isAdmin)
+- [x] User management page (`/admin/utilizadores`) — invite via email, role dropdown, search (fuzzy by name/email/role), soft delete (deactivate/reactivate)
+- [x] Invite flow: Supabase Auth invite → `/auth/confirm` token exchange → `/definir-password` set password page
+- [x] Scout report submission (`/submeter`) — FPF auto-scrape, ZZ auto-find with confirmation, evaluation form, inline validation
+- [x] My reports page (`/meus-relatorios`) — scout's own reports with detail view
+- [x] Admin report review (`/admin/relatorios`) — approve (creates player) / reject, pending count badge, status filter tabs
+- [x] Scout report → scouting_reports integration — approved reports saved as proper scouting reports on the player
+- [x] Dynamic age groups — auto-calculated from current date (season starts July 1), Sénior for players above Sub-19
+- [x] Dynamic season — `CURRENT_SEASON` computed from date, no manual updates needed
 - [ ] In-app Excel import page (`/importar`) — upload, parse, preview, confirm
 - [ ] PWA setup (installable on phone, offline caching for read-only data)
 

@@ -5,7 +5,7 @@
 
 import Link from 'next/link';
 import { ChevronRight, FileText, Star } from 'lucide-react';
-import { listAllScoutReports } from '@/actions/scout-reports';
+import { listAllScoutReports, getPendingReportsCount } from '@/actions/scout-reports';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   pendente: { label: 'Pendente', className: 'bg-yellow-100 text-yellow-700' },
@@ -14,8 +14,8 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 const TABS = [
-  { value: undefined, label: 'Todos' },
-  { value: 'pendente' as const, label: 'Pendentes' },
+  { value: 'todos', label: 'Todos' },
+  { value: 'pendente', label: 'Pendentes' },
   { value: 'aprovado' as const, label: 'Aprovados' },
   { value: 'rejeitado' as const, label: 'Rejeitados' },
 ];
@@ -26,11 +26,16 @@ export default async function AdminRelatoriosPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const { status: statusParam } = await searchParams;
-  const statusFilter = ['pendente', 'aprovado', 'rejeitado'].includes(statusParam ?? '')
-    ? (statusParam as 'pendente' | 'aprovado' | 'rejeitado')
-    : undefined;
+  const statusFilter = statusParam === 'todos'
+    ? undefined
+    : ['pendente', 'aprovado', 'rejeitado'].includes(statusParam ?? '')
+      ? (statusParam as 'pendente' | 'aprovado' | 'rejeitado')
+      : 'pendente' as const;
 
-  const { reports, error } = await listAllScoutReports(statusFilter);
+  const [{ reports, error }, pendingCount] = await Promise.all([
+    listAllScoutReports(statusFilter),
+    getPendingReportsCount(),
+  ]);
 
   return (
     <div className="p-4 lg:p-6">
@@ -45,8 +50,8 @@ export default async function AdminRelatoriosPage({
       {/* Filter tabs */}
       <div className="mb-4 flex gap-1 rounded-lg border bg-neutral-50 p-1">
         {TABS.map((tab) => {
-          const isActive = tab.value === statusFilter;
-          const href = tab.value ? `?status=${tab.value}` : '/admin/relatorios';
+          const isActive = tab.value === (statusParam || 'pendente');
+          const href = `?status=${tab.value}`;
           return (
             <Link
               key={tab.label}
@@ -56,6 +61,11 @@ export default async function AdminRelatoriosPage({
               }`}
             >
               {tab.label}
+              {tab.value === 'pendente' && pendingCount > 0 && (
+                <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}

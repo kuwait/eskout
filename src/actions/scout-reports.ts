@@ -83,7 +83,7 @@ export interface ScoutReportRow {
 
 /* ───────────── Row Mapper ───────────── */
 
-function mapRow(r: Record<string, unknown>): ScoutReportRow {
+function mapRow(r: Record<string, unknown>, authorName?: string | null): ScoutReportRow {
   return {
     id: r.id as number,
     playerName: r.player_name as string,
@@ -117,9 +117,30 @@ function mapRow(r: Record<string, unknown>): ScoutReportRow {
     zerozeroPlayerId: r.zerozero_player_id as string | null,
     status: r.status as 'pendente' | 'aprovado' | 'rejeitado',
     linkedPlayerId: r.linked_player_id as number | null,
-    authorName: (r.profiles as Record<string, unknown>)?.full_name as string | null ?? null,
+    authorName: authorName ?? null,
     createdAt: r.created_at as string,
   };
+}
+
+// Fetch author names for a list of reports (separate query to avoid FK join issues)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enrichWithAuthorNames(
+  supabase: any,
+  rows: Record<string, unknown>[],
+): Promise<ScoutReportRow[]> {
+  // Collect unique author IDs
+  const authorIds = [...new Set(rows.map((r) => r.author_id as string).filter(Boolean))];
+  if (authorIds.length === 0) return rows.map((r) => mapRow(r));
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', authorIds);
+
+  const nameMap = new Map<string, string>();
+  (profiles ?? []).forEach((p: { id: string; full_name: string }) => nameMap.set(p.id, p.full_name));
+
+  return rows.map((r) => mapRow(r, nameMap.get(r.author_id as string)));
 }
 
 /* ───────────── Submit Report ───────────── */
@@ -191,12 +212,13 @@ export async function listMyScoutReports(): Promise<{ success: boolean; reports:
 
     const { data, error } = await supabase
       .from('scout_reports')
-      .select('*, profiles:author_id(full_name)')
+      .select('*')
       .eq('author_id', user.id)
       .order('created_at', { ascending: false });
 
     if (error) return { success: false, reports: [], error: error.message };
-    return { success: true, reports: (data ?? []).map((r: Record<string, unknown>) => mapRow(r)) };
+    const reports = await enrichWithAuthorNames(supabase, (data ?? []) as Record<string, unknown>[]);
+    return { success: true, reports };
   } catch (e) {
     return { success: false, reports: [], error: e instanceof Error ? e.message : 'Erro desconhecido' };
   }
@@ -214,13 +236,21 @@ export async function getScoutReport(id: number): Promise<{ report: ScoutReportR
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     const isAdminOrEditor = profile?.role === 'admin' || profile?.role === 'editor';
 
-    let query = supabase.from('scout_reports').select('*, profiles:author_id(full_name)').eq('id', id);
+    let query = supabase.from('scout_reports').select('*').eq('id', id);
     if (!isAdminOrEditor) query = query.eq('author_id', user.id);
 
     const { data, error } = await query.single();
     if (error || !data) return { report: null, error: error?.message || 'Relatório não encontrado' };
 
-    return { report: mapRow(data as Record<string, unknown>) };
+    const r = data as Record<string, unknown>;
+    // Fetch author name
+    let authorName: string | null = null;
+    if (r.author_id) {
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', r.author_id as string).single();
+      authorName = profile?.full_name ?? null;
+    }
+
+    return { report: mapRow(r, authorName) };
   } catch (e) {
     return { report: null, error: e instanceof Error ? e.message : 'Erro desconhecido' };
   }
@@ -244,14 +274,15 @@ export async function listAllScoutReports(
 
     let query = supabase
       .from('scout_reports')
-      .select('*, profiles:author_id(full_name)')
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (statusFilter) query = query.eq('status', statusFilter);
 
     const { data, error } = await query;
     if (error) return { success: false, reports: [], error: error.message };
-    return { success: true, reports: (data ?? []).map((r: Record<string, unknown>) => mapRow(r)) };
+    const reports = await enrichWithAuthorNames(supabase, (data ?? []) as Record<string, unknown>[]);
+    return { success: true, reports };
   } catch (e) {
     return { success: false, reports: [], error: e instanceof Error ? e.message : 'Erro desconhecido' };
   }
@@ -311,7 +342,7 @@ export async function approveScoutReport(
         }).eq('id', reportId);
 
         // Save scout evaluation as observation note on existing player
-        await saveEvalAsNote(supabase, existing.id, r);
+        await saveEvalAsReport(supabase, existing.id, r);
 
         revalidatePath('/admin/relatorios');
         revalidatePath('/meus-relatorios');
@@ -370,6 +401,7 @@ export async function approveScoutReport(
         birth_country: r.birth_country as string | null,
         department_opinion: r.decision ? [r.decision as string] : ['Por Observar'],
         observer_decision: r.decision as string | null,
+        recruitment_status: 'por_tratar',
         referred_by: (report as Record<string, unknown>).author_id ? 'Scout' : null,
         created_by: user.id,
       })
@@ -387,7 +419,7 @@ export async function approveScoutReport(
     }).eq('id', reportId);
 
     // Save evaluation as observation note on the new player
-    await saveEvalAsNote(supabase, player!.id, r);
+    await saveEvalAsReport(supabase, player!.id, r);
 
     revalidatePath('/admin/relatorios');
     revalidatePath('/meus-relatorios');
@@ -427,26 +459,38 @@ export async function rejectScoutReport(reportId: number): Promise<{ success: bo
   }
 }
 
-/* ───────────── Helper: Save scout evaluation as observation note ───────────── */
+/* ───────────── Helper: Save scout evaluation as scouting report ───────────── */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function saveEvalAsNote(supabase: any, playerId: number, r: Record<string, unknown>) {
-  const parts: string[] = [];
-  if (r.rating) parts.push(`Avaliação: ${r.rating}/5`);
-  if (r.decision) parts.push(`Decisão: ${r.decision}`);
-  if (r.physical_profile) parts.push(`Perfil físico: ${r.physical_profile}`);
-  if (r.strengths) parts.push(`Pontos fortes: ${r.strengths}`);
-  if (r.weaknesses) parts.push(`Pontos fracos: ${r.weaknesses}`);
-  if (r.match) parts.push(`Jogo: ${r.match}`);
-  if (r.match_date) parts.push(`Data: ${new Date(r.match_date as string).toLocaleDateString('pt-PT')}`);
-  if (r.match_result) parts.push(`Resultado: ${r.match_result}`);
-  if (r.competition) parts.push(`Competição: ${r.competition}`);
-
-  if (parts.length > 0) {
-    await supabase.from('observation_notes').insert({
-      player_id: playerId,
-      author_id: r.author_id as string,
-      content: parts.join('\n'),
-    });
+async function saveEvalAsReport(supabase: any, playerId: number, r: Record<string, unknown>) {
+  // Fetch scout name from profiles
+  let scoutName: string | null = null;
+  if (r.author_id) {
+    const { data: profile } = await supabase
+      .from('profiles').select('full_name').eq('id', r.author_id as string).single();
+    scoutName = profile?.full_name ?? null;
   }
+
+  await supabase.from('scouting_reports').insert({
+    player_id: playerId,
+    // No gdrive_file_id — this is a scout-submitted report, not a PDF extraction
+    competition: r.competition as string | null,
+    match: r.match as string | null,
+    match_date: r.match_date as string | null,
+    match_result: r.match_result as string | null,
+    player_name_report: r.player_name as string | null,
+    shirt_number_report: r.shirt_number as string | null,
+    birth_year_report: r.birth_year as string | null,
+    foot_report: r.foot as string | null,
+    team_report: r.player_club as string | null,
+    position_report: r.position as string | null,
+    physical_profile: r.physical_profile as string | null,
+    strengths: r.strengths as string | null,
+    weaknesses: r.weaknesses as string | null,
+    rating: r.rating as number | null,
+    decision: r.decision as string | null,
+    contact_info: r.contact_info as string | null,
+    scout_name: scoutName,
+    extraction_status: 'success',
+  });
 }

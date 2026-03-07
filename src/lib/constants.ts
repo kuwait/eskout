@@ -174,32 +174,40 @@ export function getNationalityFlag(nationality: string | null): string {
   return entry?.flag ?? '🌍';
 }
 
-/* ───────────── Age Groups (season 2025/2026) ───────────── */
+/* ───────────── Age Groups (dynamic — season starts July 1) ───────────── */
 
-export const AGE_GROUPS: { name: string; generationYear: number }[] = [
-  { name: 'Sub-19', generationYear: 2007 },
-  { name: 'Sub-18', generationYear: 2008 },
-  { name: 'Sub-17', generationYear: 2009 },
-  { name: 'Sub-16', generationYear: 2010 },
-  { name: 'Sub-15', generationYear: 2011 },
-  { name: 'Sub-14', generationYear: 2012 },
-  { name: 'Sub-13', generationYear: 2013 },
-  { name: 'Sub-12', generationYear: 2014 },
-  { name: 'Sub-11', generationYear: 2015 },
-  { name: 'Sub-10', generationYear: 2016 },
-  { name: 'Sub-9', generationYear: 2017 },
-  { name: 'Sub-8', generationYear: 2018 },
-  { name: 'Sub-7', generationYear: 2019 },
-];
+// Season runs July to June. Season end year = the year the season finishes.
+// e.g. in March 2026 → season 2025/26 → end year = 2026
+// e.g. in September 2026 → season 2026/27 → end year = 2027
+function getSeasonEndYear(): number {
+  const now = new Date();
+  return now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear();
+}
 
-// Sub-19 covers multiple years
-const SUB_19_YEARS = [2004, 2005, 2006, 2007];
+// Sub-N: birth year = seasonEndYear - N
+// Sénior: birth year ≤ seasonEndYear - 20
+export function getAgeGroups(): { name: string; generationYear: number }[] {
+  const endYear = getSeasonEndYear();
+  return [
+    { name: 'Sénior', generationYear: endYear - 20 },
+    ...([19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7] as const).map((n) => ({
+      name: `Sub-${n}`,
+      generationYear: endYear - n,
+    })),
+  ];
+}
+
+// Kept for backwards compat — computed once at import time
+export const AGE_GROUPS = getAgeGroups();
 
 /** Map birth year to age group name */
 export function birthYearToAgeGroup(year: number): string | null {
-  if (SUB_19_YEARS.includes(year)) return 'Sub-19';
-  const group = AGE_GROUPS.find((g) => g.generationYear === year);
-  return group?.name ?? null;
+  const endYear = getSeasonEndYear();
+  const seniorCutoff = endYear - 20;
+  if (year <= seniorCutoff) return 'Sénior';
+  const age = endYear - year;
+  if (age >= 7 && age <= 19) return `Sub-${age}`;
+  return null;
 }
 
 /* ───────────── Calendar Event Types ───────────── */
@@ -289,4 +297,9 @@ export function getPrimaryRating(player: Player): { value: number; isAverage: bo
 
 /* ───────────── Navigation ───────────── */
 
-export const CURRENT_SEASON = '2025/2026';
+// Dynamic season based on current date (season starts July 1)
+export const CURRENT_SEASON = (() => {
+  const now = new Date();
+  const startYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${startYear}/${startYear + 1}`;
+})();

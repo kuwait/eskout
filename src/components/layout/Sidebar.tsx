@@ -114,7 +114,7 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
                     {item.label}
                     {/* Pending reports badge */}
                     {item.href === '/admin/relatorios' && alertCounts.pendingReports > 0 && (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 px-1.5 text-[10px] font-bold text-neutral-800">
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
                         {alertCounts.pendingReports}
                       </span>
                     )}
