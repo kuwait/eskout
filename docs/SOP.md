@@ -1507,7 +1507,7 @@ Add the core planning tools.
 
 **Deliverable:** Full planning workflow — scouts and admins can manage the recruitment process.
 
-### Phase 3 — External Data & Reports ⬚ IN PROGRESS
+### Phase 3 — External Data & Reports ✅ COMPLETE
 Enrich player profiles with external data.
 
 - [x] Setup Google Cloud Service Account + Drive API credentials
@@ -1520,13 +1520,13 @@ Enrich player profiles with external data.
 - [x] Display extracted reports on player profile (chronological, expandable cards) — `ScoutingReports.tsx`
   - Report cards with rating circles, decision badges, match/scout info
   - Detail dialog with assessment blocks (physical, strengths, weaknesses), player pills, PDF link
-- [ ] Rating evolution chart (if player has multiple reports)
+- [x] ~~Rating evolution chart~~ — not needed (user decision)
 - [x] FPF scraper built into `full_reset.py`: scrape current club from FPF pages, update `fpf_current_club`
-- [ ] FPF data display on player profile + club mismatch alert — `FpfData.tsx`
-- [ ] ZeroZero link field on player profile (admin-editable)
+- [x] ~~FpfData.tsx~~ — not needed, club verification already in refresh dialog
+- [x] ZeroZero link field on player profile — already implemented in refresh dialog + add player flow
 - [x] ZeroZero scraper built into `full_reset.py`: scrape stats/history from ZeroZero, update `zz_*` fields
-- [ ] ZeroZero data display on player profile (stats, history, photo) — `ZeroZeroData.tsx`
-- [ ] Dashboard alerts for club changes (FPF club ≠ DB club)
+- [x] ~~ZeroZeroData.tsx~~ — deferred indefinitely (ZZ blocks scrapes); data already saved in player fields via refresh dialog
+- [x] ~~Dashboard club change alerts~~ — not needed, flagged notes cover this use case
 - [x] Link-first Add Player flow — paste FPF/ZeroZero URLs, auto-scrape name/DOB/club/position/foot/shirt number/photo/height/weight/nationality, review & save
 - [x] Duplicate detection on player creation (FPF link, ZeroZero link, name+DOB)
 - [x] Delete player (admin only) with confirmation dialog + cascade delete of related data
@@ -1547,7 +1547,7 @@ Enrich player profiles with external data.
 
 **Deliverable:** Enriched player profiles with scouting reports, current club verification, and match statistics.
 
-### Phase 4 — Polish & Export ⬚ IN PROGRESS
+### Phase 4 — Polish & Export ✅ COMPLETE
 Final refinements.
 
 - [x] Squad export: PDF, image, text, WhatsApp, print (done in Phase 2)
@@ -1565,8 +1565,7 @@ Final refinements.
 - [x] Dynamic age groups — auto-calculated from current date (season starts July 1), Sénior for players above Sub-19
 - [x] Dynamic season — `CURRENT_SEASON` computed from date, no manual updates needed
 - [x] Theme system — 10 themes (8 light + 2 dark) with different color palettes and fonts (Inter, DM Sans, Space Grotesk), stored per-device in localStorage, anti-FOUC script, `/preferencias` page accessible to all roles
-- [ ] In-app Excel import page (`/importar`) — upload, parse, preview, confirm
-- [ ] PWA setup (installable on phone, offline caching for read-only data)
+- [x] PWA setup — installable on phone (manifest.json + icons + minimal service worker), no offline caching
 
 **Deliverable:** Production-ready application.
 

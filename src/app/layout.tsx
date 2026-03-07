@@ -56,6 +56,8 @@ export default function RootLayout({
       <head>
         {/* Anti-FOUC: apply saved theme before React hydrates */}
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('eskout-theme');if(t&&t!=='eskout')document.documentElement.setAttribute('data-theme',t)}catch(e){}` }} />
+        {/* Register minimal service worker for PWA install prompt */}
+        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')` }} />
       </head>
       <body className={`${inter.variable} ${dmSans.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <ThemeProvider>
