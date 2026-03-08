@@ -2181,6 +2181,359 @@ Each sub-phase deployable independently. App remains fully functional in Portugu
 
 ---
 
+### Phase 8 — Activity Log
+
+Full audit trail of every meaningful action in the platform. Goes beyond the existing `status_history` (pipeline changes only) to cover all user actions. Visible to club admins.
+
+#### 8.1. Data Model
+
+```sql
+CREATE TABLE activity_log (
+  id BIGSERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id),
+  user_name TEXT NOT NULL,               -- Denormalized for fast display
+  action TEXT NOT NULL,                  -- Verb: 'created', 'updated', 'deleted', 'moved', 'invited', etc.
+  entity_type TEXT NOT NULL,             -- 'player', 'note', 'calendar_event', 'squad', 'pipeline', 'user', 'settings'
+  entity_id TEXT,                        -- ID of affected entity (player id, note id, etc.)
+  entity_name TEXT,                      -- Denormalized: "Rodrigo Almeida", "Sub-14 Treino", etc.
+  metadata JSONB DEFAULT '{}',           -- Action-specific details (see below)
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes for common queries
+CREATE INDEX idx_activity_log_club_created ON activity_log (club_id, created_at DESC);
+CREATE INDEX idx_activity_log_entity ON activity_log (club_id, entity_type, entity_id);
+CREATE INDEX idx_activity_log_user ON activity_log (club_id, user_id);
+```
+
+**RLS:** Same club-scoped policy as other tables. Only club members can read their club's log.
+
+#### 8.2. Tracked Actions
+
+| Entity | Action | Metadata |
+|--------|--------|----------|
+| **Player** | `created` | `{ source: 'manual' \| 'import' \| 'scout_submission' }` |
+| **Player** | `updated` | `{ fields: ['club', 'position'], old: { club: 'Porto' }, new: { club: 'Braga' } }` |
+| **Player** | `deleted` | `{ name, club, position }` |
+| **Player** | `scraped` | `{ source: 'fpf' \| 'zerozero', changes: ['club', 'photo'] }` |
+| **Pipeline** | `status_changed` | `{ old: 'a_observar', new: 'em_contacto', notes: '...' }` |
+| **Squad** | `added_to_shadow` | `{ position: 'DC', squad: 'shadow' }` |
+| **Squad** | `removed_from_shadow` | `{ position: 'DC' }` |
+| **Squad** | `added_to_real` | `{ position: 'DC_E' }` |
+| **Squad** | `removed_from_real` | `{ position: 'DC_E' }` |
+| **Note** | `created` | `{ priority: 'urgente', preview: '...' }` |
+| **Note** | `deleted` | `{ preview: '...' }` |
+| **Calendar** | `created` | `{ event_type: 'treino', date: '2026-03-15' }` |
+| **Calendar** | `updated` | `{ fields: ['date', 'location'] }` |
+| **Calendar** | `deleted` | `{ title, date }` |
+| **Evaluation** | `rated` | `{ rating: 4 }` |
+| **Evaluation** | `updated` | `{ old_rating: 3, new_rating: 4 }` |
+| **User** | `invited` | `{ email, role }` |
+| **User** | `role_changed` | `{ old: 'scout', new: 'editor' }` |
+| **User** | `removed` | `{ email, role }` |
+| **Settings** | `updated` | `{ fields: ['escaloes', 'features'] }` |
+
+#### 8.3. Logging Strategy
+
+**Server Action wrapper:** A helper function `logActivity()` called at the end of every Server Action after the mutation succeeds. Not middleware — explicit calls so we control exactly what gets logged and with what metadata.
+
+```typescript
+// src/lib/activity.ts
+export async function logActivity(params: {
+  clubId: string;
+  userId: string;
+  userName: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  entityName?: string;
+  metadata?: Record<string, unknown>;
+}) { /* insert into activity_log */ }
+```
+
+**Diff helper for updates:** When updating a player, compute which fields actually changed and log only those. Don't log unchanged fields.
+
+**No logging for:** read operations, login/logout (Supabase handles auth logs), bulk imports (log one summary entry, not one per player).
+
+#### 8.4. UI
+
+**Page:** `/atividade` — accessible to club admins only.
+
+**Layout:**
+- Timeline feed, newest first, infinite scroll
+- Each entry: avatar + "**Diogo Nunes** adicionou **Rodrigo Almeida** ao plantel sombra como DC" + timestamp
+- Filter by: entity type, user, date range
+- Click on entity name → navigate to player profile / calendar event / etc.
+- Compact on mobile, wider cards on desktop
+
+**Dashboard widget:** "Atividade Recente" card showing last 5 actions. Already exists as `RecentChanges` — extend it to use activity_log instead of status_history.
+
+**Player profile:** "Histórico" tab/section already shows status_history — extend to show all activity for that player from activity_log.
+
+#### 8.5. Retention
+
+- Keep last 90 days by default (per club)
+- Configurable in `clubs.settings.activity_retention_days`
+- Cron job or Supabase Edge Function to prune old entries monthly
+- Future: export activity log as CSV for compliance
+
+#### 8.6. Migration from status_history
+
+The existing `status_history` table covers pipeline status changes. After activity_log is live:
+- Backfill existing status_history entries into activity_log
+- Keep `status_history` table for backwards compat during transition
+- Eventually deprecate `status_history` — activity_log replaces it entirely
+
+#### 8.7. Sub-phases
+
+- **8A:** Create `activity_log` table + RLS + `logActivity()` helper
+- **8B:** Add logging calls to all existing Server Actions (players, pipeline, squads, notes, calendar, evaluations)
+- **8C:** Build `/atividade` page (timeline feed, filters)
+- **8D:** Extend dashboard "Atividade Recente" + player profile "Histórico"
+- **8E:** Retention policy + cleanup job
+
+**Deliverable:** Complete audit trail of all platform activity. Club admins see who did what, when, on a timeline. Replaces the limited `status_history` with a full activity log.
+
+---
+
+### Phase 9 — Onboarding Wizard
+
+Guided setup for new clubs. When a club admin enters their club for the first time, a step-by-step wizard helps them configure everything before the team starts using the platform.
+
+#### 9.1. Trigger
+
+The wizard shows when:
+- User has `admin` role in the club
+- `clubs.settings.onboarding_complete` is `false` (default)
+- Navigating to any page redirects to `/configurar` until wizard is completed or skipped
+
+Admin can skip the wizard at any step → sets `onboarding_complete = true`, can always return via Definições.
+
+#### 9.2. Wizard Steps
+
+**Step 1 — Bem-vindo / Welcome**
+- Club name + logo confirmation (pre-filled by superadmin)
+- Upload or change club logo
+- Choose default language (if i18n is live)
+
+**Step 2 — Escalões**
+- Define which age groups the club uses
+- Pre-filled with common PT structure (Sub-7 to Sub-19) — admin toggles which ones to activate
+- Custom escalão name + generation year for each
+- Can add/remove later in settings
+
+**Step 3 — Equipa / Team**
+- Invite users by email: name, email, role (admin/editor/scout)
+- Minimum: at least 1 other user recommended (not required)
+- Can skip and invite later
+- Shows pending invites
+
+**Step 4 — Importar Jogadores (optional)**
+- Option A: Start empty — add players manually later
+- Option B: Import from Excel/CSV — upload file, map columns
+- Option C: Paste FPF/ZeroZero links (PT clubs) — batch scrape
+- This step is skippable
+
+**Step 5 — Funcionalidades / Features**
+- Show all toggleable features (from Phase 6) with description
+- Admin enables/disables what the club needs
+- Sensible defaults: all on
+- Can change later in settings
+
+**Step 6 — Pronto!**
+- Summary of what was configured
+- CTA: "Ir para o Painel" → dashboard
+- Sets `onboarding_complete = true`
+
+#### 9.3. UI Design
+
+- Full-screen wizard, no sidebar/nav (clean focus)
+- Progress indicator: step dots or numbered bar at top
+- Each step: heading + description + form/action area
+- Mobile-first: single column, large touch targets
+- Back/Next buttons at bottom, Skip link subtle
+- Animations between steps (slide or fade)
+
+#### 9.4. Technical Notes
+
+- Route: `/configurar` — protected by middleware (admin only, club context required)
+- Each step auto-saves on Next (no final submit) — if admin leaves mid-wizard, resumes where they left off
+- Step progress stored in `clubs.settings.onboarding_step` (number)
+- Reuses existing Server Actions (age groups, invitations, features)
+- No new tables needed — just `clubs.settings` fields
+
+#### 9.5. Sub-phases
+
+- **9A:** Wizard shell (route, layout, step navigation, progress bar)
+- **9B:** Steps 1-2 (club identity + escalões)
+- **9C:** Step 3 (invite team members)
+- **9D:** Step 4 (import players — reuse existing import logic)
+- **9E:** Steps 5-6 (features + finish)
+
+**Deliverable:** New clubs are guided through setup in under 5 minutes. Reduces admin confusion and ensures clubs are properly configured before scouts start using the platform.
+
+---
+
+### Phase 10 — Demo Mode
+
+A read-only demo club with realistic fictional data. Prospects can explore the full platform without creating an account. Shows the value of Eskout before committing.
+
+#### 10.1. How It Works
+
+- Superadmin creates a special club with `clubs.is_demo = true`
+- Demo club is pre-populated with realistic data: ~50 fictional players across 3-4 escalões, shadow/real squads, pipeline entries, observation notes, calendar events, scouting reports
+- Public access: no login required, accessed via `/demo` route
+- All actions are **read-only** — no editing, no adding, no deleting
+- UI shows a persistent banner: "Modo Demonstração — Crie uma conta para começar"
+- CTA button always visible → links to signup / contact
+
+#### 10.2. Data
+
+**Fictional but realistic:**
+- Portuguese player names (generated, not real people)
+- Real club names are fine (Boavista, Porto, Benfica, etc.)
+- Varied pipeline states, opinions, evaluations
+- A few scouting reports with realistic text
+- Calendar with upcoming events
+- Shadow squad partially filled, real squad complete
+- 3 escalões: Sub-14, Sub-16, Sub-18
+
+**Seeded via script:** A seed script (`scripts/seed_demo.ts`) generates demo data and inserts into the demo club. Can be re-run to refresh.
+
+#### 10.3. Technical Implementation
+
+**Route:** `/demo` — special layout without login requirement.
+
+**Auth bypass:** Demo mode uses a special anonymous session or a pre-created read-only user. Supabase anonymous auth or a shared demo token.
+
+**Read-only enforcement:**
+- RLS policy: demo club allows SELECT only, no INSERT/UPDATE/DELETE
+- Application layer: `useClub()` returns `{ isDemo: true }` → all edit buttons hidden, forms disabled
+- Middleware: POST/PUT/DELETE requests to Server Actions blocked for demo club
+
+**Isolated:** Demo club data is completely separate. If someone somehow bypasses read-only, they only affect the demo club (which can be re-seeded).
+
+#### 10.4. UI Differences in Demo Mode
+
+- **Banner** at top: "Modo Demonstração" + CTA button
+- **No edit buttons**, no add player, no delete — view-only versions of all pages
+- **Navigation** works fully — all pages accessible
+- **Feature toggles** all enabled — show everything
+- **Age group selector** works (switch between demo escalões)
+- **Watermark or subtle overlay** on exported images (if someone tries to export)
+
+#### 10.5. Sub-phases
+
+- **10A:** `is_demo` flag on clubs, demo RLS policies, read-only middleware
+- **10B:** `/demo` route + anonymous auth + demo layout with banner
+- **10C:** Seed script for demo data (`scripts/seed_demo.ts`)
+- **10D:** UI read-only mode (hide edit actions, disable forms)
+
+**Deliverable:** A live, explorable demo that sells Eskout to new clubs. Zero friction — no signup needed. Showcases every feature with realistic data.
+
+---
+
+### Phase 11 — Landing Page & Subscriptions
+
+The public face of Eskout: marketing site + subscription system. **This is the last phase** — only built after multi-tenant, i18n, and demo mode are live.
+
+#### 11.1. Landing Page (`eskout.co`)
+
+**Separate from the app.** The landing page is a static/SSG site at the root domain. The app lives at `app.eskout.co`. Could be the same Next.js project (route group) or a separate deployment — TBD based on complexity.
+
+**Sections:**
+
+| Section | Content |
+|---------|---------|
+| **Hero** | Headline + subheadline + CTA ("Experimentar Demo" / "Começar Agora") + hero screenshot/mockup |
+| **Problema** | What scouting departments struggle with (spreadsheets, no structure, lost data) |
+| **Solução** | What Eskout solves — 3-4 feature highlights with icons/screenshots |
+| **Funcionalidades** | Grid of all features with short descriptions: Plantel Real vs Sombra, Pipeline, Relatórios, Calendário, etc. |
+| **Screenshots** | Carousel or grid of real app screenshots (mobile + desktop) |
+| **Demo** | Embedded CTA → `/demo` — "Explore sem criar conta" |
+| **Preços** | Subscription plans (see 11.2) |
+| **Testemunhos** | Quotes from beta clubs (when available) |
+| **FAQ** | Common questions |
+| **Footer** | Contact, legal, social links |
+
+**i18n:** Landing page available in PT, EN, FR, ES (same locale files from Phase 7).
+
+**Design:** Clean, modern, black & white Eskout brand. Mobile-first. Fast (static/SSG, no heavy JS).
+
+#### 11.2. Subscription Model
+
+**Plans (initial structure — pricing TBD):**
+
+| Plan | Target | Limits | Features |
+|------|--------|--------|----------|
+| **Starter** | Small clubs, academies | 3 users, 2 escalões, 200 players | Core features (players, squad, pipeline) |
+| **Pro** | Mid-size clubs | 10 users, all escalões, 1000 players | All features (calendar, reports, export, alerts) |
+| **Enterprise** | Professional clubs | Unlimited users, unlimited players | All features + priority support + custom branding |
+
+**Free trial:** 14 days of Pro, no credit card required. After trial → downgrade to Starter or subscribe.
+
+**Feature gating:** Uses the same `clubs.features` JSONB from Phase 6. When a club is on Starter, certain features are disabled. Upgrading flips the toggles.
+
+**Limits enforcement:**
+- `clubs.limits` JSONB: `{ max_users, max_age_groups, max_players }`
+- Server Actions check limits before insert: "Limite de jogadores atingido. Faça upgrade para adicionar mais."
+- UI shows usage: "147 / 200 jogadores"
+
+#### 11.3. Payment Integration
+
+**Provider:** Stripe — industry standard for SaaS subscriptions.
+
+| Component | Description |
+|-----------|-------------|
+| **Stripe Checkout** | Redirect to Stripe-hosted payment page (no PCI compliance needed) |
+| **Stripe Customer Portal** | Manage subscription, update card, view invoices — Stripe-hosted |
+| **Webhooks** | `POST /api/webhooks/stripe` — handle `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted` |
+| **Sync** | Webhook updates `clubs.subscription_status`, `clubs.plan`, `clubs.limits`, `clubs.features` |
+
+**DB additions:**
+```sql
+ALTER TABLE clubs ADD COLUMN stripe_customer_id TEXT;
+ALTER TABLE clubs ADD COLUMN stripe_subscription_id TEXT;
+ALTER TABLE clubs ADD COLUMN plan TEXT DEFAULT 'trial';        -- 'trial', 'starter', 'pro', 'enterprise'
+ALTER TABLE clubs ADD COLUMN subscription_status TEXT DEFAULT 'trialing'; -- 'trialing', 'active', 'past_due', 'canceled'
+ALTER TABLE clubs ADD COLUMN trial_ends_at TIMESTAMPTZ;
+```
+
+**Flow:**
+1. Club admin clicks "Upgrade" or "Subscrever" (in-app or landing page)
+2. Redirect to Stripe Checkout with plan + club metadata
+3. Stripe processes payment → webhook fires
+4. Webhook updates club plan/limits/features
+5. User returns to app → sees upgraded features immediately
+
+#### 11.4. Subscription Management UI
+
+**In-app (`/definicoes/plano`):**
+- Current plan name + status
+- Usage meters (users, players, escalões)
+- "Upgrade" button → Stripe Checkout
+- "Gerir subscrição" → Stripe Customer Portal (invoices, cancel, update card)
+- Trial countdown: "Faltam X dias do período experimental"
+
+**Superadmin (`/master/clubes/[id]`):**
+- View club's plan, status, Stripe links
+- Override plan manually (for partnerships, special deals)
+- Extend trial
+
+#### 11.5. Sub-phases
+
+- **11A:** Landing page design + build (static sections, responsive, i18n)
+- **11B:** Define final plans + pricing + feature mapping per plan
+- **11C:** Stripe integration (checkout, webhooks, customer portal)
+- **11D:** In-app subscription management UI + limit enforcement
+- **11E:** Superadmin subscription management
+- **11F:** Free trial flow (auto-create trial on club creation, countdown, expiry handling)
+
+**Deliverable:** Public-facing marketing site that converts visitors into paying customers. Stripe-powered subscriptions with plan-based feature gating. Self-service billing management for club admins.
+
+---
+
 ## 10. Data Files & Scripts
 
 | File | Description |
