@@ -11,8 +11,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, ImageIcon, Link2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1512,80 +1511,77 @@ function ReferralPicker({ profiles, selectedUserId, freeText, onChange }: {
     onChange(null, '');
   }
 
+  // Filtered profiles based on search
+  const filtered = profiles.filter((p) => !search || p.fullName.toLowerCase().includes(search.toLowerCase()));
+  const hasExactMatch = profiles.some((p) => p.fullName.toLowerCase() === search.trim().toLowerCase());
+
   return (
     <div className="flex items-center gap-1.5">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 shadow-sm transition-colors hover:bg-accent"
-          >
-            <User className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-            {displayName ? (
-              <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-                <span className="truncate text-xs font-medium tracking-wide text-neutral-600">{displayName}</span>
-                {isLinked && <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[9px] font-bold text-blue-600">LINKED</span>}
-              </span>
+      {/* Trigger button — opens dialog */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 shadow-sm transition-colors hover:bg-accent"
+      >
+        <User className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+        {displayName ? (
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+            <span className="truncate text-xs font-medium tracking-wide text-neutral-600">{displayName}</span>
+            {isLinked && <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[9px] font-bold text-blue-600">LINKED</span>}
+          </span>
+        ) : (
+          <span className="flex-1 text-left text-xs text-neutral-300">Quem referenciou</span>
+        )}
+        <ChevronsUpDown className="h-3 w-3 shrink-0 text-neutral-300" />
+      </button>
+      {/* Search dialog — works well on mobile (no popover/keyboard issues) */}
+      <CommandDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }}>
+        <CommandInput
+          placeholder="Pesquisar utilizador ou escrever nome..."
+          value={search}
+          onValueChange={setSearch}
+        />
+        <CommandList>
+          <CommandEmpty>
+            {search.trim() ? (
+              <button
+                type="button"
+                onClick={handleFreeText}
+                className="w-full rounded px-3 py-2 text-left text-sm hover:bg-accent"
+              >
+                Adicionar <strong>&quot;{search.trim()}&quot;</strong> como referência externa
+              </button>
             ) : (
-              <span className="flex-1 text-left text-xs text-neutral-300">Quem referenciou</span>
+              'Sem resultados'
             )}
-            <ChevronsUpDown className="h-3 w-3 shrink-0 text-neutral-300" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[260px] p-0" align="start">
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder="Pesquisar ou escrever..."
-              value={search}
-              onValueChange={setSearch}
-              className="text-xs"
-            />
-            <CommandList>
-              <CommandEmpty className="py-2 text-center text-xs text-muted-foreground">
-                {search.trim() ? (
-                  <button
-                    type="button"
-                    onClick={handleFreeText}
-                    className="w-full rounded px-3 py-1.5 text-left text-xs hover:bg-accent"
-                  >
-                    Adicionar <strong>&quot;{search.trim()}&quot;</strong> como referência
-                  </button>
-                ) : (
-                  'Sem resultados'
-                )}
-              </CommandEmpty>
-              {/* Registered users */}
-              {profiles.length > 0 && (
-                <CommandGroup heading="Utilizadores">
-                  {profiles
-                    .filter((p) => !search || p.fullName.toLowerCase().includes(search.toLowerCase()))
-                    .map((p) => (
-                      <CommandItem
-                        key={p.id}
-                        value={p.id}
-                        onSelect={() => handleSelectProfile(p)}
-                        className="text-xs"
-                      >
-                        <User className="mr-2 h-3 w-3 text-neutral-400" />
-                        {p.fullName}
-                        {p.id === selectedUserId && <Check className="ml-auto h-3 w-3 text-blue-500" />}
-                      </CommandItem>
-                    ))}
-                </CommandGroup>
-              )}
-              {/* Free text option when typing something not matching a user */}
-              {search.trim() && !profiles.some((p) => p.fullName.toLowerCase() === search.trim().toLowerCase()) && (
-                <CommandGroup heading="Outro">
-                  <CommandItem onSelect={handleFreeText} className="text-xs">
-                    <PenLine className="mr-2 h-3 w-3 text-neutral-400" />
-                    Adicionar &quot;{search.trim()}&quot;
-                  </CommandItem>
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+          </CommandEmpty>
+          {/* Registered users */}
+          {filtered.length > 0 && (
+            <CommandGroup heading="Utilizadores">
+              {filtered.map((p) => (
+                <CommandItem
+                  key={p.id}
+                  value={p.fullName}
+                  onSelect={() => handleSelectProfile(p)}
+                >
+                  <User className="mr-2 h-4 w-4 text-neutral-400" />
+                  {p.fullName}
+                  {p.id === selectedUserId && <Check className="ml-auto h-4 w-4 text-blue-500" />}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {/* Free text option */}
+          {search.trim() && !hasExactMatch && (
+            <CommandGroup heading="Outro">
+              <CommandItem onSelect={handleFreeText} value={`__free__${search}`}>
+                <PenLine className="mr-2 h-4 w-4 text-neutral-400" />
+                Adicionar &quot;{search.trim()}&quot;
+              </CommandItem>
+            </CommandGroup>
+          )}
+        </CommandList>
+      </CommandDialog>
       {/* Clear button */}
       {displayName && (
         <button
