@@ -1942,16 +1942,16 @@ src/
     "users": "Utilizadores"
   },
   "positions": {
-    "GR": "Guarda-Redes",
-    "DD": "Defesa Direito",
-    "DE": "Defesa Esquerdo",
-    "DC": "Defesa Central",
-    "MDC": "Médio Defensivo",
-    "MC": "Médio Centro",
-    "MOC": "Médio Ofensivo",
-    "ED": "Extremo Direito",
-    "EE": "Extremo Esquerdo",
-    "PL": "Ponta de Lança"
+    "GR": { "short": "GR", "long": "Guarda-Redes" },
+    "DD": { "short": "DD", "long": "Defesa Direito" },
+    "DE": { "short": "DE", "long": "Defesa Esquerdo" },
+    "DC": { "short": "DC", "long": "Defesa Central" },
+    "MDC": { "short": "MDC", "long": "Médio Defensivo" },
+    "MC": { "short": "MC", "long": "Médio Centro" },
+    "MOC": { "short": "MOC", "long": "Médio Ofensivo" },
+    "ED": { "short": "ED", "long": "Extremo Direito" },
+    "EE": { "short": "EE", "long": "Extremo Esquerdo" },
+    "PL": { "short": "PL", "long": "Ponta de Lança" }
   },
   "opinions": {
     "1a_escolha": "1ª Escolha",
@@ -1987,9 +1987,9 @@ src/
     "sem_interesse": "Sem Interesse"
   },
   "foot": {
-    "Dir": "Direito",
-    "Esq": "Esquerdo",
-    "Amb": "Ambidestro"
+    "Dir": { "short": "Dir", "long": "Direito" },
+    "Esq": { "short": "Esq", "long": "Esquerdo" },
+    "Amb": { "short": "Amb", "long": "Ambidestro" }
   },
   "player": {
     "name": "Nome",
@@ -2078,7 +2078,30 @@ Position codes (`GR`, `DC`, etc.) are internal identifiers that never change. Th
 | Esq | Esquerdo | Left | Gauche | Izquierdo |
 | Amb | Ambidestro | Both | Ambidextre | Ambidiestro |
 
-**Note:** These translations need native speaker verification for FR and ES. The PT and EN versions are confirmed. Store the internal code (e.g. `GR`, `1ª Escolha`, `Dir`) in the database — translation happens at display time only.
+**Short codes (badges, filters, pitch labels) — also translated:**
+
+| Internal Code | PT | EN | FR | ES |
+|---------------|----|----|----|----|
+| GR | GR | GK | G | POR |
+| DD | DD | RB | AD | LD |
+| DE | DE | LB | AG | LI |
+| DC | DC | CB | DC | DFC |
+| MDC | MDC | DM | MDC | MCD |
+| MC | MC | CM | MC | MC |
+| MOC | MOC | AM | MO | MCO |
+| ED | ED | RW | AD | ED |
+| EE | EE | LW | AG | EI |
+| PL | PL | ST | ATT | DC |
+
+| Internal Code | PT | EN | FR | ES |
+|---------------|----|----|----|----|
+| Dir | Dir | R | D | Der |
+| Esq | Esq | L | G | Izq |
+| Amb | Amb | Both | Amb | Amb |
+
+**Important:** The database always stores the internal code (`GR`, `Dir`, `1ª Escolha`, etc.). Translation to the user's locale happens at display time only — in components, badges, filters, pitch labels, everywhere the user sees text. No internal code is ever shown raw to the user.
+
+**Note:** Short codes for FR and ES need native speaker verification. PT and EN are confirmed.
 
 #### 7.4. Implementation Approach
 
