@@ -5,12 +5,12 @@
 
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Flag, Footprints, Handshake, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Flag, Footprints, Handshake, Loader2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import {
   AlertDialog,
@@ -113,6 +113,9 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
   const canEdit = userRole === 'admin' || userRole === 'editor';
+
+  // Detect unsaved changes by comparing draft to original player
+  const hasChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(player), [draft, player]);
 
   // Profiles list for referral combobox — fetched once when entering edit mode
   const [profiles, setProfiles] = useState<{ id: string; fullName: string }[]>([]);
@@ -365,11 +368,11 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             )}
           </div>
         )}
-        {/* Right side — edit mode: save only */}
+        {/* Right side — edit mode: save */}
         {editing && (
-          <button onClick={handleSave} disabled={isPending || isDeleting} className="flex items-center gap-1 rounded-lg bg-neutral-900 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50">
-            <Save className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Guardar</span>
+          <button onClick={handleSave} disabled={!hasChanges || isPending || isDeleting} className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-all ${hasChanges ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-neutral-200 bg-neutral-50 text-neutral-400'} disabled:cursor-default`}>
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin text-green-500" /> : <Check className={`h-3 w-3 ${hasChanges ? 'text-green-500' : 'text-neutral-300'}`} />}
+            Guardar
           </button>
         )}
       </div>
@@ -535,7 +538,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                     <Input
                       value={draft.name}
                       onChange={(e) => updateDraft('name', e.target.value)}
-                      className="text-sm font-semibold"
+                      className="text-xs font-medium tracking-wide text-neutral-600"
                       placeholder="Nome do jogador"
                     />
                   </EditField>
@@ -616,6 +619,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                     label="Foto"
                     value={draft.photoUrl ?? ''}
                     onChange={(v) => updateDraft('photoUrl', v || null)}
+                    isImage
                   />
 
                   {/* FPF */}
@@ -1440,15 +1444,61 @@ function JerseySvg({ number, className }: { number?: string; className?: string 
 
 /* ───────────── Link Card — compact row for URL fields (photo, FPF, ZeroZero) ───────────── */
 
-/** Compact link row: icon + label + status. Tap to expand inline URL input. */
-function LinkCard({ icon, label, value, onChange }: {
+/** Compact link row: icon + label + status. Tap to expand inline URL input.
+ *  isImage: when true, validates the URL loads as an image before confirming. */
+function LinkCard({ icon, label, value, onChange, isImage }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   onChange: (v: string) => void;
+  isImage?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const hasValue = !!value;
+
+  function normalizeUrl(raw: string): string {
+    let url = raw.trim();
+    if (!/^https?:\/\//.test(url)) url = `https://${url}`;
+    return url;
+  }
+
+  function handleConfirm() {
+    const url = normalizeUrl(draft);
+    if (!url || url === 'https://') return;
+
+    if (isImage) {
+      // Validate image loads before accepting
+      setLoading(true);
+      setStatus(null);
+      const img = new window.Image();
+      img.onload = () => {
+        onChange(url);
+        setDraft('');
+        setExpanded(false);
+        setLoading(false);
+        setStatus(null);
+      };
+      img.onerror = () => {
+        setLoading(false);
+        setStatus('Imagem não carregou');
+      };
+      img.src = url;
+    } else {
+      onChange(url);
+      setDraft('');
+      setExpanded(false);
+    }
+  }
+
+  function handleCancel() {
+    setDraft('');
+    setExpanded(false);
+    setLoading(false);
+    setStatus(null);
+  }
 
   return (
     <div className={`rounded-lg border transition-colors ${
@@ -1457,7 +1507,7 @@ function LinkCard({ icon, label, value, onChange }: {
       {/* Header — tappable to toggle input */}
       <button
         type="button"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => { if (!expanded) { setDraft(''); setStatus(null); setExpanded(true); } else handleCancel(); }}
         className="flex w-full items-center gap-2.5 px-3 py-2"
       >
         {/* Icon / preview */}
@@ -1471,12 +1521,14 @@ function LinkCard({ icon, label, value, onChange }: {
             {hasValue ? 'Ligado' : 'Sem link'}
           </p>
         </div>
-        {/* Chevron + clear */}
         <div className="flex shrink-0 items-center gap-1">
           {hasValue && (
             <span
               role="button"
-              onClick={(e) => { e.stopPropagation(); onChange(''); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm('Remover este link?')) onChange('');
+              }}
               className="rounded-md p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
               title="Remover"
             >
@@ -1486,17 +1538,32 @@ function LinkCard({ icon, label, value, onChange }: {
           <Pencil className={`h-3 w-3 transition-colors ${expanded ? 'text-neutral-600' : 'text-neutral-300'}`} />
         </div>
       </button>
-      {/* Expandable input — empty field for new/replacement URL */}
+      {/* Expandable input — type URL then confirm */}
       {expanded && (
-        <div className="mx-3 mb-2.5 mt-1">
-          <input
-            type="url"
-            defaultValue=""
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={hasValue ? 'Insere novo URL...' : 'Insere URL...'}
-            className="w-full rounded-md bg-neutral-100/60 px-2 py-1 font-mono text-[9px] leading-relaxed tracking-wider text-neutral-400 outline-none placeholder:text-neutral-300/80 focus:bg-neutral-100 focus:ring-1 focus:ring-neutral-200/80"
-            autoFocus
-          />
+        <div className="px-3 pb-2.5">
+          <div className="flex items-center gap-1.5">
+            <input
+              type="url"
+              value={draft}
+              onChange={(e) => { setDraft(e.target.value); setStatus(null); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm(); if (e.key === 'Escape') handleCancel(); }}
+              placeholder={hasValue ? 'Novo URL...' : 'URL...'}
+              className="min-w-0 flex-1 bg-transparent font-mono text-[9px] tracking-wider text-neutral-500 outline-none placeholder:text-neutral-300"
+              autoFocus
+              disabled={loading}
+            />
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={loading || !/^(https?:\/\/)?.+\..+/.test(draft.trim())}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-white transition-colors hover:bg-neutral-700 disabled:bg-neutral-200 disabled:text-neutral-400"
+            >
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            </button>
+          </div>
+          {status && (
+            <p className="mt-1 text-[10px] text-neutral-400">{status}</p>
+          )}
         </div>
       )}
     </div>
