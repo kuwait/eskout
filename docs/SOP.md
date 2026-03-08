@@ -1576,16 +1576,19 @@ Post-launch improvements based on real usage feedback.
 #### 5A. Mobile UX Overhaul
 The app is mobile-first but the current iPhone experience needs significant improvement.
 
-- [ ] **Bottom navigation redesign** — current tab bar is hard to use on iPhone; needs larger touch targets, better spacing, clearer visual feedback, possibly swipe gestures
-- [ ] **Full mobile UX audit** — go through every feature on iPhone and fix usability issues:
-  - Player table/list scrolling and interaction
+**Status: DONE for admin/editor roles.** Remaining: scout role pages (submissions, limited player views) — not yet confirmed/designed.
+
+- [x] **Bottom navigation redesign** — hamburger drawer replaces bottom tab bar
+- [x] **Full mobile UX audit (admin/editor)** — completed across all features:
+  - ~~Player table/list scrolling and interaction~~ DONE
   - ~~Player profile layout on small screens~~ DONE
-  - Squad/formation view touch interactions
-  - Pipeline kanban on mobile
-  - Filter panels and dropdowns
-  - Form inputs (add player, submit report, etc.)
+  - ~~Squad/formation view touch interactions~~ DONE
+  - ~~Pipeline kanban on mobile~~ DONE
+  - ~~Filter panels and dropdowns~~ DONE
+  - ~~Form inputs (add player, submit report, etc.)~~ DONE
   - ~~Dialog/modal sizing and scrolling~~ DONE
-  - Export page layout
+  - ~~Export page layout~~ DONE
+- [ ] **Scout role mobile UX** — design and polish scout-specific pages (submissions list, limited player views, report submission flow)
 - [x] **Player profile mobile revamp** — MiniPitch below photo (clickable popup), position badges, personal rating in header, shortened name, InfoChip-based Info Basica, Section visual revamp (accent pill + separator), observer avatars, DecisionBadge, action bar icon-only on mobile, FPF/ZZ links in Info Basica title
 - [x] **Player profile edit mode revamp** — custom mobile-first edit inputs: shirt number with icon, interactive foot selector (SVG silhouettes), phone input with country code prefix (+351 default) and validation, referral picker (CommandDialog combobox linking to user profiles via `referred_by_user_id`), LinkCard components for FPF/ZZ/photo URLs (tap-to-expand inline editing, image URL validation with loading state), uniform text styling across all fields, action bar (X cancel / Guardar save), delete confirmation requiring "ELIMINAR" typed, zona de perigo section (admin only), dirty state detection (Guardar disabled until changes made), pinch-to-zoom disabled app-wide
 - [x] **Scout evaluations popup revamp** — bottom sheet with drag handle, scrollable, grouped sections (Tu/Relatorios/Scouts), accent strip rows with avatar + inline stars + rating number
