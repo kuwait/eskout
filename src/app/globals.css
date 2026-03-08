@@ -527,11 +527,5 @@
   }
 }
 
-/* ───────────── Prevent iOS Safari auto-zoom on inputs with font-size < 16px ───────────── */
-@supports (-webkit-touch-callout: none) {
-  input,
-  select,
-  textarea {
-    font-size: max(1em, 16px) !important;
-  }
-}
+/* iOS Safari auto-zoom prevention handled by viewport meta (maximumScale=1, userScalable=false) */
+/* No CSS font-size override needed — inputs can use any size freely */
