@@ -1842,19 +1842,22 @@ Same flow but from `/master/clubes/[id]` → always role `admin`.
 
 #### 6.9. Migration Strategy
 
-Since the database will be rebuilt from scratch:
+Existing data will be wiped (test data only), but the current schema stays. Incremental SQL migrations extend the structure — same pattern as migrations 001-028.
 
-1. Create new tables (`clubs`, `club_memberships`, `club_age_groups`)
-2. Add `club_id` column to all existing data tables
-3. Modify `profiles` — add `is_superadmin`, keep `role` temporarily
-4. Update all RLS policies
-5. Update all Server Actions to use `getActiveClub()`
-6. Update all queries to filter by `club_id`
-7. Add middleware club context logic
-8. Build `/master` panel pages
-9. Build club picker + switcher UI
-10. Feature gate all nav items and routes
-11. Create first club (Boavista) + assign existing users
+**Migrations (added per sub-phase):**
+- **029** — Create `clubs`, `club_memberships`, `club_age_groups` tables
+- **030** — Add `club_id` to `players`, `scouting_reports`, `observation_notes`, `status_history`, `calendar_events`, `scout_evaluations`, `scout_reports`. Add `is_superadmin` to `profiles`.
+- **031** — New RLS policies (club-scoped reads/writes, superadmin-only on `clubs`/`club_memberships`)
+- **032+** — As needed per sub-phase (feature toggles defaults, invitation tables, etc.)
+
+**Application changes (in order):**
+1. Update all Server Actions to use `getActiveClub()` helper
+2. Update all queries to filter by `club_id`
+3. Add middleware club context logic (cookie-based)
+4. Build `/master` panel pages
+5. Build club picker + switcher UI
+6. Feature gate all nav items and routes
+7. Create first club (Boavista) + assign existing users
 
 **Estimated scope:** This is a significant refactor touching every query, action, and data-fetching component. Recommend doing it in sub-phases:
 - **6A:** Schema + RLS + auth context (backend foundation)
