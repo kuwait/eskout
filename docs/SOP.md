@@ -3048,11 +3048,11 @@ CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
 
 #### 15.7. Design Guidelines
 
-**1. Lists ≠ Pipeline.** Listas são organização pessoal, pipeline/opinião/plantel sombra são estado partilhado. Na UI e no copy nunca misturar os dois conceitos. Bookmark icon + "As minhas listas" reforçam que é pessoal. Nunca sugerir que adicionar a uma lista substitui mover no pipeline ou alterar opinião.
+**1. Lists ≠ Pipeline.** Lists are personal organization; pipeline/opinion/shadow squad are shared player state. UI and copy must never blur the two. Bookmark icon + "As minhas listas" label reinforce it's personal. Never suggest that adding to a list replaces moving in pipeline or changing opinion.
 
-**2. Scout experience must be polished.** Visão limitada não pode significar UX confusa. Mapear claramente: onde o scout vê o bookmark (submissões, lista de jogadores visíveis), o que aparece dentro da lista (info limitada que já vê), como navega de lista → jogador (sem acesso ao profile completo). Testar o fluxo scout de ponta a ponta antes de lançar.
+**2. Scout experience must be polished.** Limited visibility must not mean confusing UX. Map clearly: where the scout sees the bookmark (submissions, visible player list), what shows inside the list (same limited info they already see), how they navigate from list → player (no access to full profile). Test the scout flow end-to-end before shipping.
 
-**3. Visual discretion.** O bookmark e os popovers tocam muitas superfícies (card, tabela, profile, pipeline, nav). Manter o ícone pequeno e discreto — não pode competir com opinião, posição ou rating que são mais importantes. Popover leve (não modal). Sem animações excessivas. A feature deve ser descobrível mas não intrusiva.
+**3. Visual discretion.** The bookmark and popovers touch many surfaces (card, table, profile, pipeline, nav). Keep the icon small and subtle — it must not compete with opinion, position, or rating which are more important. Lightweight popover (not modal). No excessive animations. The feature should be discoverable but not intrusive.
 
 #### 15.8. Sub-phases
 
