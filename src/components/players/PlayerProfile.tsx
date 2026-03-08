@@ -620,7 +620,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
                   {/* FPF */}
                   <LinkCard
-                    icon={<span className="text-xs font-black text-neutral-500">FPF</span>}
+                    icon={<Image src="https://upload.wikimedia.org/wikipedia/pt/7/75/Portugal_FPF.png" alt="FPF" width={20} height={20} className="h-5 w-5 object-contain" unoptimized />}
                     label="Portal FPF"
                     value={draft.fpfLink}
                     onChange={(v) => updateDraft('fpfLink', v)}
@@ -628,7 +628,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
                   {/* ZeroZero */}
                   <LinkCard
-                    icon={<span className="text-xs font-black text-neutral-500">ZZ</span>}
+                    icon={<Image src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Zerozero-logo.svg/1280px-Zerozero-logo.svg.png" alt="ZeroZero" width={20} height={20} className="h-5 w-5 object-contain" unoptimized />}
                     label="ZeroZero"
                     value={draft.zerozeroLink}
                     onChange={(v) => updateDraft('zerozeroLink', v)}
@@ -1486,14 +1486,15 @@ function LinkCard({ icon, label, value, onChange }: {
           <Pencil className={`h-3 w-3 transition-colors ${expanded ? 'text-neutral-600' : 'text-neutral-300'}`} />
         </div>
       </button>
-      {/* Expandable input */}
+      {/* Expandable input — empty field for new/replacement URL */}
       {expanded && (
-        <div className="border-t border-neutral-200/60 px-3 py-2">
-          <Input
-            value={value}
+        <div className="mx-3 mb-2.5 mt-1">
+          <input
+            type="url"
+            defaultValue=""
             onChange={(e) => onChange(e.target.value)}
-            placeholder="https://..."
-            className="font-mono text-[11px] text-neutral-500"
+            placeholder={hasValue ? 'Insere novo URL...' : 'Insere URL...'}
+            className="w-full rounded-md bg-neutral-100/60 px-2 py-1 font-mono text-[9px] leading-relaxed tracking-wider text-neutral-400 outline-none placeholder:text-neutral-300/80 focus:bg-neutral-100 focus:ring-1 focus:ring-neutral-200/80"
             autoFocus
           />
         </div>
