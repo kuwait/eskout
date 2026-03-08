@@ -2534,6 +2534,264 @@ ALTER TABLE clubs ADD COLUMN trial_ends_at TIMESTAMPTZ;
 
 ---
 
+### Phase 12 — Player Comparison
+
+Side-by-side comparison of 2 or 3 players. The key decision-making tool when choosing between candidates for the same position.
+
+#### 12.1. How It Works
+
+**Entry points:**
+- Player table: checkbox to select players → "Comparar (2)" button appears in a floating bar
+- Player profile: "Comparar" action → opens picker to add opponents
+- Position view: select 2-3 players from the same position group
+- Pipeline: compare candidates in the same stage
+
+**Limit:** 2 or 3 players max. Must be selected — no default.
+
+**Route:** `/comparar?ids=123,456,789` — shareable URL.
+
+#### 12.2. Comparison Layout
+
+**Mobile (primary):** Swipeable cards — swipe left/right to switch between players. Sticky header with player names/photos as tabs. All data sections stacked vertically, values side by side per row.
+
+**Desktop:** Columns side by side (2 or 3 columns). Fixed header with photo + name + club. Scrollable body with all comparison rows.
+
+#### 12.3. Comparison Sections
+
+| Section | Rows |
+|---------|------|
+| **Dados Básicos** | Foto, nome, idade, clube, escalão, nacionalidade |
+| **Posição** | Posição principal, secundária, terciária (visual dots like MiniPitch) |
+| **Físico** | Altura, peso, pé |
+| **Avaliação** | Rating médio (relatórios), avaliação do observador, decisão |
+| **Opinião** | Opinião do departamento (badge), avaliação dos scouts (stars) |
+| **Pipeline** | Estado do recrutamento (badge), datas (treino, reunião, assinatura) |
+| **Relatórios** | Número de relatórios, rating médio, pontos fortes, pontos fracos |
+| **Estatísticas** | Jogos na época, golos (ZeroZero) |
+| **Notas** | Última nota de observação (preview) |
+
+**Visual highlights:**
+- Best value per row gets a subtle green accent (e.g. highest rating, more games)
+- Missing data shown as "—" in muted text
+- Position overlap highlighted: if both play DC, show match icon
+
+#### 12.4. Technical Notes
+
+- Pure client component — all data already available from player objects
+- No new DB tables or queries — reuses existing player data
+- Comparison state: URL params (`ids=`) + optional localStorage for recent comparisons
+- "Recentes" section: last 5 comparisons saved locally for quick re-access
+- Export: "Guardar comparação como imagem" — reuses `html2canvas-pro` pattern from player profile
+
+#### 12.5. Sub-phases
+
+- **12A:** Route + layout shell (columns/swipe), player selection floating bar
+- **12B:** All comparison sections with data rendering
+- **12C:** Visual highlights (best values, missing data)
+- **12D:** Entry points (table checkboxes, profile action, position view)
+- **12E:** Export as image + recent comparisons
+
+**Deliverable:** Decision-making tool that lets scouts and admins compare 2-3 candidates side by side across every dimension. Reduces gut-feel decisions with structured, visual comparison.
+
+---
+
+### Phase 13 — Training Feedback
+
+Structured feedback forms for when a player comes to train at the club (`vir_treinar` pipeline stage). Replaces loose notes with a consistent, queryable evaluation.
+
+#### 13.1. Data Model
+
+```sql
+CREATE TABLE training_feedback (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  session_date DATE NOT NULL,                     -- When the training happened
+  coach_user_id UUID REFERENCES profiles(id),     -- Who submitted the feedback
+  coach_name TEXT NOT NULL,                        -- Denormalized
+
+  -- Structured ratings (1-5 scale)
+  technical INT CHECK (technical BETWEEN 1 AND 5),        -- Nível técnico
+  tactical INT CHECK (tactical BETWEEN 1 AND 5),          -- Compreensão tática
+  physical INT CHECK (physical BETWEEN 1 AND 5),          -- Capacidade física
+  attitude INT CHECK (attitude BETWEEN 1 AND 5),          -- Atitude / mentalidade
+  adaptation INT CHECK (adaptation BETWEEN 1 AND 5),      -- Adaptação ao grupo
+
+  -- Overall
+  overall_rating INT CHECK (overall_rating BETWEEN 1 AND 5),  -- Avaliação geral
+  decision TEXT CHECK (decision IN ('assinar', 'repetir', 'descartar')),  -- Decisão
+  notes TEXT DEFAULT '',                           -- Observações livres
+
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_training_feedback_player ON training_feedback (club_id, player_id);
+CREATE INDEX idx_training_feedback_date ON training_feedback (club_id, session_date DESC);
+```
+
+#### 13.2. Decision Values
+
+| Value | Label PT | Description |
+|-------|----------|-------------|
+| `assinar` | Assinar | Ready to sign, proceed |
+| `repetir` | Repetir Treino | Needs another session to decide |
+| `descartar` | Descartar | Not a fit, don't pursue |
+
+#### 13.3. UI — Feedback Form
+
+**Trigger:** When a player's pipeline status is `vir_treinar` or has a `training_date`, a "Registar Treino" button appears on their profile.
+
+**Form layout:**
+- **Date picker** — session date (defaults to today)
+- **5 rating dimensions** — each is a row with label + 5 tappable stars or number selector
+  - Técnica, Tática, Físico, Atitude, Adaptação
+- **Overall rating** — larger, prominent star rating
+- **Decision** — 3-button toggle: Assinar / Repetir / Descartar (color-coded: green / yellow / red)
+- **Notes** — free-text area for additional observations
+- **Submit** button
+
+**Mobile-first:** Single column, large touch targets for stars, decision buttons full-width.
+
+#### 13.4. UI — Display
+
+**Player profile:** New "Treinos" section (between Pipeline/Recruitment and Notas). Shows:
+- List of training feedback entries, newest first
+- Each entry: date, coach name, 5 dimension ratings as mini bar/dots, overall rating, decision badge, notes preview
+- Tap to expand full details
+
+**Pipeline view:** Players in `vir_treinar` column show training feedback summary — overall rating + decision badge if feedback exists, or "Sem feedback" chip if not.
+
+**Dashboard widget (future):** "Treinos esta semana" — list of players who trained, with overall rating and decision.
+
+#### 13.5. Interaction with Pipeline
+
+When training feedback is submitted with a decision:
+- **Assinar** → suggest moving player to `a_decidir` or `confirmado` (prompt, not automatic)
+- **Repetir** → keep in `vir_treinar`, optionally create calendar event for next training
+- **Descartar** → suggest moving to `rejeitado` (prompt)
+
+These are suggestions, not forced transitions. Admin confirms the pipeline move.
+
+#### 13.6. Sub-phases
+
+- **13A:** `training_feedback` table + RLS + Server Action for submit
+- **13B:** Feedback form (ratings, decision, notes)
+- **13C:** Player profile "Treinos" section
+- **13D:** Pipeline view integration (feedback summary on `vir_treinar` cards)
+- **13E:** Pipeline transition suggestions after feedback
+
+**Deliverable:** Structured, consistent training evaluations that replace ad-hoc notes. Every training session produces queryable data: 5 dimensions + overall + decision. Feeds directly into pipeline decisions.
+
+---
+
+### Phase 14 — Analytics Dashboard
+
+Advanced metrics and insights for club admins. Replaces the basic dashboard counters with actionable analytics about scouting productivity, pipeline health, and squad coverage.
+
+#### 14.1. Route
+
+`/analytics` — accessible to club admins and editors. Link in sidebar under "Mais" or as a top-level nav item.
+
+#### 14.2. Metric Cards (Top Row)
+
+Quick-glance KPIs with comparison to previous period (month or season):
+
+| Metric | Description | Visual |
+|--------|-------------|--------|
+| **Jogadores Observados** | Total players with at least 1 observation note or scouting report | Number + trend arrow |
+| **Jogadores Adicionados** | New players created this period | Number + trend arrow |
+| **Assinaturas** | Players who reached `assinou` status | Number + trend arrow |
+| **Tempo Médio no Pipeline** | Average days from `por_tratar` to `confirmado`/`assinou` | Days + trend |
+
+#### 14.3. Scout Productivity
+
+**Table/chart:** One row per scout (user with scout/editor role).
+
+| Column | Description |
+|--------|-------------|
+| Nome | Scout name + avatar |
+| Jogadores Referenciados | Players where `referred_by_user_id` = this scout |
+| Notas Escritas | Observation notes authored this period |
+| Relatórios | Scouting reports submitted |
+| Avaliações | Scout evaluations submitted |
+| Pipeline Avançados | Players they referred that advanced past `a_observar` |
+
+**Sortable by any column.** Shows who's active and who's contributing most.
+
+#### 14.4. Pipeline Funnel
+
+**Visual funnel chart:** Shows how many players are in each pipeline stage, with conversion rates between stages.
+
+```
+Por Tratar (120) ──▶ A Observar (85) ──▶ Em Contacto (30) ──▶ Vir Treinar (12) ──▶ Confirmado (5)
+                71%                   35%                  40%                  42%
+```
+
+- Color-coded bars per stage
+- Percentage shows conversion from previous stage
+- Click a stage → filtered player list
+- Period selector: this season, last 30 days, custom range
+
+#### 14.5. Position Coverage
+
+**Grid/matrix:** Rows = positions (GR, DD, DE, DC, ...), columns = status.
+
+| Posição | Plantel Real | Plantel Sombra | Em Pipeline | Total Observados |
+|---------|-------------|----------------|-------------|-----------------|
+| GR | 2 | 1 | 3 | 8 |
+| DC | 4 | 2 | 5 | 22 |
+| PL | 1 | 0 | 2 | 15 |
+
+**Highlights:**
+- Red if shadow squad slot is empty (gap)
+- Amber if pipeline is thin (<3 candidates) for a position with shadow gap
+- Green if position is well covered
+
+Shows at a glance: "We have no shadow PL and only 2 in pipeline — this position needs focus."
+
+#### 14.6. Activity Over Time
+
+**Line chart:** Actions per week/month over the last 6 months. Lines for:
+- Players added
+- Notes written
+- Pipeline moves
+- Reports submitted
+
+Shows scouting department activity trends. Useful for admin to see if work is being done consistently or in bursts.
+
+#### 14.7. Escalão Breakdown
+
+**Bar chart or table:** Per age group:
+- Total players scouted
+- Players in pipeline
+- Shadow squad completeness (filled / total slots)
+- Signings
+
+Shows which escalões are getting attention and which are neglected.
+
+#### 14.8. Technical Notes
+
+- **Charts library:** `recharts` (lightweight, React-native, works with SSR) or `chart.js` via `react-chartjs-2`
+- **Data source:** Aggregation queries on existing tables — no new tables needed (except activity_log from Phase 8 for activity trends)
+- **Caching:** Dashboard queries can be expensive — cache with `revalidateTag` on a 5-minute cycle, or compute on demand with loading skeletons
+- **Period selector:** Default "Esta Época" (season), options: last 30 days, last 90 days, custom range
+- **Export:** "Exportar Relatório" button → PDF summary of all metrics for the selected period
+
+#### 14.9. Sub-phases
+
+- **14A:** Route + layout shell + period selector
+- **14B:** Top-row KPI metric cards
+- **14C:** Scout productivity table
+- **14D:** Pipeline funnel visualization
+- **14E:** Position coverage matrix
+- **14F:** Activity over time chart + escalão breakdown
+- **14G:** Export analytics as PDF
+
+**Deliverable:** Data-driven insights for scouting department management. Admins see scout productivity, pipeline health, position gaps, and activity trends — all in one page. Replaces guesswork with metrics.
+
+---
+
 ## 10. Data Files & Scripts
 
 | File | Description |
