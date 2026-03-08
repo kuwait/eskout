@@ -1594,6 +1594,56 @@ The app is mobile-first but the current iPhone experience needs significant impr
 - [x] **RefreshPlayerButton** — unified button styling matching action bar
 - [x] **"Recusou vir"** — renamed "Rejeitado" label to clarify it means the player refused
 
+#### 5B-0. Player Club History & Season Stats
+
+Secção "Percurso" no perfil do jogador — mostra o histórico de clubes e stats por época, estilo ZeroZero. Combina dados de duas fontes (FPF + ZeroZero) num timeline unificado.
+
+**Dados existentes:**
+- `zz_team_history` — array de `{ club, season, games, goals }` scraped do ZeroZero (já existe no DB)
+- `fpf_current_club` — clube actual na FPF (já existe)
+
+**Dados a adicionar (scraping melhorado):**
+- **FPF club history** — a FPF tem o histórico de clubes do jogador (registos de transferência). Scraper deve extrair lista de clubes + épocas.
+- **Merge FPF + ZZ** — FPF é source of truth para clubes/transferências, ZZ para stats (jogos, golos). Merge por época + clube.
+
+**Data model:**
+```sql
+-- Unified club history (merged from FPF + ZZ sources)
+-- Stored as JSONB array on players table (like zz_team_history)
+ALTER TABLE players ADD COLUMN club_history JSONB;
+-- Structure: [{ season, club, club_logo_url, competition, games, goals, assists, source }]
+-- source: 'fpf', 'zz', 'merged' (when both match)
+```
+
+**Merge logic:**
+1. Start with FPF entries (authoritative for club/season)
+2. Match ZZ entries by season + club name (fuzzy: "Leixões" = "Leixões S.C.")
+3. When matched → merge stats (games, goals from ZZ) into FPF entry, mark `source: 'merged'`
+4. ZZ entries with no FPF match → add as `source: 'zz'` (might be sub-teams, cups, etc.)
+5. FPF entries with no ZZ match → add as `source: 'fpf'` (games/goals unknown)
+
+**Scraper improvements:**
+- [ ] FPF scraper: extract club history (list of clubs + seasons) in addition to current club
+- [ ] ZZ scraper: fix malformed seasons (`2024/20` → should be `2024/25` or discarded)
+- [ ] ZZ scraper: extract assists if available
+- [ ] ZZ scraper: extract competition name (e.g. "Jun.C S15") for context
+- [ ] Merge script: combine FPF + ZZ data into `club_history` column
+
+**UI — "Percurso" section in player profile:**
+- Table layout like ZeroZero screenshot: Época | Equipa | J | G | (A)
+- Club logo/flag next to club name (if available)
+- Competition/team tier in smaller text below club name (e.g. "[Jun.C S15]")
+- Most recent season first
+- Seasons with 0 games shown in muted style
+- Collapsible if more than 6 entries (show 5 + "Ver mais")
+- Source indicator: subtle dot or icon showing if data is from FPF, ZZ, or both
+
+**Sub-phases:**
+- **5B0-1:** Improve ZZ scraper (fix seasons, extract competition/assists)
+- **5B0-2:** Improve FPF scraper (extract club history, not just current club)
+- **5B0-3:** Merge script + `club_history` column
+- **5B0-4:** "Percurso" section UI in player profile
+
 #### 5B. YouTube Media Links
 
 Secção de media no perfil do jogador. Centraliza vídeo e scouting no mesmo sítio — dá contexto visual, facilita análise técnica/física, útil em reuniões e comparação de atletas.
