@@ -1872,6 +1872,292 @@ Each sub-phase must be deployable independently.
 
 ---
 
+### Phase 7 — Internationalization (i18n)
+
+Full UI translation support. Every label, button, placeholder, error message, toast, status name, position code, and domain term is translatable. User-generated content (notes, reports, player names) stays in the original language.
+
+#### 7.1. Architecture
+
+**Library:** `next-intl` — the standard for Next.js App Router i18n. Supports Server Components, client components, and middleware-based locale detection.
+
+**Locales (initial):**
+| Code | Language |
+|------|----------|
+| `pt` | Português (PT-PT) — default |
+| `en` | English |
+| `fr` | Français |
+| `es` | Español |
+
+Adding a new language = creating a new JSON file + translating. No code changes needed.
+
+**Locale resolution (priority order):**
+1. User preference (stored in `profiles.locale`)
+2. Club default locale (stored in `clubs.settings.default_locale`)
+3. Browser `Accept-Language` header
+4. Fallback: `pt`
+
+**No URL prefix.** Locale is per-user preference, not part of the URL. `app.eskout.co/jogadores` stays the same regardless of language. This avoids breaking existing routes and keeps URLs clean.
+
+#### 7.2. Translation File Structure
+
+```
+src/
+├── messages/
+│   ├── pt.json          -- Portuguese (source of truth)
+│   ├── en.json          -- English
+│   ├── fr.json          -- French
+│   └── es.json          -- Spanish
+```
+
+**Namespace structure within each JSON:**
+
+```json
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "search": "Pesquisar",
+    "filters": "Filtros",
+    "loading": "A carregar...",
+    "confirm": "Confirmar",
+    "back": "Voltar",
+    "close": "Fechar",
+    "yes": "Sim",
+    "no": "Não",
+    "error": "Erro",
+    "success": "Sucesso"
+  },
+  "nav": {
+    "dashboard": "Painel",
+    "squad": "Plantel",
+    "players": "Jogadores",
+    "pipeline": "Pipeline",
+    "calendar": "Calendário",
+    "positions": "Posições",
+    "alerts": "Alertas",
+    "settings": "Definições",
+    "export": "Exportar",
+    "users": "Utilizadores"
+  },
+  "positions": {
+    "GR": "Guarda-Redes",
+    "DD": "Defesa Direito",
+    "DE": "Defesa Esquerdo",
+    "DC": "Defesa Central",
+    "MDC": "Médio Defensivo",
+    "MC": "Médio Centro",
+    "MOC": "Médio Ofensivo",
+    "ED": "Extremo Direito",
+    "EE": "Extremo Esquerdo",
+    "PL": "Ponta de Lança"
+  },
+  "opinions": {
+    "1a_escolha": "1ª Escolha",
+    "2a_escolha": "2ª Escolha",
+    "acompanhar": "Acompanhar",
+    "por_observar": "Por Observar",
+    "urgente_observar": "Urgente Observar",
+    "sem_interesse": "Sem interesse",
+    "potencial": "Potencial",
+    "assinar": "Assinar"
+  },
+  "pipeline_status": {
+    "por_tratar": "Por Tratar",
+    "a_observar": "A Observar",
+    "em_contacto": "Em Contacto",
+    "vir_treinar": "Vir Treinar",
+    "reuniao_marcada": "Reunião Marcada",
+    "a_decidir": "A Decidir",
+    "confirmado": "Confirmado",
+    "assinou": "Assinou",
+    "rejeitado": "Recusou Vir"
+  },
+  "observer_eval": {
+    "duvida": "2 - Dúvida",
+    "bom": "3 - Bom",
+    "muito_bom": "4 - Muito Bom",
+    "excelente": "5 - Excelente"
+  },
+  "observer_decision": {
+    "assinar": "Assinar",
+    "acompanhar": "Acompanhar",
+    "rever": "Rever",
+    "sem_interesse": "Sem Interesse"
+  },
+  "foot": {
+    "Dir": "Direito",
+    "Esq": "Esquerdo",
+    "Amb": "Ambidestro"
+  },
+  "player": {
+    "name": "Nome",
+    "club": "Clube",
+    "position": "Posição",
+    "age_group": "Escalão",
+    "dob": "Data Nascimento",
+    "foot": "Pé",
+    "shirt_number": "Número",
+    "contact": "Contacto",
+    "nationality": "Nacionalidade",
+    "birth_country": "País Nascimento",
+    "height": "Altura",
+    "weight": "Peso",
+    "referred_by": "Referenciado por",
+    "notes": "Notas",
+    "strengths": "Pontos Fortes",
+    "weaknesses": "Pontos Fracos",
+    "rating": "Avaliação",
+    "decision": "Decisão",
+    "observer": "Observador",
+    "scouting_report": "Relatório Observação",
+    "status": "Estado",
+    "add_player": "Adicionar Jogador",
+    "profile": "Ficha do Jogador"
+  },
+  "squad": {
+    "real_squad": "Plantel Real",
+    "shadow_squad": "Plantel Sombra",
+    "add_to_shadow": "Adicionar ao Plantel Sombra",
+    "remove_from_shadow": "Remover do Plantel Sombra"
+  },
+  "calendar": {
+    "training": "Treino",
+    "signing": "Assinatura",
+    "meeting": "Reunião",
+    "observation": "Observação",
+    "other": "Outro"
+  },
+  "roles": {
+    "admin": "Administrador",
+    "editor": "Editor",
+    "scout": "Observador"
+  },
+  "priority": {
+    "normal": "Normal",
+    "importante": "Importante",
+    "urgente": "Urgente"
+  }
+}
+```
+
+This is not exhaustive — every hardcoded Portuguese string in the codebase needs a translation key. The `pt.json` file is the source of truth; other locale files mirror its structure.
+
+#### 7.3. Domain Terms Translation Reference
+
+Position codes (`GR`, `DC`, etc.) are internal identifiers that never change. The **display names** are translated:
+
+| Code | PT | EN | FR | ES |
+|------|----|----|----|----|
+| GR | Guarda-Redes | Goalkeeper | Gardien | Portero |
+| DD | Defesa Direito | Right Back | Arrière Droit | Lateral Derecho |
+| DE | Defesa Esquerdo | Left Back | Arrière Gauche | Lateral Izquierdo |
+| DC | Defesa Central | Centre Back | Défenseur Central | Defensa Central |
+| MDC | Médio Defensivo | Defensive Mid | Milieu Défensif | Mediocentro Defensivo |
+| MC | Médio Centro | Central Mid | Milieu Central | Centrocampista |
+| MOC | Médio Ofensivo | Attacking Mid | Milieu Offensif | Mediapunta |
+| ED | Extremo Direito | Right Winger | Ailier Droit | Extremo Derecho |
+| EE | Extremo Esquerdo | Left Winger | Ailier Gauche | Extremo Izquierdo |
+| PL | Ponta de Lança | Striker | Attaquant | Delantero |
+
+| Opinion | PT | EN | FR | ES |
+|---------|----|----|----|----|
+| 1ª Escolha | 1ª Escolha | 1st Choice | 1er Choix | 1ª Elección |
+| 2ª Escolha | 2ª Escolha | 2nd Choice | 2ème Choix | 2ª Elección |
+| Acompanhar | Acompanhar | Monitor | Suivre | Seguir |
+| Por Observar | Por Observar | To Observe | À Observer | Por Observar |
+| Urgente Observar | Urgente Observar | Urgent Observe | Urgent à Observer | Urgente Observar |
+| Sem interesse | Sem interesse | No Interest | Sans Intérêt | Sin Interés |
+| Potencial | Potencial | Potential | Potentiel | Potencial |
+| Assinar | Assinar | Sign | Signer | Fichar |
+
+| Foot | PT | EN | FR | ES |
+|------|----|----|----|----|
+| Dir | Direito | Right | Droit | Derecho |
+| Esq | Esquerdo | Left | Gauche | Izquierdo |
+| Amb | Ambidestro | Both | Ambidextre | Ambidiestro |
+
+**Note:** These translations need native speaker verification for FR and ES. The PT and EN versions are confirmed. Store the internal code (e.g. `GR`, `1ª Escolha`, `Dir`) in the database — translation happens at display time only.
+
+#### 7.4. Implementation Approach
+
+**`next-intl` setup:**
+
+```typescript
+// src/i18n/request.ts — server-side locale resolution
+import { getRequestConfig } from 'next-intl/server';
+
+export default getRequestConfig(async () => {
+  // Read from user profile or cookie, fallback to 'pt'
+  const locale = await resolveUserLocale();
+  return {
+    locale,
+    messages: (await import(`../messages/${locale}.json`)).default,
+  };
+});
+```
+
+```typescript
+// In Server Components:
+import { useTranslations } from 'next-intl';
+const t = useTranslations('player');
+// t('name') → "Nome" (pt) or "Name" (en)
+
+// In Client Components:
+import { useTranslations } from 'next-intl';
+const t = useTranslations('common');
+// t('save') → "Guardar" (pt) or "Save" (en)
+```
+
+**Migration of hardcoded strings:**
+- Search all `.tsx` files for Portuguese text (labels, placeholders, toasts, error messages)
+- Replace each with `t('key')` call
+- Map constants (DEPARTMENT_OPINIONS, PIPELINE_STATUSES, etc.) through translation at display time
+- Keep internal codes/values unchanged in DB and logic
+
+**DB change:**
+```sql
+-- Migration 033+: add locale preference
+ALTER TABLE profiles ADD COLUMN locale TEXT DEFAULT 'pt';
+```
+
+**Language selector:**
+- Preferências page: dropdown to pick language (flag + name)
+- Saves to `profiles.locale`
+- Takes effect immediately (revalidate)
+
+#### 7.5. What Gets Translated vs What Doesn't
+
+| Translated (UI) | NOT translated (data) |
+|------------------|-----------------------|
+| All labels, buttons, headings | Player names |
+| Placeholders, tooltips | Observation notes content |
+| Toast messages, errors | Scouting report text (strengths, weaknesses, analysis) |
+| Position display names | Club names |
+| Opinion display names | Free-text fields (contact, recruitment notes) |
+| Pipeline status display names | User-entered URLs |
+| Nav items, page titles | |
+| Date format (dd/MM/yyyy vs MM/dd/yyyy) | |
+| Number format (1.234 vs 1,234) | |
+| Empty states, onboarding text | |
+
+#### 7.6. Sub-phases
+
+- **7A:** Install `next-intl`, create `pt.json` (extract all existing hardcoded strings), configure middleware + layout
+- **7B:** Create `en.json` (English translation)
+- **7C:** Migrate all components — replace hardcoded text with `t()` calls
+- **7D:** Translate domain constants (positions, opinions, statuses, foot) via lookup at display time
+- **7E:** Add language selector to Preferências, `profiles.locale` column
+- **7F:** Create `fr.json` and `es.json` (French + Spanish — need native verification)
+- **7G:** Date/number formatting per locale
+
+Each sub-phase deployable independently. App remains fully functional in Portuguese throughout — other languages become available incrementally.
+
+**Deliverable:** Fully internationalized Eskout platform supporting PT, EN, FR, ES. Users choose their language. All UI text, domain terms, and formatting respect the chosen locale. Adding new languages requires only a JSON translation file.
+
+---
+
 ## 10. Data Files & Scripts
 
 | File | Description |
