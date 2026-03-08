@@ -185,6 +185,31 @@ export function getNationalityFlag(nationality: string | null): string {
   return entry?.flag ?? '🌍';
 }
 
+/* ───────────── Country Dial Codes ───────────── */
+
+/** Common country dial codes for phone input — ordered by relevance to Portuguese football scouting */
+export const COUNTRY_DIAL_CODES = [
+  { code: '+351', flag: '🇵🇹', country: 'Portugal' },
+  { code: '+55',  flag: '🇧🇷', country: 'Brasil' },
+  { code: '+244', flag: '🇦🇴', country: 'Angola' },
+  { code: '+258', flag: '🇲🇿', country: 'Moçambique' },
+  { code: '+238', flag: '🇨🇻', country: 'Cabo Verde' },
+  { code: '+245', flag: '🇬🇼', country: 'Guiné-Bissau' },
+  { code: '+34',  flag: '🇪🇸', country: 'Espanha' },
+  { code: '+33',  flag: '🇫🇷', country: 'França' },
+  { code: '+49',  flag: '🇩🇪', country: 'Alemanha' },
+  { code: '+44',  flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', country: 'Inglaterra' },
+  { code: '+39',  flag: '🇮🇹', country: 'Itália' },
+  { code: '+31',  flag: '🇳🇱', country: 'Holanda' },
+  { code: '+32',  flag: '🇧🇪', country: 'Bélgica' },
+  { code: '+41',  flag: '🇨🇭', country: 'Suíça' },
+  { code: '+40',  flag: '🇷🇴', country: 'Roménia' },
+  { code: '+234', flag: '🇳🇬', country: 'Nigéria' },
+  { code: '+221', flag: '🇸🇳', country: 'Senegal' },
+  { code: '+233', flag: '🇬🇭', country: 'Gana' },
+  { code: '+212', flag: '🇲🇦', country: 'Marrocos' },
+] as const;
+
 /* ───────────── Age Groups (dynamic — season starts July 1) ───────────── */
 
 // Season runs July to June. Season end year = the year the season finishes.

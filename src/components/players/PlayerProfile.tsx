@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Check, CircleCheckBig, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, MessageCircle, Pencil, PenLine, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, CircleCheckBig, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, ImageIcon, Link2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,11 +31,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -68,6 +63,7 @@ import {
   RECRUITMENT_STATUSES,
   RECRUITMENT_LABEL_MAP,
   NATIONALITIES,
+  COUNTRY_DIAL_CODES,
   getNationalityFlag,
   getPositionLabel,
 } from '@/lib/constants';
@@ -136,6 +132,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   }
 
   function handleSave() {
+    if (!isPhoneValid(draft.contact)) {
+      toast.error('Número de contacto inválido.');
+      return;
+    }
     startTransition(async () => {
       const updates: Record<string, unknown> = {
         name: draft.name,
@@ -312,13 +312,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
     <div ref={profileRef} className="mx-auto max-w-5xl space-y-3">
       {/* Action bar — back + contextual actions */}
       <div data-export-hide className="flex items-center justify-between rounded-xl border bg-neutral-50/50 px-2 py-1.5 shadow-sm sm:px-3">
+        {/* Left side — back (view) or cancel (edit) */}
         <button
-          onClick={onClose ?? (() => router.back())}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm"
+          onClick={editing ? handleCancel : (onClose ?? (() => router.back()))}
+          disabled={editing ? isDeleting : false}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50"
         >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Voltar</span>
+          {editing ? <X className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
+          <span className="hidden sm:inline">{editing ? 'Cancelar' : 'Voltar'}</span>
         </button>
+        {/* Right side — view mode actions */}
         {!editing && (
           <div className="flex items-center gap-1">
             <DropdownMenu>
@@ -349,33 +352,17 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             )}
           </div>
         )}
+        {/* Right side — edit mode: save only */}
         {editing && (
-          <div className="flex items-center gap-1">
-            {isAdmin && (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={isPending || isDeleting}
-                className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 hover:shadow-sm disabled:opacity-50"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Eliminar</span>
-              </button>
-            )}
-            <button onClick={handleSave} disabled={isPending || isDeleting} className="flex items-center gap-1 rounded-lg bg-neutral-900 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50">
-              <Save className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Guardar</span>
-            </button>
-            <button onClick={handleCancel} disabled={isDeleting} className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50">
-              <X className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Cancelar</span>
-            </button>
-          </div>
+          <button onClick={handleSave} disabled={isPending || isDeleting} className="flex items-center gap-1 rounded-lg bg-neutral-900 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50">
+            <Save className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Guardar</span>
+          </button>
         )}
       </div>
 
-      {/* ───────────── Header with Photo ───────────── */}
-      {/* Left column (photo+pitch) defines height; right column clips to fit on mobile */}
-      <div className="flex gap-4">
+      {/* ───────────── Header with Photo (view mode only) ───────────── */}
+      {!editing && <div className="flex gap-4">
         {/* Photo + MiniPitch + positions — defines header height */}
         <div className="flex shrink-0 flex-col items-center gap-1.5">
           {(() => {
@@ -436,18 +423,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 xl:gap-2">
-          {editing ? (
-            <Input
-              value={draft.name}
-              onChange={(e) => updateDraft('name', e.target.value)}
-              className="text-xl font-bold"
-            />
-          ) : (
             <div className="flex items-baseline gap-2">
               <h1 className="truncate font-bold xl:text-2xl" style={{ fontSize: 'clamp(1rem, 4.5vw, 1.5rem)' }}>{shortenName(p.name)}</h1>
               <ObservationBadge player={p} showLabel />
             </div>
-          )}
           {/* Club — mobile only (desktop shows in Info Básica) */}
           {!editing && p.club && (
             <div className="xl:hidden">
@@ -523,140 +502,238 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             </div>
           );
         })()}
-      </div>
+      </div>}
 
-      <Separator />
+      {!editing && <Separator />}
 
       {/* ───────────── Two-column layout on desktop, single on mobile ───────────── */}
-      {/* In edit mode: single column (forms need more space) */}
+      {/* In edit mode: redesigned form layout */}
       {editing ? (
         <div className="space-y-3">
-          {/* ───────────── Info Básica + Posição — side by side ───────────── */}
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <Section title="Informação Básica" stretch>
-              <div className="grid h-full grid-cols-2 content-between gap-x-4">
-                <EditField label="Data Nascimento">
-                  <Input type="date" value={draft.dob ?? ''} onChange={(e) => updateDraft('dob', e.target.value)} />
-                </EditField>
-                <EditField label="Clube">
-                  <Input value={draft.club} onChange={(e) => updateDraft('club', e.target.value)} />
-                </EditField>
-                <EditField label="Nacionalidade">
-                  <Select value={draft.nationality || 'none'} onValueChange={(v) => updateDraft('nationality', v === 'none' ? null : v)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {draft.nationality ? `${getNationalityFlag(draft.nationality)} ${draft.nationality}` : '—'}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">—</SelectItem>
-                      {NATIONALITIES.map((n) => (
-                        <SelectItem key={n.value} value={n.value}>{n.flag} {n.value}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </EditField>
-                <EditField label="Número">
-                  <ShirtNumberPicker value={draft.shirtNumber} onChange={(v) => updateDraft('shirtNumber', v)} />
-                </EditField>
-                <EditField label="Pé">
-                  <div className="flex gap-1">
-                    {FOOT_OPTIONS.map((f) => (
-                      <button
-                        key={f.value}
-                        type="button"
-                        onClick={() => updateDraft('foot', (draft.foot === f.value ? '' : f.value) as Foot)}
-                        className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${draft.foot === f.value ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400'}`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                </EditField>
-                <EditField label="Contacto">
-                  <Input type="tel" value={draft.contact} onChange={(e) => updateDraft('contact', e.target.value)} placeholder="+351 912 345 678" />
-                </EditField>
-              </div>
-            </Section>
+          {/* ───────────── Edit form: two columns on desktop, single on mobile ───────────── */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {/* ── Left column: Dados do Jogador + Links & Foto ── */}
+            <div className="space-y-3">
+              {/* ───────────── Section 1: Dados do Jogador ───────────── */}
+              <Section title="Dados do Jogador">
+                <div className="space-y-3">
+                  {/* Name — full width */}
+                  <EditField label="Nome Completo">
+                    <Input
+                      value={draft.name}
+                      onChange={(e) => updateDraft('name', e.target.value)}
+                      className="text-sm font-semibold"
+                      placeholder="Nome do jogador"
+                    />
+                  </EditField>
 
-            <Section title="Posição" stretch>
-              <div className="flex h-full flex-col items-center justify-center gap-2">
-                <EditPitchPicker
-                  primary={draft.positionNormalized as PositionCode | ''}
-                  secondary={draft.secondaryPosition as PositionCode | null}
-                  tertiary={draft.tertiaryPosition as PositionCode | null}
-                  onPrimaryChange={(v) => updateDraft('positionNormalized', v as PositionCode)}
-                  onSecondaryChange={(v) => updateDraft('secondaryPosition', v)}
-                  onTertiaryChange={(v) => updateDraft('tertiaryPosition', v)}
-                />
-                <div className="flex items-center gap-3 text-[10px] font-medium text-neutral-400">
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Principal</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-400" /> Secundária</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-400" /> Terciária</span>
+                  {/* DOB + Club — side by side */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <EditField label="Nascimento">
+                      <DateInput value={draft.dob ?? ''} onChange={(v) => updateDraft('dob', v)} />
+                    </EditField>
+                    <EditField label="Clube">
+                      <div className="relative">
+                        <Shirt className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+                        <Input
+                          value={draft.club}
+                          onChange={(e) => updateDraft('club', e.target.value)}
+                          className="pl-8 text-xs font-medium tracking-wide text-neutral-600"
+                          placeholder="Clube"
+                        />
+                      </div>
+                    </EditField>
+                  </div>
+
+                  {/* Nationality + Número — side by side */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <EditField label="Nacionalidade">
+                      <Select value={draft.nationality || 'none'} onValueChange={(v) => updateDraft('nationality', v === 'none' ? null : v)}>
+                        <SelectTrigger className="w-full text-xs font-medium tracking-wide text-neutral-600">
+                          <SelectValue>
+                            {draft.nationality ? `${getNationalityFlag(draft.nationality)} ${draft.nationality}` : '—'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          {NATIONALITIES.map((n) => (
+                            <SelectItem key={n.value} value={n.value}>{n.flag} {n.value}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </EditField>
+                    <EditField label="Número">
+                      <ShirtNumberInput value={draft.shirtNumber} onChange={(v) => updateDraft('shirtNumber', v)} />
+                    </EditField>
+                  </div>
+
+                  {/* Foot + Contact — side by side */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <EditField label="Pé">
+                      <FootSelector
+                        value={draft.foot}
+                        onChange={(v) => updateDraft('foot', v)}
+                      />
+                    </EditField>
+                    <EditField label="Contacto" suffix={(() => {
+                      if (!draft.contact) return null;
+                      return isPhoneValid(draft.contact)
+                        ? <Check className="h-3 w-3 text-green-500" />
+                        : <XCircle className="h-3 w-3 text-red-400" />;
+                    })()}>
+                      <PhoneInput
+                        value={draft.contact}
+                        onChange={(v) => updateDraft('contact', v)}
+                      />
+                    </EditField>
+                  </div>
                 </div>
-              </div>
-            </Section>
+              </Section>
+
+              {/* ───────────── Section 4: Links & Foto ───────────── */}
+              <Section title="Links & Foto">
+                <div className="space-y-3">
+                  {/* Photo URL with inline preview */}
+                  <EditField label="Foto">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-neutral-50">
+                        {draft.photoUrl ? (
+                          <Image src={draft.photoUrl} alt="Preview" width={36} height={36} className="h-full w-full object-cover" unoptimized />
+                        ) : (
+                          <ImageIcon className="h-3.5 w-3.5 text-neutral-300" />
+                        )}
+                      </div>
+                      <Input
+                        value={draft.photoUrl ?? ''}
+                        onChange={(e) => updateDraft('photoUrl', e.target.value || null)}
+                        placeholder="https://..."
+                        className="flex-1 font-mono text-xs"
+                      />
+                    </div>
+                  </EditField>
+
+                  {/* FPF + ZeroZero — side by side */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <EditField label="FPF">
+                      <div className="relative">
+                        <Link2 className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-neutral-400" />
+                        <Input
+                          value={draft.fpfLink}
+                          onChange={(e) => updateDraft('fpfLink', e.target.value)}
+                          placeholder="fpf.pt/..."
+                          className="pl-7 font-mono text-[11px]"
+                        />
+                      </div>
+                    </EditField>
+                    <EditField label="ZeroZero">
+                      <div className="relative">
+                        <Link2 className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-neutral-400" />
+                        <Input
+                          value={draft.zerozeroLink}
+                          onChange={(e) => updateDraft('zerozeroLink', e.target.value)}
+                          placeholder="zerozero.pt/..."
+                          className="pl-7 font-mono text-[11px]"
+                        />
+                      </div>
+                    </EditField>
+                  </div>
+                </div>
+              </Section>
+            </div>
+
+            {/* ── Right column: Posição + Observação & Recrutamento ── */}
+            <div className="space-y-3">
+              {/* ───────────── Section 2: Posição ───────────── */}
+              <Section title="Posição">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <EditPitchPicker
+                    primary={draft.positionNormalized as PositionCode | ''}
+                    secondary={draft.secondaryPosition as PositionCode | null}
+                    tertiary={draft.tertiaryPosition as PositionCode | null}
+                    onPrimaryChange={(v) => updateDraft('positionNormalized', v as PositionCode)}
+                    onSecondaryChange={(v) => updateDraft('secondaryPosition', v)}
+                    onTertiaryChange={(v) => updateDraft('tertiaryPosition', v)}
+                  />
+                  <div className="flex items-center gap-3 text-[10px] font-medium text-neutral-400">
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Principal</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-400" /> Secundária</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-400" /> Terciária</span>
+                  </div>
+                </div>
+              </Section>
+
+              {/* ───────────── Section 3: Observação & Recrutamento ───────────── */}
+              <Section title="Observação & Recrutamento">
+                <div className="space-y-4">
+                  <EditField label="Referência">
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+                      <Input
+                        value={draft.referredBy}
+                        onChange={(e) => updateDraft('referredBy', e.target.value)}
+                        className="pl-8 text-sm"
+                        placeholder="Quem referenciou"
+                      />
+                    </div>
+                  </EditField>
+
+                  {/* Decisão — segmented pill buttons */}
+                  <EditField label="Decisão">
+                    <div className="flex flex-wrap gap-1.5">
+                      {OBSERVER_DECISIONS.map((d) => {
+                        const isSelected = draft.observerDecision === d;
+                        const decStyle = DECISION_BADGE_STYLES[d] ?? DECISION_DEFAULT_STYLE;
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => updateDraft('observerDecision', (draft.observerDecision === d ? '' : d) as ObserverDecision)}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                              isSelected
+                                ? `${decStyle.bg} ${decStyle.border} ${decStyle.text} shadow-sm`
+                                : 'border-dashed border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300 hover:text-neutral-500'
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </EditField>
+
+                  {/* Opinião Departamento — colored toggle pills */}
+                  <EditField label="Opinião Departamento">
+                    <OpinionEditPills
+                      selected={draft.departmentOpinion}
+                      onChange={(next) => updateDraft('departmentOpinion', next as DepartmentOpinion[])}
+                    />
+                  </EditField>
+                </div>
+              </Section>
+            </div>
           </div>
 
-          {/* ───────────── Observação & Recrutamento (Edit) ───────────── */}
-          <Section title="Observação & Recrutamento">
-            <div className="space-y-3">
-              <EditField label="Referência">
-                <Input value={draft.referredBy} onChange={(e) => updateDraft('referredBy', e.target.value)} />
-              </EditField>
-              <EditField label="Decisão">
-                <div className="flex flex-wrap gap-1">
-                  {OBSERVER_DECISIONS.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => updateDraft('observerDecision', (draft.observerDecision === d ? '' : d) as ObserverDecision)}
-                      className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${draft.observerDecision === d ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400'}`}
-                    >
-                      {d}
-                    </button>
-                  ))}
+          {/* ───────────── Danger zone — delete (admin only) ───────────── */}
+          {isAdmin && (
+            <div className="rounded-xl border border-red-200 bg-red-50/50 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-red-600">Zona de perigo</p>
+                  <p className="mt-0.5 text-xs text-red-500/70">Eliminar permanentemente este jogador e todos os dados associados.</p>
                 </div>
-              </EditField>
-              <EditField label="Opinião Departamento">
-                <div className="flex flex-wrap gap-1.5">
-                  {DEPARTMENT_OPINIONS.map((o) => {
-                    const checked = draft.departmentOpinion.includes(o.value);
-                    return (
-                      <button
-                        key={o.value}
-                        type="button"
-                        onClick={() => {
-                          const next = checked
-                            ? draft.departmentOpinion.filter((v) => v !== o.value)
-                            : [...draft.departmentOpinion, o.value];
-                          updateDraft('departmentOpinion', next as DepartmentOpinion[]);
-                        }}
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${checked ? `${o.tailwind} border-current` : 'border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300'}`}
-                      >
-                        {o.value}
-                      </button>
-                    );
-                  })}
-                </div>
-              </EditField>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isPending || isDeleting}
+                  className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
+                >
+                  <Trash2 className="mr-1 inline h-3.5 w-3.5" />
+                  Eliminar
+                </button>
+              </div>
             </div>
-          </Section>
+          )}
+          <div className="h-5" />
 
-          {/* ───────────── Links & Foto (Edit) ───────────── */}
-          <Section title="Links & Foto">
-            <div className="space-y-3">
-              <EditField label="Link FPF">
-                <Input value={draft.fpfLink} onChange={(e) => updateDraft('fpfLink', e.target.value)} placeholder="https://www.fpf.pt/..." className="font-mono text-xs" />
-              </EditField>
-              <EditField label="Link ZeroZero">
-                <Input value={draft.zerozeroLink} onChange={(e) => updateDraft('zerozeroLink', e.target.value)} placeholder="https://www.zerozero.pt/..." className="font-mono text-xs" />
-              </EditField>
-              <EditField label="URL da Foto">
-                <Input value={draft.photoUrl ?? ''} onChange={(e) => updateDraft('photoUrl', e.target.value || null)} placeholder="https://..." className="font-mono text-xs" />
-              </EditField>
-            </div>
-          </Section>
         </div>
       ) : (
         /* ───────────── View mode: two columns on lg ───────────── */
@@ -973,28 +1050,14 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         </>
       )}
 
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar jogador?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Isto irá eliminar permanentemente <strong>{player.name}</strong> e todos os dados associados
-              (notas, histórico, relatórios). Esta ação não pode ser revertida.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              {isDeleting ? 'A eliminar...' : 'Eliminar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Delete confirmation dialog — requires typing ELIMINAR to unlock */}
+      <DeleteConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        playerName={player.name}
+        isDeleting={isDeleting}
+        onConfirm={handleDelete}
+      />
 
       {/* MiniPitch enlarged popup (mobile click-to-expand) */}
       {p.positionNormalized && (
@@ -1012,6 +1075,64 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         </PitchDialog>
       )}
     </div>
+  );
+}
+
+/* ───────────── Delete Confirm Dialog — type ELIMINAR to unlock ───────────── */
+
+function DeleteConfirmDialog({ open, onOpenChange, playerName, isDeleting, onConfirm }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  playerName: string;
+  isDeleting: boolean;
+  onConfirm: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState('');
+  const isUnlocked = confirmText === 'ELIMINAR';
+
+  // Reset text when dialog opens/closes
+  useEffect(() => { if (!open) setConfirmText(''); }, [open]);
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Eliminar jogador?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3">
+              <p>
+                Isto irá eliminar permanentemente <strong>{playerName}</strong> e todos os dados associados
+                (notas, histórico, relatórios). Esta ação não pode ser revertida.
+              </p>
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-neutral-500">
+                  Escreve <span className="rounded bg-red-100 px-1.5 py-0.5 font-bold text-red-600">ELIMINAR</span> para confirmar
+                </p>
+                <input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
+                  placeholder="ELIMINAR"
+                  className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm font-medium tracking-wider outline-none transition-colors focus:border-red-300 focus:ring-1 focus:ring-red-200 placeholder:text-neutral-300"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            disabled={isDeleting || !isUnlocked}
+            className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+          >
+            {isDeleting ? 'A eliminar...' : 'Eliminar'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -1036,11 +1157,168 @@ function Section({ title, action, children, stretch }: { title: string; action?:
   );
 }
 
-function EditField({ label, children }: { label: string; children: React.ReactNode }) {
+function EditField({ label, suffix, children }: { label: string; suffix?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
+    <div className="min-w-0">
+      <div className="mb-1 flex items-center gap-1.5">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        {suffix}
+      </div>
       {children}
+    </div>
+  );
+}
+
+/* ───────────── Foot Selector — segmented control ───────────── */
+
+/** Segmented control for foot preference: Esquerdo | Ambidestro | Direito */
+/** Date input — shows formatted date as a tappable button that opens native date picker via hidden input */
+function DateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const display = value ? formatDate(value) : '—';
+  return (
+    <div className="relative min-w-0">
+      {/* Hidden native date input — positioned behind the visible button */}
+      <input
+        ref={ref}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        tabIndex={-1}
+      />
+      {/* Visible tappable display */}
+      <button
+        type="button"
+        onClick={() => ref.current?.showPicker?.()}
+        className="flex w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 py-2 text-left text-sm shadow-sm transition-colors hover:bg-accent"
+      >
+        <Calendar className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+        <span className={value ? 'text-xs font-medium tracking-wide text-neutral-600' : 'text-xs text-muted-foreground'}>{display}</span>
+      </button>
+    </div>
+  );
+}
+
+/** Foot silhouette SVG — mirrored via scaleX for left foot */
+function FootSvg({ side, className }: { side: 'left' | 'right'; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 48"
+      className={className}
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      style={side === 'left' ? { transform: 'scaleX(-1)' } : undefined}
+    >
+      {/* Simplified foot silhouette — right foot base shape */}
+      <path d="M16 2c-2 0-4 1-5.5 3C9 7 8 10 8 14c0 3-.5 6-1.5 9C5 27 4 30 4 33c0 4 1.5 7 4 9 2 1.5 5 2.5 8 2.5h2c3 0 5.5-1 7.5-3 1.5-1.5 2.5-4 2.5-6.5 0-3-1-5.5-2-8-1.5-3.5-2-7-2-11 0-4-.5-7-2-9.5C20.5 3.5 18.5 2 16 2z" />
+      {/* Toes */}
+      <ellipse cx="8" cy="33" rx="2.5" ry="3" />
+      <ellipse cx="13" cy="31.5" rx="2" ry="2.5" />
+      <ellipse cx="17.5" cy="31" rx="2" ry="2.5" />
+      <ellipse cx="21.5" cy="32" rx="2" ry="2.5" />
+      <ellipse cx="24.5" cy="34" rx="2" ry="2.5" />
+    </svg>
+  );
+}
+
+/** Interactive foot selector — tap left/right foot, both = ambidextrous. Matches input field height. */
+function FootSelector({ value, onChange }: { value: string; onChange: (v: Foot) => void }) {
+  const isLeft = value === 'Esq' || value === 'Amb';
+  const isRight = value === 'Dir' || value === 'Amb';
+
+  function handleTap(side: 'left' | 'right') {
+    if (side === 'left') {
+      if (value === 'Esq') onChange('' as Foot);         // deselect left
+      else if (value === 'Dir') onChange('Amb' as Foot);  // was right → both
+      else if (value === 'Amb') onChange('Dir' as Foot);  // was both → just right
+      else onChange('Esq' as Foot);                       // nothing → left
+    } else {
+      if (value === 'Dir') onChange('' as Foot);          // deselect right
+      else if (value === 'Esq') onChange('Amb' as Foot);  // was left → both
+      else if (value === 'Amb') onChange('Esq' as Foot);  // was both → just left
+      else onChange('Dir' as Foot);                        // nothing → right
+    }
+  }
+
+  // Label for current selection
+  const label = value === 'Dir' ? 'Direito' : value === 'Esq' ? 'Esquerdo' : value === 'Amb' ? 'Ambidestro' : '';
+
+  return (
+    <div className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 shadow-sm">
+      {/* Two tappable feet */}
+      <div className="flex items-end gap-px">
+        <button
+          type="button"
+          onClick={() => handleTap('left')}
+          className={`rounded p-0.5 transition-all ${isLeft ? 'text-neutral-800' : 'text-neutral-300 hover:text-neutral-400'}`}
+          title="Esquerdo"
+        >
+          <FootSvg side="left" className="h-5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTap('right')}
+          className={`rounded p-0.5 transition-all ${isRight ? 'text-neutral-800' : 'text-neutral-300 hover:text-neutral-400'}`}
+          title="Direito"
+        >
+          <FootSvg side="right" className="h-5 w-3.5" />
+        </button>
+      </div>
+      {/* Divider */}
+      <div className="h-4 w-px bg-neutral-200" />
+      {/* Label or placeholder */}
+      {label
+        ? <span className="text-xs font-medium tracking-wide text-neutral-600">{label}</span>
+        : <span className="text-xs text-neutral-300">Escolher pé</span>
+      }
+    </div>
+  );
+}
+
+/* ───────────── Opinion Edit Pills — colored toggle pills ───────────── */
+
+/** Colored opinion pills for edit mode: selected shows tinted bg + solid border, unselected shows dashed border */
+const OPINION_EDIT_STYLES: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  '1ª Escolha':       { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-300',   dot: 'bg-blue-500' },
+  '2ª Escolha':       { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-300', dot: 'bg-orange-500' },
+  'Acompanhar':       { bg: 'bg-yellow-50',  text: 'text-yellow-700',  border: 'border-yellow-300', dot: 'bg-yellow-500' },
+  'Por Observar':     { bg: 'bg-neutral-100', text: 'text-neutral-600', border: 'border-neutral-300', dot: 'bg-neutral-400' },
+  'Urgente Observar': { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-300', dot: 'bg-orange-500' },
+  'Sem interesse':    { bg: 'bg-red-50',     text: 'text-red-600',     border: 'border-red-300',    dot: 'bg-red-500' },
+  'Potencial':        { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-300', dot: 'bg-purple-500' },
+  'Assinar':          { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-300',  dot: 'bg-green-500' },
+};
+const OPINION_EDIT_DEFAULT = { bg: 'bg-neutral-50', text: 'text-neutral-600', border: 'border-neutral-200', dot: 'bg-neutral-400' };
+
+function OpinionEditPills({ selected, onChange }: { selected: DepartmentOpinion[]; onChange: (v: DepartmentOpinion[]) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {DEPARTMENT_OPINIONS.map((o) => {
+        const checked = selected.includes(o.value);
+        const s = OPINION_EDIT_STYLES[o.value] ?? OPINION_EDIT_DEFAULT;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => {
+              const next = checked
+                ? selected.filter((v) => v !== o.value)
+                : [...selected, o.value];
+              onChange(next as DepartmentOpinion[]);
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
+              checked
+                ? `${s.bg} ${s.border} ${s.text} shadow-sm`
+                : 'border-dashed border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300 hover:text-neutral-500'
+            }`}
+          >
+            {/* Colored dot — only when selected */}
+            {checked && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />}
+            {o.value}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1162,67 +1440,128 @@ function JerseySvg({ number, className }: { number?: string; className?: string 
   );
 }
 
-function ShirtNumberPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [hoverNum, setHoverNum] = useState<string | null>(null);
-  // Jersey shows: hovered number > selected number > '?'
-  const previewNum = (hoverNum ?? value) || '?';
-  const hasValue = !!(hoverNum ?? value);
+function ShirtNumberInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <Shirt className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+      <Input
+        type="text"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === '') { onChange(''); return; }
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n >= 1 && n <= 99) onChange(String(n));
+        }}
+        placeholder="—"
+        className="pl-8 text-xs font-medium tracking-wide text-neutral-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+    </div>
+  );
+}
+
+/* ───────────── Phone Input — country code prefix + formatted number + validation ───────────── */
+
+/** Check if a stored phone value is valid — empty is valid, PT needs 9 digits after code, others need 7+ */
+function isPhoneValid(raw: string | null): boolean {
+  if (!raw) return true;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return true;
+  const isPT = raw.startsWith('+351');
+  // +351 = 3 digits code + 9 digits number = 12 total, others = code (2-3) + 7+ digits
+  return isPT ? digits.length >= 12 : digits.length >= 10;
+}
+
+/** Parse a stored phone string into { dialCode, number } — detects known dial codes or defaults to +351 */
+function parsePhone(raw: string): { dialCode: string; number: string } {
+  if (!raw) return { dialCode: '+351', number: '' };
+  const trimmed = raw.replace(/\s/g, '');
+  // Try matching known dial codes (longest first to avoid +3 matching before +351)
+  const sorted = [...COUNTRY_DIAL_CODES].sort((a, b) => b.code.length - a.code.length);
+  for (const c of sorted) {
+    if (trimmed.startsWith(c.code)) {
+      return { dialCode: c.code, number: trimmed.slice(c.code.length) };
+    }
+  }
+  // If starts with + but unknown code, keep as-is
+  if (trimmed.startsWith('+')) return { dialCode: '+351', number: trimmed };
+  return { dialCode: '+351', number: trimmed };
+}
+
+/** Format digits as "912 345 678" (groups of 3) */
+function formatPhoneDisplay(digits: string): string {
+  const d = digits.replace(/\D/g, '');
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
+  return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)}`;
+}
+
+/** Phone input with selectable country code prefix, auto-formatting, and validation */
+function PhoneInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parsed = parsePhone(value);
+  const [dialCode, setDialCode] = useState(parsed.dialCode);
+  const [digits, setDigits] = useState(parsed.number);
+
+  // Sync from external value changes
+  useEffect(() => {
+    const p = parsePhone(value);
+    setDialCode(p.dialCode);
+    setDigits(p.number);
+  }, [value]);
+
+  // Commit combined value: "+351912345678"
+  function commit(code: string, num: string) {
+    const clean = num.replace(/\D/g, '');
+    onChange(clean ? `${code}${clean}` : '');
+  }
+
+  function handleDigitsChange(raw: string) {
+    // Strip non-digits, limit to 15 (E.164 max)
+    const clean = raw.replace(/\D/g, '').slice(0, 15);
+    setDigits(clean);
+    commit(dialCode, clean);
+  }
+
+  function handleDialCodeChange(code: string) {
+    setDialCode(code);
+    commit(code, digits);
+  }
+
+  const entry = COUNTRY_DIAL_CODES.find((c) => c.code === dialCode);
+  const flag = entry?.flag ?? '🌍';
 
   return (
-    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setHoverNum(null); }}>
-      <PopoverTrigger asChild>
-        <button type="button" className="group flex items-center justify-center transition-transform hover:scale-105">
-          <JerseySvg
-            number={value || undefined}
-            className={`h-14 w-12 transition-colors ${value ? 'text-neutral-800' : 'text-neutral-300 group-hover:text-neutral-400'}`}
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align="start">
-        <div className="flex flex-col items-center gap-2">
-          {/* Jersey preview — updates on hover */}
-          <JerseySvg
-            number={previewNum}
-            className={`h-20 w-16 shrink-0 transition-colors ${hasValue ? 'text-neutral-800' : 'text-neutral-300'}`}
-          />
-          {/* Number grid — all 99 visible, no scroll */}
-          <div className="rounded-lg border bg-white p-1.5">
-            <div className="grid grid-cols-10 gap-0.5">
-              {Array.from({ length: 99 }, (_, i) => {
-                const num = String(i + 1);
-                const selected = value === num;
-                return (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => { onChange(selected ? '' : num); setOpen(false); }}
-                    onMouseEnter={() => setHoverNum(num)}
-                    onMouseLeave={() => setHoverNum(null)}
-                    className={`flex h-7 w-7 items-center justify-center rounded text-[11px] font-bold transition-all ${
-                      selected
-                        ? 'bg-neutral-900 text-white shadow-md scale-110'
-                        : 'text-neutral-600 hover:bg-neutral-100 hover:scale-110'
-                    }`}
-                  >
-                    {num}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          {value && (
-            <button
-              type="button"
-              onClick={() => { onChange(''); setOpen(false); }}
-              className="text-[11px] font-medium text-neutral-400 hover:text-neutral-600"
-            >
-              Limpar
-            </button>
-          )}
+    <div className="flex h-9 w-full items-center rounded-md border border-input bg-background shadow-sm">
+      {/* Country code selector — native select overlaid on visible display for guaranteed mobile compat */}
+      <div className="relative shrink-0 border-r border-input">
+        <div className="pointer-events-none flex items-center gap-1 px-2 py-1.5">
+          <span className="text-sm">{flag}</span>
+          <span className="text-[10px] text-neutral-400">{dialCode}</span>
         </div>
-      </PopoverContent>
-    </Popover>
+        <select
+          value={dialCode}
+          onChange={(e) => handleDialCodeChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label="Indicativo do país"
+        >
+          {COUNTRY_DIAL_CODES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.flag} {c.country} ({c.code})
+            </option>
+          ))}
+        </select>
+      </div>
+      {/* Number input — shows formatted but stores raw digits */}
+      <input
+        type="tel"
+        inputMode="numeric"
+        value={formatPhoneDisplay(digits)}
+        onChange={(e) => handleDigitsChange(e.target.value)}
+        placeholder="912 345 678"
+        className="h-full min-w-0 flex-1 bg-transparent px-2 text-xs font-medium tracking-wide text-neutral-600 outline-none placeholder:text-neutral-300"
+      />
+    </div>
   );
 }
 
