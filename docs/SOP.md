@@ -1595,22 +1595,91 @@ The app is mobile-first but the current iPhone experience needs significant impr
 - [x] **"Recusou vir"** — renamed "Rejeitado" label to clarify it means the player refused
 
 #### 5B. YouTube Media Links
-Add video content to player profiles — scouts can attach YouTube clips of players in action.
 
-- [ ] **DB**: add `youtube_links` table (player_id, url, title, added_by, created_at) or JSONB array field on players
-- [ ] **Player profile**: new "Vídeos" section with YouTube links
-- [ ] **Embedded player**: inline YouTube embed (iframe) to watch clips directly in the app
-- [ ] **Add/remove links**: admin/editor can add YouTube URLs, auto-extract video title/thumbnail
-- [ ] **Validation**: only accept youtube.com and youtu.be URLs
+Secção de media no perfil do jogador. Centraliza vídeo e scouting no mesmo sítio — dá contexto visual, facilita análise técnica/física, útil em reuniões e comparação de atletas.
+
+**Data model:**
+```sql
+CREATE TABLE player_videos (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,                      -- YouTube URL (youtube.com or youtu.be)
+  title TEXT,                             -- Auto-extracted from YouTube oEmbed API
+  thumbnail_url TEXT,                     -- Auto-extracted thumbnail
+  added_by UUID REFERENCES profiles(id),
+  added_by_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX idx_player_videos_player ON player_videos (club_id, player_id);
+```
+
+**Validation:** Only accept `youtube.com/watch?v=` and `youtu.be/` URLs. Reject all others.
+
+**Auto-extraction:** On submit, call YouTube oEmbed API (`https://www.youtube.com/oembed?url=...&format=json`) server-side to fetch title + thumbnail. No API key needed — oEmbed is public.
+
+**Player profile — "Media" section:**
+- Grid of video cards (2 columns mobile, 3 desktop)
+- Each card: thumbnail image + title + date added + who added
+- Tap card → expands to inline YouTube embed (`iframe` with `youtube-nocookie.com` for privacy)
+- Watch video without leaving the app
+- Admin/editor: "Adicionar Vídeo" button → URL input + auto-preview
+- Admin: remove video (with confirmation)
+
+**Player comparison (Phase 12):** If both players have videos, show video count in comparison. Quick access to watch side by side.
+
+**Sub-phases:**
+- **5B-1:** `player_videos` table + RLS + Server Action (add/remove)
+- **5B-2:** oEmbed extraction (title + thumbnail)
+- **5B-3:** "Media" section in player profile (cards + inline embed)
 
 #### 5C. Tactical Formations per Age Group
-Allow choosing the tactical system (formation) for each escalão's real and shadow squads.
 
-- [ ] **DB**: add `formation` field to age_groups (e.g. '4-3-3', '4-4-2', '3-5-2') or separate config table
-- [ ] **Formation selector**: dropdown in squad view header to pick system per escalão
-- [ ] **Dynamic pitch layout**: MiniPitch/FieldView adapts positions to the chosen formation
-- [ ] **Position slots**: squad slots match the formation (e.g. 4-3-3 = 1 GR + 2 DC + 1 DD + 1 DE + 3 MC + 2 EXT + 1 PL)
-- [ ] **Persist per age group**: each escalão remembers its formation choice
+Cada escalão pode usar um sistema tático diferente — nem todos jogam no mesmo formato. O admin escolhe a formação e os plantéis real/sombra adaptam-se.
+
+**Data model:**
+```sql
+-- Per escalão, per squad type — real and shadow can use different formations
+ALTER TABLE club_age_groups ADD COLUMN real_formation TEXT DEFAULT '4-3-3';
+ALTER TABLE club_age_groups ADD COLUMN shadow_formation TEXT DEFAULT '4-3-3';
+```
+
+**Supported formations (initial):**
+
+| Formation | Slots |
+|-----------|-------|
+| `4-3-3` | GR, DD, DC, DC, DE, MC, MC, MC, ED, EE, PL |
+| `4-4-2` | GR, DD, DC, DC, DE, MC, MC, ED, EE, PL, PL |
+| `3-5-2` | GR, DC, DC, DC, DD, DE, MC, MC, MOC, PL, PL |
+| `4-2-3-1` | GR, DD, DC, DC, DE, MDC, MDC, ED, MOC, EE, PL |
+| `4-4-1-1` | GR, DD, DC, DC, DE, MC, MC, ED, EE, MOC, PL |
+| `3-4-3` | GR, DC, DC, DC, DD, DE, MC, MC, ED, EE, PL |
+
+Mais formações podem ser adicionadas — cada uma é só uma lista de position slots.
+
+**Formation selector:**
+- Dropdown in squad view header, next to escalão selector
+- Separate selectors for plantel real and plantel sombra
+- Changing formation re-maps existing players to new slots where possible (same position stays, mismatched positions get unassigned)
+- Confirmation dialog if changing formation would unassign players
+
+**Dynamic pitch layout:**
+- MiniPitch/FieldView adapts positions to the chosen formation
+- Pitch shows the formation shape (e.g. 4-3-3 diamond vs 4-4-2 flat)
+- Each slot is tappable to assign/remove player
+- Empty slots show "+" with position label
+
+**Benefits:**
+- Cada escalão configurado de forma independente
+- Melhora a leitura tática do plantel
+- Ajuda no planeamento e construção de equipas
+- Real e sombra podem ter formações diferentes (ex: real joga 4-3-3, sombra construída para 4-4-2)
+
+**Sub-phases:**
+- **5C-1:** Formation data on `club_age_groups` + formation slot definitions in constants
+- **5C-2:** Formation selector dropdown in squad view
+- **5C-3:** Dynamic pitch layout rendering per formation
+- **5C-4:** Player re-mapping logic when formation changes
 
 **Deliverable:** Polished mobile experience, video-enriched player profiles, tactical flexibility per escalão.
 
