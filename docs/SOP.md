@@ -2984,7 +2984,9 @@ CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
 
 **Create list:** Name + optional color + optional description. Quick-create from anywhere (modal or inline).
 
-**Add player to list:** Bookmark icon (`Bookmark` from lucide) on player card, table row, and profile. Bookmark communicates "guardar/organizar" better than star (which implies "favorito"). Tapping opens a mini-popover: checkboxes for each list + "Nova lista" shortcut. Multiple lists can contain the same player. If user has 0 lists, tapping bookmark prompts to create first list.
+**Add player to list:** Bookmark icon (`Bookmark` from lucide) on player card, table row, and profile. Bookmark communicates "guardar/organizar" better than star (which implies "favorito"). Tapping opens a mini-popover: checkboxes for each list + "Nova lista" shortcut. If user has 0 lists, tapping bookmark prompts to create first list.
+
+**A player can be in zero, one, or multiple lists from the same user.** This is by design — a player can belong to "Targets DC" and "Reunião sexta" simultaneously.
 
 **Remove from list:** Uncheck in the popover, or swipe-to-remove within the list view.
 
@@ -3007,6 +3009,13 @@ CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
 - **Sort:** manual drag-and-drop (for prioritized lists) or by name/position/club
 - Bulk actions: remove selected, move to another list
 - Share: future — share list with other club members (read-only)
+
+**Empty states (important for UX):**
+- **No lists yet:** "Ainda não tens listas criadas. Cria a tua primeira lista para organizar jogadores." + CTA "Criar lista"
+- **Empty list:** "Esta lista ainda não tem jogadores. Adiciona jogadores a partir da tabela, perfil ou pipeline." + link to players page
+- **Scout with no eligible players:** "Só podes adicionar jogadores sobre os quais já submeteste relatório." — shown when scout has 0 submitted reports
+
+**Audit:** `player_lists.updated_at` auto-updates on any change (add/remove player, rename, reorder). `player_list_items.added_at` tracks when each player was added. No `updated_by` needed — lists are personal, only the owner modifies them. "Last updated" shown on list cards in `/listas`.
 
 #### 15.4. Role-specific Behaviour
 
