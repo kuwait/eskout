@@ -10,7 +10,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, ImageIcon, Link2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, ClipboardPaste, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, ImageIcon, Link2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import {
   AlertDialog,
@@ -605,51 +605,58 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
               {/* ───────────── Section 4: Links & Foto ───────────── */}
               <Section title="Links & Foto">
-                <div className="space-y-3">
-                  {/* Photo URL with inline preview */}
-                  <EditField label="Foto">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-neutral-50">
-                        {draft.photoUrl ? (
-                          <Image src={draft.photoUrl} alt="Preview" width={36} height={36} className="h-full w-full object-cover" unoptimized />
-                        ) : (
-                          <ImageIcon className="h-3.5 w-3.5 text-neutral-300" />
-                        )}
-                      </div>
-                      <Input
-                        value={draft.photoUrl ?? ''}
-                        onChange={(e) => updateDraft('photoUrl', e.target.value || null)}
-                        placeholder="https://..."
-                        className="flex-1 font-mono text-xs"
-                      />
-                    </div>
-                  </EditField>
+                <div className="space-y-2.5">
+                  {/* Photo — preview + paste/clear actions */}
+                  <LinkCard
+                    icon={draft.photoUrl ? (
+                      <Image src={draft.photoUrl} alt="Foto" width={36} height={36} className="h-full w-full rounded object-cover" unoptimized />
+                    ) : (
+                      <Camera className="h-4 w-4 text-neutral-400" />
+                    )}
+                    label="Foto"
+                    hasValue={!!draft.photoUrl}
+                    onPaste={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text.startsWith('http')) updateDraft('photoUrl', text);
+                        else toast.error('Clipboard não contém um URL válido');
+                      } catch { toast.error('Sem permissão para aceder ao clipboard'); }
+                    }}
+                    onClear={() => updateDraft('photoUrl', null)}
+                    onOpen={draft.photoUrl ? () => window.open(draft.photoUrl!, '_blank') : undefined}
+                  />
 
-                  {/* FPF + ZeroZero — side by side */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <EditField label="FPF">
-                      <div className="relative">
-                        <Link2 className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-neutral-400" />
-                        <Input
-                          value={draft.fpfLink}
-                          onChange={(e) => updateDraft('fpfLink', e.target.value)}
-                          placeholder="fpf.pt/..."
-                          className="pl-7 font-mono text-[11px]"
-                        />
-                      </div>
-                    </EditField>
-                    <EditField label="ZeroZero">
-                      <div className="relative">
-                        <Link2 className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-neutral-400" />
-                        <Input
-                          value={draft.zerozeroLink}
-                          onChange={(e) => updateDraft('zerozeroLink', e.target.value)}
-                          placeholder="zerozero.pt/..."
-                          className="pl-7 font-mono text-[11px]"
-                        />
-                      </div>
-                    </EditField>
-                  </div>
+                  {/* FPF */}
+                  <LinkCard
+                    icon={<span className="text-xs font-black text-neutral-500">FPF</span>}
+                    label="Portal FPF"
+                    hasValue={!!draft.fpfLink}
+                    onPaste={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text.includes('fpf.pt')) updateDraft('fpfLink', text);
+                        else toast.error('Clipboard não contém um link FPF');
+                      } catch { toast.error('Sem permissão para aceder ao clipboard'); }
+                    }}
+                    onClear={() => updateDraft('fpfLink', '')}
+                    onOpen={draft.fpfLink ? () => window.open(draft.fpfLink, '_blank') : undefined}
+                  />
+
+                  {/* ZeroZero */}
+                  <LinkCard
+                    icon={<span className="text-xs font-black text-neutral-500">ZZ</span>}
+                    label="ZeroZero"
+                    hasValue={!!draft.zerozeroLink}
+                    onPaste={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text.includes('zerozero.pt')) updateDraft('zerozeroLink', text);
+                        else toast.error('Clipboard não contém um link ZeroZero');
+                      } catch { toast.error('Sem permissão para aceder ao clipboard'); }
+                    }}
+                    onClear={() => updateDraft('zerozeroLink', '')}
+                    onOpen={draft.zerozeroLink ? () => window.open(draft.zerozeroLink, '_blank') : undefined}
+                  />
                 </div>
               </Section>
             </div>
@@ -1455,6 +1462,52 @@ function JerseySvg({ number, className }: { number?: string; className?: string 
   );
 }
 
+/* ───────────── Link Card — compact row for URL fields (photo, FPF, ZeroZero) ───────────── */
+
+/** Compact link row: icon + label + status dot + paste/open/clear actions. No raw URL shown. */
+function LinkCard({ icon, label, hasValue, onPaste, onClear, onOpen }: {
+  icon: React.ReactNode;
+  label: string;
+  hasValue: boolean;
+  onPaste: () => void;
+  onClear: () => void;
+  onOpen?: () => void;
+}) {
+  return (
+    <div className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors ${
+      hasValue ? 'border-green-200 bg-green-50/40' : 'border-neutral-200 bg-neutral-50/40'
+    }`}>
+      {/* Icon / preview */}
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-neutral-200/60">
+        {icon}
+      </div>
+      {/* Label + status */}
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-neutral-600">{label}</p>
+        <p className={`text-[10px] ${hasValue ? 'font-medium text-green-600' : 'text-neutral-400'}`}>
+          {hasValue ? 'Ligado' : 'Sem link'}
+        </p>
+      </div>
+      {/* Actions */}
+      <div className="flex shrink-0 items-center gap-1">
+        {onOpen && hasValue && (
+          <button type="button" onClick={onOpen} className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-neutral-600" title="Abrir">
+            <ExternalLink className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button type="button" onClick={onPaste} className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-neutral-600" title="Colar do clipboard">
+          <ClipboardPaste className="h-3.5 w-3.5" />
+        </button>
+        {hasValue && (
+          <button type="button" onClick={onClear} className="rounded-md p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Remover">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ShirtNumberInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="relative">
@@ -1535,7 +1588,7 @@ function ReferralPicker({ profiles, selectedUserId, freeText, onChange }: {
         <ChevronsUpDown className="h-3 w-3 shrink-0 text-neutral-300" />
       </button>
       {/* Search dialog — works well on mobile (no popover/keyboard issues) */}
-      <CommandDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }}>
+      <CommandDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
         <CommandInput
           placeholder="Pesquisar utilizador ou escrever nome..."
           value={search}
