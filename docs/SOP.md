@@ -2984,13 +2984,13 @@ CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
 
 **Create list:** Name + optional color + optional description. Quick-create from anywhere (modal or inline).
 
-**Add player to list:** Star/bookmark icon on player card, table row, and profile. Tapping opens a mini-popover: checkboxes for each list + "Nova lista" shortcut. Multiple lists can contain the same player. If user has 0 lists, tapping star prompts to create first list.
+**Add player to list:** Bookmark icon (`Bookmark` from lucide) on player card, table row, and profile. Bookmark communicates "guardar/organizar" better than star (which implies "favorito"). Tapping opens a mini-popover: checkboxes for each list + "Nova lista" shortcut. Multiple lists can contain the same player. If user has 0 lists, tapping bookmark prompts to create first list.
 
 **Remove from list:** Uncheck in the popover, or swipe-to-remove within the list view.
 
 **Delete list:** Confirmation dialog. Removes list + all items. Players are not affected.
 
-**Star indicator:** Players that appear in at least 1 list show a filled star icon in table/card views. Subtle — doesn't clutter.
+**Bookmark indicator:** Players that appear in at least 1 list show a filled bookmark icon in table/card views. Subtle — doesn't clutter.
 
 #### 15.3. List View
 
@@ -3014,24 +3014,25 @@ CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
 |------|-----------------|-------------------|
 | **Admin** | Yes | All players in the club |
 | **Editor** | Yes | All players in the club |
-| **Scout** | Yes | Only players they submitted reports for |
+| **Scout** | Yes | Only players visible within their existing permission scope (in practice, players they submitted reports for) |
 
-Scout lists respect existing permission boundaries — they see the same limited player info they always see, just organized in personal lists.
+**Important:** Lists never change permissions. A list is purely organizational — it doesn't grant access to data the user can't already see. The visibility rules are the same as everywhere else in the app; lists just group players the user already has access to.
 
 #### 15.5. UI Integration Points
 
 | Location | Behaviour |
 |----------|-----------|
-| **Player table** | Star icon per row. Filled if player is in any list. Click → list popover. |
-| **Player card (mobile)** | Star icon in card header. Same popover. |
-| **Player profile** | Star icon in action bar. Same popover. Shows which lists the player belongs to. |
+| **Player table** | Bookmark icon per row. Filled if player is in any list. Click → list popover. |
+| **Player card (mobile)** | Bookmark icon in card header. Same popover. |
+| **Player profile** (admin/editor only) | Bookmark icon in action bar. Same popover. Shows which lists the player belongs to. |
+| **Scout surfaces** | Bookmark icon only on surfaces the scout already has access to (submissions list, limited player views). NOT on full player profile — scouts don't access that page. |
 | **Sidebar / nav** | "Listas" nav item with list count badge. |
 | **Player comparison (Phase 12)** | "Adicionar à lista" action on comparison view. |
-| **Pipeline cards** | Star icon on pipeline cards. |
+| **Pipeline cards** | Bookmark icon on pipeline cards. |
 
 #### 15.6. Quick Actions
 
-- **Add from search:** Search players → star → add to list. Fast workflow.
+- **Add from search:** Search players → bookmark → add to list. Fast workflow.
 - **Bulk add:** Select multiple players in table → "Adicionar a lista" → pick list.
 - **Duplicate list:** Copy an existing list (useful for "Reunião semana passada" → "Reunião esta semana").
 - **Player count in nav:** Badge next to "Listas" showing total lists (like alerts badge).
