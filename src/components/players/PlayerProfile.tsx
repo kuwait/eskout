@@ -10,7 +10,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, ClipboardPaste, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, ImageIcon, Link2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Flag, Footprints, Handshake, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import {
   AlertDialog,
@@ -606,7 +606,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               {/* ───────────── Section 4: Links & Foto ───────────── */}
               <Section title="Links & Foto">
                 <div className="space-y-2.5">
-                  {/* Photo — preview + paste/clear actions */}
+                  {/* Photo */}
                   <LinkCard
                     icon={draft.photoUrl ? (
                       <Image src={draft.photoUrl} alt="Foto" width={36} height={36} className="h-full w-full rounded object-cover" unoptimized />
@@ -614,48 +614,24 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                       <Camera className="h-4 w-4 text-neutral-400" />
                     )}
                     label="Foto"
-                    hasValue={!!draft.photoUrl}
-                    onPaste={async () => {
-                      try {
-                        const text = await navigator.clipboard.readText();
-                        if (text.startsWith('http')) updateDraft('photoUrl', text);
-                        else toast.error('Clipboard não contém um URL válido');
-                      } catch { toast.error('Sem permissão para aceder ao clipboard'); }
-                    }}
-                    onClear={() => updateDraft('photoUrl', null)}
-                    onOpen={draft.photoUrl ? () => window.open(draft.photoUrl!, '_blank') : undefined}
+                    value={draft.photoUrl ?? ''}
+                    onChange={(v) => updateDraft('photoUrl', v || null)}
                   />
 
                   {/* FPF */}
                   <LinkCard
                     icon={<span className="text-xs font-black text-neutral-500">FPF</span>}
                     label="Portal FPF"
-                    hasValue={!!draft.fpfLink}
-                    onPaste={async () => {
-                      try {
-                        const text = await navigator.clipboard.readText();
-                        if (text.includes('fpf.pt')) updateDraft('fpfLink', text);
-                        else toast.error('Clipboard não contém um link FPF');
-                      } catch { toast.error('Sem permissão para aceder ao clipboard'); }
-                    }}
-                    onClear={() => updateDraft('fpfLink', '')}
-                    onOpen={draft.fpfLink ? () => window.open(draft.fpfLink, '_blank') : undefined}
+                    value={draft.fpfLink}
+                    onChange={(v) => updateDraft('fpfLink', v)}
                   />
 
                   {/* ZeroZero */}
                   <LinkCard
                     icon={<span className="text-xs font-black text-neutral-500">ZZ</span>}
                     label="ZeroZero"
-                    hasValue={!!draft.zerozeroLink}
-                    onPaste={async () => {
-                      try {
-                        const text = await navigator.clipboard.readText();
-                        if (text.includes('zerozero.pt')) updateDraft('zerozeroLink', text);
-                        else toast.error('Clipboard não contém um link ZeroZero');
-                      } catch { toast.error('Sem permissão para aceder ao clipboard'); }
-                    }}
-                    onClear={() => updateDraft('zerozeroLink', '')}
-                    onOpen={draft.zerozeroLink ? () => window.open(draft.zerozeroLink, '_blank') : undefined}
+                    value={draft.zerozeroLink}
+                    onChange={(v) => updateDraft('zerozeroLink', v)}
                   />
                 </div>
               </Section>
@@ -1464,46 +1440,64 @@ function JerseySvg({ number, className }: { number?: string; className?: string 
 
 /* ───────────── Link Card — compact row for URL fields (photo, FPF, ZeroZero) ───────────── */
 
-/** Compact link row: icon + label + status dot + paste/open/clear actions. No raw URL shown. */
-function LinkCard({ icon, label, hasValue, onPaste, onClear, onOpen }: {
+/** Compact link row: icon + label + status. Tap to expand inline URL input. */
+function LinkCard({ icon, label, value, onChange }: {
   icon: React.ReactNode;
   label: string;
-  hasValue: boolean;
-  onPaste: () => void;
-  onClear: () => void;
-  onOpen?: () => void;
+  value: string;
+  onChange: (v: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasValue = !!value;
+
   return (
-    <div className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors ${
+    <div className={`rounded-lg border transition-colors ${
       hasValue ? 'border-green-200 bg-green-50/40' : 'border-neutral-200 bg-neutral-50/40'
     }`}>
-      {/* Icon / preview */}
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-neutral-200/60">
-        {icon}
-      </div>
-      {/* Label + status */}
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-neutral-600">{label}</p>
-        <p className={`text-[10px] ${hasValue ? 'font-medium text-green-600' : 'text-neutral-400'}`}>
-          {hasValue ? 'Ligado' : 'Sem link'}
-        </p>
-      </div>
-      {/* Actions */}
-      <div className="flex shrink-0 items-center gap-1">
-        {onOpen && hasValue && (
-          <button type="button" onClick={onOpen} className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-neutral-600" title="Abrir">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
-        )}
-        <button type="button" onClick={onPaste} className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-neutral-600" title="Colar do clipboard">
-          <ClipboardPaste className="h-3.5 w-3.5" />
-        </button>
-        {hasValue && (
-          <button type="button" onClick={onClear} className="rounded-md p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Remover">
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+      {/* Header — tappable to toggle input */}
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-2.5 px-3 py-2"
+      >
+        {/* Icon / preview */}
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-neutral-200/60">
+          {icon}
+        </div>
+        {/* Label + status */}
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-xs font-medium text-neutral-600">{label}</p>
+          <p className={`text-[10px] ${hasValue ? 'font-medium text-green-600' : 'text-neutral-400'}`}>
+            {hasValue ? 'Ligado' : 'Sem link'}
+          </p>
+        </div>
+        {/* Chevron + clear */}
+        <div className="flex shrink-0 items-center gap-1">
+          {hasValue && (
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); onChange(''); }}
+              className="rounded-md p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+              title="Remover"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <Pencil className={`h-3 w-3 transition-colors ${expanded ? 'text-neutral-600' : 'text-neutral-300'}`} />
+        </div>
+      </button>
+      {/* Expandable input */}
+      {expanded && (
+        <div className="border-t border-neutral-200/60 px-3 py-2">
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="https://..."
+            className="font-mono text-[11px] text-neutral-500"
+            autoFocus
+          />
+        </div>
+      )}
     </div>
   );
 }
