@@ -2335,7 +2335,11 @@ CREATE INDEX idx_activity_log_user ON activity_log (club_id, user_id);
 | **Player** | `created` | `{ source: 'manual' \| 'import' \| 'scout_submission' }` |
 | **Player** | `updated` | `{ fields: ['club', 'position'], old: { club: 'Porto' }, new: { club: 'Braga' } }` |
 | **Player** | `deleted` | `{ name, club, position }` |
+| **Player** | `position_changed` | `{ field: 'primary' \| 'secondary' \| 'tertiary', old: 'MC', new: 'MOC' }` |
 | **Player** | `scraped` | `{ source: 'fpf' \| 'zerozero', changes: ['club', 'photo'] }` |
+| **Player** | `referred` | `{ referred_by: 'Rui Andrade', referred_by_user_id: '...' }` |
+| **Video** | `created` | `{ url, title }` |
+| **Video** | `deleted` | `{ url, title }` |
 | **Pipeline** | `status_changed` | `{ old: 'a_observar', new: 'em_contacto', notes: '...' }` |
 | **Squad** | `added_to_shadow` | `{ position: 'DC', squad: 'shadow' }` |
 | **Squad** | `removed_from_shadow` | `{ position: 'DC' }` |
@@ -2388,7 +2392,36 @@ export async function logActivity(params: {
 
 **Dashboard widget:** "Atividade Recente" card showing last 5 actions. Already exists as `RecentChanges` — extend it to use activity_log instead of status_history.
 
-**Player profile:** "Histórico" tab/section already shows status_history — extend to show all activity for that player from activity_log.
+**Player profile — "Histórico do Jogador" timeline (admin only):**
+
+Vertical timeline in the player profile, newest first. Gives full chronological context — the player is not a static snapshot but a living process.
+
+Events shown:
+- Jogador adicionado à base de dados
+- Jogador referenciado (por quem)
+- Relatório adicionado (por quem)
+- Avaliação do departamento alterada (de X para Y)
+- Avaliação do observador alterada
+- Decisão alterada
+- Posição principal / secundária / terciária alterada
+- Estado do pipeline alterado (de X para Y)
+- Adicionado / removido do plantel sombra / real
+- Nota de observação adicionada
+- Vídeo adicionado
+- Dados atualizados via scraping (FPF/ZZ)
+- Treino realizado (com feedback, Phase 13)
+
+Each timeline entry:
+- Date (e.g. "05 Mar 2026")
+- Event type icon (color-coded dot or small icon)
+- Short description (e.g. "Relatório adicionado por **Rui Andrade**")
+- User responsible (when applicable)
+
+Visual: vertical line connecting dots, alternating left/right on desktop, single column on mobile. Compact — no cards, just text rows with dots and dates.
+
+**Visibility:** Admin only (first phase). Can be extended to editors later if needed.
+
+**First phase can be simple:** just the most important events (created, status changes, reports, evaluations). More event types added incrementally as activity_log grows.
 
 #### 8.5. Retention
 
