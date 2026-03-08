@@ -1616,6 +1616,259 @@ Allow choosing the tactical system (formation) for each escalão's real and shad
 
 ---
 
+### Phase 6 — Multi-Tenant (Multi-Club Platform)
+
+Transform Eskout from a single-club tool into a multi-club SaaS platform. Every club gets its own isolated environment under `app.eskout.co`. A superadmin panel manages the business side (clubs, users, features). Club data is fully private — not even the superadmin can see player/scouting data.
+
+#### 6.1. Architecture Overview
+
+**Tenancy model:** Row-level isolation via `club_id` foreign key on all data tables. Supabase RLS policies enforce isolation at the database level — no application-level trust.
+
+**URL strategy:** Single domain `app.eskout.co` for all clubs. No subdomains. After login, users with multiple clubs see a club picker. Selected club stored in cookie (`eskout-club-id`). Switcher available in sidebar/header.
+
+**Role layers:**
+| Layer | Role | Scope | Description |
+|-------|------|-------|-------------|
+| Platform | `superadmin` | Global | Manages clubs, invites club admins, toggles features. Cannot see club player/scouting data. |
+| Club | `admin` | Per club | Full CRUD within their club. Manages users, escalões, settings. |
+| Club | `editor` | Per club | Edit players/pipeline/squads/calendar. Cannot delete. |
+| Club | `scout` | Per club | View all, add players, add notes, submit reports. |
+
+A user can be `superadmin` AND `admin` of a specific club simultaneously. A user can have different roles in different clubs (e.g. editor at Lourosa, scout at Sporting).
+
+#### 6.2. Database Schema Changes
+
+**New tables:**
+
+```sql
+-- Clubs
+CREATE TABLE clubs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,                    -- "Boavista FC"
+  slug TEXT UNIQUE NOT NULL,             -- "boavista" (URL-friendly, immutable)
+  logo_url TEXT,                         -- Club crest URL
+  settings JSONB DEFAULT '{}',           -- Club-specific config (branding, preferences)
+  features JSONB DEFAULT '{}',           -- Feature toggles: {"pipeline": true, "calendar": false, ...}
+  limits JSONB DEFAULT '{}',             -- Future: {"max_users": 20, "max_players": 5000}
+  is_active BOOLEAN DEFAULT true,        -- Superadmin can deactivate a club
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Club memberships (replaces role on profiles)
+CREATE TABLE club_memberships (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'editor', 'scout')),
+  invited_by UUID REFERENCES profiles(id),
+  joined_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (user_id, club_id)             -- One role per club per user
+);
+
+-- Club-specific age groups (replaces global age_groups)
+CREATE TABLE club_age_groups (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,                    -- "Sub-14"
+  generation_year INT NOT NULL,
+  season TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (club_id, name, season)
+);
+```
+
+**Modified tables — add `club_id`:**
+
+Every data table gets a `club_id UUID NOT NULL REFERENCES clubs(id)`:
+- `players` — add `club_id`, update all indexes
+- `scouting_reports` — add `club_id`
+- `observation_notes` — add `club_id`
+- `status_history` — add `club_id`
+- `calendar_events` — add `club_id`
+- `scout_evaluations` — add `club_id`
+- `scout_reports` (submissions) — add `club_id`
+
+**Modified tables — profiles:**
+
+```sql
+-- Add superadmin flag to profiles (global, not per-club)
+ALTER TABLE profiles ADD COLUMN is_superadmin BOOLEAN DEFAULT false;
+
+-- Remove role from profiles (now in club_memberships)
+-- Keep for backwards compat during migration, then drop
+```
+
+#### 6.3. RLS Policies
+
+**Core principle:** Every data query is filtered by `club_id` matching the user's active club from their JWT/session. The superadmin flag grants access to `clubs` and `club_memberships` tables only — NOT to player data.
+
+```sql
+-- Example: players table
+CREATE POLICY "Users see only their club's players"
+  ON players FOR SELECT
+  USING (
+    club_id IN (
+      SELECT club_id FROM club_memberships WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Admins/editors can insert players in their club"
+  ON players FOR INSERT
+  WITH CHECK (
+    club_id IN (
+      SELECT club_id FROM club_memberships
+      WHERE user_id = auth.uid() AND role IN ('admin', 'editor', 'scout')
+    )
+  );
+
+-- Superadmin panel tables — only superadmins
+CREATE POLICY "Only superadmins manage clubs"
+  ON clubs FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_superadmin = true)
+  );
+
+-- Club memberships — superadmins + club admins
+CREATE POLICY "Club admins manage their club memberships"
+  ON club_memberships FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_superadmin = true)
+    OR
+    (club_id IN (
+      SELECT club_id FROM club_memberships WHERE user_id = auth.uid() AND role = 'admin'
+    ))
+  );
+```
+
+**Critical:** Superadmin has NO select/insert/update/delete policy on `players`, `scouting_reports`, `observation_notes`, etc. — unless they also have a `club_membership` for that club.
+
+#### 6.4. Authentication & Club Context Flow
+
+```
+1. User logs in (email + password, normal Supabase Auth)
+2. App fetches club_memberships for user
+3. If 0 clubs → "Sem clube associado" message
+4. If 1 club → auto-select, redirect to dashboard
+5. If 2+ clubs → club picker screen (logo + name for each)
+6. Selected club_id stored in cookie (eskout-club-id)
+7. All server queries read club_id from cookie + verify membership
+8. Sidebar shows club logo + name, switcher button to change club
+```
+
+**Superadmin detection:** After login, if `profiles.is_superadmin = true`, show "Gestão Eskout" as an extra option in the club picker (or always-visible in sidebar). Clicking it navigates to `/master`.
+
+#### 6.5. Superadmin Panel (`/master`)
+
+Protected by middleware — only `is_superadmin = true` can access `/master/*` routes.
+
+**Pages:**
+
+| Route | Description |
+|-------|-------------|
+| `/master` | Dashboard: total clubs, total users, active clubs, recent activity |
+| `/master/clubes` | List all clubs (name, logo, status, user count, created date). Create new club. |
+| `/master/clubes/[id]` | Club detail: settings, feature toggles, member list, invite admin, activate/deactivate |
+| `/master/utilizadores` | All platform users across all clubs (name, email, memberships). Cannot see player data. |
+
+**Club creation flow:**
+1. Superadmin creates club: name, slug, logo
+2. Superadmin invites first admin by email
+3. Invited user receives email → creates account (or links existing) → joins club as admin
+4. Club admin configures: escalões, squad settings, invites editors/scouts
+
+**Feature toggles (per club):**
+Stored as JSONB on `clubs.features`. Initial toggleable features:
+
+| Feature Key | Label | Default | Description |
+|-------------|-------|---------|-------------|
+| `pipeline` | Pipeline | `true` | Recruitment pipeline (Kanban) |
+| `calendar` | Calendário | `true` | Calendar events |
+| `shadow_squad` | Plantel Sombra | `true` | Shadow squad functionality |
+| `scouting_reports` | Relatórios | `true` | PDF scouting reports |
+| `scout_submissions` | Submissões Scout | `true` | Scout player submission flow |
+| `export` | Exportar | `true` | Excel/PDF/JSON export |
+| `positions_view` | Vista Posições | `true` | Position-by-position page |
+| `alerts` | Alertas | `true` | Priority notes / alerts page |
+
+When a feature is disabled, the corresponding nav item is hidden and the route returns 404.
+
+#### 6.6. Club Context in Application
+
+**Middleware changes:**
+- Read `eskout-club-id` from cookie on every request
+- Verify user has `club_membership` for that `club_id`
+- Inject `club_id` into request context (header or cookie)
+- `/master/*` routes: verify `is_superadmin` instead
+- No club cookie + not superadmin → redirect to club picker
+
+**Server Actions / Queries:**
+- Every query receives `club_id` from context (not from client)
+- Server-side helper: `getActiveClub()` → reads cookie, verifies membership, returns `{ clubId, role, club }`
+- All existing queries add `.eq('club_id', clubId)` filter
+- Insert operations auto-set `club_id` from context
+
+**Client-side:**
+- `useClub()` hook: returns active club (name, logo, features, role)
+- Feature gate component: `<Feature name="pipeline">{children}</Feature>` — renders nothing if disabled
+- Sidebar/MobileDrawer: show club logo + name, feature-gated nav items
+
+#### 6.7. Club Branding & Settings
+
+**`clubs.settings` JSONB structure:**
+```json
+{
+  "primary_color": "#1a1a1a",         -- Optional accent color override
+  "display_name": "Boavista FC",       -- Shown in header/sidebar
+  "country": "PT",                     -- Default country code for phone inputs
+  "default_season": "2025/2026"        -- Active season
+}
+```
+
+**UI:** Club logo appears in sidebar header (small, next to "Eskout" branding). Mobile drawer shows club logo prominently. Login/club picker shows each club's crest.
+
+#### 6.8. User Invitation Flow
+
+**Club admin invites user:**
+1. Admin goes to club settings → Utilizadores → Convidar
+2. Enters email + role (admin/editor/scout)
+3. System checks if email already has a profile:
+   - Yes → creates `club_membership` immediately, user sees new club on next login
+   - No → sends invite email with signup link, pre-creates pending membership
+4. Invited user signs up → membership activates → lands in club
+
+**Superadmin invites club admin:**
+Same flow but from `/master/clubes/[id]` → always role `admin`.
+
+#### 6.9. Migration Strategy
+
+Since the database will be rebuilt from scratch:
+
+1. Create new tables (`clubs`, `club_memberships`, `club_age_groups`)
+2. Add `club_id` column to all existing data tables
+3. Modify `profiles` — add `is_superadmin`, keep `role` temporarily
+4. Update all RLS policies
+5. Update all Server Actions to use `getActiveClub()`
+6. Update all queries to filter by `club_id`
+7. Add middleware club context logic
+8. Build `/master` panel pages
+9. Build club picker + switcher UI
+10. Feature gate all nav items and routes
+11. Create first club (Boavista) + assign existing users
+
+**Estimated scope:** This is a significant refactor touching every query, action, and data-fetching component. Recommend doing it in sub-phases:
+- **6A:** Schema + RLS + auth context (backend foundation)
+- **6B:** Superadmin panel (`/master` pages)
+- **6C:** Club picker + switcher + branding UI
+- **6D:** Feature toggles + route gating
+- **6E:** Invitation system
+
+Each sub-phase must be deployable independently.
+
+**Deliverable:** Eskout as a multi-club SaaS platform. Each club has fully isolated data, configurable features, and independent user management. Superadmin manages the business without accessing club-private data.
+
+---
+
 ## 10. Data Files & Scripts
 
 | File | Description |
