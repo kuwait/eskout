@@ -3046,7 +3046,15 @@ CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
 - **Duplicate list:** Copy an existing list (useful for "Reunião semana passada" → "Reunião esta semana").
 - **Player count in nav:** Badge next to "Listas" showing total lists (like alerts badge).
 
-#### 15.7. Sub-phases
+#### 15.7. Design Guidelines
+
+**1. Lists ≠ Pipeline.** Listas são organização pessoal, pipeline/opinião/plantel sombra são estado partilhado. Na UI e no copy nunca misturar os dois conceitos. Bookmark icon + "As minhas listas" reforçam que é pessoal. Nunca sugerir que adicionar a uma lista substitui mover no pipeline ou alterar opinião.
+
+**2. Scout experience must be polished.** Visão limitada não pode significar UX confusa. Mapear claramente: onde o scout vê o bookmark (submissões, lista de jogadores visíveis), o que aparece dentro da lista (info limitada que já vê), como navega de lista → jogador (sem acesso ao profile completo). Testar o fluxo scout de ponta a ponta antes de lançar.
+
+**3. Visual discretion.** O bookmark e os popovers tocam muitas superfícies (card, tabela, profile, pipeline, nav). Manter o ícone pequeno e discreto — não pode competir com opinião, posição ou rating que são mais importantes. Popover leve (não modal). Sem animações excessivas. A feature deve ser descobrível mas não intrusiva.
+
+#### 15.8. Sub-phases
 
 - **15A:** `player_lists` + `player_list_items` tables + RLS + Server Actions (CRUD)
 - **15B:** Star icon integration (table, card, profile) + list popover
