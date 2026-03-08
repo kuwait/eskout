@@ -87,6 +87,7 @@ export function mapPlayerRow(row: PlayerRow): Player {
     observerEval: (row.observer_eval as Player['observerEval']) ?? '',
     observerDecision: (row.observer_decision as Player['observerDecision']) ?? '',
     referredBy: row.referred_by ?? '',
+    referredByUserId: row.referred_by_user_id ?? null,
     notes: row.notes ?? '',
     reportLabels: [
       row.report_label_1, row.report_label_2, row.report_label_3,

@@ -9,7 +9,10 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Check, CircleCheckBig, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, ImageIcon, Link2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Download, Eye, ExternalLink, Camera, Flag, Footprints, Handshake, ImageIcon, Link2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,6 +115,9 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const isAdmin = userRole === 'admin';
   const canEdit = userRole === 'admin' || userRole === 'editor';
 
+  // Profiles list for referral combobox — fetched once when entering edit mode
+  const [profiles, setProfiles] = useState<{ id: string; fullName: string }[]>([]);
+
   // Clear savedDraft when server delivers fresh props (after router.refresh())
   useEffect(() => {
     setSavedDraft(null);
@@ -124,6 +130,13 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   function handleEdit() {
     setDraft(player);
     setEditing(true);
+    // Fetch profiles for referral combobox (lazy — only when editing)
+    if (profiles.length === 0) {
+      const supabase = createClient();
+      supabase.from('profiles').select('id, full_name').order('full_name').then(({ data }) => {
+        if (data) setProfiles(data.map((p) => ({ id: p.id, fullName: p.full_name })));
+      });
+    }
   }
 
   function handleCancel() {
@@ -153,6 +166,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         observer_eval: draft.observerEval || null,
         observer_decision: draft.observerDecision || null,
         referred_by: draft.referredBy || null,
+        referred_by_user_id: draft.referredByUserId || null,
         photo_url: draft.photoUrl || null,
         fpf_link: draft.fpfLink || null,
         zerozero_link: draft.zerozeroLink || null,
@@ -666,15 +680,14 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               <Section title="Observação & Recrutamento">
                 <div className="space-y-4">
                   <EditField label="Referência">
-                    <div className="relative">
-                      <User className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
-                      <Input
-                        value={draft.referredBy}
-                        onChange={(e) => updateDraft('referredBy', e.target.value)}
-                        className="pl-8 text-sm"
-                        placeholder="Quem referenciou"
-                      />
-                    </div>
+                    <ReferralPicker
+                      profiles={profiles}
+                      selectedUserId={draft.referredByUserId}
+                      freeText={draft.referredBy}
+                      onChange={(userId, name) => {
+                        setDraft((d) => ({ ...d, referredByUserId: userId, referredBy: name }));
+                      }}
+                    />
                   </EditField>
 
                   {/* Decisão — segmented pill buttons */}
@@ -817,7 +830,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                   <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.birthCountry)}</span>} label="País Nasc." value={p.birthCountry} />
                 )}
                 {p.referredBy && (
-                  <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Referência" value={p.referredBy} />
+                  <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Referência" value={p.referredBy} linked={!!p.referredByUserId} />
                 )}
               </div>
             </Section>
@@ -1348,7 +1361,7 @@ function DecisionBadge({ decision }: { decision: string }) {
 }
 
 /** Compact info chip — icon + label/value, used in Info Básica grid */
-function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function InfoChip({ icon, label, value, linked }: { icon: React.ReactNode; label: string; value: string; linked?: boolean }) {
   return (
     <div className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2">
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200/60">
@@ -1356,7 +1369,10 @@ function InfoChip({ icon, label, value }: { icon: React.ReactNode; label: string
       </div>
       <div className="min-w-0">
         <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">{label}</p>
-        <p className="truncate text-sm font-semibold leading-snug">{value}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="truncate text-sm font-semibold leading-snug">{value}</p>
+          {linked && <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[8px] font-bold text-blue-600">LINKED</span>}
+        </div>
       </div>
     </div>
   );
@@ -1457,6 +1473,130 @@ function ShirtNumberInput({ value, onChange }: { value: string; onChange: (v: st
         placeholder="—"
         className="pl-8 text-xs font-medium tracking-wide text-neutral-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
+    </div>
+  );
+}
+
+/* ───────────── Referral Picker — combobox with profiles + free text ───────────── */
+
+/** Combobox: select a registered user OR type free text. Clear button to remove. */
+function ReferralPicker({ profiles, selectedUserId, freeText, onChange }: {
+  profiles: { id: string; fullName: string }[];
+  selectedUserId: string | null;
+  freeText: string;
+  onChange: (userId: string | null, name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Display name: linked user's name, or free text
+  const linkedProfile = selectedUserId ? profiles.find((p) => p.id === selectedUserId) : null;
+  const displayName = linkedProfile?.fullName || freeText;
+  const isLinked = !!linkedProfile;
+
+  function handleSelectProfile(profile: { id: string; fullName: string }) {
+    onChange(profile.id, profile.fullName);
+    setOpen(false);
+    setSearch('');
+  }
+
+  function handleFreeText() {
+    if (search.trim()) {
+      onChange(null, search.trim());
+      setOpen(false);
+      setSearch('');
+    }
+  }
+
+  function handleClear() {
+    onChange(null, '');
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 shadow-sm transition-colors hover:bg-accent"
+          >
+            <User className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+            {displayName ? (
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+                <span className="truncate text-xs font-medium tracking-wide text-neutral-600">{displayName}</span>
+                {isLinked && <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[9px] font-bold text-blue-600">LINKED</span>}
+              </span>
+            ) : (
+              <span className="flex-1 text-left text-xs text-neutral-300">Quem referenciou</span>
+            )}
+            <ChevronsUpDown className="h-3 w-3 shrink-0 text-neutral-300" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[260px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Pesquisar ou escrever..."
+              value={search}
+              onValueChange={setSearch}
+              className="text-xs"
+            />
+            <CommandList>
+              <CommandEmpty className="py-2 text-center text-xs text-muted-foreground">
+                {search.trim() ? (
+                  <button
+                    type="button"
+                    onClick={handleFreeText}
+                    className="w-full rounded px-3 py-1.5 text-left text-xs hover:bg-accent"
+                  >
+                    Adicionar <strong>&quot;{search.trim()}&quot;</strong> como referência
+                  </button>
+                ) : (
+                  'Sem resultados'
+                )}
+              </CommandEmpty>
+              {/* Registered users */}
+              {profiles.length > 0 && (
+                <CommandGroup heading="Utilizadores">
+                  {profiles
+                    .filter((p) => !search || p.fullName.toLowerCase().includes(search.toLowerCase()))
+                    .map((p) => (
+                      <CommandItem
+                        key={p.id}
+                        value={p.id}
+                        onSelect={() => handleSelectProfile(p)}
+                        className="text-xs"
+                      >
+                        <User className="mr-2 h-3 w-3 text-neutral-400" />
+                        {p.fullName}
+                        {p.id === selectedUserId && <Check className="ml-auto h-3 w-3 text-blue-500" />}
+                      </CommandItem>
+                    ))}
+                </CommandGroup>
+              )}
+              {/* Free text option when typing something not matching a user */}
+              {search.trim() && !profiles.some((p) => p.fullName.toLowerCase() === search.trim().toLowerCase()) && (
+                <CommandGroup heading="Outro">
+                  <CommandItem onSelect={handleFreeText} className="text-xs">
+                    <PenLine className="mr-2 h-3 w-3 text-neutral-400" />
+                    Adicionar &quot;{search.trim()}&quot;
+                  </CommandItem>
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {/* Clear button */}
+      {displayName && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-input text-neutral-400 transition-colors hover:bg-accent hover:text-neutral-600"
+          title="Remover referência"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }

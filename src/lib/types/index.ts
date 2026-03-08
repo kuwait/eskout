@@ -59,6 +59,7 @@ export interface Player {
   observerEval: ObserverEval;
   observerDecision: ObserverDecision;
   referredBy: string;
+  referredByUserId: string | null;
   notes: string;
   reportLabels: string[];
   reportLinks: string[];
@@ -125,6 +126,7 @@ export interface PlayerRow {
   observer_eval: string | null;
   observer_decision: string | null;
   referred_by: string | null;
+  referred_by_user_id: string | null;
   notes: string | null;
   report_label_1: string | null;
   report_label_2: string | null;
