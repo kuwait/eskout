@@ -1,22 +1,27 @@
 // src/lib/supabase/queries.ts
 // Database query functions for fetching players, age groups, and related data
-// All queries run server-side via the Supabase server client
-// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/supabase/mappers.ts, src/actions/players.ts
+// All queries run server-side via the Supabase server client, scoped by club_id
+// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/supabase/mappers.ts, src/lib/supabase/club-context.ts
 
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub, getActiveClubId } from '@/lib/supabase/club-context';
 import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow } from '@/lib/supabase/mappers';
 import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, StatusHistoryEntry, ObservationNote } from '@/lib/types';
 
 /* ───────────── Players ───────────── */
 
 export async function getPlayersByAgeGroup(ageGroupId: number): Promise<Player[]> {
+  const clubId = await getActiveClubId();
   const supabase = await createClient();
-  // Join latest observation note per player (newest first, limit 1)
-  const { data, error } = await supabase
+  let query = supabase
     .from('players')
     .select('*, observation_notes(content, created_at)')
     .eq('age_group_id', ageGroupId)
     .order('name');
+
+  if (clubId) query = query.eq('club_id', clubId);
+
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
   return (data as (PlayerRow & { observation_notes: { content: string; created_at: string }[] })[]).map((row) => {
@@ -39,20 +44,26 @@ export async function getPlayerById(id: number): Promise<Player | null> {
   return mapPlayerRow(data as PlayerRow);
 }
 
-/* ───────────── Profile (current user role) ───────────── */
+/* ───────────── Profile (current user role — club-scoped) ───────────── */
 
 export async function getCurrentUserRole(): Promise<'admin' | 'editor' | 'scout' | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  try {
+    const { role } = await getActiveClub();
+    return role;
+  } catch {
+    // Fallback: no club context (e.g. club picker page)
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
-  const { data } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
 
-  return (data?.role as 'admin' | 'editor' | 'scout') ?? null;
+    return (data?.role as 'admin' | 'editor' | 'scout') ?? null;
+  }
 }
 
 /* ───────────── Scouting Reports ───────────── */
@@ -213,6 +224,7 @@ export interface FlaggedNote extends ObservationNote {
 }
 
 export async function getFlaggedNotes(ageGroupId?: number): Promise<FlaggedNote[]> {
+  const clubId = await getActiveClubId();
   const supabase = await createClient();
 
   let query = supabase
@@ -222,9 +234,8 @@ export async function getFlaggedNotes(ageGroupId?: number): Promise<FlaggedNote[
     .order('created_at', { ascending: false })
     .limit(50);
 
-  // If age group provided, filter by it (via joined player)
-  // Note: Supabase doesn't support filtering on joined columns directly in .eq(),
-  // so we filter in JS after fetch
+  if (clubId) query = query.eq('club_id', clubId);
+
   const { data, error } = await query;
 
   if (error) {
@@ -340,24 +351,31 @@ export interface RecentChange {
 }
 
 export async function getRecentChanges(ageGroupId: number, limit = 10): Promise<RecentChange[]> {
+  const clubId = await getActiveClubId();
   const supabase = await createClient();
 
   // Get player IDs for this age group first
-  const { data: playerIds } = await supabase
+  let playerQuery = supabase
     .from('players')
     .select('id')
     .eq('age_group_id', ageGroupId);
+  if (clubId) playerQuery = playerQuery.eq('club_id', clubId);
+
+  const { data: playerIds } = await playerQuery;
 
   if (!playerIds?.length) return [];
 
   const ids = playerIds.map((p) => p.id);
 
-  const { data, error } = await supabase
+  let historyQuery = supabase
     .from('status_history')
     .select('*')
     .in('player_id', ids)
     .order('created_at', { ascending: false })
     .limit(limit);
+  if (clubId) historyQuery = historyQuery.eq('club_id', clubId);
+
+  const { data, error } = await historyQuery;
 
   if (error || !data) return [];
 
@@ -403,6 +421,7 @@ export async function getCalendarEvents(
   /** Optional explicit date range (overrides year/month) */
   dateRange?: { start: string; end: string }
 ): Promise<CalendarEvent[]> {
+  const clubId = await getActiveClubId();
   const supabase = await createClient();
 
   // Build date range — explicit range or fall back to month
@@ -427,17 +446,20 @@ export async function getCalendarEvents(
     .order('event_date')
     .order('event_time', { nullsFirst: false });
 
+  if (clubId) eventsQuery = eventsQuery.eq('club_id', clubId);
+
   if (ageGroupId) {
     eventsQuery = eventsQuery.or(`age_group_id.eq.${ageGroupId},age_group_id.is.null`);
   }
 
   // 2. Fetch players with pipeline dates in this month range
-  // training_date, meeting_date, signing_date are stored as ISO timestamps or date strings
   let playersQuery = supabase
     .from('players')
     .select('id, name, age_group_id, training_date, meeting_date, signing_date, recruitment_status, photo_url, zz_photo_url, club, position_normalized, dob, foot')
     .or(`training_date.gte.${start},meeting_date.gte.${start},signing_date.gte.${start}`)
     .not('recruitment_status', 'is', null);
+
+  if (clubId) playersQuery = playersQuery.eq('club_id', clubId);
 
   if (ageGroupId) {
     playersQuery = playersQuery.eq('age_group_id', ageGroupId);
@@ -466,7 +488,7 @@ export async function getCalendarEvents(
         foot: player.foot,
       };
 
-      // Training date → 'treino' event
+      // Training date -> 'treino' event
       if (player.training_date) {
         const dateEvent = playerDateToCalendarEvent(
           syntheticId--, player.id, player.name, player.age_group_id,
@@ -476,7 +498,7 @@ export async function getCalendarEvents(
           playerDateEvents.push(dateEvent);
         }
       }
-      // Meeting date → 'reuniao' event
+      // Meeting date -> 'reuniao' event
       if (player.meeting_date) {
         const dateEvent = playerDateToCalendarEvent(
           syntheticId--, player.id, player.name, player.age_group_id,
@@ -486,7 +508,7 @@ export async function getCalendarEvents(
           playerDateEvents.push(dateEvent);
         }
       }
-      // Signing date → 'assinatura' event
+      // Signing date -> 'assinatura' event
       if (player.signing_date) {
         const dateEvent = playerDateToCalendarEvent(
           syntheticId--, player.id, player.name, player.age_group_id,
@@ -500,7 +522,6 @@ export async function getCalendarEvents(
   }
 
   // Deduplicate: skip synthetic events when a manual calendar event exists for the same player+type+date
-  // This prevents double-showing when a calendar event syncs a date to the player's pipeline
   const manualEventKeys = new Set(
     manualEvents
       .filter((e) => e.playerId)
@@ -581,9 +602,30 @@ function playerDateToCalendarEvent(
   };
 }
 
-/** Fetch all app users (for assignee dropdown) */
+/** Fetch all app users for the current club (for assignee dropdown) */
 export async function getAllProfiles(): Promise<Profile[]> {
+  const clubId = await getActiveClubId();
   const supabase = await createClient();
+
+  if (clubId) {
+    // Fetch only members of the current club
+    const { data: memberships } = await supabase
+      .from('club_memberships')
+      .select('user_id, role, profiles:user_id(id, full_name)')
+      .eq('club_id', clubId);
+
+    if (!memberships) return [];
+    return memberships.map((m) => {
+      const profile = m.profiles as unknown as { id: string; full_name: string };
+      return {
+        id: profile.id,
+        fullName: profile.full_name,
+        role: m.role as Profile['role'],
+      };
+    });
+  }
+
+  // Fallback: all profiles (shouldn't happen in multi-tenant)
   const { data, error } = await supabase
     .from('profiles')
     .select('id, full_name, role')
@@ -599,15 +641,23 @@ export async function getAllProfiles(): Promise<Profile[]> {
 
 /** Fetch all players with ratings and notes — used by home page and jogadores page for instant render */
 export async function fetchAllPlayers(): Promise<Player[]> {
+  const clubId = await getActiveClubId();
   const supabase = await createClient();
   const MAX = 4999;
 
-  const [playersRes, reportsRes, evalsRes, notesRes] = await Promise.all([
-    supabase.from('players').select('*').order('name').range(0, MAX),
-    supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(0, MAX),
-    supabase.from('scout_evaluations').select('player_id, rating').range(0, MAX),
-    supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(0, MAX),
-  ]);
+  let playersQ = supabase.from('players').select('*').order('name').range(0, MAX);
+  if (clubId) playersQ = playersQ.eq('club_id', clubId);
+
+  let reportsQ = supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(0, MAX);
+  if (clubId) reportsQ = reportsQ.eq('club_id', clubId);
+
+  let evalsQ = supabase.from('scout_evaluations').select('player_id, rating').range(0, MAX);
+  if (clubId) evalsQ = evalsQ.eq('club_id', clubId);
+
+  let notesQ = supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(0, MAX);
+  if (clubId) notesQ = notesQ.eq('club_id', clubId);
+
+  const [playersRes, reportsRes, evalsRes, notesRes] = await Promise.all([playersQ, reportsQ, evalsQ, notesQ]);
 
   // Build note previews map
   const notesMap = new Map<number, string[]>();
@@ -654,11 +704,16 @@ export async function fetchAllPlayers(): Promise<Player[]> {
 
 /** Fetch all players (full objects) for player picker dialogs */
 export async function getAllPlayers(): Promise<Player[]> {
+  const clubId = await getActiveClubId();
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  let query = supabase
     .from('players')
     .select('*')
     .order('name');
+  if (clubId) query = query.eq('club_id', clubId);
+
+  const { data, error } = await query;
 
   if (error || !data) return [];
   return (data as PlayerRow[]).map(mapPlayerRow);

@@ -1,12 +1,13 @@
 // src/actions/scout-reports.ts
 // Server Actions for scout report submission, listing, and admin review
 // Scouts submit reports via /submeter, admins review and create players or reject
-// RELEVANT FILES: src/app/submeter/page.tsx, src/app/meus-relatorios/page.tsx, src/app/admin/relatorios/page.tsx
+// RELEVANT FILES: src/app/submeter/page.tsx, src/app/meus-relatorios/page.tsx, src/lib/supabase/club-context.ts
 
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 
 /* ───────────── Types ───────────── */
@@ -149,9 +150,8 @@ export async function submitScoutReport(
   input: ScoutReportInput,
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const { clubId, userId } = await getActiveClub();
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Não autenticado' };
 
     // Validate required fields
     if (!input.playerName.trim()) return { success: false, error: 'Nome do jogador é obrigatório' };
@@ -161,7 +161,8 @@ export async function submitScoutReport(
     const { error } = await supabase
       .from('scout_reports')
       .insert({
-        author_id: user.id,
+        author_id: userId,
+        club_id: clubId,
         player_name: input.playerName.trim(),
         player_club: input.playerClub.trim(),
         fpf_link: input.fpfLink.trim(),
@@ -206,14 +207,14 @@ export async function submitScoutReport(
 
 export async function listMyScoutReports(): Promise<{ success: boolean; reports: ScoutReportRow[]; error?: string }> {
   try {
+    const { clubId, userId } = await getActiveClub();
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, reports: [], error: 'Não autenticado' };
 
     const { data, error } = await supabase
       .from('scout_reports')
       .select('*')
-      .eq('author_id', user.id)
+      .eq('author_id', userId)
+      .eq('club_id', clubId)
       .order('created_at', { ascending: false });
 
     if (error) return { success: false, reports: [], error: error.message };
@@ -228,16 +229,14 @@ export async function listMyScoutReports(): Promise<{ success: boolean; reports:
 
 export async function getScoutReport(id: number): Promise<{ report: ScoutReportRow | null; error?: string }> {
   try {
+    const { clubId, userId, role } = await getActiveClub();
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { report: null, error: 'Não autenticado' };
 
     // Scout sees own reports; admin/editor sees all
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    const isAdminOrEditor = profile?.role === 'admin' || profile?.role === 'editor';
+    const isAdminOrEditor = role === 'admin' || role === 'editor';
 
-    let query = supabase.from('scout_reports').select('*').eq('id', id);
-    if (!isAdminOrEditor) query = query.eq('author_id', user.id);
+    let query = supabase.from('scout_reports').select('*').eq('id', id).eq('club_id', clubId);
+    if (!isAdminOrEditor) query = query.eq('author_id', userId);
 
     const { data, error } = await query.single();
     if (error || !data) return { report: null, error: error?.message || 'Relatório não encontrado' };
@@ -262,19 +261,18 @@ export async function listAllScoutReports(
   statusFilter?: 'pendente' | 'aprovado' | 'rejeitado',
 ): Promise<{ success: boolean; reports: ScoutReportRow[]; error?: string }> {
   try {
+    const { clubId, role } = await getActiveClub();
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, reports: [], error: 'Não autenticado' };
 
     // Verify admin/editor role
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin' && profile?.role !== 'editor') {
+    if (role !== 'admin' && role !== 'editor') {
       return { success: false, reports: [], error: 'Sem permissão' };
     }
 
     let query = supabase
       .from('scout_reports')
       .select('*')
+      .eq('club_id', clubId)
       .order('created_at', { ascending: false });
 
     if (statusFilter) query = query.eq('status', statusFilter);
@@ -292,11 +290,13 @@ export async function listAllScoutReports(
 
 export async function getPendingReportsCount(): Promise<number> {
   try {
+    const { clubId } = await getActiveClub();
     const supabase = await createClient();
     const { count } = await supabase
       .from('scout_reports')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'pendente');
+      .eq('status', 'pendente')
+      .eq('club_id', clubId);
     return count ?? 0;
   } catch {
     return 0;
@@ -309,19 +309,17 @@ export async function approveScoutReport(
   reportId: number,
 ): Promise<{ success: boolean; playerId?: number; error?: string }> {
   try {
+    const { clubId, userId, role } = await getActiveClub();
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Não autenticado' };
 
     // Verify admin/editor
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin' && profile?.role !== 'editor') {
+    if (role !== 'admin' && role !== 'editor') {
       return { success: false, error: 'Sem permissão' };
     }
 
     // Fetch the report
     const { data: report, error: fetchErr } = await supabase
-      .from('scout_reports').select('*').eq('id', reportId).single();
+      .from('scout_reports').select('*').eq('id', reportId).eq('club_id', clubId).single();
     if (fetchErr || !report) return { success: false, error: 'Relatório não encontrado' };
     if (report.status !== 'pendente') return { success: false, error: 'Relatório já foi processado' };
 
@@ -331,18 +329,18 @@ export async function approveScoutReport(
     const fpfLink = r.fpf_link as string;
     if (fpfLink) {
       const { data: existing } = await supabase
-        .from('players').select('id, name').eq('fpf_link', fpfLink).maybeSingle();
+        .from('players').select('id, name').eq('fpf_link', fpfLink).eq('club_id', clubId).maybeSingle();
       if (existing) {
         // Link to existing player instead of creating new one
         await supabase.from('scout_reports').update({
           status: 'aprovado',
           linked_player_id: existing.id,
-          reviewed_by: user.id,
+          reviewed_by: userId,
           reviewed_at: new Date().toISOString(),
-        }).eq('id', reportId);
+        }).eq('id', reportId).eq('club_id', clubId);
 
         // Save scout evaluation as observation note on existing player
-        await saveEvalAsReport(supabase, existing.id, r);
+        await saveEvalAsReport(supabase, existing.id, r, clubId);
 
         revalidatePath('/admin/relatorios');
         revalidatePath('/meus-relatorios');
@@ -370,7 +368,7 @@ export async function approveScoutReport(
     if (!ageGroup) {
       const { data: newAg, error: agErr } = await supabase
         .from('age_groups')
-        .insert({ name: ageGroupName, generation_year: birthYear, season: CURRENT_SEASON })
+        .insert({ name: ageGroupName, generation_year: birthYear, season: CURRENT_SEASON, club_id: clubId })
         .select('id').single();
       if (agErr) return { success: false, error: `Erro ao criar escalão: ${agErr.message}` };
       ageGroup = newAg;
@@ -381,6 +379,7 @@ export async function approveScoutReport(
       .from('players')
       .insert({
         age_group_id: ageGroup!.id,
+        club_id: clubId,
         name: r.player_name as string,
         dob: dob || null,
         club: r.player_club as string,
@@ -403,7 +402,7 @@ export async function approveScoutReport(
         observer_decision: r.decision as string | null,
         recruitment_status: 'por_tratar',
         referred_by: (report as Record<string, unknown>).author_id ? 'Scout' : null,
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single();
@@ -414,12 +413,12 @@ export async function approveScoutReport(
     await supabase.from('scout_reports').update({
       status: 'aprovado',
       linked_player_id: player!.id,
-      reviewed_by: user.id,
+      reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
-    }).eq('id', reportId);
+    }).eq('id', reportId).eq('club_id', clubId);
 
     // Save evaluation as observation note on the new player
-    await saveEvalAsReport(supabase, player!.id, r);
+    await saveEvalAsReport(supabase, player!.id, r, clubId);
 
     revalidatePath('/admin/relatorios');
     revalidatePath('/meus-relatorios');
@@ -434,20 +433,18 @@ export async function approveScoutReport(
 
 export async function rejectScoutReport(reportId: number): Promise<{ success: boolean; error?: string }> {
   try {
+    const { clubId, userId, role } = await getActiveClub();
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'Não autenticado' };
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'admin' && profile?.role !== 'editor') {
+    if (role !== 'admin' && role !== 'editor') {
       return { success: false, error: 'Sem permissão' };
     }
 
     const { error } = await supabase.from('scout_reports').update({
       status: 'rejeitado',
-      reviewed_by: user.id,
+      reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
-    }).eq('id', reportId).eq('status', 'pendente');
+    }).eq('id', reportId).eq('status', 'pendente').eq('club_id', clubId);
 
     if (error) return { success: false, error: error.message };
 
@@ -462,7 +459,7 @@ export async function rejectScoutReport(reportId: number): Promise<{ success: bo
 /* ───────────── Helper: Save scout evaluation as scouting report ───────────── */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function saveEvalAsReport(supabase: any, playerId: number, r: Record<string, unknown>) {
+async function saveEvalAsReport(supabase: any, playerId: number, r: Record<string, unknown>, clubId: string) {
   // Fetch scout name from profiles
   let scoutName: string | null = null;
   if (r.author_id) {
@@ -473,6 +470,7 @@ async function saveEvalAsReport(supabase: any, playerId: number, r: Record<strin
 
   await supabase.from('scouting_reports').insert({
     player_id: playerId,
+    club_id: clubId,
     // No gdrive_file_id — this is a scout-submitted report, not a PDF extraction
     competition: r.competition as string | null,
     match: r.match as string | null,

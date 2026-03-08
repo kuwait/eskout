@@ -1,18 +1,19 @@
 // src/actions/pipeline.ts
 // Server Actions for recruitment pipeline status changes
 // Updates player recruitment_status and logs every change to status_history
-// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/types/index.ts
+// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/supabase/club-context.ts
 
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import { recruitmentStatusChangeSchema } from '@/lib/validators';
 import type { ActionResponse, RecruitmentStatus } from '@/lib/types';
 
-/* ───────────── Calendar ↔ Pipeline sync helper ───────────── */
+/* ───────────── Calendar <-> Pipeline sync helper ───────────── */
 
-/** Event type mapping: pipeline date field → calendar event type */
+/** Event type mapping: pipeline date field -> calendar event type */
 const DATE_FIELD_TO_EVENT_TYPE: Record<string, string> = {
   training_date: 'treino',
   meeting_date: 'reuniao',
@@ -25,6 +26,7 @@ const DATE_FIELD_TO_EVENT_TYPE: Record<string, string> = {
  */
 async function syncCalendarEvent(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  clubId: string,
   userId: string,
   playerId: number,
   dateField: string,
@@ -39,7 +41,8 @@ async function syncCalendarEvent(
       .from('calendar_events')
       .delete()
       .eq('player_id', playerId)
-      .eq('event_type', eventType);
+      .eq('event_type', eventType)
+      .eq('club_id', clubId);
     return;
   }
 
@@ -69,6 +72,7 @@ async function syncCalendarEvent(
     .select('id')
     .eq('player_id', playerId)
     .eq('event_type', eventType)
+    .eq('club_id', clubId)
     .limit(1)
     .maybeSingle();
 
@@ -88,6 +92,7 @@ async function syncCalendarEvent(
     await supabase
       .from('calendar_events')
       .insert({
+        club_id: clubId,
         player_id: playerId,
         event_type: eventType,
         title,
@@ -103,37 +108,29 @@ export async function updateRecruitmentStatus(
   newStatus: RecruitmentStatus | null,
   note?: string
 ): Promise<ActionResponse> {
-  console.log('[updateRecruitmentStatus] called:', { playerId, newStatus, note });
-
   // Validate only when setting a status (null means removing from abordagens)
   if (newStatus) {
     const parsed = recruitmentStatusChangeSchema.safeParse({ playerId, newStatus, note });
     if (!parsed.success) {
-      console.log('[updateRecruitmentStatus] validation failed:', parsed.error.issues[0].message);
       return { success: false, error: parsed.error.issues[0].message };
     }
   }
 
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    console.log('[updateRecruitmentStatus] not authenticated');
-    return { success: false, error: 'Não autenticado' };
-  }
 
   // Get current status and date fields for richer history context
   const { data: player } = await supabase
     .from('players')
     .select('recruitment_status, training_date, meeting_date, signing_date')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const oldStatus = player?.recruitment_status ?? null;
-  console.log('[updateRecruitmentStatus] oldStatus:', oldStatus, '→ newStatus:', newStatus);
 
   // Skip if same status
   if (oldStatus === newStatus) {
-    console.log('[updateRecruitmentStatus] same status, skipping');
     return { success: true };
   }
 
@@ -152,7 +149,8 @@ export async function updateRecruitmentStatus(
   const { error } = await supabase
     .from('players')
     .update(updatePayload)
-    .eq('id', playerId);
+    .eq('id', playerId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao atualizar estado: ${error.message}` };
@@ -160,27 +158,25 @@ export async function updateRecruitmentStatus(
 
   // Sync calendar events: delete events for cleared date fields
   if (oldStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
-    await syncCalendarEvent(supabase, user.id, playerId, 'training_date', null);
+    await syncCalendarEvent(supabase, clubId, userId, playerId, 'training_date', null);
   }
   if (oldStatus === 'reuniao_marcada' && newStatus !== 'reuniao_marcada') {
-    await syncCalendarEvent(supabase, user.id, playerId, 'meeting_date', null);
+    await syncCalendarEvent(supabase, clubId, userId, playerId, 'meeting_date', null);
   }
   if (oldStatus === 'confirmado' && newStatus !== 'confirmado') {
-    await syncCalendarEvent(supabase, user.id, playerId, 'signing_date', null);
+    await syncCalendarEvent(supabase, clubId, userId, playerId, 'signing_date', null);
   }
 
   // Log to status_history
-  const { error: historyError } = await supabase.from('status_history').insert({
+  await supabase.from('status_history').insert({
+    club_id: clubId,
     player_id: playerId,
     field_changed: 'recruitment_status',
     old_value: oldStatus,
     new_value: newStatus,
-    changed_by: user.id,
+    changed_by: userId,
     notes: note ?? null,
   });
-  if (historyError) {
-    console.error('Failed to insert status_history:', historyError);
-  }
 
   revalidatePath('/pipeline');
   revalidatePath('/calendario');
@@ -197,16 +193,16 @@ export async function reorderPipelineCards(
 ): Promise<ActionResponse> {
   if (updates.length === 0) return { success: true };
 
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // Small N per column, sequential is fine
   for (const { playerId, order } of updates) {
     const { error } = await supabase
       .from('players')
       .update({ pipeline_order: order })
-      .eq('id', playerId);
+      .eq('id', playerId)
+      .eq('club_id', clubId);
     if (error) {
       return { success: false, error: `Erro ao reordenar jogador ${playerId}: ${error.message}` };
     }
@@ -221,21 +217,22 @@ export async function updateTrainingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // Get old value for history
   const { data: player } = await supabase
     .from('players')
     .select('training_date')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const { error } = await supabase
     .from('players')
     .update({ training_date: dateTime })
-    .eq('id', playerId);
+    .eq('id', playerId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao atualizar data de treino: ${error.message}` };
@@ -243,15 +240,16 @@ export async function updateTrainingDate(
 
   // Log to status_history
   await supabase.from('status_history').insert({
+    club_id: clubId,
     player_id: playerId,
     field_changed: 'training_date',
     old_value: player?.training_date ?? null,
     new_value: dateTime,
-    changed_by: user.id,
+    changed_by: userId,
   });
 
   // Sync to calendar (create/update/delete calendar event)
-  await syncCalendarEvent(supabase, user.id, playerId, 'training_date', dateTime);
+  await syncCalendarEvent(supabase, clubId, userId, playerId, 'training_date', dateTime);
 
   revalidatePath('/pipeline');
   revalidatePath('/calendario');
@@ -264,21 +262,22 @@ export async function updateSigningDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // Get old value for history
   const { data: player } = await supabase
     .from('players')
     .select('signing_date')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const { error } = await supabase
     .from('players')
     .update({ signing_date: dateTime })
-    .eq('id', playerId);
+    .eq('id', playerId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao atualizar data de assinatura: ${error.message}` };
@@ -286,15 +285,16 @@ export async function updateSigningDate(
 
   // Log to status_history
   await supabase.from('status_history').insert({
+    club_id: clubId,
     player_id: playerId,
     field_changed: 'signing_date',
     old_value: player?.signing_date ?? null,
     new_value: dateTime,
-    changed_by: user.id,
+    changed_by: userId,
   });
 
   // Sync to calendar (create/update/delete calendar event)
-  await syncCalendarEvent(supabase, user.id, playerId, 'signing_date', dateTime);
+  await syncCalendarEvent(supabase, clubId, userId, playerId, 'signing_date', dateTime);
 
   revalidatePath('/pipeline');
   revalidatePath('/calendario');
@@ -307,21 +307,22 @@ export async function updateMeetingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // Get old value for history
   const { data: player } = await supabase
     .from('players')
     .select('meeting_date')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const { error } = await supabase
     .from('players')
     .update({ meeting_date: dateTime })
-    .eq('id', playerId);
+    .eq('id', playerId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao atualizar data de reunião: ${error.message}` };
@@ -329,15 +330,16 @@ export async function updateMeetingDate(
 
   // Log to status_history
   await supabase.from('status_history').insert({
+    club_id: clubId,
     player_id: playerId,
     field_changed: 'meeting_date',
     old_value: player?.meeting_date ?? null,
     new_value: dateTime,
-    changed_by: user.id,
+    changed_by: userId,
   });
 
   // Sync to calendar (create/update/delete calendar event)
-  await syncCalendarEvent(supabase, user.id, playerId, 'meeting_date', dateTime);
+  await syncCalendarEvent(supabase, clubId, userId, playerId, 'meeting_date', dateTime);
 
   revalidatePath('/pipeline');
   revalidatePath('/calendario');

@@ -1,12 +1,13 @@
 // src/actions/export.ts
 // Server Actions for Excel and PDF export of players with optional filters
 // Excel returns base64-encoded xlsx; PDF data returns JSON rows for client-side jsPDF
-// RELEVANT FILES: src/app/exportar/ExportForm.tsx, src/lib/supabase/server.ts
+// RELEVANT FILES: src/app/exportar/ExportForm.tsx, src/lib/supabase/server.ts, src/lib/supabase/club-context.ts
 
 'use server';
 
 import ExcelJS from 'exceljs';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 
 /* ───────────── Column Definitions ───────────── */
 
@@ -51,10 +52,11 @@ const ALL_TABLES = [
   'scout_evaluations',
 ] as const;
 
-// Fetch all rows from a table, paginating past the 1000-row limit
+// Fetch all rows from a table, paginating past the 1000-row limit, scoped to club
 async function fetchAllRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
   table: string,
+  clubId: string,
 ): Promise<Record<string, unknown>[]> {
   const PAGE_SIZE = 1000;
   let all: Record<string, unknown>[] = [];
@@ -62,10 +64,16 @@ async function fetchAllRows(
   let hasMore = true;
 
   while (hasMore) {
-    const { data } = await supabase
+    // profiles table doesn't have club_id — skip club filter for it
+    const hasClubId = table !== 'profiles';
+    let query = supabase
       .from(table)
       .select('*')
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (hasClubId) query = query.eq('club_id', clubId);
+
+    const { data } = await query;
 
     const rows = (data ?? []) as Record<string, unknown>[];
     all = all.concat(rows);
@@ -79,14 +87,14 @@ export async function exportFullDatabaseJson(): Promise<{
   success: boolean; data?: string; filename?: string; error?: string;
 }> {
   try {
-    const { error: authError, supabase } = await checkExportAuth();
+    const { error: authError, supabase, clubId } = await checkExportAuth();
     if (authError) return { success: false, error: authError };
 
     // Fetch all tables in parallel
     const results = await Promise.all(
       ALL_TABLES.map(async (table) => ({
         table,
-        rows: await fetchAllRows(supabase, table),
+        rows: await fetchAllRows(supabase, table, clubId),
       })),
     );
 
@@ -134,23 +142,22 @@ function parsePostgresArray(raw: unknown): string[] | null {
   return null;
 }
 
-// Auth check — admin/editor only
+// Auth check — admin/editor only, returns clubId for downstream queries
 async function checkExportAuth() {
+  const { clubId, role } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Não autenticado' as const, supabase };
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin' && profile?.role !== 'editor') {
-    return { error: 'Sem permissão' as const, supabase };
+  if (role !== 'admin' && role !== 'editor') {
+    return { error: 'Sem permissão' as const, supabase, clubId };
   }
-  return { error: null, supabase };
+  return { error: null, supabase, clubId };
 }
 
-// Fetch all players matching filters (paginates to bypass 1000-row limit)
+// Fetch all players matching filters (paginates to bypass 1000-row limit), scoped to club
 async function fetchFilteredPlayers(
   supabase: Awaited<ReturnType<typeof createClient>>,
   filters: ExportFilters,
+  clubId: string,
 ): Promise<{ rows: Record<string, unknown>[]; error?: string }> {
   const PAGE_SIZE = 1000;
   let allPlayers: Record<string, unknown>[] = [];
@@ -161,6 +168,7 @@ async function fetchFilteredPlayers(
     let query = supabase
       .from('players')
       .select('*, age_groups(name)')
+      .eq('club_id', clubId)
       .order('name')
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -210,10 +218,10 @@ export async function exportPlayersExcel(
   filters: ExportFilters,
 ): Promise<{ success: boolean; data?: string; filename?: string; error?: string }> {
   try {
-    const { error: authError, supabase } = await checkExportAuth();
+    const { error: authError, supabase, clubId } = await checkExportAuth();
     if (authError) return { success: false, error: authError };
 
-    const { rows, error } = await fetchFilteredPlayers(supabase, filters);
+    const { rows, error } = await fetchFilteredPlayers(supabase, filters, clubId);
     if (error) return { success: false, error };
 
     // Build Excel workbook
@@ -315,10 +323,10 @@ export async function exportPlayersPdfData(
   filters: ExportFilters,
 ): Promise<{ success: boolean; rows?: PdfRow[]; filename?: string; total?: number; error?: string }> {
   try {
-    const { error: authError, supabase } = await checkExportAuth();
+    const { error: authError, supabase, clubId } = await checkExportAuth();
     if (authError) return { success: false, error: authError };
 
-    const { rows, error } = await fetchFilteredPlayers(supabase, filters);
+    const { rows, error } = await fetchFilteredPlayers(supabase, filters, clubId);
     if (error) return { success: false, error };
 
     // Map to PDF-friendly flat rows (all columns)

@@ -1,12 +1,13 @@
 // src/actions/scraping.ts
 // Server Actions for scraping external data (FPF + ZeroZero) and updating player profiles
 // Runs server-side on Vercel — triggered from browser on player save or bulk update
-// RELEVANT FILES: src/actions/players.ts, src/lib/supabase/server.ts, src/lib/types/index.ts
+// RELEVANT FILES: src/actions/players.ts, src/lib/supabase/server.ts, src/lib/supabase/club-context.ts
 
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import { normalizePosition } from '@/lib/utils/positions';
 
 /* ───────────── Anti-blocking: rotating User-Agents + realistic headers ───────────── */
@@ -181,12 +182,14 @@ async function fetchFpfData(fpfLink: string) {
 
 /** Scrape FPF for a single player — returns scraped data for the client to decide what to update */
 export async function scrapePlayerFpf(playerId: number): Promise<FpfScrapeResult> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
   const { data: player } = await supabase
     .from('players')
     .select('fpf_link, club, photo_url, zz_photo_url')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   if (!player?.fpf_link) return { success: false, club: null, photoUrl: null, birthCountry: null, nationality: null, clubChanged: false };
@@ -199,7 +202,7 @@ export async function scrapePlayerFpf(playerId: number): Promise<FpfScrapeResult
     fpf_current_club: data.currentClub,
     fpf_last_checked: new Date().toISOString(),
     ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
-  }).eq('id', playerId);
+  }).eq('id', playerId).eq('club_id', clubId);
 
   const clubChanged = data.currentClub ? !clubsMatch(data.currentClub, player.club ?? '') : false;
 
@@ -627,12 +630,14 @@ async function fetchZeroZeroData(zzLink: string) {
 
 /** Scrape ZeroZero for a single player — returns scraped data for the client to decide */
 export async function scrapePlayerZeroZero(playerId: number): Promise<ZzScrapeResult> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
   const { data: player } = await supabase
     .from('players')
     .select('zerozero_link, club')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   if (!player?.zerozero_link) {
@@ -656,7 +661,7 @@ export async function scrapePlayerZeroZero(playerId: number): Promise<ZzScrapeRe
     zz_team_history: data.teamHistory.length > 0 ? data.teamHistory : null,
     zz_last_checked: new Date().toISOString(),
     ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
-  }).eq('id', playerId);
+  }).eq('id', playerId).eq('club_id', clubId);
 
   const clubChanged = data.currentClub ? !clubsMatch(data.currentClub, player.club ?? '') : false;
 
@@ -747,12 +752,14 @@ export interface ScrapedChanges {
 
 /** Scrape BOTH FPF and ZeroZero for a player, merge results, return what changed */
 export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
   const { data: player } = await supabase
     .from('players')
     .select('name, dob, fpf_link, zerozero_link, club, club_logo_url, photo_url, zz_photo_url, height, weight, birth_country, nationality, position_normalized, secondary_position, tertiary_position, foot')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const EMPTY_RESULT: ScrapedChanges = {
@@ -852,7 +859,7 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   if (fpfResult?.clubLogoUrl && fpfClubMatch) cacheUpdates.club_logo_url = fpfResult.clubLogoUrl;
   if (zzData?.clubLogoUrl && !zzLinkFound && zzClubMatch) cacheUpdates.club_logo_url = zzData.clubLogoUrl;
   if (Object.keys(cacheUpdates).length > 0) {
-    await supabase.from('players').update(cacheUpdates).eq('id', playerId);
+    await supabase.from('players').update(cacheUpdates).eq('id', playerId).eq('club_id', clubId);
   }
 
   // Whether ZZ data is from a confirmed (pre-existing) link vs auto-found
@@ -966,6 +973,7 @@ export async function applyScrapedData(
     zzLinkFound?: string;
   }
 ): Promise<{ success: boolean }> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
   const dbUpdates: Record<string, unknown> = {};
 
@@ -990,7 +998,7 @@ export async function applyScrapedData(
 
   if (Object.keys(dbUpdates).length === 0) return { success: true };
 
-  const { error } = await supabase.from('players').update(dbUpdates).eq('id', playerId);
+  const { error } = await supabase.from('players').update(dbUpdates).eq('id', playerId).eq('club_id', clubId);
   if (error) return { success: false };
 
   // Now scrape ZZ cache fields since the link is saved
@@ -1001,7 +1009,7 @@ export async function applyScrapedData(
       // Get current player data to check which fields are empty
       const { data: current } = await supabase.from('players')
         .select('nationality, birth_country, position_normalized, secondary_position, tertiary_position, foot, height, weight, photo_url')
-        .eq('id', playerId).single();
+        .eq('id', playerId).eq('club_id', clubId).single();
 
       const zzCacheFields: Record<string, unknown> = {
         zz_current_club: zzData.currentClub,
@@ -1029,7 +1037,7 @@ export async function applyScrapedData(
         if (!current.photo_url && zzData.photoUrl) zzCacheFields.photo_url = zzData.photoUrl;
       }
 
-      await supabase.from('players').update(zzCacheFields).eq('id', playerId);
+      await supabase.from('players').update(zzCacheFields).eq('id', playerId).eq('club_id', clubId);
     }
   }
 
@@ -1190,11 +1198,13 @@ export async function autoScrapePlayer(
 
   // After FPF scrape, try to auto-find ZeroZero link if player doesn't have one
   if (fpfLinkChanged && !zzLinkChanged) {
+    const { clubId } = await getActiveClub();
     const supabase = await createClient();
     const { data } = await supabase
       .from('players')
       .select('zerozero_link, dob, name')
       .eq('id', playerId)
+      .eq('club_id', clubId)
       .single();
     // Only attempt if player has name + DOB but no ZZ link
     if (data && data.dob && data.name && !data.zerozero_link) {
@@ -1228,9 +1238,10 @@ export async function bulkScrapeExternalData(
   limit: number,
   sources: ('fpf' | 'zerozero')[]
 ): Promise<BulkUpdateProgress & { hasMore: boolean }> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
-  let query = supabase.from('players').select('id, name, dob, fpf_link, zerozero_link, club, photo_url, zz_photo_url, height, weight, birth_country, nationality', { count: 'exact' });
+  let query = supabase.from('players').select('id, name, dob, fpf_link, zerozero_link, club, photo_url, zz_photo_url, height, weight, birth_country, nationality', { count: 'exact' }).eq('club_id', clubId);
 
   if (sources.length === 1 && sources[0] === 'fpf') {
     query = query.not('fpf_link', 'is', null).neq('fpf_link', '');
@@ -1269,7 +1280,7 @@ export async function bulkScrapeExternalData(
             fpf_current_club: data.currentClub,
             fpf_last_checked: new Date().toISOString(),
             ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
-          }).eq('id', player.id);
+          }).eq('id', player.id).eq('club_id', clubId);
 
           // Auto-apply: photo if player has none
           if (data.photoUrl && !player.photo_url && !player.zz_photo_url) {
@@ -1302,7 +1313,7 @@ export async function bulkScrapeExternalData(
           await supabase.from('players').update({
             zerozero_link: zzMatch.url,
             zerozero_player_id: idMatch ? idMatch[1] : '',
-          }).eq('id', player.id);
+          }).eq('id', player.id).eq('club_id', clubId);
           // Update local reference so ZZ scrape runs below
           player.zerozero_link = zzMatch.url;
         }
@@ -1324,7 +1335,7 @@ export async function bulkScrapeExternalData(
             zz_team_history: data.teamHistory?.length ? data.teamHistory : null,
             zz_last_checked: new Date().toISOString(),
             ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
-          }).eq('id', player.id);
+          }).eq('id', player.id).eq('club_id', clubId);
 
           // ZZ photo takes priority
           if (data.photoUrl) {
@@ -1352,7 +1363,7 @@ export async function bulkScrapeExternalData(
 
       // Apply auto-updates
       if (Object.keys(autoUpdates).length > 0) {
-        await supabase.from('players').update(autoUpdates).eq('id', player.id);
+        await supabase.from('players').update(autoUpdates).eq('id', player.id).eq('club_id', clubId);
       }
     } catch {
       errors++;
@@ -1649,12 +1660,14 @@ export interface ZzLinkFinderResult {
 
 /** Find ZeroZero links for players that have FPF data but no ZeroZero link */
 export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFinderResult> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
   // Get players with FPF data + name + DOB but no ZeroZero link
   let query = supabase
     .from('players')
     .select('id, name, dob, club, fpf_link, zerozero_link')
+    .eq('club_id', clubId)
     .is('zerozero_link', null)
     .not('dob', 'is', null)
     .not('name', 'is', null)
@@ -1691,7 +1704,7 @@ export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFind
         await supabase.from('players').update({
           zerozero_link: bestMatch.url,
           zerozero_player_id: zzPlayerId,
-        }).eq('id', player.id);
+        }).eq('id', player.id).eq('club_id', clubId);
 
         found++;
       } else {
@@ -1707,12 +1720,14 @@ export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFind
 
 /** Find ZeroZero link for a single player by ID */
 export async function findZeroZeroLinkForPlayer(playerId: number): Promise<{ success: boolean; url: string | null; error?: string }> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
   const { data: player } = await supabase
     .from('players')
     .select('id, name, dob, club')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   if (!player) return { success: false, url: null, error: 'Jogador não encontrado' };
@@ -1732,7 +1747,7 @@ export async function findZeroZeroLinkForPlayer(playerId: number): Promise<{ suc
     await supabase.from('players').update({
       zerozero_link: bestMatch.url,
       zerozero_player_id: zzPlayerId,
-    }).eq('id', player.id);
+    }).eq('id', player.id).eq('club_id', clubId);
 
     revalidatePath(`/jogadores/${playerId}`);
 

@@ -1,19 +1,21 @@
 // src/actions/squads.ts
 // Server Actions for shadow squad and real squad management
 // Handles adding/removing players from squads with status history logging
-// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/types/index.ts
+// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/supabase/club-context.ts
 
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import { shadowSquadSchema } from '@/lib/validators';
-import type { ActionResponse, PositionCode } from '@/lib/types';
+import type { ActionResponse } from '@/lib/types';
 
 /* ───────────── Helper: log status change ───────────── */
 
 async function logStatusChange(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  clubId: string,
   playerId: number,
   fieldChanged: string,
   oldValue: string | null,
@@ -22,6 +24,7 @@ async function logStatusChange(
   notes?: string
 ) {
   await supabase.from('status_history').insert({
+    club_id: clubId,
     player_id: playerId,
     field_changed: fieldChanged,
     old_value: oldValue,
@@ -42,21 +45,22 @@ export async function addToShadowSquad(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // Get current state for history
   const { data: player } = await supabase
     .from('players')
     .select('is_shadow_squad, shadow_position')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const { data: updated, error } = await supabase
     .from('players')
     .update({ is_shadow_squad: true, shadow_position: position })
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .select('id')
     .single();
 
@@ -65,15 +69,15 @@ export async function addToShadowSquad(
   }
 
   await logStatusChange(
-    supabase, playerId, 'is_shadow_squad',
-    player?.is_shadow_squad ? 'true' : 'false', 'true', user.id,
+    supabase, clubId, playerId, 'is_shadow_squad',
+    player?.is_shadow_squad ? 'true' : 'false', 'true', userId,
     `Adicionado ao plantel sombra na posição ${position}`
   );
 
   if (player?.shadow_position !== position) {
     await logStatusChange(
-      supabase, playerId, 'shadow_position',
-      player?.shadow_position ?? null, position, user.id
+      supabase, clubId, playerId, 'shadow_position',
+      player?.shadow_position ?? null, position, userId
     );
   }
 
@@ -88,21 +92,22 @@ export async function addToShadowSquad(
 export async function removeFromShadowSquad(
   playerId: number
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // Get current state for history
   const { data: player } = await supabase
     .from('players')
     .select('shadow_position')
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const { data: updated, error } = await supabase
     .from('players')
     .update({ is_shadow_squad: false, shadow_position: null })
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .select('id')
     .single();
 
@@ -111,8 +116,8 @@ export async function removeFromShadowSquad(
   }
 
   await logStatusChange(
-    supabase, playerId, 'is_shadow_squad',
-    'true', 'false', user.id,
+    supabase, clubId, playerId, 'is_shadow_squad',
+    'true', 'false', userId,
     `Removido do plantel sombra (era ${player?.shadow_position ?? '?'})`
   );
 
@@ -132,9 +137,8 @@ export async function toggleRealSquad(
   /** Age group to assign — used for cross-age-group "call ups" */
   ageGroupId?: number
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // When adding to real squad with a specific position, update real_squad_position (NOT position_normalized)
   const updateData: Record<string, unknown> = { is_real_squad: isReal };
@@ -154,6 +158,7 @@ export async function toggleRealSquad(
     .from('players')
     .update(updateData)
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .select('id')
     .single();
 
@@ -162,8 +167,8 @@ export async function toggleRealSquad(
   }
 
   await logStatusChange(
-    supabase, playerId, 'is_real_squad',
-    isReal ? 'false' : 'true', isReal ? 'true' : 'false', user.id,
+    supabase, clubId, playerId, 'is_real_squad',
+    isReal ? 'false' : 'true', isReal ? 'true' : 'false', userId,
     isReal ? `Adicionado ao plantel real${position ? ` na posição ${position}` : ''}` : 'Removido do plantel real'
   );
 
@@ -180,15 +185,15 @@ export async function reorderSquadPlayer(
   newOrder: number,
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
   const { error } = await supabase
     .from('players')
     .update({ [orderField]: newOrder })
-    .eq('id', playerId);
+    .eq('id', playerId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao reordenar: ${error.message}` };
@@ -204,9 +209,8 @@ export async function bulkReorderSquad(
   updates: { playerId: number; order: number }[],
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
 
@@ -215,7 +219,8 @@ export async function bulkReorderSquad(
     const { error } = await supabase
       .from('players')
       .update({ [orderField]: order })
-      .eq('id', playerId);
+      .eq('id', playerId)
+      .eq('club_id', clubId);
     if (error) {
       return { success: false, error: `Erro ao reordenar jogador ${playerId}: ${error.message}` };
     }
@@ -233,9 +238,8 @@ export async function moveSquadPlayerPosition(
   newOrder: number,
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
   const positionField = squadType === 'shadow' ? 'shadow_position' : 'real_squad_position';
@@ -245,6 +249,7 @@ export async function moveSquadPlayerPosition(
     .from('players')
     .select(`${positionField}, age_groups!inner(name)`)
     .eq('id', playerId)
+    .eq('club_id', clubId)
     .single();
 
   const oldPosition = player ? (player as Record<string, unknown>)[positionField] as string | null : null;
@@ -253,7 +258,8 @@ export async function moveSquadPlayerPosition(
   const { error } = await supabase
     .from('players')
     .update({ [positionField]: newPosition, [orderField]: newOrder })
-    .eq('id', playerId);
+    .eq('id', playerId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao mover jogador: ${error.message}` };
@@ -262,8 +268,8 @@ export async function moveSquadPlayerPosition(
   const squadPrefix = squadType === 'shadow' ? 'Sombra' : 'Plantel';
   const squadLabel = ageGroupName ? `${squadPrefix} ${ageGroupName}` : (squadType === 'shadow' ? 'Plantel Sombra' : 'Plantel');
   await logStatusChange(
-    supabase, playerId, positionField,
-    oldPosition as string, newPosition, user.id,
+    supabase, clubId, playerId, positionField,
+    oldPosition as string, newPosition, userId,
     squadLabel
   );
 

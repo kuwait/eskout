@@ -1,5 +1,5 @@
 // src/components/layout/AppShellClient.tsx
-// Client-side shell with AgeGroupProvider, sidebar and mobile drawer
+// Client-side shell with AgeGroupProvider, sidebar, mobile drawer, and club context
 // Age group selection is per-page, not global in the header
 // RELEVANT FILES: src/components/layout/AppShell.tsx, src/hooks/useAgeGroup.tsx, src/components/layout/Sidebar.tsx
 
@@ -13,32 +13,39 @@ import { AgeGroupProvider } from '@/hooks/useAgeGroup';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileDrawer } from '@/components/layout/MobileDrawer';
 import type { AgeGroup } from '@/lib/types';
-import type { AlertCounts } from '@/components/layout/AppShell';
+import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
 
 const PUBLIC_ROUTES = ['/login'];
+const NO_SHELL_ROUTES = ['/escolher-clube', '/master'];
 
 export function AppShellClient({
   children,
   ageGroups,
   alertCounts,
   userRole,
+  clubInfo,
+  isSuperadmin,
 }: {
   children: React.ReactNode;
   ageGroups: AgeGroup[];
   alertCounts: AlertCounts;
   userRole: string;
+  clubInfo: ClubInfo | null;
+  isSuperadmin: boolean;
 }) {
   const pathname = usePathname();
   const isPublic = PUBLIC_ROUTES.includes(pathname);
+  const isNoShell = NO_SHELL_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  if (isPublic) {
+  // No shell on public routes or club picker
+  if (isPublic || isNoShell) {
     return <>{children}</>;
   }
 
   return (
     <AgeGroupProvider ageGroups={ageGroups}>
-      <Sidebar alertCounts={alertCounts} userRole={userRole} />
+      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} />
 
       {/* Mobile header with hamburger */}
       <header className="sticky top-0 z-40 flex items-center border-b bg-card px-4 py-3 lg:hidden">
@@ -51,8 +58,14 @@ export function AppShellClient({
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex items-center gap-2">
-          <Image src="/logo-icon.svg" alt="" width={24} height={24} className="dark:invert" />
-          <span className="text-lg font-bold tracking-tight">Eskout</span>
+          {clubInfo?.logoUrl ? (
+            <Image src={clubInfo.logoUrl} alt="" width={24} height={24} className="rounded" />
+          ) : (
+            <Image src="/logo-icon.svg" alt="" width={24} height={24} className="dark:invert" />
+          )}
+          <span className="text-lg font-bold tracking-tight">
+            {clubInfo?.name ?? 'Eskout'}
+          </span>
         </div>
       </header>
 
@@ -62,6 +75,8 @@ export function AppShellClient({
         onOpenChange={setDrawerOpen}
         alertCounts={alertCounts}
         userRole={userRole}
+        clubInfo={clubInfo}
+        isSuperadmin={isSuperadmin}
       />
 
       {/* Main content area — overflow-x-clip prevents horizontal page scroll without breaking sticky positioning */}

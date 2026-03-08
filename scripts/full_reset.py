@@ -48,6 +48,9 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
+# Club ID is required for multi-tenant operations
+CLUB_ID = os.environ.get("CLUB_ID", "")
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -60,13 +63,15 @@ HEADERS = {
 # ═══════════════════════════════════════════════════════════════
 
 def clear_database():
-    """Delete all player-related data from the database."""
+    """Delete all player-related data from the database, scoped by club_id if set."""
     print("\n" + "=" * 60)
-    print("STEP 1: Clearing database")
+    print("STEP 1: Clearing database" + (f" (club: {CLUB_ID})" if CLUB_ID else " (ALL data)"))
     print("=" * 60)
 
     # Order matters — foreign keys
     tables = [
+        "scout_evaluations",
+        "scout_reports",
         "scouting_reports",
         "status_history",
         "observation_notes",
@@ -77,8 +82,14 @@ def clear_database():
 
     for table in tables:
         try:
-            # Delete all rows — use a filter that matches everything
-            result = supabase.table(table).delete().neq("id", -999999).execute()
+            query = supabase.table(table).delete()
+            if CLUB_ID and table != "calendar_event_players":
+                # Scope deletion to club — calendar_event_players has no club_id column
+                query = query.eq("club_id", CLUB_ID)
+            else:
+                # Delete all rows — use a filter that matches everything
+                query = query.neq("id", -999999)
+            result = query.execute()
             count = len(result.data) if result.data else 0
             print(f"  {table}: deleted {count} rows")
         except Exception as e:
@@ -97,10 +108,14 @@ def import_players():
     print("STEP 2: Importing players from all_players.json")
     print("=" * 60)
 
+    if not CLUB_ID:
+        print("  [ERROR] CLUB_ID env var is required for import!")
+        sys.exit(1)
+
     result = subprocess.run(
         ["npx", "tsx", "scripts/import_initial_data.ts"],
         cwd=str(PROJECT_ROOT),
-        env={**os.environ, "DOTENV_CONFIG_PATH": str(PROJECT_ROOT / ".env.local")},
+        env={**os.environ, "DOTENV_CONFIG_PATH": str(PROJECT_ROOT / ".env.local"), "CLUB_ID": CLUB_ID},
     )
 
     if result.returncode != 0:
@@ -421,9 +436,14 @@ def extract_reports():
     print("STEP 4: Extracting PDF reports from Google Drive")
     print("=" * 60)
 
+    env = {**os.environ}
+    if CLUB_ID:
+        env["CLUB_ID"] = CLUB_ID
+
     result = subprocess.run(
         [sys.executable, "scripts/extract_reports.py"],
         cwd=str(PROJECT_ROOT),
+        env=env,
     )
 
     if result.returncode != 0:
@@ -446,7 +466,17 @@ def main():
 
     print("=" * 60)
     print("  ESKOUT — Full Database Reset")
+    if CLUB_ID:
+        print(f"  Club ID: {CLUB_ID}")
     print("=" * 60)
+
+    if not CLUB_ID and not args.scrape_only:
+        print("\n  WARNING: CLUB_ID env var not set. Set it for multi-tenant import.")
+        print("  Usage: CLUB_ID=<uuid> python3 scripts/full_reset.py")
+        confirm = input("\n  Continue without club_id? (y/N): ")
+        if confirm.lower() != "y":
+            print("  Aborted.")
+            return
 
     # Shortcut modes
     if args.scrape_only:

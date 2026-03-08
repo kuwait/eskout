@@ -25,6 +25,7 @@ import re
 import sys
 import json
 import time
+import random
 import argparse
 import tempfile
 from pathlib import Path
@@ -47,6 +48,8 @@ SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 # Google Service Account credentials path — set in .env.local or env var
 GOOGLE_SA_KEY_PATH = os.environ.get("GOOGLE_SERVICE_ACCOUNT_KEY", "")
+
+CLUB_ID = os.environ.get("CLUB_ID", "")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -93,29 +96,42 @@ def extract_gdrive_file_id(url: str) -> str | None:
     return None
 
 
-def download_pdf(file_id: str, dest_path: str) -> bool:
-    """Download a PDF from Google Drive using the Service Account API."""
-    try:
-        drive = _get_drive()
-        request = drive.files().get_media(fileId=file_id)
+def download_pdf(file_id: str, dest_path: str, max_retries: int = 3) -> bool:
+    """Download a PDF from Google Drive using the Service Account API.
+    Retries with exponential backoff on rate limit errors (403/429)."""
+    for attempt in range(max_retries):
+        try:
+            drive = _get_drive()
+            request = drive.files().get_media(fileId=file_id)
 
-        with open(dest_path, "wb") as f:
-            downloader = MediaIoBaseDownload(f, request)
-            done = False
-            while not done:
-                _, done = downloader.next_chunk()
+            with open(dest_path, "wb") as f:
+                downloader = MediaIoBaseDownload(f, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
 
-        # Verify it's a PDF
-        with open(dest_path, "rb") as f:
-            header = f.read(4)
-        if header != b"%PDF":
-            print(f"  [WARN] Downloaded file is not a PDF for {file_id}")
+            # Verify it's a PDF
+            with open(dest_path, "rb") as f:
+                header = f.read(4)
+            if header != b"%PDF":
+                print(f"  [WARN] Downloaded file is not a PDF for {file_id}")
+                return False
+
+            return True
+        except Exception as e:
+            error_str = str(e)
+            is_rate_limit = "429" in error_str or "rateLimitExceeded" in error_str or "userRateLimitExceeded" in error_str
+            if is_rate_limit and attempt < max_retries - 1:
+                wait = (attempt + 1) * 2 + random.uniform(0, 1)
+                print(f"  [RETRY] Rate limited, waiting {wait:.1f}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait)
+                continue
+            if "404" in error_str or "notFound" in error_str:
+                print(f"  [ERROR] File not found: {file_id}")
+                return False
+            print(f"  [ERROR] Download failed for {file_id}: {e}")
             return False
-
-        return True
-    except Exception as e:
-        print(f"  [ERROR] Download failed for {file_id}: {e}")
-        return False
+    return False
 
 
 # ───────────── PDF Parsing ─────────────
@@ -716,9 +732,18 @@ def get_players_with_reports(player_id: int | None = None, retry_errors: bool = 
     if player_id:
         query = query.eq("id", player_id)
 
-    # Fetch all — paginate if needed
-    result = query.execute()
-    players = result.data or []
+    # Paginate — Supabase returns max 1000 rows per request
+    players = []
+    page_size = 1000
+    offset = 0
+    while True:
+        result = query.range(offset, offset + page_size - 1).execute()
+        if not result.data:
+            break
+        players.extend(result.data)
+        if len(result.data) < page_size:
+            break
+        offset += page_size
 
     # Filter to those with at least one report link
     players_with_reports = []
@@ -773,6 +798,7 @@ def insert_report(player_id: int, file_id: str, link: str, report_num: int, labe
 
     row = {
         "player_id": player_id,
+        "club_id": CLUB_ID if CLUB_ID else None,
         "gdrive_file_id": file_id,
         "gdrive_link": link,
         "report_number": report_num,
@@ -902,8 +928,8 @@ def main():
                 except OSError:
                     pass
 
-            # Rate limit — be gentle with Google Drive
-            time.sleep(0.5)
+            # Small delay between requests — enough to avoid bursts
+            time.sleep(0.1)
 
     print(f"\n{'='*50}")
     print(f"Done! Stats:")

@@ -308,14 +308,75 @@ export interface Profile {
   id: string;
   fullName: string;
   role: UserRole;
+  isSuperadmin?: boolean;
 }
 
 export interface ProfileRow {
   id: string;
   full_name: string;
   role: string;
+  is_superadmin?: boolean;
   created_at: string;
 }
+
+/* ───────────── Club (Multi-Tenant) ───────────── */
+
+export interface Club {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  features: Record<string, boolean>;
+  settings: Record<string, unknown>;
+  limits: Record<string, unknown>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClubRow {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  features: Record<string, boolean>;
+  settings: Record<string, unknown>;
+  limits: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClubMembership {
+  id: string;
+  userId: string;
+  clubId: string;
+  role: UserRole;
+  invitedBy: string | null;
+  joinedAt: string;
+}
+
+export interface ClubMembershipRow {
+  id: string;
+  user_id: string;
+  club_id: string;
+  role: string;
+  invited_by: string | null;
+  joined_at: string;
+}
+
+export type ClubRole = UserRole;
+
+/** Feature keys that can be toggled per club */
+export type ClubFeatureKey =
+  | 'pipeline'
+  | 'calendar'
+  | 'shadow_squad'
+  | 'scouting_reports'
+  | 'scout_submissions'
+  | 'export'
+  | 'positions_view'
+  | 'alerts';
 
 /* ───────────── Server Action Response ───────────── */
 

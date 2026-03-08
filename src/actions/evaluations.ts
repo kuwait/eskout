@@ -1,12 +1,13 @@
 // src/actions/evaluations.ts
 // Server Actions for scout evaluations — each scout can rate a player independently (1-5)
 // One evaluation per scout per player (upsert), affects hybrid rating average
-// RELEVANT FILES: src/lib/types/index.ts, src/components/players/ScoutEvaluations.tsx, src/components/players/PlayerProfile.tsx
+// RELEVANT FILES: src/lib/types/index.ts, src/components/players/ScoutEvaluations.tsx, src/lib/supabase/club-context.ts
 
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import type { ActionResponse } from '@/lib/types';
 
 /** Create or update the current user's evaluation for a player */
@@ -18,14 +19,13 @@ export async function upsertScoutEvaluation(
     return { success: false, error: 'Avaliação deve ser entre 1 e 5' };
   }
 
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   const { error } = await supabase
     .from('scout_evaluations')
     .upsert(
-      { player_id: playerId, user_id: user.id, rating, updated_at: new Date().toISOString() },
+      { player_id: playerId, user_id: userId, club_id: clubId, rating, updated_at: new Date().toISOString() },
       { onConflict: 'player_id,user_id' }
     );
 
@@ -41,15 +41,15 @@ export async function upsertScoutEvaluation(
 export async function deleteScoutEvaluation(
   playerId: number
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   const { error } = await supabase
     .from('scout_evaluations')
     .delete()
     .eq('player_id', playerId)
-    .eq('user_id', user.id);
+    .eq('user_id', userId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao remover avaliação: ${error.message}` };

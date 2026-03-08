@@ -1,7 +1,7 @@
 // scripts/import_initial_data.ts
 // One-time import script: reads data/all_players.json and inserts into Supabase
-// Run with: npx tsx scripts/import_initial_data.ts
-// RELEVANT FILES: data/all_players.json, supabase/migrations/001_initial_schema.sql, src/lib/types/index.ts
+// Run with: CLUB_ID=<uuid> npx tsx scripts/import_initial_data.ts
+// RELEVANT FILES: data/all_players.json, supabase/migrations/029_clubs_and_memberships.sql, src/lib/types/index.ts
 
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
@@ -14,6 +14,12 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
+
+const CLUB_ID = process.env.CLUB_ID;
+if (!CLUB_ID) {
+  console.error('Missing CLUB_ID env var. Usage: CLUB_ID=<uuid> npx tsx scripts/import_initial_data.ts');
   process.exit(1);
 }
 
@@ -49,19 +55,12 @@ interface PlayerJson {
 
 /* ───────────── Helpers ───────────── */
 
-// Map JSON status to recruitment_status
-function mapStatus(status: string): string {
+// Map JSON status to recruitment_status — NULL means not in pipeline
+function mapStatus(status: string): string | null {
   const map: Record<string, string> = {
-    signed: 'confirmed',
-    shortlist: 'shortlist',
-    to_observe: 'to_observe',
-    target: 'target',
-    in_contact: 'in_contact',
-    negotiating: 'negotiating',
-    confirmed: 'confirmed',
-    rejected: 'rejected',
+    signed: 'assinou',
   };
-  return map[status] ?? 'pool';
+  return map[status] ?? null;
 }
 
 // Parse dd/mm/yyyy to yyyy-mm-dd
@@ -103,11 +102,12 @@ async function main() {
   const players: PlayerJson[] = JSON.parse(raw);
   console.log(`Loaded ${players.length} players`);
 
-  // Fetch age group IDs
-  console.log('Fetching age groups...');
+  // Fetch age group IDs (scoped to club)
+  console.log(`Fetching age groups for club ${CLUB_ID}...`);
   const { data: ageGroups, error: agError } = await supabase
     .from('age_groups')
     .select('id, name, generation_year')
+    .eq('club_id', CLUB_ID)
     .eq('season', SEASON);
 
   if (agError || !ageGroups) {
@@ -155,6 +155,7 @@ async function main() {
       }
 
       return {
+        club_id: CLUB_ID,
         age_group_id: ageGroupId ?? null,
         name: p.name,
         dob: parseDate(p.dob),

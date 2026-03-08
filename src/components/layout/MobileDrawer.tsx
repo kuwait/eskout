@@ -12,30 +12,31 @@ import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell,
   FileText, PlusCircle, Download, UserCog, Settings, LogOut, Palette, X,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
-import type { AlertCounts } from '@/components/layout/AppShell';
+import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
 
 /* ───────────── Navigation Items ───────────── */
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true, scoutOnly: false },
-  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true, scoutOnly: false },
-  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true, scoutOnly: false },
-  { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, scoutOnly: false },
-  { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, scoutOnly: false },
-  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true, scoutOnly: false },
-  { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true },
-  { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true },
+  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true, scoutOnly: false, feature: null },
+  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true, scoutOnly: false, feature: null },
+  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true, scoutOnly: false, feature: 'shadow_squad' },
+  { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, scoutOnly: false, feature: 'pipeline' },
+  { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, scoutOnly: false, feature: 'calendar' },
+  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true, scoutOnly: false, feature: 'alerts' },
+  { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
+  { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
 ];
 
 const ADMIN_ITEMS = [
-  { href: '/admin/relatorios', label: 'Relatórios', icon: FileText },
-  { href: '/definicoes', label: 'Definições', icon: Settings },
-  { href: '/exportar', label: 'Exportar', icon: Download },
-  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog },
+  { href: '/admin/relatorios', label: 'Relatórios', icon: FileText, feature: 'scouting_reports' },
+  { href: '/definicoes', label: 'Definições', icon: Settings, feature: null },
+  { href: '/exportar', label: 'Exportar', icon: Download, feature: 'export' },
+  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, feature: null },
 ];
 
 /* ───────────── Component ───────────── */
@@ -45,18 +46,28 @@ export function MobileDrawer({
   onOpenChange,
   alertCounts,
   userRole,
+  clubInfo,
+  isSuperadmin,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   alertCounts: AlertCounts;
   userRole: string;
+  clubInfo: ClubInfo | null;
+  isSuperadmin: boolean;
 }) {
   const pathname = usePathname();
   const isScout = userRole === 'scout';
+  const features = clubInfo?.features ?? {};
 
-  const visibleItems = isScout
+  const visibleItems = (isScout
     ? NAV_ITEMS.filter((i) => !i.scoutHidden)
-    : NAV_ITEMS.filter((i) => !i.scoutOnly);
+    : NAV_ITEMS.filter((i) => !i.scoutOnly)
+  ).filter((i) => !i.feature || features[i.feature] !== false);
+
+  const visibleAdminItems = ADMIN_ITEMS.filter(
+    (i) => !i.feature || features[i.feature] !== false
+  );
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
@@ -100,11 +111,17 @@ export function MobileDrawer({
         aria-modal={open}
         aria-label="Menu de navegação"
       >
-        {/* Header */}
+        {/* Header — club name + close */}
         <div className="flex items-center justify-between border-b px-4 py-4">
-          <div className="flex items-center gap-2">
-            <Image src="/logo-icon.svg" alt="" width={28} height={28} className="dark:invert" />
-            <span className="text-xl font-bold tracking-tight">Eskout</span>
+          <div className="flex items-center gap-2 min-w-0">
+            {clubInfo?.logoUrl ? (
+              <Image src={clubInfo.logoUrl} alt="" width={28} height={28} className="rounded shrink-0" />
+            ) : (
+              <Image src="/logo-icon.svg" alt="" width={28} height={28} className="dark:invert shrink-0" />
+            )}
+            <span className="text-xl font-bold tracking-tight truncate">
+              {clubInfo?.name ?? 'Eskout'}
+            </span>
           </div>
           <button
             type="button"
@@ -160,7 +177,7 @@ export function MobileDrawer({
             <div className="mt-6">
               <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">Admin</p>
               <ul className="mt-2 space-y-1">
-                {ADMIN_ITEMS.map((item) => {
+                {visibleAdminItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname.startsWith(item.href);
                   return (
@@ -190,10 +207,19 @@ export function MobileDrawer({
               </ul>
             </div>
           )}
+
         </nav>
 
         {/* Footer */}
         <div className="border-t px-3 py-3 space-y-1">
+          <Link
+            href="/escolher-clube"
+            onClick={close}
+            className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <ArrowLeftRight className="h-5 w-5" />
+            Trocar Clube
+          </Link>
           <Link
             href="/preferencias"
             onClick={close}

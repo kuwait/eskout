@@ -1,12 +1,13 @@
 // src/actions/notes.ts
 // Server Actions for observation notes (scout field notes)
 // Inserts notes and revalidates the player profile page
-// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/types/index.ts
+// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/supabase/club-context.ts
 
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import { observationNoteSchema } from '@/lib/validators';
 import type { ActionResponse } from '@/lib/types';
 
@@ -21,13 +22,13 @@ export async function createObservationNote(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   const { error } = await supabase.from('observation_notes').insert({
     player_id: playerId,
-    author_id: user.id,
+    author_id: userId,
+    club_id: clubId,
     content: parsed.data.content,
     match_context: parsed.data.matchContext || null,
     priority,
@@ -48,18 +49,11 @@ export async function updateObservationNote(
   matchContext?: string,
   priority?: 'normal' | 'importante' | 'urgente'
 ): Promise<ActionResponse> {
+  const { clubId, role } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   // Only admins can edit notes
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
+  if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem editar notas' };
   }
 
@@ -74,7 +68,8 @@ export async function updateObservationNote(
   const { error } = await supabase
     .from('observation_notes')
     .update(updates)
-    .eq('id', noteId);
+    .eq('id', noteId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao editar nota: ${error.message}` };
@@ -89,14 +84,14 @@ export async function dismissFlaggedNote(
   noteId: number,
   playerId: number
 ): Promise<ActionResponse> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
   const { error } = await supabase
     .from('observation_notes')
     .update({ priority: 'normal' })
-    .eq('id', noteId);
+    .eq('id', noteId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao dispensar nota: ${error.message}` };
@@ -111,18 +106,10 @@ export async function deleteObservationNote(
   noteId: number,
   playerId: number
 ): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
 
-  // Only admins or the note author can delete
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = role === 'admin';
 
   if (!isAdmin) {
     // Check if user is the author
@@ -130,8 +117,9 @@ export async function deleteObservationNote(
       .from('observation_notes')
       .select('author_id')
       .eq('id', noteId)
+      .eq('club_id', clubId)
       .single();
-    if (!note || note.author_id !== user.id) {
+    if (!note || note.author_id !== userId) {
       return { success: false, error: 'Sem permissão para apagar esta nota' };
     }
   }
@@ -139,7 +127,8 @@ export async function deleteObservationNote(
   const { error } = await supabase
     .from('observation_notes')
     .delete()
-    .eq('id', noteId);
+    .eq('id', noteId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao apagar nota: ${error.message}` };

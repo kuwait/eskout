@@ -1,16 +1,22 @@
 // src/middleware.ts
-// Next.js middleware for session refresh and route protection
-// Refreshes Supabase auth session on every request, redirects unauthenticated users to /login
-// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/supabase/client.ts, src/app/login/page.tsx
+// Next.js middleware for session refresh, club context, and route protection
+// Refreshes Supabase auth, enforces club selection, role-based access
+// RELEVANT FILES: src/lib/supabase/club-context.ts, src/lib/supabase/server.ts, src/app/login/page.tsx
 
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+
+const CLUB_COOKIE = 'eskout-club-id';
 
 const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password'];
 // Routes that require admin role — editors and scouts are redirected
 const ADMIN_ONLY_ROUTES = ['/admin'];
 // Scouts can ONLY access these routes — everything else is blocked
 const SCOUT_ALLOWED_ROUTES = ['/meus-relatorios', '/submeter', '/mais', '/preferencias'];
+// Club picker — no club required
+const NO_CLUB_ROUTES = ['/escolher-clube', '/preferencias'];
+// Superadmin panel — only superadmins
+const SUPERADMIN_ROUTES = ['/master'];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -64,18 +70,87 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Role-based route protection — fetch role once if needed
-  const isAdminRoute = ADMIN_ONLY_ROUTES.some((route) => pathname.startsWith(route));
-  const isScoutAllowed = SCOUT_ALLOWED_ROUTES.some((route) => pathname.startsWith(route));
+  // Skip further checks for public routes
+  if (!user || isPublicRoute) return supabaseResponse;
 
-  if (user && (isAdminRoute || !isScoutAllowed)) {
-    const { data } = await supabase
+  // ── Superadmin routes ──
+  const isSuperadminRoute = SUPERADMIN_ROUTES.some((route) => pathname.startsWith(route));
+  if (isSuperadminRoute) {
+    const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('is_superadmin')
       .eq('id', user.id)
       .single();
 
-    const role = data?.role;
+    if (!profile?.is_superadmin) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
+  // ── Club context check ──
+  const isNoClubRoute = NO_CLUB_ROUTES.some((route) => pathname.startsWith(route));
+  const clubId = request.cookies.get(CLUB_COOKIE)?.value;
+
+  if (!clubId && !isNoClubRoute) {
+    // No club selected — check if user has clubs
+    const { data: memberships } = await supabase
+      .from('club_memberships')
+      .select('club_id')
+      .eq('user_id', user.id);
+
+    if (!memberships || memberships.length === 0) {
+      // No clubs at all — show "no club" message (club picker handles this)
+      const url = request.nextUrl.clone();
+      url.pathname = '/escolher-clube';
+      return NextResponse.redirect(url);
+    }
+
+    if (memberships.length === 1) {
+      // Auto-select single club
+      const url = request.nextUrl.clone();
+      supabaseResponse = NextResponse.redirect(url);
+      supabaseResponse.cookies.set(CLUB_COOKIE, memberships[0].club_id, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 365,
+      });
+      return supabaseResponse;
+    }
+
+    // Multiple clubs — redirect to picker
+    const url = request.nextUrl.clone();
+    url.pathname = '/escolher-clube';
+    return NextResponse.redirect(url);
+  }
+
+  // ── Role-based route protection (club-scoped) ──
+  const isAdminRoute = ADMIN_ONLY_ROUTES.some((route) => pathname.startsWith(route));
+  const isScoutAllowed = SCOUT_ALLOWED_ROUTES.some((route) => pathname.startsWith(route));
+
+  if (clubId && (isAdminRoute || !isScoutAllowed)) {
+    // Fetch club role from membership
+    const { data: membership } = await supabase
+      .from('club_memberships')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('club_id', clubId)
+      .single();
+
+    const role = membership?.role;
+
+    // If no membership for this club, clear cookie and redirect
+    if (!role) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/escolher-clube';
+      supabaseResponse = NextResponse.redirect(url);
+      supabaseResponse.cookies.delete(CLUB_COOKIE);
+      return supabaseResponse;
+    }
 
     // Admin-only pages
     if (isAdminRoute && role !== 'admin') {

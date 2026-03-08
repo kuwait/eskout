@@ -1,12 +1,13 @@
 // src/actions/players.ts
 // Server Actions for player CRUD operations
 // Handles creating new players with auto age group detection and Zod validation
-// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/constants.ts
+// RELEVANT FILES: src/lib/supabase/server.ts, src/lib/validators.ts, src/lib/supabase/club-context.ts
 
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import { playerFormSchema } from '@/lib/validators';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import type { ActionResponse } from '@/lib/types';
@@ -28,6 +29,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     return { success: false, error: `Ano de nascimento ${birthYear} não corresponde a nenhum escalão` };
   }
 
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
   // Duplicate detection — check by FPF/ZeroZero links first, then by name+DOB
@@ -36,14 +38,14 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
 
   if (fpfLink) {
     const { data: dup } = await supabase
-      .from('players').select('id, name').eq('fpf_link', fpfLink).maybeSingle();
+      .from('players').select('id, name').eq('fpf_link', fpfLink).eq('club_id', clubId).maybeSingle();
     if (dup) {
       return { success: false, error: `Jogador já existe com este link FPF: ${dup.name} (ID ${dup.id})` };
     }
   }
   if (zzLink) {
     const { data: dup } = await supabase
-      .from('players').select('id, name').eq('zerozero_link', zzLink).maybeSingle();
+      .from('players').select('id, name').eq('zerozero_link', zzLink).eq('club_id', clubId).maybeSingle();
     if (dup) {
       return { success: false, error: `Jogador já existe com este link ZeroZero: ${dup.name} (ID ${dup.id})` };
     }
@@ -53,23 +55,25 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     .from('players').select('id, name')
     .ilike('name', rest.name.trim())
     .eq('dob', dob)
+    .eq('club_id', clubId)
     .maybeSingle();
   if (nameDup) {
     return { success: false, error: `Jogador com o mesmo nome e data de nascimento já existe: ${nameDup.name} (ID ${nameDup.id})` };
   }
 
-  // Find or create age group
+  // Find or create age group (club-scoped)
   let { data: ageGroup } = await supabase
     .from('age_groups')
     .select('id')
     .eq('name', ageGroupName)
     .eq('season', CURRENT_SEASON)
+    .eq('club_id', clubId)
     .single();
 
   if (!ageGroup) {
     const { data: newAg, error: agError } = await supabase
       .from('age_groups')
-      .insert({ name: ageGroupName, generation_year: birthYear, season: CURRENT_SEASON })
+      .insert({ name: ageGroupName, generation_year: birthYear, season: CURRENT_SEASON, club_id: clubId })
       .select('id')
       .single();
 
@@ -79,12 +83,10 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     ageGroup = newAg;
   }
 
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-
   const { data: player, error } = await supabase
     .from('players')
     .insert({
+      club_id: clubId,
       age_group_id: ageGroup!.id,
       name: rest.name,
       dob,
@@ -107,7 +109,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
       weight: rest.weight ? parseInt(rest.weight, 10) : null,
       nationality: rest.nationality || null,
       birth_country: rest.birthCountry || null,
-      created_by: user?.id,
+      created_by: userId,
     })
     .select('id')
     .single();
@@ -119,8 +121,9 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
   // If notes were provided, create an observation note instead of storing on player
   if (rest.notes?.trim()) {
     await supabase.from('observation_notes').insert({
+      club_id: clubId,
       player_id: player!.id,
-      author_id: user?.id ?? null,
+      author_id: userId,
       content: rest.notes.trim(),
     });
   }
@@ -130,24 +133,20 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
 }
 
 export async function deletePlayer(playerId: number): Promise<ActionResponse> {
-  const supabase = await createClient();
+  const { clubId, role } = await getActiveClub();
 
-  // Get current user and verify admin role
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { success: false, error: 'Não autenticado' };
-
-  const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') {
+  if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem eliminar jogadores' };
   }
 
-  // Delete related records first (observation_notes, status_history, scouting_reports)
-  await supabase.from('observation_notes').delete().eq('player_id', playerId);
-  await supabase.from('status_history').delete().eq('player_id', playerId);
-  await supabase.from('scouting_reports').delete().eq('player_id', playerId);
+  const supabase = await createClient();
 
-  const { error } = await supabase.from('players').delete().eq('id', playerId);
+  // Delete related records first (observation_notes, status_history, scouting_reports)
+  await supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId);
+  await supabase.from('status_history').delete().eq('player_id', playerId).eq('club_id', clubId);
+  await supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId);
+
+  const { error } = await supabase.from('players').delete().eq('id', playerId).eq('club_id', clubId);
   if (error) {
     return { success: false, error: `Erro ao eliminar jogador: ${error.message}` };
   }
@@ -174,6 +173,7 @@ export async function updatePlayer(
   playerId: number,
   updates: Record<string, unknown>
 ): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
   // Fetch current values for tracked fields so we can detect changes
@@ -185,6 +185,7 @@ export async function updatePlayer(
       .from('players')
       .select(trackedInUpdates.join(','))
       .eq('id', playerId)
+      .eq('club_id', clubId)
       .single();
     if (current) oldValues = current as unknown as Record<string, unknown>;
   }
@@ -192,7 +193,8 @@ export async function updatePlayer(
   const { error } = await supabase
     .from('players')
     .update(updates)
-    .eq('id', playerId);
+    .eq('id', playerId)
+    .eq('club_id', clubId);
 
   if (error) {
     return { success: false, error: `Erro ao atualizar jogador: ${error.message}` };
@@ -200,9 +202,6 @@ export async function updatePlayer(
 
   // Log changes to status_history for tracked fields
   if (trackedInUpdates.length > 0) {
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id ?? null;
-
     for (const field of trackedInUpdates) {
       const oldVal = oldValues[field];
       const newVal = updates[field];
@@ -212,6 +211,7 @@ export async function updatePlayer(
 
       if (oldStr !== newStr) {
         await supabase.from('status_history').insert({
+          club_id: clubId,
           player_id: playerId,
           field_changed: field,
           old_value: oldStr,

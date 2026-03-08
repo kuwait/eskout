@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 // Desktop sidebar navigation for the Eskout application
-// Jogadores is the home page. Plantel Real and Plantel Sombra separated.
-// RELEVANT FILES: src/components/layout/MobileDrawer.tsx, src/components/layout/AgeGroupSelector.tsx, src/app/layout.tsx
+// Shows club name/logo, feature-gated nav items, superadmin link
+// RELEVANT FILES: src/components/layout/MobileDrawer.tsx, src/components/layout/AppShellClient.tsx, src/app/layout.tsx
 
 'use client';
 
@@ -10,45 +10,69 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell, FileText, PlusCircle,
-  Download, UserCog, Settings, LogOut, Palette,
+  Download, UserCog, Settings, LogOut, Palette, ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
-import type { AlertCounts } from '@/components/layout/AppShell';
+import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true },
-  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true },
-  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true },
-  { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true },
-  { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true },
-  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true },
-  { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true },
-  { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true },
+  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true, feature: null },
+  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true, feature: null },
+  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true, feature: 'shadow_squad' },
+  { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, feature: 'pipeline' },
+  { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, feature: 'calendar' },
+  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true, feature: 'alerts' },
+  { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
+  { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
 ];
 
 const ADMIN_ITEMS = [
-  { href: '/admin/relatorios', label: 'Relatórios', icon: FileText },
-  { href: '/definicoes', label: 'Definições', icon: Settings },
-  { href: '/exportar', label: 'Exportar', icon: Download },
-  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog },
+  { href: '/admin/relatorios', label: 'Relatórios', icon: FileText, feature: 'scouting_reports' },
+  { href: '/definicoes', label: 'Definições', icon: Settings, feature: null },
+  { href: '/exportar', label: 'Exportar', icon: Download, feature: 'export' },
+  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, feature: null },
 ];
 
-export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; userRole: string }) {
+export function Sidebar({
+  alertCounts,
+  userRole,
+  clubInfo,
+  isSuperadmin,
+}: {
+  alertCounts: AlertCounts;
+  userRole: string;
+  clubInfo: ClubInfo | null;
+  isSuperadmin: boolean;
+}) {
   const pathname = usePathname();
   const isScout = userRole === 'scout';
-  const visibleItems = isScout
+  const features = clubInfo?.features ?? {};
+
+  // Filter nav items by role and feature toggles
+  const visibleItems = (isScout
     ? NAV_ITEMS.filter((i) => !i.scoutHidden)
-    : NAV_ITEMS.filter((i) => !i.scoutOnly);
+    : NAV_ITEMS.filter((i) => !('scoutOnly' in i && i.scoutOnly))
+  ).filter((i) => !i.feature || features[i.feature] !== false);
+
+  const visibleAdminItems = ADMIN_ITEMS.filter(
+    (i) => !i.feature || features[i.feature] !== false
+  );
 
   return (
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-card lg:h-screen lg:fixed lg:left-0 lg:top-0">
-      {/* Header */}
+      {/* Header — club name + logo */}
       <div className="flex items-center gap-2 border-b px-4 py-4">
-        <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo-icon.svg" alt="" width={28} height={28} className="dark:invert" />
-          <span className="text-xl font-bold tracking-tight">Eskout</span>
+        <Link href="/" className="flex items-center gap-2 min-w-0">
+          {clubInfo?.logoUrl ? (
+            <Image src={clubInfo.logoUrl} alt="" width={28} height={28} className="rounded shrink-0" />
+          ) : (
+            <Image src="/logo-icon.svg" alt="" width={28} height={28} className="dark:invert shrink-0" />
+          )}
+          <span className="text-xl font-bold tracking-tight truncate">
+            {clubInfo?.name ?? 'Eskout'}
+          </span>
         </Link>
       </div>
 
@@ -95,7 +119,7 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
         <div className="mt-6">
           <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">Admin</p>
           <ul className="mt-2 space-y-1">
-            {ADMIN_ITEMS.map((item) => {
+            {visibleAdminItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname.startsWith(item.href);
               return (
@@ -124,10 +148,18 @@ export function Sidebar({ alertCounts, userRole }: { alertCounts: AlertCounts; u
           </ul>
         </div>
         )}
+
       </nav>
 
       {/* Bottom actions */}
       <div className="border-t px-3 py-3 space-y-1">
+        <Link
+          href="/escolher-clube"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <ArrowLeftRight className="h-4 w-4" />
+          Trocar Clube
+        </Link>
         <Link
           href="/preferencias"
           className={cn(
