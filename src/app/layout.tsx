@@ -26,9 +26,12 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 /* viewport-fit=cover enables env(safe-area-inset-*) for iPhone notch/dynamic island */
+/* maximumScale=1 + userScalable=false disables pinch-to-zoom across the app */
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: 'cover',
 };
 
