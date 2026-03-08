@@ -2944,6 +2944,110 @@ Shows which escalões are getting attention and which are neglected.
 
 ---
 
+### Phase 15 — Personal Player Lists
+
+User-created lists to organize jogadores por contexto. Cada utilizador cria as suas listas com nome livre — "Reunião sexta", "Targets DC verão", "Observar fim-de-semana". Substituem favoritos, listas externas, e notas mentais.
+
+#### 15.1. Data Model
+
+```sql
+CREATE TABLE player_lists (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,                    -- "Reunião terça", "Targets DC"
+  description TEXT DEFAULT '',           -- Optional description
+  color TEXT DEFAULT '#a3a3a3',          -- Label color for visual distinction
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (club_id, user_id, name)       -- No duplicate names per user per club
+);
+
+CREATE TABLE player_list_items (
+  id SERIAL PRIMARY KEY,
+  list_id INT NOT NULL REFERENCES player_lists(id) ON DELETE CASCADE,
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT now(),
+  notes TEXT DEFAULT '',                 -- Optional note on why this player is in this list
+  sort_order INT DEFAULT 0,             -- Manual ordering within the list
+  UNIQUE (list_id, player_id)           -- No duplicates within a list
+);
+
+CREATE INDEX idx_player_lists_user ON player_lists (club_id, user_id);
+CREATE INDEX idx_player_list_items_list ON player_list_items (list_id);
+CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
+```
+
+**RLS:** Lists are personal — user can only see/edit their own lists. Admins cannot see other users' lists (personal workspace).
+
+#### 15.2. Core Features
+
+**Create list:** Name + optional color + optional description. Quick-create from anywhere (modal or inline).
+
+**Add player to list:** Star/bookmark icon on player card, table row, and profile. Tapping opens a mini-popover: checkboxes for each list + "Nova lista" shortcut. Multiple lists can contain the same player. If user has 0 lists, tapping star prompts to create first list.
+
+**Remove from list:** Uncheck in the popover, or swipe-to-remove within the list view.
+
+**Delete list:** Confirmation dialog. Removes list + all items. Players are not affected.
+
+**Star indicator:** Players that appear in at least 1 list show a filled star icon in table/card views. Subtle — doesn't clutter.
+
+#### 15.3. List View
+
+**Route:** `/listas` — personal page, shows all user's lists.
+
+**Layout:**
+- Grid of list cards (name, color dot, player count, last updated)
+- Tap card → opens list detail
+
+**List detail:**
+- Header: list name (editable), description, color, player count
+- Player grid/table: same as main player table but filtered to list members
+- **Filters within list:** position, escalão, clube, pé — to avoid creating filter-lists like "2011" or "2012"
+- **Sort:** manual drag-and-drop (for prioritized lists) or by name/position/club
+- Bulk actions: remove selected, move to another list
+- Share: future — share list with other club members (read-only)
+
+#### 15.4. Role-specific Behaviour
+
+| Role | Can create lists | Players available |
+|------|-----------------|-------------------|
+| **Admin** | Yes | All players in the club |
+| **Editor** | Yes | All players in the club |
+| **Scout** | Yes | Only players they submitted reports for |
+
+Scout lists respect existing permission boundaries — they see the same limited player info they always see, just organized in personal lists.
+
+#### 15.5. UI Integration Points
+
+| Location | Behaviour |
+|----------|-----------|
+| **Player table** | Star icon per row. Filled if player is in any list. Click → list popover. |
+| **Player card (mobile)** | Star icon in card header. Same popover. |
+| **Player profile** | Star icon in action bar. Same popover. Shows which lists the player belongs to. |
+| **Sidebar / nav** | "Listas" nav item with list count badge. |
+| **Player comparison (Phase 12)** | "Adicionar à lista" action on comparison view. |
+| **Pipeline cards** | Star icon on pipeline cards. |
+
+#### 15.6. Quick Actions
+
+- **Add from search:** Search players → star → add to list. Fast workflow.
+- **Bulk add:** Select multiple players in table → "Adicionar a lista" → pick list.
+- **Duplicate list:** Copy an existing list (useful for "Reunião semana passada" → "Reunião esta semana").
+- **Player count in nav:** Badge next to "Listas" showing total lists (like alerts badge).
+
+#### 15.7. Sub-phases
+
+- **15A:** `player_lists` + `player_list_items` tables + RLS + Server Actions (CRUD)
+- **15B:** Star icon integration (table, card, profile) + list popover
+- **15C:** `/listas` page (list grid + list detail with filters)
+- **15D:** Manual sort (drag-and-drop within list)
+- **15E:** Bulk actions (multi-select add/remove, duplicate list)
+
+**Deliverable:** Personal workspace for organizing players. Each user creates themed lists, adds players from anywhere with one tap, and browses them with filters and manual sorting. Replaces external notes, bookmarks, and mental lists with an in-app tool that respects role permissions.
+
+---
+
 ## 10. Data Files & Scripts
 
 | File | Description |
