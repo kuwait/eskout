@@ -18,6 +18,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  X,
 } from 'lucide-react';
 import { RECRUITMENT_LABEL_MAP, RECRUITMENT_STATUS_MAP, POSITION_LABELS } from '@/lib/constants';
 import type { StatusHistoryEntry, RecruitmentStatus, PositionCode } from '@/lib/types';
@@ -25,6 +26,8 @@ import type { StatusHistoryEntry, RecruitmentStatus, PositionCode } from '@/lib/
 interface StatusHistoryProps {
   entries: StatusHistoryEntry[];
   maxVisible?: number;
+  canDelete?: boolean;
+  onDelete?: (entryId: number) => void;
 }
 
 const MAX_VISIBLE_DEFAULT = 4;
@@ -359,7 +362,7 @@ function parseOpinionArray(v: string | null | undefined): string[] {
   return norm.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-export function StatusHistory({ entries, maxVisible = MAX_VISIBLE_DEFAULT }: StatusHistoryProps) {
+export function StatusHistory({ entries, maxVisible = MAX_VISIBLE_DEFAULT, canDelete, onDelete }: StatusHistoryProps) {
   const [expanded, setExpanded] = useState(false);
 
   const cleaned = dedup(entries);
@@ -393,6 +396,17 @@ export function StatusHistory({ entries, maxVisible = MAX_VISIBLE_DEFAULT }: Sta
                 {entry.changedByName} &middot; {fmtRelative(entry.createdAt)}
               </p>
             </div>
+
+            {/* Delete button — admin only */}
+            {canDelete && onDelete && (
+              <button
+                className="shrink-0 rounded p-1 text-neutral-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                onClick={() => onDelete(entry.id)}
+                aria-label="Apagar entrada"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         );
       })}

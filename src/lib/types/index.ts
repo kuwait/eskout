@@ -82,7 +82,7 @@ export interface Player {
   photoUrl: string | null;
   zzPhotoUrl: string | null;
   clubLogoUrl: string | null;
-  zzTeamHistory: { club: string; season: string; games: number; goals: number }[] | null;
+  zzTeamHistory: { club: string; team?: string; season: string; games: number; goals: number }[] | null;
   zzLastChecked: string | null;
   recruitmentStatus: RecruitmentStatus | null;
   trainingDate: string | null;
@@ -161,7 +161,7 @@ export interface PlayerRow {
   photo_url: string | null;
   zz_photo_url: string | null;
   club_logo_url: string | null;
-  zz_team_history: { club: string; season: string; games: number; goals: number }[] | null;
+  zz_team_history: { club: string; team?: string; season: string; games: number; goals: number }[] | null;
   zz_last_checked: string | null;
   recruitment_status: string;
   training_date: string | null;

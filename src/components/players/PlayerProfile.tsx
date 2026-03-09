@@ -52,6 +52,7 @@ import { ObservationNotes, AddNoteButton } from '@/components/players/Observatio
 import { StatusHistory } from '@/components/players/StatusHistory';
 import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
+import { PlayerClubHistory } from '@/components/players/PlayerClubHistory';
 import {
   POSITION_LABELS,
   DEPARTMENT_OPINIONS,
@@ -62,7 +63,7 @@ import {
   getNationalityFlag,
   getPositionLabel,
 } from '@/lib/constants';
-import { updatePlayer, deletePlayer, approvePlayer, rejectPlayer } from '@/actions/players';
+import { updatePlayer, deletePlayer, approvePlayer, rejectPlayer, deleteStatusHistoryEntry } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { usePresence } from '@/hooks/usePresence';
@@ -105,6 +106,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPitchPopup, setShowPitchPopup] = useState(false);
   const [isDeleting, startDelete] = useTransition();
+  const [historyEntries, setHistoryEntries] = useState(statusHistory);
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
   const isRecruiter = userRole === 'recruiter';
@@ -900,6 +902,22 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </div>
             </Section>
 
+            {/* Percurso — mobile only (desktop version in right column) */}
+            {(p.zzTeamHistory || p.zzCurrentClub || p.zzCurrentTeam) && (
+              <div className="lg:hidden">
+                <Section title="Percurso">
+                  <PlayerClubHistory
+                    zzTeamHistory={p.zzTeamHistory}
+                    zzCurrentClub={p.zzCurrentClub}
+                    zzCurrentTeam={p.zzCurrentTeam}
+                    zzGamesSeason={p.zzGamesSeason}
+                    zzGoalsSeason={p.zzGoalsSeason}
+                    zzLastChecked={p.zzLastChecked}
+                  />
+                </Section>
+              </div>
+            )}
+
             {/* Observação — scout info, decision, and reports (hidden for recruiter) */}
             {!isRestricted && (() => {
               const observerNames = p.observer ? p.observer.split(',').map((n) => n.trim()).filter(Boolean) : [];
@@ -969,6 +987,22 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
               />
             </div>}
+
+            {/* Percurso — desktop only (mobile version in left column) */}
+            {(p.zzTeamHistory || p.zzCurrentClub || p.zzCurrentTeam) && (
+              <div className="hidden lg:block">
+                <Section title="Percurso">
+                  <PlayerClubHistory
+                    zzTeamHistory={p.zzTeamHistory}
+                    zzCurrentClub={p.zzCurrentClub}
+                    zzCurrentTeam={p.zzCurrentTeam}
+                    zzGamesSeason={p.zzGamesSeason}
+                    zzGoalsSeason={p.zzGoalsSeason}
+                    zzLastChecked={p.zzLastChecked}
+                  />
+                </Section>
+              </div>
+            )}
 
             {/* Recrutamento — hidden when completely empty, hidden for recruiter */}
             {!isRestricted && (p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
@@ -1050,11 +1084,34 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               })()}
             </Section>}
 
-            {!isRestricted && statusHistory.length > 0 && (
-              <Section title="Histórico">
-                <StatusHistory entries={statusHistory} />
-              </Section>
-            )}
+            {!isRestricted && historyEntries.length > 0 && (() => {
+              // StatusHistory deduplicates internally — check if any entries survive filtering
+              const hasVisible = historyEntries.some((e, i) => {
+                const oldNorm = (e.oldValue ?? '').trim();
+                const newNorm = (e.newValue ?? '').trim();
+                const emptyVals = ['', '[]', '—'];
+                if (emptyVals.includes(oldNorm) && emptyVals.includes(newNorm)) return false;
+                if (oldNorm === newNorm) return false;
+                if (i === 0) return true;
+                const prev = historyEntries[i - 1];
+                return !(e.fieldChanged === prev.fieldChanged && e.oldValue === prev.oldValue && e.newValue === prev.newValue);
+              });
+              if (!hasVisible) return null;
+              return (
+                <Section title="Histórico">
+                  <StatusHistory
+                    entries={historyEntries}
+                    canDelete={isAdmin}
+                    onDelete={(entryId) => {
+                      setHistoryEntries((prev) => prev.filter((e) => e.id !== entryId));
+                      deleteStatusHistoryEntry(entryId).then((res) => {
+                        if (!res.success) setHistoryEntries(statusHistory);
+                      });
+                    }}
+                  />
+                </Section>
+              );
+            })()}
 
             {/* ───────────── Profile completeness — progress + actionable suggestions ───────────── */}
             {(() => {

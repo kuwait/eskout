@@ -385,3 +385,26 @@ export async function updatePlayer(
 
   return { success: true };
 }
+
+/* ───────────── Delete status history entry ───────────── */
+
+/** Delete a single status_history entry — admin only */
+export async function deleteStatusHistoryEntry(entryId: number): Promise<ActionResponse> {
+  const { clubId, role } = await getActiveClub();
+  if (role !== 'admin') {
+    return { success: false, error: 'Apenas administradores podem apagar histórico.' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('status_history')
+    .delete()
+    .eq('id', entryId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}

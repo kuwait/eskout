@@ -226,7 +226,7 @@ export interface ZzScrapeResult {
   foot: string | null;
   gamesSeason: number | null;
   goalsSeason: number | null;
-  teamHistory: { club: string; season: string; games: number; goals: number }[];
+  teamHistory: { club: string; team?: string; season: string; games: number; goals: number }[];
   clubChanged: boolean;
 }
 
@@ -275,7 +275,7 @@ async function fetchZeroZeroData(zzLink: string) {
       shirtNumber: null as number | null,
       gamesSeason: null as number | null,
       goalsSeason: null as number | null,
-      teamHistory: [] as { club: string; season: string; games: number; goals: number }[],
+      teamHistory: [] as { club: string; team?: string; season: string; games: number; goals: number }[],
     };
 
     /* ── 1. JSON-LD (basic fields only — many are empty/useless on ZeroZero) ── */
@@ -585,27 +585,53 @@ async function fetchZeroZeroData(zzLink: string) {
     if (result.weight === 0) result.weight = null;
 
     // Career history table — extract seasons, clubs, games, goals
-    const careerRows = html.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/gi);
+    // ZZ HTML structure for summary rows (one per club per season):
+    //   td[0]: empty, td[1]: season (or empty for same-season sub-teams),
+    //   td[2]: club inside <div class="micrologo_and_text">, td[3]: games (plain number),
+    //   td[4]: goals inside <a> tag, td[5]: assists inside <a> tag
+    // Match rows (individual games) have many more <td> cells — we skip those.
+    // Stop parsing when we hit the Transferências section.
+    const transferIdx = html.search(/Transfer[eê]ncias/i);
+    const careerHtml = transferIdx > 0 ? html.slice(0, transferIdx) : html;
+
+    const careerRows = careerHtml.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/gi);
     let latestGames: number | null = null;
     let latestGoals: number | null = null;
     let isFirst = true;
+    let currentSeason: string | null = null;
 
     for (const row of careerRows) {
       const rowHtml = row[0];
-      const seasonMatch = rowHtml.match(/(20\d{2}\/\d{2})/);
-      if (!seasonMatch) continue;
 
-      const season = seasonMatch[1];
+      // Only process summary rows — they contain micrologo_and_text (club cell with flag+logo)
+      if (!rowHtml.includes('micrologo_and_text')) continue;
 
-      // Club name — in an <a> tag within the row
-      const clubCellMatch = rowHtml.match(/<a[^>]*>([^<]+)<\/a>/);
-      const club = clubCellMatch ? clubCellMatch[1].trim() : '';
+      // Extract all <td> cell contents
+      const tds = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => m[1]);
+      if (tds.length < 4) continue;
+
+      // td[1] = season (may be empty for sub-teams in same season)
+      const seasonMatch = tds[1].match(/(20\d{2}\/\d{2})/);
+      if (seasonMatch) currentSeason = seasonMatch[1];
+      if (!currentSeason) continue;
+
+      // td[2] = club name inside <a> tag, team/escalão in brackets [Jun.C S15 B]
+      const clubMatch = tds[2].match(/<a[^>]*>([^<]+)<\/a>/);
+      const club = clubMatch ? clubMatch[1].trim() : '';
       if (!club) continue;
 
-      // Games and goals — look for numbers in table cells
-      const numberCells = [...rowHtml.matchAll(/<td[^>]*>\s*(\d+)\s*<\/td>/g)];
-      const games = numberCells.length > 0 ? parseInt(numberCells[0][1], 10) : 0;
-      const goals = numberCells.length > 1 ? parseInt(numberCells[1][1], 10) : 0;
+      const teamMatch = tds[2].match(/\[([^\]]+)\]/);
+      const team = teamMatch ? teamMatch[1].trim() : undefined;
+
+      // td[3] = games — strip HTML to get visible number only
+      const gamesText = tds[3].replace(/<[^>]+>/g, '').trim();
+      const gamesNum = gamesText.match(/^(\d+)$/);
+      const games = gamesNum ? parseInt(gamesNum[1], 10) : 0;
+
+      // td[4] = goals — text content of <a> tag (strip HTML to get visible number, not href digits)
+      const goalsText = tds.length > 4 ? tds[4].replace(/<[^>]+>/g, '').trim() : '';
+      const goalsNum = goalsText.match(/^(\d+)$/);
+      const goals = goalsNum ? parseInt(goalsNum[1], 10) : 0;
 
       if (isFirst) {
         result.currentTeam = club;
@@ -614,7 +640,7 @@ async function fetchZeroZeroData(zzLink: string) {
         isFirst = false;
       }
 
-      result.teamHistory.push({ club, season, games, goals });
+      result.teamHistory.push({ club, ...(team ? { team } : {}), season: currentSeason, games, goals });
     }
 
     result.gamesSeason = latestGames;
