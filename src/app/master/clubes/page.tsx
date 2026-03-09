@@ -15,6 +15,7 @@ export default async function MasterClubesPage() {
   const { data: clubs } = await service
     .from('clubs')
     .select('*, club_memberships(count)')
+    .neq('is_test', true)
     .order('created_at', { ascending: false });
 
   return (

@@ -66,6 +66,38 @@ const ROLE_COLORS: Record<string, string> = {
   recruiter: 'bg-purple-100 text-purple-700',
 };
 
+const PAGE_LABELS: Record<string, string> = {
+  '/': 'Dashboard',
+  '/jogadores': 'Jogadores',
+  '/campo': 'Plantel',
+  '/campo/real': 'Plantel Real',
+  '/campo/sombra': 'Plantel Sombra',
+  '/pipeline': 'Pipeline',
+  '/posicoes': 'Posições',
+  '/calendario': 'Calendário',
+  '/alertas': 'Alertas',
+  '/exportar': 'Exportar',
+  '/submeter': 'Submeter Relatório',
+  '/meus-relatorios': 'Meus Relatórios',
+  '/meus-jogadores': 'Meus Jogadores',
+  '/preferencias': 'Preferências',
+  '/definicoes': 'Definições',
+  '/admin/pendentes': 'Pendentes',
+  '/admin/relatorios': 'Relatórios Admin',
+  '/master': 'Gestão',
+  '/master/online': 'Online',
+};
+
+function getPageLabel(path: string | null): string {
+  if (!path) return '—';
+  if (PAGE_LABELS[path]) return PAGE_LABELS[path];
+  if (/^\/jogadores\/\d+$/.test(path)) return 'Perfil Jogador';
+  for (const [prefix, label] of Object.entries(PAGE_LABELS)) {
+    if (path.startsWith(prefix) && prefix !== '/') return label;
+  }
+  return path;
+}
+
 const FIELD_LABELS: Record<string, string> = {
   recruitment_status: 'Estado',
   department_opinion: 'Opinião',
@@ -209,7 +241,7 @@ export function OnlinePageClient({
       id: p.id,
       fullName: p.full_name ?? 'Sem nome',
       lastSeenAt: p.last_seen_at,
-      page: p.last_page ?? '—',
+      page: getPageLabel(p.last_page ?? null),
       rawPage: p.last_page ?? null,
       device: (p.last_device as 'mobile' | 'desktop' | null) ?? null,
       sessionStartedAt: p.session_started_at ?? null,
@@ -346,7 +378,7 @@ export function OnlinePageClient({
 
       {/* ───── Users list ───── */}
       <div className="rounded-lg border bg-white mb-8">
-        <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 border-b px-4 py-2.5 text-[11px] font-semibold uppercase text-muted-foreground">
+        <div className="hidden sm:grid grid-cols-[16px_2fr_1fr_80px_64px_64px] gap-x-4 border-b px-4 py-2.5 text-[11px] font-semibold uppercase text-muted-foreground">
           <span className="w-3" />
           <span>Utilizador</span>
           <span>Página</span>
@@ -390,7 +422,7 @@ export function OnlinePageClient({
                   </div>
 
                   {/* Desktop layout */}
-                  <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-x-4">
+                  <div className="hidden sm:grid grid-cols-[16px_2fr_1fr_80px_64px_64px] items-center gap-x-4">
                     <span className="relative flex h-2.5 w-2.5 shrink-0">
                       {online ? (
                         <>
