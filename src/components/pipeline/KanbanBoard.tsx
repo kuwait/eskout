@@ -272,6 +272,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
                 status={status}
                 players={playersByStatus[status] ?? []}
                 showBirthYear={showBirthYear}
+                clubMembers={clubMembers}
                 onPlayerClick={onPlayerClick}
                 onRemove={onRemove}
                 onDateChange={onDateChange}
