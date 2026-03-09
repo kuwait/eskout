@@ -76,26 +76,11 @@ export function PipelineView() {
     fetchPlayers();
   }, [fetchPlayers]);
 
-  // Fetch club members once for contact assignment dropdowns
+  // Fetch club members once for contact assignment dropdowns (via server action to avoid RLS issues)
   useEffect(() => {
-    const supabase = createClient();
-    // Read club ID from cookie (same pattern as getActiveClubId on the server)
-    const clubId = document.cookie.split('; ').find((c) => c.startsWith('eskout-club-id='))?.split('=')[1];
-    if (!clubId) return;
-    supabase
-      .from('club_memberships')
-      .select('user_id, profiles:user_id(id, full_name)')
-      .eq('club_id', clubId)
-      .then(({ data }) => {
-        if (data) {
-          setClubMembers(
-            data.map((m) => {
-              const profile = m.profiles as unknown as { id: string; full_name: string };
-              return { id: profile.id, fullName: profile.full_name };
-            }).sort((a, b) => a.fullName.localeCompare(b.fullName))
-          );
-        }
-      });
+    import('@/actions/users').then(({ getClubMembers }) =>
+      getClubMembers().then((members) => setClubMembers(members))
+    );
   }, []);
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */

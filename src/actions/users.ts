@@ -92,6 +92,14 @@ export async function listUsers(): Promise<{ success: boolean; users: UserListIt
   }
 }
 
+/* ───────────── Get Club Members (any authenticated member) ───────────── */
+
+export async function getClubMembers(): Promise<{ id: string; fullName: string }[]> {
+  const { getAllProfiles } = await import('@/lib/supabase/queries');
+  const profiles = await getAllProfiles();
+  return profiles.map((p) => ({ id: p.id, fullName: p.fullName }));
+}
+
 /* ───────────── Invite User ───────────── */
 
 export async function inviteUser(
