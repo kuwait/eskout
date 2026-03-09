@@ -33,6 +33,23 @@ export async function login(formData: FormData): Promise<ActionResponse> {
   redirect('/');
 }
 
+export async function resetPassword(email: string): Promise<ActionResponse> {
+  if (!email || !email.includes('@')) {
+    return { success: false, error: 'Email inválido' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+  });
+
+  if (error) {
+    return { success: false, error: 'Erro ao enviar email de recuperação' };
+  }
+
+  return { success: true };
+}
+
 export async function logout(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();

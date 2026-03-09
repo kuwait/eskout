@@ -282,7 +282,13 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{timeAgo(user.lastSignIn)}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {user.lastSignIn ? (
+                      timeAgo(user.lastSignIn)
+                    ) : (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">Pendente</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     {user.active ? (
                       <Button
@@ -341,7 +347,11 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
                   <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${ROLE_COLORS[user.role]}`}>
                     {ROLE_LABELS[user.role]}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">{timeAgo(user.lastSignIn)}</span>
+                  {user.lastSignIn ? (
+                    <span className="text-[11px] text-muted-foreground">{timeAgo(user.lastSignIn)}</span>
+                  ) : (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">Pendente</span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1">

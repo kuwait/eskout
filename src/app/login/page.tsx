@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { login } from '@/actions/auth';
+import { login, resetPassword } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,12 +67,16 @@ function FloatingPills() {
 
 /* ───────────── Login form (shared between mobile and desktop) ───────────── */
 
-function LoginForm({ error, loading, onSubmit, idPrefix }: {
+function LoginForm({ error, loading, onSubmit, onResetPassword, resetSent, idPrefix }: {
   error: string | null;
   loading: boolean;
   onSubmit: (formData: FormData) => void;
+  onResetPassword: (email: string) => void;
+  resetSent: boolean;
   idPrefix: string;
 }) {
+  const emailRef = useRef<HTMLInputElement>(null);
+
   return (
     <Card className="w-full max-w-sm shadow-xl">
       <CardContent className="space-y-5 pt-6">
@@ -83,13 +87,23 @@ function LoginForm({ error, loading, onSubmit, idPrefix }: {
         <form action={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-email`}>Email</Label>
-            <Input id={`${idPrefix}-email`} name="email" type="email" placeholder="email@exemplo.com" required autoComplete="email" className="h-11" />
+            <Input ref={emailRef} id={`${idPrefix}-email`} name="email" type="email" placeholder="email@exemplo.com" required autoComplete="email" className="h-11" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-pw`}>Palavra-passe</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor={`${idPrefix}-pw`}>Palavra-passe</Label>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => onResetPassword(emailRef.current?.value ?? '')}
+              >
+                Esqueci a palavra-passe
+              </button>
+            </div>
             <Input id={`${idPrefix}-pw`} name="password" type="password" placeholder="••••••" required minLength={6} autoComplete="current-password" className="h-11" />
           </div>
           {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
+          {resetSent && <p className="text-sm text-green-600" role="status">Email de recuperação enviado! Verifique a sua caixa de correio.</p>}
           <Button type="submit" className="h-11 w-full" disabled={loading}>{loading ? 'A entrar...' : 'Entrar'}</Button>
         </form>
       </CardContent>
@@ -102,6 +116,7 @@ function LoginForm({ error, loading, onSubmit, idPrefix }: {
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   /* Set dark status bar on iOS for this page only */
   useEffect(() => {
@@ -146,12 +161,28 @@ export default function LoginPage() {
 
   async function handleSubmit(formData: FormData) {
     setError(null);
+    setResetSent(false);
     setLoading(true);
     const result = await login(formData);
     if (!result.success) {
       setError(result.error ?? 'Erro desconhecido');
     }
     setLoading(false);
+  }
+
+  async function handleResetPassword(email: string) {
+    setError(null);
+    setResetSent(false);
+    if (!email) {
+      setError('Preencha o email primeiro');
+      return;
+    }
+    const result = await resetPassword(email);
+    if (result.success) {
+      setResetSent(true);
+    } else {
+      setError(result.error ?? 'Erro ao enviar email');
+    }
   }
 
   return (
