@@ -855,8 +855,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               }
             >
               <div className="grid grid-cols-2 gap-1.5">
-                {/* Full name — spans both columns when name was shortened in header */}
-                {p.name.trim().split(/\s+/).length > 2 && (
+                {/* Full name — always shown in basic info */}
+                {p.name && (
                   <div className="col-span-2">
                     <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Nome completo" value={p.name} />
                   </div>
