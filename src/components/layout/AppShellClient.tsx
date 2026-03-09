@@ -12,6 +12,7 @@ import { Menu } from 'lucide-react';
 import { AgeGroupProvider } from '@/hooks/useAgeGroup';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileDrawer } from '@/components/layout/MobileDrawer';
+import { RoleImpersonator } from '@/components/layout/RoleImpersonator';
 import type { AgeGroup } from '@/lib/types';
 import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
 
@@ -83,6 +84,9 @@ export function AppShellClient({
       <main className="overflow-x-clip lg:ml-64">
         {children}
       </main>
+
+      {/* Superadmin role impersonation — floating pill */}
+      {isSuperadmin && <RoleImpersonator currentRole={userRole} />}
     </AgeGroupProvider>
   );
 }

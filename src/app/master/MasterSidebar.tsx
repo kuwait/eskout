@@ -8,7 +8,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, ArrowLeftRight, Palette, LogOut } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, ArrowLeftRight, Palette, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 const NAV_ITEMS = [
   { href: '/master', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/master/clubes', label: 'Clubes', icon: Building2, exact: false },
+  { href: '/master/utilizadores', label: 'Utilizadores', icon: Users, exact: false },
 ];
 
 export function MasterSidebar() {

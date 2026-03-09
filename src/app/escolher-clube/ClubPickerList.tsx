@@ -16,12 +16,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   editor: 'Editor',
   scout: 'Observador',
+  recruiter: 'Recrutador',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
   admin: 'bg-blue-100 text-blue-700',
   editor: 'bg-green-100 text-green-700',
   scout: 'bg-amber-100 text-amber-700',
+  recruiter: 'bg-purple-100 text-purple-700',
 };
 
 interface ClubItem {

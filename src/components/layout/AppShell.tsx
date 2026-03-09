@@ -3,8 +3,9 @@
 // Wraps authenticated pages with sidebar (desktop) and mobile drawer
 // RELEVANT FILES: src/app/layout.tsx, src/components/layout/Sidebar.tsx, src/lib/supabase/club-context.ts
 
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClubId } from '@/lib/supabase/club-context';
+import { getActiveClubId, ROLE_OVERRIDE_COOKIE } from '@/lib/supabase/club-context';
 import { AppShellClient } from '@/components/layout/AppShellClient';
 import type { AgeGroup } from '@/lib/types';
 
@@ -56,7 +57,15 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         .eq('club_id', clubId)
         .single();
 
-      if (membership) userRole = membership.role;
+      if (membership) {
+        userRole = membership.role;
+        // Superadmin role impersonation — override role from cookie
+        if (isSuperadmin) {
+          const cookieStore = await cookies();
+          const roleOverride = cookieStore.get(ROLE_OVERRIDE_COOKIE)?.value;
+          if (roleOverride) userRole = roleOverride;
+        }
+      }
 
       // Fetch club info
       const { data: club } = await supabase

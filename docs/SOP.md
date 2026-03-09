@@ -1,6 +1,6 @@
 # SOP — Boavista FC Youth Squad Planning Tool
 
-**Version:** 7.2 | **Date:** March 7, 2026 | **UI Language:** Portuguese (PT-PT)
+**Version:** 7.3 | **Date:** March 9, 2026 | **UI Language:** Portuguese (PT-PT)
 
 ---
 
@@ -61,10 +61,12 @@ Four roles with progressively restricted access:
 
 | Role | Who | Access |
 |------|-----|--------|
-| **Admin** | Head of scouting, system owner | Full access. User management, import, export, delete players, all CRUD. |
-| **Master** | Formation coordinators, senior scouts | Everything except admin area: can view/edit all data, manage squads, pipeline, calendar. Cannot manage users, import, export, or delete players. |
-| **Scout** | Internal field observers | Can view all pages and data. Can add players, add observation notes, edit player data, manage pipeline/squads/calendar. Cannot delete players. |
-| **Scout Externo** | External/freelance scouts | Can only access a dedicated player submission page. Cannot view the database, squads, pipeline, or any other page. |
+| **Admin** | Head of scouting, system owner | Full access. User management, club settings, import, export, delete players, all CRUD. |
+| **Editor** | Formation coordinators, senior scouts | Everything except admin area: can view/edit all data, manage squads, pipeline, calendar. Cannot manage users, import, export, or delete players. |
+| **Scout** | External/freelance scouts | Can only access dedicated submission page (`/submeter`) and own reports (`/meus-relatorios`). Cannot view the database, squads, pipeline, or any other page. |
+| **Recruiter** (Recrutador) | Club staff handling negotiations/signing | Can see plantéis (real + shadow), pipeline, calendário, posições, and player profiles. **Cannot** see scouting intelligence (ratings, observations, notes, history, recruitment details in profiles), full player list (`/`), alerts, or export. Redirected to `/campo/real` as home. |
+
+**Superadmin** (`profiles.is_superadmin = true`): Platform-level access via `/master` panel. Can manage all clubs, users, feature toggles. Can impersonate any role via cookie-based override for testing (4h TTL).
 
 ### 1.6. Hosting & Stack
 - **Frontend:** Vercel (free tier) — Next.js
@@ -1918,10 +1920,10 @@ Protected by middleware — only `is_superadmin = true` can access `/master/*` r
 
 | Route | Description |
 |-------|-------------|
-| `/master` | Dashboard: total clubs, total users, active clubs, recent activity |
+| `/master` | Dashboard: total clubs, total users, total players, total reports + "this month" activity (players added, reports submitted). |
 | `/master/clubes` | List all clubs (name, logo, status, user count, created date). Create new club. |
-| `/master/clubes/[id]` | Club detail: settings, feature toggles, member list, invite admin, activate/deactivate |
-| `/master/utilizadores` | All platform users across all clubs (name, email, memberships). Cannot see player data. |
+| `/master/clubes/[id]` | Club detail: edit name/logo, activate/deactivate (with confirmation dialog requiring club name), feature toggles, member list with role management, invite users. |
+| `/master/utilizadores` | All platform users across all clubs (name, email, auth status, club memberships, last login). Multi-field accent-insensitive search. Delete users with confirmation dialog. |
 
 **Club creation flow:**
 1. Superadmin creates club: name, slug, logo
@@ -1983,7 +1985,7 @@ When a feature is disabled, the corresponding nav item is hidden and the route r
 
 **Club admin invites user:**
 1. Admin goes to club settings → Utilizadores → Convidar
-2. Enters email + role (admin/editor/scout)
+2. Enters email + role (admin/editor/scout/recruiter)
 3. System checks if email already has a profile:
    - Yes → creates `club_membership` immediately, user sees new club on next login
    - No → sends invite email with signup link, pre-creates pending membership

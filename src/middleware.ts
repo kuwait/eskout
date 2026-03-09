@@ -13,6 +13,8 @@ const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password'];
 const ADMIN_ONLY_ROUTES = ['/admin'];
 // Scouts can ONLY access these routes — everything else is blocked
 const SCOUT_ALLOWED_ROUTES = ['/meus-relatorios', '/submeter', '/mais', '/preferencias'];
+// Recruiters are blocked from these routes (scouting data, export, admin)
+const RECRUITER_BLOCKED_ROUTES = ['/exportar', '/meus-relatorios', '/submeter', '/admin', '/alertas'];
 // Club picker — no club required
 const NO_CLUB_ROUTES = ['/escolher-clube', '/preferencias'];
 // Superadmin panel — only superadmins
@@ -141,7 +143,21 @@ export async function middleware(request: NextRequest) {
       .eq('club_id', clubId)
       .single();
 
-    const role = membership?.role;
+    let role = membership?.role;
+
+    // Superadmin role impersonation — check override cookie
+    if (role) {
+      const roleOverride = request.cookies.get('eskout-role-override')?.value;
+      if (roleOverride) {
+        // Verify user is superadmin before applying override
+        const { data: saProfile } = await supabase
+          .from('profiles')
+          .select('is_superadmin')
+          .eq('id', user.id)
+          .single();
+        if (saProfile?.is_superadmin) role = roleOverride;
+      }
+    }
 
     // If no membership for this club, clear cookie and redirect
     if (!role) {
@@ -164,6 +180,18 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/meus-relatorios';
       return NextResponse.redirect(url);
+    }
+
+    // Recruiter — block scouting, export, and player list routes
+    if (role === 'recruiter') {
+      const isRecruiterBlocked = RECRUITER_BLOCKED_ROUTES.some((route) => pathname.startsWith(route));
+      // Block home page (/) and /jogadores list (but allow /jogadores/123 profiles)
+      const isPlayerList = pathname === '/' || pathname === '/jogadores';
+      if (isRecruiterBlocked || isPlayerList) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/campo/real';
+        return NextResponse.redirect(url);
+      }
     }
   }
 

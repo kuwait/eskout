@@ -46,7 +46,7 @@ export async function getPlayerById(id: number): Promise<Player | null> {
 
 /* ───────────── Profile (current user role — club-scoped) ───────────── */
 
-export async function getCurrentUserRole(): Promise<'admin' | 'editor' | 'scout' | null> {
+export async function getCurrentUserRole(): Promise<'admin' | 'editor' | 'scout' | 'recruiter' | null> {
   try {
     const { role } = await getActiveClub();
     return role;

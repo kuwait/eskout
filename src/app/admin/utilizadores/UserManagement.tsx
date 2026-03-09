@@ -36,12 +36,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   editor: 'Editor',
   scout: 'Scout',
+  recruiter: 'Recrutador',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
   admin: 'bg-red-100 text-red-700',
   editor: 'bg-blue-100 text-blue-700',
   scout: 'bg-neutral-100 text-neutral-700',
+  recruiter: 'bg-purple-100 text-purple-700',
 };
 
 /* ───────────── Helpers ───────────── */
@@ -199,6 +201,7 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
                   <SelectItem value="admin">Administrador</SelectItem>
                   <SelectItem value="editor">Editor</SelectItem>
                   <SelectItem value="scout">Scout</SelectItem>
+                  <SelectItem value="recruiter">Recrutador</SelectItem>
                 </SelectContent>
               </Select>
               <div className="flex gap-2 ml-auto">
@@ -350,6 +353,7 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="editor">Editor</SelectItem>
                     <SelectItem value="scout">Scout</SelectItem>
+                    <SelectItem value="recruiter">Recrutador</SelectItem>
                   </SelectContent>
                 </Select>
                 {user.active ? (

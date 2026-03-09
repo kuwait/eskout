@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell, FileText, PlusCircle,
-  Download, UserCog, Settings, LogOut, Palette, ArrowLeftRight,
+  Download, UserCog, LogOut, Palette, ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
@@ -18,19 +18,19 @@ import { Button } from '@/components/ui/button';
 import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true, feature: null },
+  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true, recruiterHidden: true, feature: null },
   { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true, feature: null },
   { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true, feature: 'shadow_squad' },
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, feature: 'pipeline' },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, feature: 'calendar' },
-  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true, feature: 'alerts' },
+  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true, recruiterHidden: true, feature: 'alerts' },
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
 ];
 
 const ADMIN_ITEMS = [
   { href: '/admin/relatorios', label: 'Relatórios', icon: FileText, feature: 'scouting_reports' },
-  { href: '/definicoes', label: 'Definições', icon: Settings, feature: null },
+  { href: '/definicoes', label: 'Clube', icon: Shield, feature: null },
   { href: '/exportar', label: 'Exportar', icon: Download, feature: 'export' },
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, feature: null },
 ];
@@ -48,13 +48,15 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const isScout = userRole === 'scout';
+  const isRecruiter = userRole === 'recruiter';
   const features = clubInfo?.features ?? {};
 
   // Filter nav items by role and feature toggles
   const visibleItems = (isScout
     ? NAV_ITEMS.filter((i) => !i.scoutHidden)
     : NAV_ITEMS.filter((i) => !('scoutOnly' in i && i.scoutOnly))
-  ).filter((i) => !i.feature || features[i.feature] !== false);
+  ).filter((i) => !isRecruiter || !('recruiterHidden' in i && i.recruiterHidden))
+   .filter((i) => !i.feature || features[i.feature] !== false);
 
   const visibleAdminItems = ADMIN_ITEMS.filter(
     (i) => !i.feature || features[i.feature] !== false

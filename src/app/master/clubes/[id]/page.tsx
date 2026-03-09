@@ -96,6 +96,7 @@ export default async function MasterClubDetailPage({ params }: { params: Promise
       <ClubDetailClient
         clubId={id}
         clubName={club.name}
+        clubLogoUrl={club.logo_url}
         features={(club.features ?? {}) as Record<string, boolean>}
         isActive={club.is_active}
         members={members}

@@ -111,6 +111,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [isDeleting, startDelete] = useTransition();
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
+  const isRecruiter = userRole === 'recruiter';
   const canEdit = userRole === 'admin' || userRole === 'editor';
 
   // Detect unsaved changes by comparing draft to original player
@@ -436,7 +437,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 xl:gap-2">
             <div className="flex items-baseline gap-2">
               <h1 className="truncate font-bold xl:text-2xl" style={{ fontSize: 'clamp(1rem, 4.5vw, 1.5rem)' }}>{shortenName(p.name)}</h1>
-              <ObservationBadge player={p} showLabel />
+              {!isRecruiter && <ObservationBadge player={p} showLabel />}
             </div>
           {/* Club — mobile only (desktop shows in Info Básica) */}
           {!editing && p.club && (
@@ -464,16 +465,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.tertiaryPosition}
               </span>
             )}
-            <OpinionBadge opinion={p.departmentOpinion} variant="compact" />
+            {!isRecruiter && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
           </div>
           {/* Opinion badge — mobile only */}
-          {p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
+          {!isRecruiter && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
             <div className="xl:hidden">
               <OpinionBadge opinion={p.departmentOpinion} variant="compact" />
             </div>
           )}
           {/* My rating — mobile only, fills remaining header height defined by left column */}
-          {!editing && (
+          {!editing && !isRecruiter && (
             <div className="min-h-0 flex-1 overflow-hidden xl:hidden">
               <ScoutEvaluations
                 playerId={p.id}
@@ -498,8 +499,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             />
           </div>
         )}
-        {/* Desktop rating widget — tall card matching MiniPitch height */}
-        {!editing && (hybridAvgRating !== null || p.observerEval) && (() => {
+        {/* Desktop rating widget — tall card matching MiniPitch height (hidden for recruiter) */}
+        {!editing && !isRecruiter && (hybridAvgRating !== null || p.observerEval) && (() => {
           const primaryValue = hybridAvgRating ?? (p.observerEval ? parseRating(p.observerEval).rating : 0);
           const primaryInt = Math.round(primaryValue);
           const c = RATING_COLOR_MAP[primaryInt] ?? RATING_DEFAULT;
@@ -731,8 +732,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         /* ───────────── View mode: two columns on lg ───────────── */
         /* Mobile order: Avaliação → Info Básica → Observação → Notas → Recrutamento → Histórico */
         <>
-        {/* Aggregate rating bar — mobile only, above the grid */}
-        <div className="xl:hidden">
+        {/* Aggregate rating bar — mobile only, above the grid (hidden for recruiter) */}
+        {!isRecruiter && <div className="xl:hidden">
           <ScoutEvaluations
             playerId={p.id}
             evaluations={scoutEvaluations}
@@ -740,7 +741,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
             part="team"
           />
-        </div>
+        </div>}
 
         <div className="mt-3 flex flex-col gap-3 lg:mt-0 lg:grid lg:grid-cols-2">
           {/* ── Col Left (desktop): Info, Observação, Notas ── */}
@@ -817,8 +818,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </div>
             </Section>
 
-            {/* Observação — scout info, decision, and reports (hidden if completely empty) */}
-            {(() => {
+            {/* Observação — scout info, decision, and reports (hidden for recruiter) */}
+            {!isRecruiter && (() => {
               const observerNames = p.observer ? p.observer.split(',').map((n) => n.trim()).filter(Boolean) : [];
               const hasObservation = observerNames.length > 0 || p.observerDecision || scoutingReports.length > 0 || p.reportLabels.length > 0;
               if (!hasObservation) return null;
@@ -859,6 +860,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               );
             })()}
 
+            {!isRecruiter && (
             <Section
               title="Notas de Observação"
               action={<AddNoteButton onClick={() => setShowNoteForm(true)} />}
@@ -871,22 +873,23 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 canEdit={canEdit}
               />
             </Section>
+            )}
           </div>
 
           {/* Right column: Avaliação (desktop), Recrutamento, Histórico */}
           <div className="order-2 space-y-3 lg:order-none">
-            {/* Scout evaluations — desktop only (mobile splits personal/team) */}
-            <div className="hidden xl:block">
+            {/* Scout evaluations — desktop only (hidden for recruiter) */}
+            {!isRecruiter && <div className="hidden xl:block">
               <ScoutEvaluations
                 playerId={p.id}
                 evaluations={scoutEvaluations}
                 currentUserId={currentUserId}
                 reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
               />
-            </div>
+            </div>}
 
-            {/* Recrutamento — hidden when completely empty */}
-            {(p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
+            {/* Recrutamento — hidden when completely empty, hidden for recruiter */}
+            {!isRecruiter && (p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
               {(() => {
                 // Find when player entered current recruitment status
                 const statusEntry = statusHistory.find(
@@ -965,7 +968,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               })()}
             </Section>}
 
-            {statusHistory.length > 0 && (
+            {!isRecruiter && statusHistory.length > 0 && (
               <Section title="Histórico">
                 <StatusHistory entries={statusHistory} />
               </Section>

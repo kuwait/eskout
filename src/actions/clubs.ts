@@ -122,6 +122,59 @@ export async function updateClub(
   return { success: true };
 }
 
+/* ───────────── Update Club Details (club admin or superadmin) ───────────── */
+
+export async function updateMyClubDetails(
+  updates: { name?: string; logoUrl?: string }
+): Promise<ActionResponse> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Não autenticado' };
+
+  // Get active club from cookie
+  const cookieStore = await cookies();
+  const clubId = cookieStore.get(CLUB_COOKIE)?.value;
+  if (!clubId) return { success: false, error: 'Nenhum clube selecionado' };
+
+  // Verify user is admin of this club or superadmin
+  const { data: membership } = await supabase
+    .from('club_memberships')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('club_id', clubId)
+    .single();
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_superadmin')
+    .eq('id', user.id)
+    .single();
+
+  const isAdmin = membership?.role === 'admin';
+  const isSuperadmin = profile?.is_superadmin ?? false;
+
+  if (!isAdmin && !isSuperadmin) {
+    return { success: false, error: 'Sem permissão — apenas admins podem alterar dados do clube' };
+  }
+
+  const service = await createServiceClient();
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.name !== undefined) payload.name = updates.name.trim();
+  if (updates.logoUrl !== undefined) payload.logo_url = updates.logoUrl.trim() || null;
+
+  const { error } = await service
+    .from('clubs')
+    .update(payload)
+    .eq('id', clubId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath('/definicoes');
+  revalidatePath('/escolher-clube');
+  revalidatePath('/');
+  return { success: true };
+}
+
 /* ───────────── Invite User to Club ───────────── */
 
 export async function inviteUserToClub(

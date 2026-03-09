@@ -9,6 +9,9 @@ import { useState } from 'react';
 import { Loader2, UserPlus, Trash2 } from 'lucide-react';
 import { updateClub, inviteUserToClub, removeMembership, updateMembershipRole } from '@/actions/clubs';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { UserRole } from '@/lib/types';
 
@@ -27,6 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   editor: 'Editor',
   scout: 'Scout',
+  recruiter: 'Recrutador',
 };
 
 interface Member {
@@ -41,19 +45,27 @@ interface Member {
 export function ClubDetailClient({
   clubId,
   clubName,
+  clubLogoUrl: initialLogoUrl,
   features: initialFeatures,
   isActive: initialIsActive,
   members,
 }: {
   clubId: string;
   clubName: string;
+  clubLogoUrl: string | null;
   features: Record<string, boolean>;
   isActive: boolean;
   members: Member[];
 }) {
   const [features, setFeatures] = useState(initialFeatures);
   const [isActive, setIsActive] = useState(initialIsActive);
+  const [name, setName] = useState(clubName);
+  const [logoUrl, setLogoUrl] = useState(initialLogoUrl ?? '');
   const [saving, setSaving] = useState(false);
+
+  // Deactivation confirmation dialog
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [deactivateConfirmText, setDeactivateConfirmText] = useState('');
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('');
@@ -70,17 +82,35 @@ export function ClubDetailClient({
     if (!result.success) toast.error(result.error);
   }
 
-  async function toggleActive() {
-    const newValue = !isActive;
-    setIsActive(newValue);
+  async function handleToggleActive() {
+    // Activating doesn't need confirmation
+    if (!isActive) {
+      setSaving(true);
+      const result = await updateClub(clubId, { isActive: true });
+      setSaving(false);
+      if (result.success) {
+        setIsActive(true);
+        toast.success('Clube ativado');
+      } else {
+        toast.error(result.error);
+      }
+      return;
+    }
+    // Deactivating — open confirmation dialog
+    setDeactivateConfirmText('');
+    setShowDeactivateDialog(true);
+  }
+
+  async function confirmDeactivate() {
+    setShowDeactivateDialog(false);
     setSaving(true);
-    const result = await updateClub(clubId, { isActive: newValue });
+    const result = await updateClub(clubId, { isActive: false });
     setSaving(false);
-    if (!result.success) {
-      setIsActive(!newValue);
-      toast.error(result.error);
+    if (result.success) {
+      setIsActive(false);
+      toast.success('Clube desativado');
     } else {
-      toast.success(newValue ? 'Clube ativado' : 'Clube desativado');
+      toast.error(result.error);
     }
   }
 
@@ -112,8 +142,57 @@ export function ClubDetailClient({
     else toast.error(result.error ?? 'Erro');
   }
 
+  async function handleDetailsSave() {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast.error('O nome do clube não pode estar vazio');
+      return;
+    }
+    setSaving(true);
+    const result = await updateClub(clubId, {
+      name: trimmedName,
+      logoUrl: logoUrl.trim() || undefined,
+    });
+    setSaving(false);
+    if (result.success) toast.success('Dados do clube atualizados');
+    else toast.error(result.error);
+  }
+
   return (
     <div className="space-y-8">
+      {/* Club details — name + logo */}
+      <div className="rounded-lg border bg-white p-4">
+        <h2 className="font-semibold mb-3">Dados do Clube</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium" htmlFor="club-name">Nome</label>
+            <input
+              id="club-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full rounded-md border px-3 py-1.5 text-sm"
+              placeholder="Nome do clube"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium" htmlFor="club-logo">Logo (URL)</label>
+            <input
+              id="club-logo"
+              type="url"
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              placeholder="https://exemplo.com/logo.png"
+              className="mt-1 w-full rounded-md border px-3 py-1.5 text-sm"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">URL da imagem do logo (PNG, SVG, etc.)</p>
+          </div>
+          <Button size="sm" onClick={handleDetailsSave} disabled={saving}>
+            Guardar
+          </Button>
+        </div>
+      </div>
+
       {/* Active toggle */}
       <div className="rounded-lg border bg-white p-4">
         <div className="flex items-center justify-between">
@@ -124,13 +203,49 @@ export function ClubDetailClient({
           <Button
             variant={isActive ? 'destructive' : 'default'}
             size="sm"
-            onClick={toggleActive}
+            onClick={handleToggleActive}
             disabled={saving}
           >
             {isActive ? 'Desativar' : 'Ativar'}
           </Button>
         </div>
       </div>
+
+      {/* Deactivation confirmation dialog */}
+      <Dialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desativar clube</DialogTitle>
+            <DialogDescription>
+              Todos os membros perdem acesso imediatamente. Para confirmar, escreve o nome do clube:
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <p className="mb-2 text-sm font-semibold">{clubName}</p>
+            <input
+              type="text"
+              value={deactivateConfirmText}
+              onChange={(e) => setDeactivateConfirmText(e.target.value)}
+              placeholder="Escreve o nome do clube"
+              className="w-full rounded-md border px-3 py-1.5 text-sm"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setShowDeactivateDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={confirmDeactivate}
+              disabled={deactivateConfirmText !== clubName}
+            >
+              Desativar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Feature toggles */}
       <div className="rounded-lg border bg-white p-4">

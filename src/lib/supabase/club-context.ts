@@ -8,6 +8,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import type { UserRole } from '@/lib/types';
 
 export const CLUB_COOKIE = 'eskout-club-id';
+export const ROLE_OVERRIDE_COOKIE = 'eskout-role-override';
 
 export interface ClubContext {
   clubId: string;
@@ -66,9 +67,18 @@ export async function getActiveClub(): Promise<ClubContext> {
     settings: Record<string, unknown>;
   };
 
+  const isSuperadmin = profile?.is_superadmin ?? false;
+
+  // Superadmin role impersonation — override role from cookie for testing
+  let effectiveRole = membership.role as UserRole;
+  if (isSuperadmin) {
+    const roleOverride = cookieStore.get(ROLE_OVERRIDE_COOKIE)?.value as UserRole | undefined;
+    if (roleOverride) effectiveRole = roleOverride;
+  }
+
   return {
     clubId: club.id,
-    role: membership.role as UserRole,
+    role: effectiveRole,
     club: {
       id: club.id,
       name: club.name,
@@ -78,7 +88,7 @@ export async function getActiveClub(): Promise<ClubContext> {
       settings: club.settings ?? {},
     },
     userId: user.id,
-    isSuperadmin: profile?.is_superadmin ?? false,
+    isSuperadmin,
   };
 }
 
