@@ -10,8 +10,8 @@ export default function MasterLayout({ children }: { children: React.ReactNode }
     <div className="min-h-screen bg-neutral-50">
       <MasterSidebar />
 
-      {/* Main content */}
-      <main className="lg:ml-64 p-6 md:p-8">
+      {/* Main content — no left margin on mobile (sidebar hidden, hamburger header used instead) */}
+      <main className="p-4 md:p-8 lg:ml-64">
         {children}
       </main>
     </div>

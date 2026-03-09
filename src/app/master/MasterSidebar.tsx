@@ -1,14 +1,15 @@
 // src/app/master/MasterSidebar.tsx
-// Sidebar for superadmin panel — Dashboard, Clubes
-// Mirrors club sidebar structure but with platform-level navigation
+// Sidebar + mobile drawer for superadmin panel — Dashboard, Clubes, Utilizadores, Online
+// Desktop: fixed sidebar. Mobile: hamburger header + slide-out drawer.
 // RELEVANT FILES: src/app/master/layout.tsx, src/components/layout/Sidebar.tsx
 
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, Users, Wifi, ArrowLeftRight, Palette, LogOut } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, Wifi, ArrowLeftRight, Palette, LogOut, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -20,17 +21,11 @@ const NAV_ITEMS = [
   { href: '/master/online', label: 'Online', icon: Wifi, exact: false },
 ];
 
-export function MasterSidebar() {
-  const pathname = usePathname();
+/* ───────────── Shared nav content ───────────── */
 
+function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-white lg:h-screen lg:fixed lg:left-0 lg:top-0">
-      {/* Header */}
-      <div className="flex items-center gap-2 border-b px-4 py-4">
-        <Image src="/logo-icon.svg" alt="" width={28} height={28} />
-        <span className="text-xl font-bold tracking-tight text-purple-700">Gestão Eskout</span>
-      </div>
-
+    <>
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
@@ -44,6 +39,7 @@ export function MasterSidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onNavigate}
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     isActive
@@ -64,6 +60,7 @@ export function MasterSidebar() {
       <div className="border-t px-3 py-3 space-y-1">
         <Link
           href="/escolher-clube"
+          onClick={onNavigate}
           className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
         >
           <ArrowLeftRight className="h-4 w-4" />
@@ -71,6 +68,7 @@ export function MasterSidebar() {
         </Link>
         <Link
           href="/preferencias"
+          onClick={onNavigate}
           className={cn(
             'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
             pathname === '/preferencias'
@@ -88,6 +86,72 @@ export function MasterSidebar() {
           </Button>
         </form>
       </div>
-    </aside>
+    </>
+  );
+}
+
+/* ───────────── Main export ───────────── */
+
+export function MasterSidebar() {
+  const pathname = usePathname();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r lg:bg-white lg:h-screen lg:fixed lg:left-0 lg:top-0">
+        <div className="flex items-center gap-2 border-b px-4 py-4">
+          <Image src="/logo-icon.svg" alt="" width={28} height={28} />
+          <span className="text-xl font-bold tracking-tight text-purple-700">Gestão Eskout</span>
+        </div>
+        <NavContent pathname={pathname} />
+      </aside>
+
+      {/* Mobile header with hamburger */}
+      <header className="sticky top-0 z-40 flex items-center border-b bg-white px-4 py-3 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="mr-3 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          aria-label="Abrir menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="flex items-center gap-2">
+          <Image src="/logo-icon.svg" alt="" width={24} height={24} />
+          <span className="text-lg font-bold tracking-tight text-purple-700">Gestão Eskout</span>
+        </div>
+      </header>
+
+      {/* Mobile drawer overlay */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden" aria-modal="true" role="dialog">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 transition-opacity"
+            onClick={() => setDrawerOpen(false)}
+          />
+          {/* Drawer panel */}
+          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl animate-in slide-in-from-left duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b px-4 py-4">
+              <div className="flex items-center gap-2">
+                <Image src="/logo-icon.svg" alt="" width={28} height={28} />
+                <span className="text-xl font-bold tracking-tight text-purple-700">Gestão Eskout</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
+                aria-label="Fechar menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <NavContent pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
