@@ -973,7 +973,11 @@ export async function applyScrapedData(
     zzLinkFound?: string;
   }
 ): Promise<{ success: boolean }> {
-  const { clubId } = await getActiveClub();
+  const { clubId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false };
+  }
+
   const supabase = await createClient();
   const dbUpdates: Record<string, unknown> = {};
 
@@ -1238,7 +1242,10 @@ export async function bulkScrapeExternalData(
   limit: number,
   sources: ('fpf' | 'zerozero')[]
 ): Promise<BulkUpdateProgress & { hasMore: boolean }> {
-  const { clubId } = await getActiveClub();
+  const { clubId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { total: 0, processed: 0, fpfUpdated: 0, zzUpdated: 0, errors: 0, hasMore: false };
+  }
   const supabase = await createClient();
 
   let query = supabase.from('players').select('id, name, dob, fpf_link, zerozero_link, club, photo_url, zz_photo_url, height, weight, birth_country, nationality', { count: 'exact' }).eq('club_id', clubId);

@@ -285,15 +285,53 @@ const TRACKED_FIELDS = [
   'observer_decision',
 ] as const;
 
+// Whitelist of columns that can be updated via updatePlayer — prevents arbitrary field injection
+const ALLOWED_UPDATE_FIELDS = new Set([
+  // Basic info
+  'name', 'dob', 'club', 'position_normalized', 'secondary_position', 'tertiary_position',
+  'foot', 'shirt_number', 'contact', 'nationality', 'birth_country', 'height', 'weight',
+  // Scouting
+  'department_opinion', 'observer', 'observer_eval', 'observer_decision',
+  'referred_by', 'referred_by_user_id', 'notes',
+  // Pipeline & squads
+  'recruitment_status', 'is_shadow_squad', 'shadow_position', 'shadow_order',
+  'is_real_squad', 'real_squad_position', 'real_order', 'pipeline_order',
+  'training_date', 'meeting_date', 'signing_date',
+  // External data
+  'fpf_link', 'zerozero_link', 'photo_url', 'club_logo_url',
+  'fpf_current_club', 'fpf_last_checked', 'fpf_photo_url',
+  'zz_club', 'zz_team', 'zz_games', 'zz_goals', 'zz_assists',
+  'zz_photo_url', 'zz_height', 'zz_weight', 'zz_history', 'zz_last_checked',
+  // Admin
+  'pending_approval', 'admin_reviewed', 'age_group_id',
+]);
+
 export async function updatePlayer(
   playerId: number,
   updates: Record<string, unknown>
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+
+  // Role check — scouts and recruiters cannot edit player profiles directly
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para editar jogadores' };
+  }
+
+  // Strip any fields not in the whitelist to prevent arbitrary column injection
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(updates)) {
+    if (ALLOWED_UPDATE_FIELDS.has(key)) {
+      sanitized[key] = value;
+    }
+  }
+  if (Object.keys(sanitized).length === 0) {
+    return { success: false, error: 'Nenhum campo válido para atualizar' };
+  }
+
   const supabase = await createClient();
 
   // Fetch current values for tracked fields so we can detect changes
-  const trackedInUpdates = TRACKED_FIELDS.filter((f) => f in updates);
+  const trackedInUpdates = TRACKED_FIELDS.filter((f) => f in sanitized);
   let oldValues: Record<string, unknown> = {};
 
   if (trackedInUpdates.length > 0) {
@@ -308,7 +346,7 @@ export async function updatePlayer(
 
   const { error } = await supabase
     .from('players')
-    .update(updates)
+    .update(sanitized)
     .eq('id', playerId)
     .eq('club_id', clubId);
 
@@ -320,7 +358,7 @@ export async function updatePlayer(
   if (trackedInUpdates.length > 0) {
     for (const field of trackedInUpdates) {
       const oldVal = oldValues[field];
-      const newVal = updates[field];
+      const newVal = sanitized[field];
       // Stringify for comparison (arrays like department_opinion)
       const oldStr = oldVal == null ? null : (Array.isArray(oldVal) ? oldVal.join(', ') : String(oldVal));
       const newStr = newVal == null ? null : (Array.isArray(newVal) ? (newVal as string[]).join(', ') : String(newVal));
@@ -343,7 +381,7 @@ export async function updatePlayer(
   revalidatePath('/pipeline');
   revalidatePath('/campo');
 
-  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId, Object.keys(updates));
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId, Object.keys(sanitized));
 
   return { success: true };
 }

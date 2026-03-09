@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 
 // ExcelJS needs Node.js runtime (uses streams/Buffer)
 export const runtime = 'nodejs';
@@ -42,16 +43,19 @@ const COLUMNS: { header: string; key: string; width: number }[] = [
 /* ───────────── Route Handler ───────────── */
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-
-  // Auth check — admin/editor only
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin' && profile?.role !== 'editor') {
-    return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+  // Auth + role check via club context (verifies membership + scopes to club)
+  let clubId: string;
+  try {
+    const ctx = await getActiveClub();
+    if (ctx.role !== 'admin' && ctx.role !== 'editor') {
+      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+    }
+    clubId = ctx.clubId;
+  } catch {
+    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   // Parse filters from query params
   const params = req.nextUrl.searchParams;
@@ -64,10 +68,11 @@ export async function GET(req: NextRequest) {
   const realSquad = params.get('realSquad');
   const shadowSquad = params.get('shadowSquad');
 
-  // Build query
+  // Build query — scoped to active club
   let query = supabase
     .from('players')
     .select('*, age_groups(name)')
+    .eq('club_id', clubId)
     .order('name');
 
   if (ageGroupId && ageGroupId !== 'all') query = query.eq('age_group_id', parseInt(ageGroupId, 10));

@@ -87,7 +87,10 @@ export async function dismissFlaggedNote(
   noteId: number,
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para dispensar notas' };
+  }
   const supabase = await createClient();
 
   const { error } = await supabase

@@ -100,7 +100,11 @@ export async function createCalendarEvent(formData: {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir calendário' };
+  }
+
   const supabase = await createClient();
 
   // Resolve assignee name from profile if a user was selected
@@ -170,7 +174,10 @@ export async function updateCalendarEvent(
     assigneeName?: string;
   }
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir calendário' };
+  }
   const supabase = await createClient();
 
   // Build update payload — only include provided fields
@@ -233,7 +240,10 @@ export async function updateCalendarEvent(
 /* ───────────── Delete Event ───────────── */
 
 export async function deleteCalendarEvent(eventId: number): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir calendário' };
+  }
   const supabase = await createClient();
 
   // Fetch event before deleting — need player_id and event_type for pipeline sync

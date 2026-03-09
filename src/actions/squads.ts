@@ -46,7 +46,10 @@ export async function addToShadowSquad(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
   const supabase = await createClient();
 
   // Get current state for history
@@ -94,7 +97,10 @@ export async function addToShadowSquad(
 export async function removeFromShadowSquad(
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
   const supabase = await createClient();
 
   // Get current state for history
@@ -140,7 +146,10 @@ export async function toggleRealSquad(
   /** Age group to assign — used for cross-age-group "call ups" */
   ageGroupId?: number
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
   const supabase = await createClient();
 
   // When adding to real squad with a specific position, update real_squad_position (NOT position_normalized)
@@ -189,7 +198,10 @@ export async function reorderSquadPlayer(
   newOrder: number,
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
   const supabase = await createClient();
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
@@ -214,7 +226,10 @@ export async function bulkReorderSquad(
   updates: { playerId: number; order: number }[],
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
   const supabase = await createClient();
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
@@ -244,7 +259,10 @@ export async function moveSquadPlayerPosition(
   newOrder: number,
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
   const supabase = await createClient();
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';

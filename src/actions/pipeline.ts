@@ -117,7 +117,10 @@ export async function updateRecruitmentStatus(
     }
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para alterar estado de recrutamento' };
+  }
   const supabase = await createClient();
 
   // Get current status and date fields for richer history context
@@ -198,7 +201,10 @@ export async function reorderPipelineCards(
 ): Promise<ActionResponse> {
   if (updates.length === 0) return { success: true };
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
   const supabase = await createClient();
 
   // Small N per column, sequential is fine
@@ -225,7 +231,10 @@ export async function updateTrainingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
   const supabase = await createClient();
 
   // Get old value for history
@@ -274,7 +283,10 @@ export async function updateSigningDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
   const supabase = await createClient();
 
   // Get old value for history
@@ -323,7 +335,10 @@ export async function updateMeetingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout' || role === 'recruiter') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
   const supabase = await createClient();
 
   // Get old value for history
