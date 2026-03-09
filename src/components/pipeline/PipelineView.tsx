@@ -16,7 +16,6 @@ import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { updateRecruitmentStatus, reorderPipelineCards } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
-import { StatusList } from '@/components/pipeline/StatusList';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';

@@ -4,7 +4,7 @@
 // RELEVANT FILES: src/lib/constants.ts, src/lib/types/index.ts, src/components/players/PlayerCard.tsx
 
 import { cn } from '@/lib/utils';
-import { OPINION_COLOR_MAP, DEPARTMENT_OPINIONS } from '@/lib/constants';
+import { OPINION_COLOR_MAP } from '@/lib/constants';
 import type { DepartmentOpinion } from '@/lib/types';
 
 /** Softer color variants for the strip style — border + tinted bg instead of solid */

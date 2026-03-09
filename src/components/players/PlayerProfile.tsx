@@ -10,7 +10,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Flag, Footprints, Handshake, Loader2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Save, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Footprints, Handshake, Loader2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import {
   AlertDialog,
@@ -28,10 +28,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
 // Card components used by other pages — Section below uses custom layout
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import {
   Select,
@@ -42,7 +40,6 @@ import {
 } from '@/components/ui/select';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { StatusBadge } from '@/components/common/StatusBadge';
 import { ClubBadge } from '@/components/common/ClubBadge';
 import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
 import {
@@ -57,12 +54,9 @@ import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
 import {
   POSITION_LABELS,
-  POSITIONS,
   DEPARTMENT_OPINIONS,
-  FOOT_OPTIONS,
   FOOT_LABEL_MAP,
   OBSERVER_DECISIONS,
-  RECRUITMENT_STATUSES,
   RECRUITMENT_LABEL_MAP,
   NATIONALITIES,
   getNationalityFlag,
@@ -1445,25 +1439,6 @@ function InfoChip({ icon, label, value, linked, wrap }: { icon: React.ReactNode;
   );
 }
 
-function InfoGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-2 gap-2">{children}</div>
-  );
-}
-
-function InfoItem({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="rounded-lg bg-neutral-50 px-2.5 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">{label}</p>
-      {highlight ? (
-        <p className="mt-0.5 truncate text-sm font-bold">{value}</p>
-      ) : (
-        <p className="mt-0.5 truncate text-sm font-medium">{value}</p>
-      )}
-    </div>
-  );
-}
-
 /* ───────────── Shirt Number Picker ───────────── */
 
 /** SVG jersey silhouette (back view) with number */
@@ -1989,22 +1964,7 @@ function statusDescription(status: RecruitmentStatus | null): string {
   return map[status ?? ''] ?? '';
 }
 
-function statusCardStyle(status: RecruitmentStatus | null): { border: string; bg: string } {
-  const map: Record<string, { border: string; bg: string }> = {
-    por_tratar: { border: 'border-l-neutral-400', bg: 'bg-neutral-50/60' },
-    a_observar: { border: 'border-l-yellow-500', bg: 'bg-yellow-50/60' },
-    em_contacto: { border: 'border-l-purple-500', bg: 'bg-purple-50/60' },
-    vir_treinar: { border: 'border-l-blue-500', bg: 'bg-blue-50/60' },
-    reuniao_marcada: { border: 'border-l-orange-500', bg: 'bg-orange-50/60' },
-    a_decidir: { border: 'border-l-blue-800', bg: 'bg-blue-50/60' },
-    confirmado: { border: 'border-l-green-500', bg: 'bg-green-50/60' },
-    assinou: { border: 'border-l-green-700', bg: 'bg-green-50/60' },
-    rejeitado: { border: 'border-l-red-500', bg: 'bg-red-50/60' },
-  };
-  return map[status ?? ''] ?? { border: 'border-l-neutral-300', bg: 'bg-neutral-50/60' };
-}
-
-/* ───────────── Rating color map (shared by header widgets + EvalRating) ───────────── */
+/* ───────────── Rating color map (shared by header widgets) ───────────── */
 
 const RATING_COLOR_MAP: Record<number, { dot: string; num: string; bg: string; border: string; ring: string }> = {
   1: { dot: 'bg-red-500', num: 'text-red-600', bg: 'bg-red-50/80', border: 'border-red-200', ring: 'border-red-400' },
@@ -2021,53 +1981,6 @@ function parseRating(value: string) {
   const ratingText = value.replace(/^\d\s*-\s*/, '');
   const colors = RATING_COLOR_MAP[rating] ?? RATING_DEFAULT;
   return { rating, ratingText, colors };
-}
-
-/** Observer evaluation rating — 1-5 scale with colored dots and label */
-function EvalRating({ label, value }: { label: string; value: string }) {
-  if (!value) {
-    return <InfoItem label={label} value="—" />;
-  }
-
-  // Extract numeric rating from values like "4 - Muito Bom"
-  const numMatch = value.match(/^(\d)/);
-  const rating = numMatch ? parseInt(numMatch[1], 10) : 0;
-  const maxRating = 5;
-
-  // Rating text (after the number)
-  const ratingText = value.replace(/^\d\s*-\s*/, '');
-
-  // Color per rating level
-  const RATING_COLORS: Record<number, { dot: string; text: string; bg: string }> = {
-    1: { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50' },
-    2: { dot: 'bg-orange-400', text: 'text-orange-700', bg: 'bg-orange-50' },
-    3: { dot: 'bg-blue-400', text: 'text-blue-700', bg: 'bg-blue-50' },
-    4: { dot: 'bg-emerald-400', text: 'text-emerald-700', bg: 'bg-emerald-50' },
-    5: { dot: 'bg-emerald-600', text: 'text-emerald-800', bg: 'bg-emerald-50' },
-  };
-
-  const colors = RATING_COLORS[rating] ?? { dot: 'bg-neutral-300', text: 'text-neutral-600', bg: 'bg-neutral-50' };
-
-  return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="mt-0.5 flex items-center gap-2">
-        {/* Dots */}
-        <div className="flex gap-0.5">
-          {Array.from({ length: maxRating }, (_, i) => (
-            <div
-              key={i}
-              className={`h-2 w-2 rounded-full ${i < rating ? colors.dot : 'bg-neutral-200'}`}
-            />
-          ))}
-        </div>
-        {/* Label */}
-        <span className={`rounded px-1.5 py-px text-xs font-semibold ${colors.text} ${colors.bg}`}>
-          {ratingText || value}
-        </span>
-      </div>
-    </div>
-  );
 }
 
 /** First name + last name (e.g. "Leonardo Diego Baptista Santos" → "Leonardo Santos") */

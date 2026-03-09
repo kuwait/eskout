@@ -20,7 +20,7 @@ import { AddToSquadDialog } from '@/components/squad/AddToSquadDialog';
 import { addToShadowSquad, removeFromShadowSquad, toggleRealSquad, bulkReorderSquad, moveSquadPlayerPosition } from '@/actions/squads';
 import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import type { Player, PlayerRow, PositionCode } from '@/lib/types';
+import type { Player, PlayerRow } from '@/lib/types';
 
 type ViewMode = 'campo' | 'lista' | 'comparar';
 

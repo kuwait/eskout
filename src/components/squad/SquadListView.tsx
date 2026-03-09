@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { SQUAD_SLOTS, POSITION_LABELS, type SquadSlot } from '@/lib/constants';
+import { SQUAD_SLOTS, POSITION_LABELS } from '@/lib/constants';
 import type { Player, PositionCode } from '@/lib/types';
 
 /* ───────────── Rank styling ───────────── */
@@ -46,6 +46,7 @@ interface SquadListViewProps {
 
 /* ───────────── Component ───────────── */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick }: SquadListViewProps) {
   return (
     <div className="space-y-4">

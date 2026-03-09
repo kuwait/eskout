@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Plus, Trash2, User } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -123,9 +124,12 @@ function DraggablePlayerCard({
       {/* Compact card: photo + name + club only */}
       <div className="flex items-center gap-1.5 p-1.5">
         {photoUrl ? (
-          <img
+          <Image
             src={photoUrl}
             alt=""
+            width={28}
+            height={28}
+            unoptimized
             className="h-7 w-7 shrink-0 rounded object-cover"
           />
         ) : (

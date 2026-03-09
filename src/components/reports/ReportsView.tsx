@@ -8,7 +8,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import Link from 'next/link';
 import { Search, Star, FileText } from 'lucide-react';
 import { ReportFilters } from './ReportFilters';
 import { ReportPagination } from './ReportPagination';

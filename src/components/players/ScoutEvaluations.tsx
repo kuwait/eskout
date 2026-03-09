@@ -10,7 +10,6 @@ import { Star, ChevronRight, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
   DialogClose,

@@ -5,7 +5,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Shield, Plus, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, CheckCircle, XCircle } from 'lucide-react';
 import { createServiceClient } from '@/lib/supabase/server';
 import { CreateClubForm } from './CreateClubForm';
 

@@ -6,7 +6,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, FileText, Image, MessageCircle, Printer, Copy, Check, Camera } from 'lucide-react';
+import { Download, FileText, Image as ImageIcon, MessageCircle, Printer, Copy, Check, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -73,7 +73,7 @@ export function SquadExportMenu({ data, captureRef }: SquadExportMenuProps) {
           PDF (visual)
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => { if (captureRef.current) withLoading(() => exportAsImage(captureRef.current!, data)); }}>
-          <Image className="h-4 w-4" />
+          <ImageIcon className="h-4 w-4" />
           Imagem (PNG)
         </DropdownMenuItem>
 

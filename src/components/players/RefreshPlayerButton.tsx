@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { scrapePlayerAll, applyScrapedData, type ScrapedChanges } from '@/actions/scraping';
 import { POSITIONS } from '@/lib/constants';
-import type { Player, PositionCode } from '@/lib/types';
+import type { Player } from '@/lib/types';
 
 interface RefreshPlayerButtonProps {
   player: Player;

@@ -113,21 +113,6 @@ export function CalendarView({ events, profiles, allPlayers, year, month, initia
     }
   }
 
-  function goToToday() {
-    const now = new Date();
-    if (view === 'week') {
-      const todayStr = now.toISOString().split('T')[0];
-      const todayWeek = getWeekRange(todayStr).start;
-      if (now.getFullYear() === year && now.getMonth() + 1 === month) {
-        setWeekStart(todayWeek);
-      } else {
-        startNavigation(() => router.push(`/calendario?view=week&date=${todayStr}&year=${now.getFullYear()}&month=${now.getMonth() + 1}`));
-      }
-    } else {
-      startNavigation(() => router.push(`/calendario?year=${now.getFullYear()}&month=${now.getMonth() + 1}`));
-    }
-  }
-
   function switchView(newView: CalendarViewType) {
     if (newView === view) return;
     if (newView === 'week') {

@@ -6,7 +6,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, ExternalLink, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import {
   Sheet, SheetContent, SheetFooter, SheetTitle,
 } from '@/components/ui/sheet';

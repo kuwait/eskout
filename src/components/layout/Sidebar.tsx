@@ -41,6 +41,7 @@ export function Sidebar({
   alertCounts,
   userRole,
   clubInfo,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isSuperadmin,
 }: {
   alertCounts: AlertCounts;

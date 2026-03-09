@@ -6,7 +6,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Clock, GitBranch, MapPin, Plus, Users } from 'lucide-react';
+import { GitBranch, MapPin, Plus, Users } from 'lucide-react';
 import type { CalendarEvent } from '@/lib/types';
 import { EVENT_TYPE_COLOR_MAP, EVENT_TYPE_LABEL_MAP } from '@/lib/constants';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';

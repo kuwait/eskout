@@ -6,7 +6,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, X, ExternalLink, User } from 'lucide-react';
+import { FileText, X, ExternalLink } from 'lucide-react';
 import type { ScoutingReport } from '@/lib/types';
 
 /* ───────────── Rating Colors ───────────── */

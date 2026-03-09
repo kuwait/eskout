@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Loader2, Globe, PenLine, CheckCircle2, AlertCircle, Search, ArrowLeft } from 'lucide-react';
 import { createPlayer } from '@/actions/players';
@@ -285,9 +286,12 @@ export function PlayerForm() {
         <div className="overflow-hidden rounded-2xl border border-green-100 bg-gradient-to-br from-green-50 to-white">
           <div className="flex items-center gap-3 p-4">
             {fields.photoUrl ? (
-              <img
+              <Image
                 src={fields.photoUrl}
                 alt={fields.name || 'Foto'}
+                width={64}
+                height={64}
+                unoptimized
                 className="h-16 w-16 rounded-xl border-2 border-white object-cover shadow-sm"
               />
             ) : (

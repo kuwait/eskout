@@ -26,7 +26,7 @@ interface CalendarListProps {
 
 /* ───────────── Component ───────────── */
 
-export function CalendarList({ events, year, month, onEventClick }: CalendarListProps) {
+export function CalendarList({ events, onEventClick }: CalendarListProps) {
   // Group events by date
   const grouped = new Map<string, CalendarEvent[]>();
   for (const event of events) {

@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import { User } from 'lucide-react';
 import { POSITION_LABELS } from '@/lib/constants';
@@ -101,9 +102,12 @@ export function PlayerAvatar({ player, size = 20, className = '' }: PlayerAvatar
         onClick={handleClick}
       >
         {player.photoUrl ? (
-          <img
+          <Image
             src={player.photoUrl}
             alt=""
+            width={size}
+            height={size}
+            unoptimized
             className="rounded-full object-cover"
             style={{ width: size, height: size }}
           />
@@ -125,9 +129,12 @@ export function PlayerAvatar({ player, size = 20, className = '' }: PlayerAvatar
         >
           <div className="flex items-center gap-3">
             {player.photoUrl ? (
-              <img
+              <Image
                 src={player.photoUrl}
                 alt=""
+                width={tooltipPhotoSize}
+                height={tooltipPhotoSize}
+                unoptimized
                 className="shrink-0 rounded-lg object-cover"
                 style={{ width: tooltipPhotoSize, height: tooltipPhotoSize }}
               />

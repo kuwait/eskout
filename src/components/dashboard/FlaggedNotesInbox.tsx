@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Flag, Pencil, X, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -248,9 +249,12 @@ function NoteCard({ note, onDismiss, onEdit, onNavigate }: {
       <div className="flex items-center gap-2.5">
         <button onClick={onNavigate} className="shrink-0">
           {note.playerPhotoUrl ? (
-            <img
+            <Image
               src={note.playerPhotoUrl}
               alt={note.playerName}
+              width={36}
+              height={36}
+              unoptimized
               className={`h-9 w-9 rounded-lg border object-cover ${style.photoBorder}`}
             />
           ) : (

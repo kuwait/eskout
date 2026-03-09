@@ -49,6 +49,7 @@ export function MobileDrawer({
   alertCounts,
   userRole,
   clubInfo,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isSuperadmin,
 }: {
   open: boolean;

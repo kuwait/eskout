@@ -24,9 +24,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { POSITION_LABELS, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, AGE_GROUPS } from '@/lib/constants';
+import { POSITION_LABELS, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { addToShadowSquad, toggleRealSquad } from '@/actions/squads';
-import type { DepartmentOpinion, Player, PositionCode } from '@/lib/types';
+import type { DepartmentOpinion, Player } from '@/lib/types';
 
 interface AddToSquadDialogProps {
   open: boolean;

@@ -28,8 +28,7 @@ import type {
 /** Disconnect WebSocket after this many ms of inactivity */
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-/** After idle disconnect, poll badge counts at this interval */
-const _IDLE_POLL_INTERVAL_MS = 30 * 1000; // 30 seconds
+// IDLE_POLL_INTERVAL_MS reserved for future idle-poll feature (30s)
 
 /** Debounce rapid-fire events — batch refetches within this window */
 const EVENT_DEBOUNCE_MS = 300;
@@ -85,7 +84,8 @@ export function RealtimeProvider({
   clubId,
   userId,
   userName,
-  userRole: _userRole,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  userRole,
 }: RealtimeProviderProps) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [status, setStatus] = useState<RealtimeConnectionStatus>('connecting');

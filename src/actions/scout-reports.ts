@@ -9,7 +9,6 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
-import { normalizePosition } from '@/lib/utils/positions';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 
 /* ───────────── Types ───────────── */

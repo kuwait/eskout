@@ -5,11 +5,12 @@
 
 'use client';
 
+import Image from 'next/image';
 import { User } from 'lucide-react';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { SQUAD_SLOTS, type SquadSlot } from '@/lib/constants';
-import type { Player, PositionCode } from '@/lib/types';
+import { SQUAD_SLOTS } from '@/lib/constants';
+import type { Player } from '@/lib/types';
 
 /* ───────────── Rank colors for shadow ───────────── */
 
@@ -50,7 +51,7 @@ function MiniCard({ player, rank, onPlayerClick }: { player: Player; rank?: numb
 
       {/* Photo */}
       {photoUrl ? (
-        <img src={photoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+        <Image src={photoUrl} alt="" width={36} height={36} unoptimized className="h-9 w-9 shrink-0 rounded-lg object-cover" />
       ) : (
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-400">
           <User className="h-4 w-4" />
