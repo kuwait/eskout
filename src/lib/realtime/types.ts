@@ -14,6 +14,7 @@ export const REALTIME_TABLES = [
   'status_history',
   'calendar_events',
   'club_memberships',
+  'player_added_dismissals',
 ] as const;
 
 export type RealtimeTable = (typeof REALTIME_TABLES)[number];

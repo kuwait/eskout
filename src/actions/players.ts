@@ -238,7 +238,7 @@ export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
 
 /** Dismiss a player from the current user's "Jogadores Adicionados" list (per-user) */
 export async function dismissPlayerReview(playerId: number): Promise<ActionResponse> {
-  const { role, userId } = await getActiveClub();
+  const { clubId, role, userId } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -251,6 +251,7 @@ export async function dismissPlayerReview(playerId: number): Promise<ActionRespo
   if (error) return { success: false, error: error.message };
 
   revalidatePath('/admin/pendentes');
+  await broadcastRowMutation(clubId, 'player_added_dismissals', 'INSERT', userId, playerId);
   return { success: true };
 }
 
@@ -291,6 +292,7 @@ export async function dismissAllPlayerReviews(): Promise<ActionResponse> {
   }
 
   revalidatePath('/admin/pendentes');
+  await broadcastBulkMutation(clubId, 'player_added_dismissals', userId);
   return { success: true };
 }
 
