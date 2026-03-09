@@ -100,16 +100,20 @@ All development phases — completed and planned.
 
 ---
 
-## Phase 6 — Multi-Tenant (Multi-Club Platform)
+## Phase 6 — Multi-Tenant (Multi-Club Platform) ✅ COMPLETE
 
-Transform into multi-club SaaS. Row-level isolation via `club_id`. Single domain `app.eskout.co`.
+Multi-club SaaS with row-level isolation via `club_id`. Single domain `app.eskout.co`.
 
-**Sub-phases:**
-- **6A:** Schema + RLS + auth context
-- **6B:** Superadmin panel (`/master`)
-- **6C:** Club picker + switcher + branding
-- **6D:** Feature toggles + route gating
-- **6E:** Invitation system
+- [x] **6A:** Schema + RLS + auth context (`club_id` on all tables, `user_club_ids()`, `user_club_role()`)
+- [x] **6B:** Superadmin panel (`/master`) — dashboard, clubes, utilizadores, online monitoring
+- [x] **6C:** Club picker (`/escolher-clube`) + switcher + club branding (logo, name)
+- [x] **6D:** Feature toggles + route gating (middleware, role checks, recruiter role)
+- [x] **6E:** Invitation system (user management, set password, soft delete)
+- [x] Security hardening: RLS tightening, column-level protection triggers, SSRF prevention
+- [x] Presence tracking: heartbeat, online users page, heatmap, activity feed
+- [x] Test club filtering (`is_test` flag)
+
+**Deliverable:** Fully multi-tenant platform with superadmin management.
 
 ---
 

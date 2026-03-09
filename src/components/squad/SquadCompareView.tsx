@@ -6,7 +6,7 @@
 'use client';
 
 import Image from 'next/image';
-import { User } from 'lucide-react';
+import { User, Trash2 } from 'lucide-react';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SQUAD_SLOTS } from '@/lib/constants';
@@ -29,7 +29,7 @@ function displayName(name: string): string {
 
 /* ───────────── Mini player card ───────────── */
 
-function MiniCard({ player, rank, onPlayerClick }: { player: Player; rank?: number; onPlayerClick?: (id: number) => void }) {
+function MiniCard({ player, rank, onPlayerClick, onRemove }: { player: Player; rank?: number; onPlayerClick?: (id: number) => void; onRemove?: (id: number) => void }) {
   const photoUrl = player.photoUrl || player.zzPhotoUrl;
   const dobLabel = player.dob
     ? (() => { try { return new Date(player.dob!).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return player.dob; } })()
@@ -37,7 +37,7 @@ function MiniCard({ player, rank, onPlayerClick }: { player: Player; rank?: numb
 
   return (
     <div
-      className="flex items-center gap-2 rounded-md border bg-white p-2 cursor-pointer transition-colors hover:bg-neutral-50"
+      className="group flex items-center gap-2 rounded-md border bg-white p-2 cursor-pointer transition-colors hover:bg-neutral-50"
       onClick={() => onPlayerClick?.(player.id)}
     >
       {/* Rank dot */}
@@ -73,6 +73,17 @@ function MiniCard({ player, rank, onPlayerClick }: { player: Player; rank?: numb
           )}
         </div>
       </div>
+
+      {/* Remove button */}
+      {onRemove && (
+        <button
+          className="shrink-0 rounded p-1 text-red-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
+          onClick={(e) => { e.stopPropagation(); onRemove(player.id); }}
+          aria-label={`Remover ${player.name}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -83,11 +94,13 @@ interface SquadCompareViewProps {
   realByPosition: Record<string, Player[]>;
   shadowByPosition: Record<string, Player[]>;
   onPlayerClick?: (playerId: number) => void;
+  onRemoveReal?: (playerId: number) => void;
+  onRemoveShadow?: (playerId: number) => void;
 }
 
 /* ───────────── Component ───────────── */
 
-export function SquadCompareView({ realByPosition, shadowByPosition, onPlayerClick }: SquadCompareViewProps) {
+export function SquadCompareView({ realByPosition, shadowByPosition, onPlayerClick, onRemoveReal, onRemoveShadow }: SquadCompareViewProps) {
   return (
     <div className="space-y-3">
       {/* Header row */}
@@ -131,7 +144,7 @@ export function SquadCompareView({ realByPosition, shadowByPosition, onPlayerCli
                   </div>
                 ) : (
                   realPlayers.map((p) => (
-                    <MiniCard key={p.id} player={p} onPlayerClick={onPlayerClick} />
+                    <MiniCard key={p.id} player={p} onPlayerClick={onPlayerClick} onRemove={onRemoveReal} />
                   ))
                 )}
               </div>
@@ -146,7 +159,7 @@ export function SquadCompareView({ realByPosition, shadowByPosition, onPlayerCli
                   </div>
                 ) : (
                   shadowPlayers.map((p, i) => (
-                    <MiniCard key={p.id} player={p} rank={i} onPlayerClick={onPlayerClick} />
+                    <MiniCard key={p.id} player={p} rank={i} onPlayerClick={onPlayerClick} onRemove={onRemoveShadow} />
                   ))
                 )}
               </div>

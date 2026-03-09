@@ -389,6 +389,18 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
           realByPosition={realPos}
           shadowByPosition={shadowPos}
           onPlayerClick={handlePlayerClick}
+          onRemoveReal={(id) => {
+            setAllPlayers((prev) => prev.map((p) => p.id === id ? { ...p, isRealSquad: false, realSquadPosition: null } : p));
+            toggleRealSquad(id, false).then((res) => {
+              if (!res.success) { console.error('toggleRealSquad failed:', res.error); fetchAllPlayers(); }
+            });
+          }}
+          onRemoveShadow={(id) => {
+            setAllPlayers((prev) => prev.map((p) => p.id === id ? { ...p, isShadowSquad: false, shadowPosition: null } : p));
+            removeFromShadowSquad(id).then((res) => {
+              if (!res.success) { console.error('removeFromShadowSquad failed:', res.error); fetchAllPlayers(); }
+            });
+          }}
         />
       )}
 

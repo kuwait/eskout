@@ -5,7 +5,7 @@
 
 'use client';
 
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
@@ -46,7 +46,6 @@ interface SquadListViewProps {
 
 /* ───────────── Component ───────────── */
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick }: SquadListViewProps) {
   return (
     <div className="space-y-4">
@@ -96,7 +95,7 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                   return (
                     <div
                       key={player.id}
-                      className={`relative flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-neutral-50 ${
+                      className={`group relative flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-neutral-50 ${
                         squadType === 'shadow' ? (RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200') : ''
                       }`}
                       onClick={() => onPlayerClick?.(player.id)}
@@ -156,6 +155,16 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                           )}
                         </div>
                       </div>
+
+                      {/* Remove button */}
+                      <button
+                        className="shrink-0 flex items-center gap-0.5 rounded bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-100"
+                        onClick={(e) => { e.stopPropagation(); onRemovePlayer(player.id); }}
+                        aria-label={`Remover ${player.name}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span className="hidden sm:inline">Remover</span>
+                      </button>
                     </div>
                   );
                 })}
