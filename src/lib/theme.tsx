@@ -34,10 +34,12 @@ const ThemeContext = createContext<{
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('eskout');
 
-  // Read saved theme on mount
+  // Read saved theme on mount — cannot use lazy initializer because
+  // localStorage is unavailable during SSR (ThemeProvider renders on server first)
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
     if (saved && THEMES.some((t) => t.id === saved)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe: must read localStorage in effect
       setThemeState(saved);
       if (saved !== 'eskout') {
         document.documentElement.setAttribute('data-theme', saved);

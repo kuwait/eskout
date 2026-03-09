@@ -3,7 +3,7 @@
 // Runs before all E2E tests; saved states are reused by test projects
 // RELEVANT FILES: playwright.config.ts, e2e/smoke.spec.ts
 
-import { test as setup, expect } from '@playwright/test';
+import { test as setup } from '@playwright/test';
 import path from 'path';
 
 const ADMIN_FILE = path.join(__dirname, 'auth', 'admin.json');
@@ -19,7 +19,7 @@ const EDITOR_EMAIL = process.env.TEST_EDITOR_EMAIL || 'editor@test.eskout.com';
 const EDITOR_PASSWORD = process.env.TEST_EDITOR_PASSWORD || 'test123456';
 
 async function loginAndSave(
-  page: ReturnType<Awaited<ReturnType<typeof setup.info>>['project']['use']['browserName'] extends string ? never : never> extends never ? any : any,
+  page: import('@playwright/test').Page,
   email: string,
   password: string,
   storageFile: string

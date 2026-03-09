@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useTransition, useEffect, useMemo } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Trash2, Loader2, UserPlus, Info } from 'lucide-react';
 import { toast } from 'sonner';
@@ -86,10 +86,9 @@ export function EventForm({ event, prefillDate, profiles, allPlayers, onClose }:
   const [assigneeUserId, setAssigneeUserId] = useState(event?.assigneeUserId ?? '');
   const [assigneeName, setAssigneeName] = useState(event?.assigneeName ?? '');
 
-  // Saved locations from localStorage
-  const [savedLocations, setSavedLocations] = useState<string[]>([]);
+  // Saved locations from localStorage (lazy initializer avoids useEffect)
+  const [savedLocations] = useState(() => getSavedLocations());
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
-  useEffect(() => { setSavedLocations(getSavedLocations()); }, []);
 
   // Location suggestions filtered by current input
   const locationSuggestions = useMemo(() => {

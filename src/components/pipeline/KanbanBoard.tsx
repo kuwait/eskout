@@ -104,6 +104,7 @@ function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 768px)');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial read from external media query system
     setIsDesktop(mql.matches);
     const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
     mql.addEventListener('change', handler);
@@ -115,14 +116,9 @@ function useIsDesktop() {
 export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick }: KanbanBoardProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
-  const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(DEFAULT_ORDER);
+  const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(() => loadColumnOrder());
   const isDragging = activePlayer !== null || activeColumnId !== null;
   const isDesktop = useIsDesktop();
-
-  // Load from localStorage on mount (SSR safe)
-  useEffect(() => {
-    setColumnOrder(loadColumnOrder());
-  }, []);
 
   // Lock body scroll while dragging to prevent scroll interference on mobile
   useEffect(() => {

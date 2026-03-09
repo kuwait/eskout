@@ -55,8 +55,6 @@ test.describe('Mobile viewport (375×667)', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Sidebar should be hidden on mobile
-    const sidebar = page.locator('nav.hidden.lg\\:flex, aside.hidden.lg\\:block');
     // Hamburger button should be visible
     const hamburger = page.locator('button[aria-label*="menu"], button[aria-label*="Menu"], [data-testid="mobile-menu"]').first();
 

@@ -4,6 +4,7 @@
 // RELEVANT FILES: src/middleware.ts, src/lib/supabase/club-context.ts, supabase/migrations/
 
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
 import path from 'path';
 
 const ADMIN_AUTH = path.join(__dirname, 'auth', 'admin.json');
@@ -23,7 +24,7 @@ test.describe('Route protection', () => {
     await page.goto('/login');
     // Use admin auth
     await page.context().addCookies(
-      JSON.parse(require('fs').readFileSync(ADMIN_AUTH, 'utf-8')).cookies || []
+      JSON.parse(fs.readFileSync(ADMIN_AUTH, 'utf-8')).cookies || []
     );
     await page.goto('/login');
     // Should redirect away from login

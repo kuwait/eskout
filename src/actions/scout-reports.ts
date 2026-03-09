@@ -141,10 +141,12 @@ function mapRow(r: Record<string, unknown>, authorName?: string | null): ScoutRe
   };
 }
 
+/** Supabase server client type — inferred from createClient() */
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
 // Fetch author names for scout-submitted reports
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function enrichWithAuthorNames(
-  supabase: any,
+  supabase: SupabaseServerClient,
   rows: Record<string, unknown>[],
 ): Promise<ScoutReportRow[]> {
   const authorIds = [...new Set(rows.map((r) => r.author_id as string).filter(Boolean))];
@@ -486,9 +488,13 @@ export async function rejectScoutReport(reportId: number): Promise<{ success: bo
  * Fetches all rows from a Supabase query by paging through .range() in 1000-row chunks.
  * Needed because Supabase caps individual selects at 1000 rows by default.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/** Structural type for a Supabase query builder that supports .range() pagination */
+interface RangeableQuery {
+  range(from: number, to: number): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+}
+
 async function fetchAllRows(
-  queryBuilder: any,
+  queryBuilder: RangeableQuery,
   pageSize = 1000,
 ): Promise<Record<string, unknown>[]> {
   const allRows: Record<string, unknown>[] = [];
