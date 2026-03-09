@@ -9,7 +9,6 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Footprints, Handshake, Loader2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import {
@@ -93,9 +92,11 @@ interface PlayerProfileProps {
   onClose?: () => void;
   /** Age group name (e.g. "Sub-17") for display in squad badge */
   ageGroupName?: string | null;
+  /** Club-scoped profiles for referral/contact assign dropdowns */
+  clubMembers?: { id: string; fullName: string }[];
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], currentUserId = null, onClose, ageGroupName }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], currentUserId = null, onClose, ageGroupName, clubMembers = [] }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -119,8 +120,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   // Detect unsaved changes by comparing draft to original player
   const hasChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(player), [draft, player]);
 
-  // Profiles list for referral combobox — fetched once when entering edit mode
-  const [profiles, setProfiles] = useState<{ id: string; fullName: string }[]>([]);
+  // Club-scoped profiles for referral/contact assign dropdowns (passed from server)
+  const profiles = clubMembers;
 
   // Clear savedDraft when server delivers fresh props (after router.refresh())
   useEffect(() => {
@@ -154,13 +155,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   function handleEdit() {
     setDraft(player);
     setEditing(true);
-    // Fetch profiles for referral combobox (lazy — only when editing)
-    if (profiles.length === 0) {
-      const supabase = createClient();
-      supabase.from('profiles').select('id, full_name').order('full_name').then(({ data }) => {
-        if (data) setProfiles(data.map((p) => ({ id: p.id, fullName: p.full_name })));
-      });
-    }
   }
 
   function handleCancel() {
@@ -196,6 +190,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         updates.referred_by_user_id = draft.referredByUserId || null;
         updates.recruitment_status = draft.recruitmentStatus;
         updates.recruitment_notes = draft.recruitmentNotes || null;
+        updates.contact_assigned_to = draft.contactAssignedTo || null;
       }
       const result = await updatePlayer(player.id, updates);
       if (result.success) {
@@ -785,6 +780,15 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                       onChange={(next) => updateDraft('departmentOpinion', next as DepartmentOpinion[])}
                     />
                   </EditField>
+
+                  {/* Responsável pelo contacto — user picker */}
+                  <EditField label="Responsável Contacto">
+                    <ContactAssignPicker
+                      profiles={profiles}
+                      selectedUserId={draft.contactAssignedTo}
+                      onChange={(userId) => setDraft((d) => ({ ...d, contactAssignedTo: userId }))}
+                    />
+                  </EditField>
                 </div>
               </Section>}
             </div>
@@ -1004,8 +1008,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </div>
             )}
 
-            {/* Recrutamento — hidden when completely empty, hidden for recruiter */}
-            {!isRestricted && (p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
+            {/* Recrutamento — hidden when completely empty, visible to recruiters */}
+            {!isScout && (p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
               {(() => {
                 // Find when player entered current recruitment status
                 const statusEntry = statusHistory.find(
@@ -1024,7 +1028,18 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                   <div className="space-y-3">
                     {/* Status card with description */}
                     {p.recruitmentStatus && (
-                      <RecruitmentCard status={p.recruitmentStatus} daysInStatus={daysInStatus} trainingDate={p.trainingDate} meetingDate={p.meetingDate} signingDate={p.signingDate} />
+                      <RecruitmentCard
+                        status={p.recruitmentStatus}
+                        daysInStatus={daysInStatus}
+                        contactAssignedToName={p.contactAssignedToName}
+                        trainingDate={p.trainingDate}
+                        meetingDate={p.meetingDate}
+                        signingDate={p.signingDate}
+                        profiles={profiles}
+                        selectedUserId={p.contactAssignedTo}
+                        playerId={player.id}
+                        canAssign={!isScout}
+                      />
                     )}
 
                     {/* Squad cards */}
@@ -1084,7 +1099,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               })()}
             </Section>}
 
-            {!isRestricted && historyEntries.length > 0 && (() => {
+            {!isScout && historyEntries.length > 0 && (() => {
               // StatusHistory deduplicates internally — check if any entries survive filtering
               const hasVisible = historyEntries.some((e, i) => {
                 const oldNorm = (e.oldValue ?? '').trim();
@@ -1819,6 +1834,71 @@ function ReferralPicker({ profiles, selectedUserId, freeText, onChange }: {
   );
 }
 
+/* ───────────── Contact Assignment Picker — simple user dropdown ───────────── */
+
+function ContactAssignPicker({ profiles, selectedUserId, onChange }: {
+  profiles: { id: string; fullName: string }[];
+  selectedUserId: string | null;
+  onChange: (userId: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const selected = selectedUserId ? profiles.find((p) => p.id === selectedUserId) : null;
+  const filtered = profiles.filter((p) => !search || p.fullName.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 shadow-sm transition-colors hover:bg-accent"
+      >
+        <Phone className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+        {selected ? (
+          <span className="flex-1 truncate text-left text-xs font-medium tracking-wide text-neutral-600">{selected.fullName}</span>
+        ) : (
+          <span className="flex-1 text-left text-xs text-neutral-300">Quem vai contactar</span>
+        )}
+        <ChevronsUpDown className="h-3 w-3 shrink-0 text-neutral-300" />
+      </button>
+      <CommandDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
+        <CommandInput
+          placeholder="Pesquisar utilizador..."
+          value={search}
+          onValueChange={setSearch}
+        />
+        <CommandList>
+          <CommandEmpty>Sem resultados</CommandEmpty>
+          <CommandGroup heading="Utilizadores">
+            {filtered.map((p) => (
+              <CommandItem
+                key={p.id}
+                value={p.fullName}
+                onSelect={() => { onChange(p.id); setOpen(false); setSearch(''); }}
+              >
+                <User className="mr-2 h-4 w-4 text-neutral-400" />
+                {p.fullName}
+                {p.id === selectedUserId && <Check className="ml-auto h-4 w-4 text-blue-500" />}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+      {selected && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-input text-neutral-400 transition-colors hover:bg-accent hover:text-neutral-600"
+          title="Remover responsável"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ───────────── Interactive Pitch Position Picker ───────────── */
 
 /** Position coordinates on a horizontal pitch (percentage-based) */
@@ -1928,18 +2008,47 @@ const STATUS_VISUAL: Record<string, { icon: React.ComponentType<{ className?: st
 };
 const STATUS_DEFAULT_VIS = { icon: Clock, color: 'text-neutral-500', bg: 'bg-neutral-100', ring: 'ring-neutral-300' };
 
-function RecruitmentCard({ status, daysInStatus, trainingDate, meetingDate, signingDate }: {
+function RecruitmentCard({ status, daysInStatus, contactAssignedToName, trainingDate, meetingDate, signingDate, profiles = [], selectedUserId, playerId, canAssign = false }: {
   status: RecruitmentStatus;
   daysInStatus: number | null;
+  contactAssignedToName: string | null;
   trainingDate?: string | null;
   meetingDate?: string | null;
   signingDate?: string | null;
+  /** Club-scoped profiles for inline contact assignment */
+  profiles?: { id: string; fullName: string }[];
+  selectedUserId?: string | null;
+  playerId?: number;
+  /** Whether the current user can assign/change the contact person */
+  canAssign?: boolean;
 }) {
   const vis = STATUS_VISUAL[status] ?? STATUS_DEFAULT_VIS;
   const Icon = vis.icon;
   const label = RECRUITMENT_LABEL_MAP[status as RecruitmentStatus] ?? status;
   const desc = statusDescription(status);
   const isRejected = status === 'rejeitado';
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [isSaving, startSaveTransition] = useTransition();
+  // Local name state so UI updates instantly after assignment
+  const [localAssignedName, setLocalAssignedName] = useState(contactAssignedToName);
+
+  // Sync with server-provided value when it changes (e.g. after realtime refresh)
+  useEffect(() => { setLocalAssignedName(contactAssignedToName); }, [contactAssignedToName]);
+
+  const filteredProfiles = profiles.filter((p) => !pickerSearch || p.fullName.toLowerCase().includes(pickerSearch.toLowerCase()));
+
+  // Save contact assignment directly (no edit mode needed)
+  function handleAssign(userId: string | null) {
+    if (!playerId) return;
+    const assignedProfile = userId ? profiles.find((p) => p.id === userId) : null;
+    setLocalAssignedName(assignedProfile?.fullName ?? null);
+    setPickerOpen(false);
+    setPickerSearch('');
+    startSaveTransition(async () => {
+      await updatePlayer(playerId, { contact_assigned_to: userId });
+    });
+  }
 
   // Current step index in the pipeline (rejeitado maps to end)
   const currentIdx = isRejected ? -1 : PIPELINE_STEPS.indexOf(status as typeof PIPELINE_STEPS[number]);
@@ -1984,6 +2093,72 @@ function RecruitmentCard({ status, daysInStatus, trainingDate, meetingDate, sign
             )}
           </div>
           {desc && <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground/60">{desc}</p>}
+          {/* Contact assignment — show assigned name or "Atribuir alguém" button */}
+          {canAssign ? (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <Phone className="h-3 w-3 text-muted-foreground/50" />
+              {localAssignedName ? (
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  disabled={isSaving}
+                  className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                >
+                  <span className={`font-semibold ${vis.color}`}>{localAssignedName}</span>
+                  <Pencil className="h-2.5 w-2.5 text-muted-foreground/40" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  disabled={isSaving}
+                  className="text-[11px] font-medium text-blue-500 transition-colors hover:text-blue-700"
+                >
+                  Atribuir alguém
+                </button>
+              )}
+              {/* Inline picker dialog */}
+              <CommandDialog open={pickerOpen} onOpenChange={(v) => { setPickerOpen(v); if (!v) setPickerSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
+                <CommandInput
+                  placeholder="Pesquisar utilizador..."
+                  value={pickerSearch}
+                  onValueChange={setPickerSearch}
+                />
+                <CommandList>
+                  <CommandEmpty>Sem resultados</CommandEmpty>
+                  <CommandGroup heading="Utilizadores">
+                    {filteredProfiles.map((p) => (
+                      <CommandItem
+                        key={p.id}
+                        value={p.fullName}
+                        onSelect={() => handleAssign(p.id)}
+                      >
+                        <User className="mr-2 h-4 w-4 text-neutral-400" />
+                        {p.fullName}
+                        {p.id === selectedUserId && <Check className="ml-auto h-4 w-4 text-blue-500" />}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  {localAssignedName && (
+                    <CommandGroup>
+                      <CommandItem
+                        value="__remover__"
+                        onSelect={() => handleAssign(null)}
+                        className="text-red-500"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Remover responsável
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </CommandDialog>
+            </div>
+          ) : localAssignedName ? (
+            <p className="mt-1 text-[11px] font-medium text-muted-foreground/80">
+              Responsável: <span className={`font-semibold ${vis.color}`}>{localAssignedName}</span>
+            </p>
+          ) : null}
         </div>
       </div>
       {/* Dates — inline inside the card */}

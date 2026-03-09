@@ -5,12 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Strip diacritics and lowercase: "Famalicão" → "famalicao" */
+export function normalize(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 /**
  * Multi-word fuzzy search: "Afo Rodr" matches "Afonso Filipe Oliveira Rodrigues".
- * Every word in the query must appear somewhere in the target (case-insensitive).
+ * Every word in the query must appear somewhere in the target.
+ * Accent-insensitive and case-insensitive.
  */
 export function fuzzyMatch(target: string, query: string): boolean {
-  const lowerTarget = target.toLowerCase();
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return words.every((word) => lowerTarget.includes(word));
+  const normTarget = normalize(target);
+  const words = normalize(query).split(/\s+/).filter(Boolean);
+  return words.every((word) => normTarget.includes(word));
 }

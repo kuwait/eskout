@@ -294,7 +294,8 @@ const ALLOWED_UPDATE_FIELDS = new Set([
   'department_opinion', 'observer', 'observer_eval', 'observer_decision',
   'referred_by', 'referred_by_user_id', 'notes',
   // Pipeline & squads
-  'recruitment_status', 'is_shadow_squad', 'shadow_position', 'shadow_order',
+  'recruitment_status', 'recruitment_notes', 'contact_assigned_to',
+  'is_shadow_squad', 'shadow_position', 'shadow_order',
   'is_real_squad', 'real_squad_position', 'real_order', 'pipeline_order',
   'training_date', 'meeting_date', 'signing_date',
   // External data

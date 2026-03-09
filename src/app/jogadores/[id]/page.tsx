@@ -11,6 +11,7 @@ import {
   getScoutEvaluations,
   getScoutingReports,
   getStatusHistory,
+  getAllProfiles,
 } from '@/lib/supabase/queries';
 import { createClient } from '@/lib/supabase/server';
 import { PlayerProfile } from '@/components/players/PlayerProfile';
@@ -28,13 +29,14 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   if (isNaN(playerId)) notFound();
 
-  const [player, role, notes, statusHistory, scoutingReports, scoutEvaluations] = await Promise.all([
+  const [player, role, notes, statusHistory, scoutingReports, scoutEvaluations, clubProfiles] = await Promise.all([
     getPlayerById(playerId),
     getCurrentUserRole(),
     getObservationNotes(playerId),
     getStatusHistory(playerId),
     getScoutingReports(playerId),
     getScoutEvaluations(playerId),
+    getAllProfiles(),
   ]);
 
   if (!player) notFound();
@@ -48,14 +50,17 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     player.reportRatingCount = allRatings.length;
   }
 
-  // Fetch age group name + current user ID
+  // Fetch age group name + current user ID + contact assigned name
   const supabase = await createClient();
   const { data: { user: currentUser } } = await supabase.auth.getUser();
-  const { data: ageGroup } = await supabase
-    .from('age_groups')
-    .select('name')
-    .eq('id', player.ageGroupId)
-    .single();
+  const [{ data: ageGroup }, contactProfile] = await Promise.all([
+    supabase.from('age_groups').select('name').eq('id', player.ageGroupId).single(),
+    player.contactAssignedTo
+      ? supabase.from('profiles').select('full_name').eq('id', player.contactAssignedTo).single().then(({ data }) => data)
+      : Promise.resolve(null),
+  ]);
+  // Hydrate the contact name from the joined profile
+  if (contactProfile) player.contactAssignedToName = contactProfile.full_name;
 
   return (
     <div className="px-3 py-2 sm:p-4 lg:p-6">
@@ -68,6 +73,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         scoutEvaluations={scoutEvaluations}
         currentUserId={currentUser?.id ?? null}
         ageGroupName={ageGroup?.name ?? null}
+        clubMembers={clubProfiles.map((p) => ({ id: p.id, fullName: p.fullName }))}
       />
     </div>
   );

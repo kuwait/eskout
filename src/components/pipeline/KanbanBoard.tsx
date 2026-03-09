@@ -67,6 +67,8 @@ interface KanbanBoardProps {
   showBirthYear?: boolean;
   /** Open player profile popup */
   onPlayerClick?: (playerId: number) => void;
+  /** Club-scoped profiles for contact assignment in em_contacto cards */
+  clubMembers?: { id: string; fullName: string }[];
 }
 
 /* ───────────── ID helpers ───────────── */
@@ -113,12 +115,16 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick }: KanbanBoardProps) {
+export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [] }: KanbanBoardProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
-  const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(() => loadColumnOrder());
+  const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(DEFAULT_ORDER);
   const isDragging = activePlayer !== null || activeColumnId !== null;
   const isDesktop = useIsDesktop();
+
+  // Load persisted column order from localStorage after hydration to avoid SSR mismatch
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deferred read from localStorage after mount
+  useEffect(() => { setColumnOrder(loadColumnOrder()); }, []);
 
   // Lock body scroll while dragging to prevent scroll interference on mobile
   useEffect(() => {
@@ -247,6 +253,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
                   status={status}
                   players={playersByStatus[status] ?? []}
                   showBirthYear={showBirthYear}
+                  clubMembers={clubMembers}
                   onPlayerClick={onPlayerClick}
                   onRemove={onRemove}
                   onDateChange={onDateChange}

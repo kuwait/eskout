@@ -57,10 +57,7 @@ const SUPABASE_PAGE = 1000;
 
 /* ───────────── Accent-insensitive search helpers ───────────── */
 
-/** Strip diacritics: "Famalicão" → "famalicao" */
-function normalize(str: string): string {
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
+import { normalize } from '@/lib/utils';
 
 /** Map position code → searchable label (e.g. "DC" → "dc defesa central") */
 const POSITION_SEARCH_MAP = new Map<string, string>(

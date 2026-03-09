@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { fuzzyMatch } from '@/lib/utils';
@@ -42,6 +42,7 @@ export function PipelineView() {
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [clubMembers, setClubMembers] = useState<{ id: string; fullName: string }[]>([]);
   // Show birth year on cards when viewing all age groups
   const showBirthYear = selectedId === null;
 
@@ -52,22 +53,50 @@ export function PipelineView() {
 
   /* ───────────── Fetch ───────────── */
 
-  const fetchPlayers = useCallback(() => {
+  const fetchPlayers = useCallback(async () => {
     const supabase = createClient();
-    let query = supabase.from('players').select('*');
-    if (selectedId) query = query.eq('age_group_id', selectedId);
-    query.order('name').range(0, 4999).then(({ data, error }) => {
-      if (!error && data) {
-        startTransition(() => {
-          setAllPlayers((data as PlayerRow[]).map(mapPlayerRow));
-        });
-      }
+    const PAGE = 1000;
+    const all: PlayerRow[] = [];
+    let offset = 0;
+    for (;;) {
+      let query = supabase.from('players').select('*');
+      if (selectedId) query = query.eq('age_group_id', selectedId);
+      const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
+      if (error || !data?.length) break;
+      all.push(...(data as PlayerRow[]));
+      if (data.length < PAGE) break;
+      offset += PAGE;
+    }
+    startTransition(() => {
+      setAllPlayers(all.map(mapPlayerRow));
     });
   }, [selectedId]);
 
   useEffect(() => {
     fetchPlayers();
   }, [fetchPlayers]);
+
+  // Fetch club members once for contact assignment dropdowns
+  useEffect(() => {
+    const supabase = createClient();
+    // Read club ID from cookie (same pattern as getActiveClubId on the server)
+    const clubId = document.cookie.split('; ').find((c) => c.startsWith('eskout-club-id='))?.split('=')[1];
+    if (!clubId) return;
+    supabase
+      .from('club_memberships')
+      .select('user_id, profiles:user_id(id, full_name)')
+      .eq('club_id', clubId)
+      .then(({ data }) => {
+        if (data) {
+          setClubMembers(
+            data.map((m) => {
+              const profile = m.profiles as unknown as { id: string; full_name: string };
+              return { id: profile.id, fullName: profile.full_name };
+            }).sort((a, b) => a.fullName.localeCompare(b.fullName))
+          );
+        }
+      });
+  }, []);
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */
 
@@ -216,6 +245,7 @@ export function PipelineView() {
       <KanbanBoard
         playersByStatus={playersByStatus}
         showBirthYear={showBirthYear}
+        clubMembers={clubMembers}
         onPlayerClick={handlePlayerClick}
         onStatusChange={handleStatusChange}
         onRemove={handleRemove}
@@ -250,6 +280,9 @@ interface DialogFilters {
 
 const EMPTY_FILTERS: DialogFilters = { search: '', position: '', club: '', opinion: '', foot: '', year: '' };
 
+const PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE = 300;
+
 function AddToPipelineDialog({
   open,
   onOpenChange,
@@ -262,13 +295,28 @@ function AddToPipelineDialog({
   onAdd: (playerId: number) => void;
 }) {
   const [filters, setFilters] = useState<DialogFilters>(EMPTY_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(0);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), SEARCH_DEBOUNCE);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  // Reset page when any filter changes
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, filters.year]);
+
+  // Reset filters when dialog closes
+  useEffect(() => {
+    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); }
+  }, [open]);
 
   const clubs = useMemo(() => {
     const set = new Set(availablePlayers.map((p) => p.club).filter(Boolean));
     return Array.from(set).sort();
   }, [availablePlayers]);
 
-  /** Extract unique birth years for year filter */
   const years = useMemo(() => {
     const set = new Set<number>();
     for (const p of availablePlayers) {
@@ -280,11 +328,15 @@ function AddToPipelineDialog({
     return Array.from(set).sort((a, b) => b - a);
   }, [availablePlayers]);
 
-  const filtered = useMemo(() => {
+  // Filter + search (accent-insensitive, multi-field: name, club, position code + label)
+  const allFiltered = useMemo(() => {
     let result = availablePlayers;
 
-    if (filters.search) {
-      result = result.filter((p) => fuzzyMatch(`${p.name} ${p.club}`, filters.search));
+    if (debouncedSearch) {
+      result = result.filter((p) => {
+        const posLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
+        return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${posLabel}`, debouncedSearch);
+      });
     }
     if (filters.position) result = result.filter((p) => p.positionNormalized === filters.position);
     if (filters.club) result = result.filter((p) => p.club === filters.club);
@@ -295,8 +347,12 @@ function AddToPipelineDialog({
       result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
     }
 
-    return result.slice(0, 30);
-  }, [availablePlayers, filters]);
+    return result;
+  }, [availablePlayers, debouncedSearch, filters]);
+
+  // Pagination
+  const totalPages = Math.ceil(allFiltered.length / PAGE_SIZE);
+  const pageResults = allFiltered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
 
@@ -315,7 +371,7 @@ function AddToPipelineDialog({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Pesquisar nome ou clube..."
+            placeholder="Pesquisar nome, clube ou posição..."
             value={filters.search}
             onChange={(e) => updateFilter('search', e.target.value)}
             className="pl-9"
@@ -392,19 +448,32 @@ function AddToPipelineDialog({
           )}
         </div>
 
-        {/* Results count */}
-        <p className="text-xs text-muted-foreground">
-          {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
-        </p>
+        {/* Results count + pagination info */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {allFiltered.length} jogador{allFiltered.length !== 1 ? 'es' : ''}
+            {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
-          {filtered.length === 0 && (
+          {pageResults.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
           )}
-          {filtered.map((player) => (
+          {pageResults.map((player) => (
             <div key={player.id} className="flex items-center gap-2 rounded-md border p-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">

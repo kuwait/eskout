@@ -89,6 +89,8 @@ export interface Player {
   meetingDate: string | null;
   signingDate: string | null;
   recruitmentNotes: string;
+  contactAssignedTo: string | null;
+  contactAssignedToName: string | null;
   isRealSquad: boolean;
   isShadowSquad: boolean;
   realSquadPosition: string | null;
@@ -168,6 +170,7 @@ export interface PlayerRow {
   meeting_date: string | null;
   signing_date: string | null;
   recruitment_notes: string | null;
+  contact_assigned_to: string | null;
   is_real_squad: boolean;
   is_shadow_squad: boolean;
   real_squad_position: string | null;

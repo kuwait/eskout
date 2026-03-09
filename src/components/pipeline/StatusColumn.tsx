@@ -23,6 +23,8 @@ interface StatusColumnProps {
   /** Remove from abordagens (set status to null) */
   onRemove: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
+  /** Club-scoped profiles for contact assignment in em_contacto cards */
+  clubMembers?: { id: string; fullName: string }[];
 }
 
 /* ───────────── Sortable Card Wrapper ───────────── */
@@ -34,6 +36,7 @@ function SortablePipelineCard({
   onPlayerClick,
   onRemove,
   onDateChange,
+  clubMembers,
 }: {
   player: Player;
   dragId: string;
@@ -41,6 +44,7 @@ function SortablePipelineCard({
   onPlayerClick?: (playerId: number) => void;
   onRemove: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
+  clubMembers?: { id: string; fullName: string }[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
 
@@ -130,12 +134,16 @@ function SortablePipelineCard({
   // wasLongPress tracks if hold timer fired (even without actual drag movement)
   const wasLongPress = useRef(false);
 
-  function handleClick() {
+  function handleClick(e: React.MouseEvent) {
     if (wasDragged.current || wasLongPress.current) {
       wasDragged.current = false;
       wasLongPress.current = false;
       return;
     }
+    // Only navigate when clicking the player info area, not interactive controls (date, contact, remove)
+    const target = e.target as HTMLElement;
+    const isPlayerArea = target.closest('[data-player-link]');
+    if (!isPlayerArea) return;
     onPlayerClick?.(player.id);
   }
 
@@ -159,7 +167,7 @@ function SortablePipelineCard({
       onPointerCancel={handlePointerUp}
       onClick={handleClick}
     >
-      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} />
+      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} />
     </div>
   );
 }
@@ -174,7 +182,7 @@ interface ColumnInnerProps extends StatusColumnProps {
 }
 
 const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: React.CSSProperties }>(
-  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
+  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
     const config = RECRUITMENT_STATUSES.find((s) => s.value === status);
     const label = config?.labelPt ?? status;
     const colorClass = config?.tailwind ?? 'bg-neutral-400 text-white';
@@ -225,6 +233,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
                 player={player}
                 dragId={`pipeline-${player.id}-${status}`}
                 showBirthYear={showBirthYear}
+                clubMembers={clubMembers}
                 onPlayerClick={onPlayerClick}
                 onRemove={onRemove}
                 onDateChange={onDateChange}

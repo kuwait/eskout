@@ -123,6 +123,8 @@ export function mapPlayerRow(row: PlayerRow): Player {
     meetingDate: row.meeting_date ?? null,
     signingDate: row.signing_date ?? null,
     recruitmentNotes: row.recruitment_notes ?? '',
+    contactAssignedTo: row.contact_assigned_to ?? null,
+    contactAssignedToName: null, // Populated by join query in page
     isRealSquad: row.is_real_squad,
     isShadowSquad: row.is_shadow_squad,
     realSquadPosition: (row.real_squad_position as Player['realSquadPosition']) ?? null,
