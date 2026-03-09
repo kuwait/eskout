@@ -93,7 +93,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .eq('priority', 'importante')
           .eq('club_id', clubId),
         supabase
-          .from('scout_reports')
+          .from('scouting_reports')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pendente')
           .eq('club_id', clubId),

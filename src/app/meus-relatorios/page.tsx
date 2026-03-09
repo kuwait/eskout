@@ -1,5 +1,5 @@
 // src/app/meus-relatorios/page.tsx
-// Scout's personal reports page — shows scout_reports submitted by the current user
+// Scout's personal reports page — shows scouting_reports submitted by the current user
 // Each report shows status (pendente/aprovado/rejeitado) and key details
 // RELEVANT FILES: src/actions/scout-reports.ts, src/app/submeter/page.tsx, src/middleware.ts
 

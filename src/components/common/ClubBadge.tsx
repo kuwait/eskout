@@ -17,7 +17,7 @@ interface ClubBadgeProps {
   /** Show club name next to the logo (default: true) */
   showName?: boolean;
   /** Size variant */
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'sm-md' | 'md' | 'lg';
   className?: string;
   /** Callback to remove the logo (shows "Remover" in hover card) */
   onRemoveLogo?: () => void;
@@ -26,6 +26,7 @@ interface ClubBadgeProps {
 const SIZES = {
   xs: { logo: 12, text: 'text-[9px]', popover: 48 },
   sm: { logo: 16, text: 'text-xs', popover: 64 },
+  'sm-md': { logo: 18, text: 'text-[10px]', popover: 72 },
   md: { logo: 20, text: 'text-sm', popover: 80 },
   lg: { logo: 24, text: 'text-base', popover: 96 },
 };
@@ -41,13 +42,13 @@ export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', classNa
   }
 
   const badge = (
-    <span className={`inline-flex items-start gap-1.5 ${className}`}>
+    <span className={`inline-flex items-center gap-1 ${className}`}>
       <Image
         src={logoUrl}
         alt={club}
         width={s.logo}
         height={s.logo}
-        className="mt-0.5 shrink-0 object-contain"
+        className="shrink-0 object-contain"
         style={{ width: s.logo, height: s.logo }}
         unoptimized
       />

@@ -445,8 +445,8 @@ export function PlayerForm() {
               id="contact"
               value={fields.contact}
               onChange={(e) => updateField('contact', e.target.value)}
-              type="tel"
-              placeholder="+351..."
+              type="text"
+              placeholder="Telefone, email, etc."
               className="h-11"
             />
           </div>

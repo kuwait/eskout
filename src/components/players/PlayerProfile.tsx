@@ -65,7 +65,6 @@ import {
   RECRUITMENT_STATUSES,
   RECRUITMENT_LABEL_MAP,
   NATIONALITIES,
-  COUNTRY_DIAL_CODES,
   getNationalityFlag,
   getPositionLabel,
 } from '@/lib/constants';
@@ -147,10 +146,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   }
 
   function handleSave() {
-    if (!isPhoneValid(draft.contact)) {
-      toast.error('Número de contacto inválido.');
-      return;
-    }
     startTransition(async () => {
       const updates: Record<string, unknown> = {
         name: draft.name,
@@ -591,15 +586,13 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                         onChange={(v) => updateDraft('foot', v)}
                       />
                     </EditField>
-                    <EditField label="Contacto" suffix={(() => {
-                      if (!draft.contact) return null;
-                      return isPhoneValid(draft.contact)
-                        ? <Check className="h-3 w-3 text-green-500" />
-                        : <XCircle className="h-3 w-3 text-red-400" />;
-                    })()}>
-                      <PhoneInput
+                    <EditField label="Contacto">
+                      <Input
+                        type="text"
                         value={draft.contact}
-                        onChange={(v) => updateDraft('contact', v)}
+                        onChange={(e) => updateDraft('contact', e.target.value)}
+                        placeholder="Telefone, email, etc."
+                        className="text-xs font-medium tracking-wide text-neutral-600"
                       />
                     </EditField>
                   </div>
@@ -815,8 +808,11 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.birthCountry && (
                   <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.birthCountry)}</span>} label="País Nasc." value={p.birthCountry} />
                 )}
+                {p.contact && (
+                  <InfoChip icon={<Phone className="h-3.5 w-3.5" />} label="Contacto" value={p.contact} wrap />
+                )}
                 {p.referredBy && (
-                  <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Referência" value={p.referredBy} linked={!!p.referredByUserId} />
+                  <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Referência" value={p.referredBy} linked={!!p.referredByUserId} wrap />
                 )}
               </div>
             </Section>
@@ -890,7 +886,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             </div>
 
             {/* Recrutamento — hidden when completely empty */}
-            {(p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.contact || p.recruitmentNotes) && <Section title="Recrutamento">
+            {(p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
               {(() => {
                 // Find when player entered current recruitment status
                 const statusEntry = statusHistory.find(
@@ -956,14 +952,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                       </div>
                     )}
 
-
-                    {/* Contact */}
-                    {p.contact && (
-                      <div className="flex items-center gap-2 rounded-md border bg-neutral-50/60 px-3 py-2">
-                        <span className="text-xs font-medium text-muted-foreground">Contacto</span>
-                        <span className="text-sm font-medium">{p.contact}</span>
-                      </div>
-                    )}
 
                     {/* Notes */}
                     {p.recruitmentNotes && (
@@ -1346,8 +1334,8 @@ function DecisionBadge({ decision }: { decision: string }) {
   );
 }
 
-/** Compact info chip — icon + label/value, used in Info Básica grid */
-function InfoChip({ icon, label, value, linked }: { icon: React.ReactNode; label: string; value: string; linked?: boolean }) {
+/** Compact info chip — icon + label/value, used in Info Básica grid. wrap=true allows multi-line value */
+function InfoChip({ icon, label, value, linked, wrap }: { icon: React.ReactNode; label: string; value: string; linked?: boolean; wrap?: boolean }) {
   return (
     <div className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2">
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200/60">
@@ -1356,7 +1344,7 @@ function InfoChip({ icon, label, value, linked }: { icon: React.ReactNode; label
       <div className="min-w-0">
         <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">{label}</p>
         <div className="flex items-center gap-1.5">
-          <p className="truncate text-sm font-semibold leading-snug">{value}</p>
+          <p className={`${wrap ? 'line-clamp-2 text-xs' : 'truncate text-sm'} font-semibold leading-snug`}>{value}</p>
           {linked && <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[8px] font-bold text-blue-600">LINKED</span>}
         </div>
       </div>
@@ -1576,16 +1564,10 @@ function ShirtNumberInput({ value, onChange }: { value: string; onChange: (v: st
       <Shirt className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
       <Input
         type="text"
-        inputMode="numeric"
         value={value}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === '') { onChange(''); return; }
-          const n = parseInt(v, 10);
-          if (!isNaN(n) && n >= 1 && n <= 99) onChange(String(n));
-        }}
+        onChange={(e) => onChange(e.target.value)}
         placeholder="—"
-        className="pl-8 text-xs font-medium tracking-wide text-neutral-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="pl-8 text-xs font-medium tracking-wide text-neutral-600"
       />
     </div>
   );
@@ -1708,110 +1690,6 @@ function ReferralPicker({ profiles, selectedUserId, freeText, onChange }: {
           <X className="h-3.5 w-3.5" />
         </button>
       )}
-    </div>
-  );
-}
-
-/* ───────────── Phone Input — country code prefix + formatted number + validation ───────────── */
-
-/** Check if a stored phone value is valid — empty is valid, PT needs 9 digits after code, others need 7+ */
-function isPhoneValid(raw: string | null): boolean {
-  if (!raw) return true;
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return true;
-  const isPT = raw.startsWith('+351');
-  // +351 = 3 digits code + 9 digits number = 12 total, others = code (2-3) + 7+ digits
-  return isPT ? digits.length >= 12 : digits.length >= 10;
-}
-
-/** Parse a stored phone string into { dialCode, number } — detects known dial codes or defaults to +351 */
-function parsePhone(raw: string): { dialCode: string; number: string } {
-  if (!raw) return { dialCode: '+351', number: '' };
-  const trimmed = raw.replace(/\s/g, '');
-  // Try matching known dial codes (longest first to avoid +3 matching before +351)
-  const sorted = [...COUNTRY_DIAL_CODES].sort((a, b) => b.code.length - a.code.length);
-  for (const c of sorted) {
-    if (trimmed.startsWith(c.code)) {
-      return { dialCode: c.code, number: trimmed.slice(c.code.length) };
-    }
-  }
-  // If starts with + but unknown code, keep as-is
-  if (trimmed.startsWith('+')) return { dialCode: '+351', number: trimmed };
-  return { dialCode: '+351', number: trimmed };
-}
-
-/** Format digits as "912 345 678" (groups of 3) */
-function formatPhoneDisplay(digits: string): string {
-  const d = digits.replace(/\D/g, '');
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
-  return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)}`;
-}
-
-/** Phone input with selectable country code prefix, auto-formatting, and validation */
-function PhoneInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const parsed = parsePhone(value);
-  const [dialCode, setDialCode] = useState(parsed.dialCode);
-  const [digits, setDigits] = useState(parsed.number);
-
-  // Sync from external value changes
-  useEffect(() => {
-    const p = parsePhone(value);
-    setDialCode(p.dialCode);
-    setDigits(p.number);
-  }, [value]);
-
-  // Commit combined value: "+351912345678"
-  function commit(code: string, num: string) {
-    const clean = num.replace(/\D/g, '');
-    onChange(clean ? `${code}${clean}` : '');
-  }
-
-  function handleDigitsChange(raw: string) {
-    // Strip non-digits, limit to 15 (E.164 max)
-    const clean = raw.replace(/\D/g, '').slice(0, 15);
-    setDigits(clean);
-    commit(dialCode, clean);
-  }
-
-  function handleDialCodeChange(code: string) {
-    setDialCode(code);
-    commit(code, digits);
-  }
-
-  const entry = COUNTRY_DIAL_CODES.find((c) => c.code === dialCode);
-  const flag = entry?.flag ?? '🌍';
-
-  return (
-    <div className="flex h-9 w-full items-center rounded-md border border-input bg-background shadow-sm">
-      {/* Country code selector — native select overlaid on visible display for guaranteed mobile compat */}
-      <div className="relative shrink-0 border-r border-input">
-        <div className="pointer-events-none flex items-center gap-1 px-2 py-1.5">
-          <span className="text-sm">{flag}</span>
-          <span className="text-[10px] text-neutral-400">{dialCode}</span>
-        </div>
-        <select
-          value={dialCode}
-          onChange={(e) => handleDialCodeChange(e.target.value)}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          aria-label="Indicativo do país"
-        >
-          {COUNTRY_DIAL_CODES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.flag} {c.country} ({c.code})
-            </option>
-          ))}
-        </select>
-      </div>
-      {/* Number input — shows formatted but stores raw digits */}
-      <input
-        type="tel"
-        inputMode="numeric"
-        value={formatPhoneDisplay(digits)}
-        onChange={(e) => handleDigitsChange(e.target.value)}
-        placeholder="912 345 678"
-        className="h-full min-w-0 flex-1 bg-transparent px-2 text-xs font-medium tracking-wide text-neutral-600 outline-none placeholder:text-neutral-300"
-      />
     </div>
   );
 }

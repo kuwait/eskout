@@ -71,7 +71,6 @@ def clear_database():
     # Order matters — foreign keys
     tables = [
         "scout_evaluations",
-        "scout_reports",
         "scouting_reports",
         "status_history",
         "observation_notes",

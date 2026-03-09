@@ -1,5 +1,5 @@
 // src/app/admin/relatorios/[id]/page.tsx
-// Admin detail view of a scout report with approve/reject actions
+// Admin detail view of a scouting report with approve/reject actions
 // Approve creates a player (or links to existing); reject marks as rejected
 // RELEVANT FILES: src/actions/scout-reports.ts, src/app/admin/relatorios/page.tsx, src/app/meus-relatorios/[id]/page.tsx
 
@@ -37,6 +37,7 @@ export default async function AdminReportDetailPage({ params }: { params: Promis
   if (!report) notFound();
 
   const status = STATUS_CONFIG[report.status] ?? STATUS_CONFIG.pendente;
+  const spd = report.submissionPlayerData;
 
   return (
     <div className="p-4 lg:p-6 max-w-2xl">
@@ -51,6 +52,9 @@ export default async function AdminReportDetailPage({ params }: { params: Promis
             <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold ${status.className}`}>
               {status.label}
             </span>
+            {report.source === 'pdf' && (
+              <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-neutral-400">PDF</span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {report.playerClub}
@@ -63,8 +67,8 @@ export default async function AdminReportDetailPage({ params }: { params: Promis
         {/* ───────────── Dados do Jogador ───────────── */}
         <Section title="Dados do Jogador">
           <div className="flex gap-3">
-            {report.photoUrl ? (
-              <Image src={report.photoUrl} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-lg object-cover" unoptimized />
+            {spd?.photoUrl ? (
+              <Image src={spd.photoUrl} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-lg object-cover" unoptimized />
             ) : (
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-neutral-100">
                 <User className="h-5 w-5 text-neutral-300" />
@@ -73,29 +77,29 @@ export default async function AdminReportDetailPage({ params }: { params: Promis
             <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <Detail label="Nome" value={report.playerName} />
               <Detail label="Clube" value={report.playerClub} />
-              <Detail label="Posição" value={[report.position, report.secondaryPosition, report.tertiaryPosition].filter(Boolean).join(' / ')} />
+              <Detail label="Posição" value={[report.position, spd?.secondaryPosition, spd?.tertiaryPosition].filter(Boolean).join(' / ')} />
               <Detail label="Pé" value={report.foot} />
               <Detail label="Ano nascimento" value={report.birthYear} />
-              {report.dob && <Detail label="Data nascimento" value={new Date(report.dob).toLocaleDateString('pt-PT')} />}
+              {spd?.dob && <Detail label="Data nascimento" value={new Date(spd.dob).toLocaleDateString('pt-PT')} />}
               <Detail label="Nº camisola" value={report.shirtNumber} />
-              <Detail label="Nacionalidade" value={report.nationality} />
-              {report.birthCountry && report.birthCountry !== report.nationality && (
-                <Detail label="País nascimento" value={report.birthCountry} />
+              <Detail label="Nacionalidade" value={spd?.nationality} />
+              {spd?.birthCountry && spd.birthCountry !== spd.nationality && (
+                <Detail label="País nascimento" value={spd.birthCountry} />
               )}
-              {report.height && <Detail label="Altura" value={`${report.height} cm`} />}
-              {report.weight && <Detail label="Peso" value={`${report.weight} kg`} />}
+              {spd?.height && <Detail label="Altura" value={`${spd.height} cm`} />}
+              {spd?.weight && <Detail label="Peso" value={`${spd.weight} kg`} />}
             </div>
           </div>
 
           {/* Links */}
           <div className="mt-3 flex flex-wrap gap-3">
-            {report.fpfLink && (
-              <a href={report.fpfLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            {spd?.fpfLink && (
+              <a href={spd.fpfLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
                 FPF <ExternalLink className="h-3 w-3" />
               </a>
             )}
-            {report.zerozeroLink && (
-              <a href={report.zerozeroLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            {spd?.zerozeroLink && (
+              <a href={spd.zerozeroLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
                 ZeroZero <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -160,7 +164,7 @@ export default async function AdminReportDetailPage({ params }: { params: Promis
         <AdminReportActions
           reportId={report.id}
           status={report.status}
-          linkedPlayerId={report.linkedPlayerId}
+          linkedPlayerId={report.playerId}
         />
 
         {/* Meta */}

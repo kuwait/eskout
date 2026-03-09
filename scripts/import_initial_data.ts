@@ -55,14 +55,6 @@ interface PlayerJson {
 
 /* ───────────── Helpers ───────────── */
 
-// Map JSON status to recruitment_status — NULL means not in pipeline
-function mapStatus(status: string): string | null {
-  const map: Record<string, string> = {
-    signed: 'assinou',
-  };
-  return map[status] ?? null;
-}
-
 // Parse dd/mm/yyyy to yyyy-mm-dd
 function parseDate(dob: string): string | null {
   if (!dob) return null;
@@ -89,10 +81,6 @@ function normalizeFoot(foot: string): string | null {
   return null;
 }
 
-// Determine if player is at Boavista (real squad)
-function isRealSquad(club: string): boolean {
-  return club?.toLowerCase().includes('boavista') ?? false;
-}
 
 /* ───────────── Main ───────────── */
 
@@ -185,8 +173,8 @@ async function main() {
         report_link_6: reportLinkUrls[5],
         fpf_link: p.fpf || null,
         fpf_player_id: p.fpf ? extractFpfId(p.fpf) : null,
-        recruitment_status: mapStatus(p.status),
-        is_real_squad: isRealSquad(p.club),
+        recruitment_status: null,
+        is_real_squad: false,
       };
     });
 

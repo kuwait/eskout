@@ -1,5 +1,5 @@
 // src/app/meus-relatorios/[id]/page.tsx
-// Full detail view of a single scout report submitted by the current user
+// Full detail view of a single scouting report submitted by the current user
 // Shows all scraped data + scout evaluation in a read-only layout
 // RELEVANT FILES: src/actions/scout-reports.ts, src/app/meus-relatorios/page.tsx, src/app/submeter/page.tsx
 
@@ -18,19 +18,11 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 };
 
 const RATING_LABELS: Record<number, string> = {
-  1: 'Fraco',
-  2: 'Dúvida',
-  3: 'Bom',
-  4: 'Muito Bom',
-  5: 'Excelente',
+  1: 'Fraco', 2: 'Dúvida', 3: 'Bom', 4: 'Muito Bom', 5: 'Excelente',
 };
 
 const RATING_COLORS: Record<number, string> = {
-  1: 'text-red-500',
-  2: 'text-orange-500',
-  3: 'text-blue-500',
-  4: 'text-emerald-500',
-  5: 'text-emerald-600',
+  1: 'text-red-500', 2: 'text-orange-500', 3: 'text-blue-500', 4: 'text-emerald-500', 5: 'text-emerald-600',
 };
 
 /* ───────────── Page ───────────── */
@@ -44,6 +36,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
   if (!report) notFound();
 
   const status = STATUS_CONFIG[report.status] ?? STATUS_CONFIG.pendente;
+  const spd = report.submissionPlayerData;
 
   return (
     <div className="p-4 lg:p-6 max-w-2xl">
@@ -73,8 +66,8 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
         {/* ───────────── Dados do Jogador ───────────── */}
         <Section title="Dados do Jogador">
           <div className="flex gap-3">
-            {report.photoUrl ? (
-              <Image src={report.photoUrl} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-lg object-cover" unoptimized />
+            {spd?.photoUrl ? (
+              <Image src={spd.photoUrl} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-lg object-cover" unoptimized />
             ) : (
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-neutral-100">
                 <User className="h-5 w-5 text-neutral-300" />
@@ -83,29 +76,29 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
             <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <Detail label="Nome" value={report.playerName} />
               <Detail label="Clube" value={report.playerClub} />
-              <Detail label="Posição" value={[report.position, report.secondaryPosition, report.tertiaryPosition].filter(Boolean).join(' / ')} />
+              <Detail label="Posição" value={[report.position, spd?.secondaryPosition, spd?.tertiaryPosition].filter(Boolean).join(' / ')} />
               <Detail label="Pé" value={report.foot} />
               <Detail label="Ano nascimento" value={report.birthYear} />
-              {report.dob && <Detail label="Data nascimento" value={new Date(report.dob).toLocaleDateString('pt-PT')} />}
+              {spd?.dob && <Detail label="Data nascimento" value={new Date(spd.dob).toLocaleDateString('pt-PT')} />}
               <Detail label="Nº camisola" value={report.shirtNumber} />
-              <Detail label="Nacionalidade" value={report.nationality} />
-              {report.birthCountry && report.birthCountry !== report.nationality && (
-                <Detail label="País nascimento" value={report.birthCountry} />
+              <Detail label="Nacionalidade" value={spd?.nationality} />
+              {spd?.birthCountry && spd.birthCountry !== spd.nationality && (
+                <Detail label="País nascimento" value={spd.birthCountry} />
               )}
-              {report.height && <Detail label="Altura" value={`${report.height} cm`} />}
-              {report.weight && <Detail label="Peso" value={`${report.weight} kg`} />}
+              {spd?.height && <Detail label="Altura" value={`${spd.height} cm`} />}
+              {spd?.weight && <Detail label="Peso" value={`${spd.weight} kg`} />}
             </div>
           </div>
 
           {/* Links */}
           <div className="mt-3 flex flex-wrap gap-3">
-            {report.fpfLink && (
-              <a href={report.fpfLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            {spd?.fpfLink && (
+              <a href={spd.fpfLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
                 FPF <ExternalLink className="h-3 w-3" />
               </a>
             )}
-            {report.zerozeroLink && (
-              <a href={report.zerozeroLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+            {spd?.zerozeroLink && (
+              <a href={spd.zerozeroLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
                 ZeroZero <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -128,7 +121,6 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
 
         {/* ───────────── Avaliação ───────────── */}
         <Section title="Avaliação">
-          {/* Rating + Decision row */}
           <div className="flex items-center gap-4">
             {report.rating && (
               <div className="flex items-center gap-2">
@@ -137,9 +129,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
                     <Star
                       key={s}
                       className={`h-4 w-4 ${
-                        s <= report.rating!
-                          ? `fill-current ${RATING_COLORS[report.rating!]}`
-                          : 'text-neutral-200'
+                        s <= report.rating! ? `fill-current ${RATING_COLORS[report.rating!]}` : 'text-neutral-200'
                       }`}
                     />
                   ))}
@@ -156,19 +146,10 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
             )}
           </div>
 
-          {/* Text fields */}
-          {report.physicalProfile && (
-            <TextBlock label="Perfil físico" value={report.physicalProfile} />
-          )}
-          {report.strengths && (
-            <TextBlock label="Pontos fortes" value={report.strengths} variant="positive" />
-          )}
-          {report.weaknesses && (
-            <TextBlock label="Pontos fracos" value={report.weaknesses} variant="negative" />
-          )}
-          {report.analysis && (
-            <TextBlock label="Análise geral" value={report.analysis} />
-          )}
+          {report.physicalProfile && <TextBlock label="Perfil físico" value={report.physicalProfile} />}
+          {report.strengths && <TextBlock label="Pontos fortes" value={report.strengths} variant="positive" />}
+          {report.weaknesses && <TextBlock label="Pontos fracos" value={report.weaknesses} variant="negative" />}
+          {report.analysis && <TextBlock label="Análise geral" value={report.analysis} />}
         </Section>
 
         {/* ───────────── Contacto ───────────── */}
@@ -178,7 +159,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
           </Section>
         )}
 
-        {/* ───────────── Meta ───────────── */}
+        {/* Meta */}
         <p className="text-center text-xs text-muted-foreground">
           Submetido a {new Date(report.createdAt).toLocaleDateString('pt-PT')} às{' '}
           {new Date(report.createdAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
@@ -212,7 +193,6 @@ function Detail({ label, value, span }: { label: string; value: string | null | 
 function TextBlock({ label, value, variant }: { label: string; value: string; variant?: 'positive' | 'negative' }) {
   const icon = variant === 'positive' ? '+' : variant === 'negative' ? '−' : null;
   const iconColor = variant === 'positive' ? 'text-emerald-600' : variant === 'negative' ? 'text-red-500' : '';
-
   return (
     <div>
       <p className="mb-0.5 text-xs text-muted-foreground">{label}</p>

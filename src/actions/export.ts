@@ -48,7 +48,6 @@ const ALL_TABLES = [
   'scouting_reports',
   'status_history',
   'calendar_events',
-  'scout_reports',
   'scout_evaluations',
 ] as const;
 

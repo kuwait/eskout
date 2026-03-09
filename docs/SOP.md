@@ -464,6 +464,32 @@ Admin page to review, approve, or reject scout-submitted reports.
   - Redirects admin to the created/linked player profile
 - **Reject** → marks report as rejected
 
+#### Admin Reports — Sub-pages (tab navigation)
+
+The admin reports section has 3 tabs:
+
+1. **Relatórios** (`/admin/relatorios`) — main report list with:
+   - KPI cards (total reports, pending, this week, scouts count)
+   - Highlight chips (most observed player, most active scout, week's best)
+   - Searchable, filterable, sortable report list with inline tag buttons (priority, review, contact)
+   - Slide-over detail panel matching player profile report dialog style
+   - URL-driven pagination
+
+2. **Scouts** (`/admin/relatorios/scouts`) — per-scout analytics:
+   - GitHub-style 365-day activity heatmap
+   - Scout stats cards with sparkline charts (reports, avg rating, positions covered)
+
+3. **Consenso** (`/admin/relatorios/consenso`) — multi-scout divergence view:
+   - Shows players observed by 2+ scouts where agreement < 80%
+   - Cards sorted worst-first with severity badges (Crítico / Grave / Moderado / Ligeiro)
+   - Colored left border by severity (red → orange → amber)
+   - Player position badge (from players table) + club logo via ClubBadge
+   - Divergence reasons: rating spread + decision conflicts
+   - Scout rows colored by rating with decision label
+   - Dismiss to localStorage (resurfaces when new reports arrive)
+   - Masonry layout (1–5 columns responsive), max 18 visible
+   - Click card → player profile
+
 ### 4.10. Excel Import
 - Upload `.xlsx` file
 - Parse sheet "Base de dados Nova" (or detect correct sheet)
@@ -1596,6 +1622,10 @@ The app is mobile-first but the current iPhone experience needs significant impr
 - [x] **RecruitmentCard** — mini pipeline progress tracker with step dots, status icon circle, integrated date display (treino/reuniao/assinatura), status descriptions
 - [x] **RefreshPlayerButton** — unified button styling matching action bar
 - [x] **"Recusou vir"** — renamed "Rejeitado" label to clarify it means the player refused
+- [x] **Admin reports revamp** (`/admin/relatorios`) — complete redesign with 3 tab sub-pages:
+  - Relatórios: KPI cards, highlight chips, searchable/filterable/sortable list, inline tag buttons, slide-over detail panel, URL pagination
+  - Scouts: activity heatmap (365-day), per-scout stats with sparklines
+  - Consenso: multi-scout divergence cards with severity badges, position/club from players table, dismiss to localStorage, masonry layout (1-5 cols)
 
 #### 5B-0. Player Club History & Season Stats
 
