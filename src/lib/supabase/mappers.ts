@@ -134,6 +134,7 @@ export function mapPlayerRow(row: PlayerRow): Player {
     pipelineOrder: row.pipeline_order ?? 0,
     pendingApproval: row.pending_approval ?? false,
     adminReviewed: row.admin_reviewed ?? true,
+    approvedBy: row.approved_by ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     // Report rating fields — populated later by bulk query, default to empty

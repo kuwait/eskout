@@ -192,11 +192,16 @@ export async function approvePlayer(playerId: number): Promise<ActionResponse> {
   const supabase = await createClient();
   const { error } = await supabase
     .from('players')
-    .update({ pending_approval: false, admin_reviewed: true })
+    .update({ pending_approval: false, admin_reviewed: true, approved_by: userId })
     .eq('id', playerId)
     .eq('club_id', clubId);
 
   if (error) return { success: false, error: error.message };
+
+  // Auto-dismiss for the approver (they don't need to see it anymore)
+  await supabase
+    .from('player_added_dismissals')
+    .upsert({ user_id: userId, player_id: playerId }, { onConflict: 'user_id,player_id' });
 
   revalidatePath('/jogadores');
   revalidatePath('/admin/pendentes');
@@ -231,45 +236,61 @@ export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
   return { success: true };
 }
 
-/** Dismiss a recruiter/editor notification (mark as reviewed) */
+/** Dismiss a player from the current user's "Jogadores Adicionados" list (per-user) */
 export async function dismissPlayerReview(playerId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { role, userId } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
 
   const supabase = await createClient();
   const { error } = await supabase
-    .from('players')
-    .update({ admin_reviewed: true })
-    .eq('id', playerId)
-    .eq('club_id', clubId);
+    .from('player_added_dismissals')
+    .upsert({ user_id: userId, player_id: playerId }, { onConflict: 'user_id,player_id' });
 
   if (error) return { success: false, error: error.message };
 
   revalidatePath('/admin/pendentes');
-  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
-/** Dismiss all unreviewed players at once */
+/** Dismiss all players from the current user's "Jogadores Adicionados" list */
 export async function dismissAllPlayerReviews(): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, role, userId } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from('players')
-    .update({ admin_reviewed: true })
-    .eq('club_id', clubId)
-    .eq('admin_reviewed', false);
 
-  if (error) return { success: false, error: error.message };
+  // Fetch all player IDs the user hasn't dismissed yet (created by others in this club)
+  const { data: dismissed } = await supabase
+    .from('player_added_dismissals')
+    .select('player_id')
+    .eq('user_id', userId);
+  const dismissedIds = new Set((dismissed ?? []).map((d) => d.player_id));
+
+  const { data: players } = await supabase
+    .from('players')
+    .select('id')
+    .eq('club_id', clubId)
+    .neq('created_by', userId);
+
+  if (!players) return { success: true };
+
+  const toDismiss = players
+    .filter((p) => !dismissedIds.has(p.id))
+    .map((p) => ({ user_id: userId, player_id: p.id }));
+
+  if (toDismiss.length > 0) {
+    const { error } = await supabase
+      .from('player_added_dismissals')
+      .upsert(toDismiss, { onConflict: 'user_id,player_id' });
+
+    if (error) return { success: false, error: error.message };
+  }
 
   revalidatePath('/admin/pendentes');
-  await broadcastBulkMutation(clubId, 'players', userId);
   return { success: true };
 }
 

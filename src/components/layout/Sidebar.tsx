@@ -27,7 +27,7 @@ const NAV_ITEMS = [
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/meus-jogadores', label: 'Jogadores', icon: Users, scoutHidden: false, onlyRoles: ['scout', 'recruiter'], feature: null },
-  { href: '/admin/pendentes', label: 'Pendentes', icon: UserPlus, scoutHidden: true, recruiterHidden: true, onlyRoles: ['admin', 'editor'], feature: null },
+  { href: '/admin/pendentes', label: 'Adicionados', icon: UserPlus, scoutHidden: true, recruiterHidden: true, onlyRoles: ['admin', 'editor'], feature: null },
 ];
 
 const ADMIN_ITEMS = [

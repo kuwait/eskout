@@ -1,6 +1,6 @@
 // src/app/admin/pendentes/PendentesClient.tsx
-// Client component for pending player review — approve/reject scout submissions, dismiss recruiter additions
-// Two sections: "Aguardar Aprovação" (scout) and "Adicionados Recentemente" (recruiter/editor)
+// Client component for "Jogadores Adicionados" — per-user notification list
+// Shows players added by others; scout-created need approval, others just dismiss
 // RELEVANT FILES: src/app/admin/pendentes/page.tsx, src/actions/players.ts
 
 'use client';
@@ -21,7 +21,7 @@ const ROLE_LABELS: Record<string, string> = {
   recruiter: 'Recrutador',
 };
 
-interface PendingPlayer {
+interface AddedPlayer {
   id: number;
   name: string;
   dob: string;
@@ -30,24 +30,25 @@ interface PendingPlayer {
   createdBy: string;
   createdByRole: string;
   createdAt: string;
+  /** Only for scout-created: name of the user who approved, null if not yet approved */
+  approvedByName: string | null;
 }
 
 export function PendentesClient({
   pendingPlayers,
-  unreviewedPlayers,
-  canDismiss,
+  approvedPlayers,
 }: {
-  pendingPlayers: PendingPlayer[];
-  unreviewedPlayers: PendingPlayer[];
-  canDismiss: boolean;
+  /** Scout-created, not yet approved globally */
+  pendingPlayers: AddedPlayer[];
+  /** Already approved or auto-approved (non-scout) — just needs dismiss */
+  approvedPlayers: AddedPlayer[];
 }) {
   const router = useRouter();
   const [processing, setProcessing] = useState<number | null>(null);
   const [dismissingAll, setDismissingAll] = useState(false);
 
-  /* ───────────── Realtime: refresh when players/reports change ───────────── */
+  /* ───────────── Realtime: refresh when players change ───────────── */
   useRealtimeTable('players', { onAny: () => router.refresh() });
-  useRealtimeTable('scouting_reports', { onAny: () => router.refresh() });
 
   async function handleApprove(id: number) {
     setProcessing(id);
@@ -103,20 +104,33 @@ export function PendentesClient({
     });
   }
 
-  const totalCount = pendingPlayers.length + unreviewedPlayers.length;
+  const totalCount = pendingPlayers.length + approvedPlayers.length;
 
   return (
     <div className="p-4 lg:p-6">
-      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Pendentes</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold lg:text-2xl">Jogadores Adicionados</h1>
+        {totalCount > 1 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDismissAll}
+            disabled={dismissingAll}
+            className="text-xs text-muted-foreground"
+          >
+            Limpar tudo
+          </Button>
+        )}
+      </div>
 
       {totalCount === 0 && (
         <div className="rounded-lg border bg-white p-8 text-center">
           <UserPlus className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Nenhum jogador pendente de revisão</p>
+          <p className="text-sm text-muted-foreground">Nenhum jogador por rever</p>
         </div>
       )}
 
-      {/* ───────────── Pending Approval (Scout) ───────────── */}
+      {/* ───────────── Pending Approval (Scout-created) ───────────── */}
       {pendingPlayers.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold uppercase text-muted-foreground mb-3">
@@ -128,9 +142,15 @@ export function PendentesClient({
                 <Link href={`/jogadores/${p.id}`} className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate">{p.name}</p>
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                      Pendente
-                    </span>
+                    {p.approvedByName ? (
+                      <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                        Aceite por {p.approvedByName}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        Pendente
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {p.club} {p.position && `· ${p.position}`} · {formatDate(p.dob)}
@@ -140,26 +160,39 @@ export function PendentesClient({
                   </p>
                 </Link>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                    onClick={() => handleApprove(p.id)}
-                    disabled={processing === p.id}
-                    title="Aprovar"
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                    onClick={() => handleReject(p.id)}
-                    disabled={processing === p.id}
-                    title="Rejeitar"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  {!p.approvedByName ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        onClick={() => handleApprove(p.id)}
+                        disabled={processing === p.id}
+                        title="Aprovar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleReject(p.id)}
+                        disabled={processing === p.id}
+                        title="Rejeitar"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleDismiss(p.id)}
+                      disabled={processing === p.id}
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-[11px] font-medium text-neutral-500 transition-all hover:border-green-300 hover:bg-green-50 hover:text-green-700 disabled:opacity-50"
+                    >
+                      <Eye className="h-3 w-3" />
+                      Visto
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -167,33 +200,20 @@ export function PendentesClient({
         </div>
       )}
 
-      {/* ───────────── Unreviewed / Auto-Approved (Recruiter/Editor) ───────────── */}
-      {unreviewedPlayers.length > 0 && (
+      {/* ───────────── Already Approved / Auto-Approved ───────────── */}
+      {approvedPlayers.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold uppercase text-muted-foreground">
-              Adicionados Recentemente ({unreviewedPlayers.length})
-            </h2>
-            {canDismiss && unreviewedPlayers.length > 1 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDismissAll}
-                disabled={dismissingAll}
-                className="text-xs text-muted-foreground"
-              >
-                Marcar todos como lidos
-              </Button>
-            )}
-          </div>
+          <h2 className="text-sm font-semibold uppercase text-muted-foreground mb-3">
+            Adicionados Recentemente ({approvedPlayers.length})
+          </h2>
           <div className="space-y-2">
-            {unreviewedPlayers.map((p) => (
+            {approvedPlayers.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-lg border bg-white p-3 hover:bg-neutral-50 transition-colors">
                 <Link href={`/jogadores/${p.id}`} className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate">{p.name}</p>
-                    <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
-                      Aceite automaticamente ({ROLE_LABELS[p.createdByRole] ?? p.createdByRole})
+                    <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                      {ROLE_LABELS[p.createdByRole] ?? p.createdByRole}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -203,16 +223,14 @@ export function PendentesClient({
                     Adicionado por <span className="font-medium">{p.createdBy}</span> · {formatDate(p.createdAt)}
                   </p>
                 </Link>
-                {canDismiss && (
-                  <button
-                    onClick={() => handleDismiss(p.id)}
-                    disabled={processing === p.id}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-[11px] font-medium text-neutral-500 transition-all hover:border-green-300 hover:bg-green-50 hover:text-green-700 disabled:opacity-50"
-                  >
-                    <Eye className="h-3 w-3" />
-                    Lido
-                  </button>
-                )}
+                <button
+                  onClick={() => handleDismiss(p.id)}
+                  disabled={processing === p.id}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-[11px] font-medium text-neutral-500 transition-all hover:border-green-300 hover:bg-green-50 hover:text-green-700 disabled:opacity-50"
+                >
+                  <Eye className="h-3 w-3" />
+                  Visto
+                </button>
               </div>
             ))}
           </div>

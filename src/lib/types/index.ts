@@ -100,6 +100,7 @@ export interface Player {
   pipelineOrder: number;
   pendingApproval: boolean;
   adminReviewed: boolean;
+  approvedBy: string | null;
   createdAt: string;
   updatedAt: string;
   /** Average rating from scouting reports (null if no reports with ratings) */
@@ -180,6 +181,7 @@ export interface PlayerRow {
   pipeline_order: number;
   pending_approval: boolean;
   admin_reviewed: boolean;
+  approved_by: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;

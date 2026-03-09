@@ -76,6 +76,7 @@ export function AppShellClient({
           <ShellContent
             alertCounts={alertCounts}
             userRole={userRole}
+            userId={userId}
             clubInfo={clubInfo}
             isSuperadmin={isSuperadmin}
           >
@@ -92,6 +93,7 @@ export function AppShellClient({
       <ShellContent
         alertCounts={alertCounts}
         userRole={userRole}
+        userId={userId}
         clubInfo={clubInfo}
         isSuperadmin={isSuperadmin}
       >
@@ -107,19 +109,21 @@ function ShellContent({
   children,
   alertCounts: initialAlertCounts,
   userRole,
+  userId,
   clubInfo,
   isSuperadmin,
 }: {
   children: React.ReactNode;
   alertCounts: AlertCounts;
   userRole: string;
+  userId: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Live badge counts — updates via Realtime when other users make changes
-  const alertCounts = useRealtimeBadges(initialAlertCounts);
+  const alertCounts = useRealtimeBadges(initialAlertCounts, userId);
 
   return (
     <>

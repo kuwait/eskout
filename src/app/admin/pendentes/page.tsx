@@ -1,7 +1,7 @@
 // src/app/admin/pendentes/page.tsx
-// Admin page for reviewing pending players (scout submissions) and dismissing recruiter/editor additions
-// Shows two sections: pending approval + unreviewed (auto-approved)
-// RELEVANT FILES: src/actions/players.ts, src/components/layout/Sidebar.tsx
+// "Jogadores Adicionados" — per-user notification list of players added by others
+// Admin/editor sees all players created by other users, minus their own dismissals
+// RELEVANT FILES: src/actions/players.ts, src/app/admin/pendentes/PendentesClient.tsx
 
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
@@ -19,36 +19,44 @@ export default async function PendentesPage() {
   }
 
   const supabase = await createClient();
+  const userId = ctx.userId;
 
-  // Fetch pending approval players (scout-created)
-  const { data: pendingPlayers } = await supabase
+  // Fetch player IDs already dismissed by this user
+  const { data: dismissedRows } = await supabase
+    .from('player_added_dismissals')
+    .select('player_id')
+    .eq('user_id', userId);
+  const dismissedIds = new Set((dismissedRows ?? []).map((d) => d.player_id));
+
+  // Fetch all players created by OTHER users in this club
+  const { data: allPlayers } = await supabase
     .from('players')
-    .select('id, name, dob, club, position_normalized, created_by, created_at')
+    .select('id, name, dob, club, position_normalized, created_by, created_at, pending_approval, approved_by')
     .eq('club_id', ctx.clubId)
-    .eq('pending_approval', true)
+    .neq('created_by', userId)
     .order('created_at', { ascending: false });
 
-  // Fetch unreviewed players (recruiter/editor-created, auto-approved)
-  const { data: unreviewedPlayers } = await supabase
-    .from('players')
-    .select('id, name, dob, club, position_normalized, created_by, created_at')
-    .eq('club_id', ctx.clubId)
-    .eq('pending_approval', false)
-    .eq('admin_reviewed', false)
-    .order('created_at', { ascending: false });
-
-  // Collect creator IDs for profile names and membership roles
-  const creatorIds = new Set<string>();
-  for (const p of [...(pendingPlayers ?? []), ...(unreviewedPlayers ?? [])]) {
-    if (p.created_by) creatorIds.add(p.created_by);
+  if (!allPlayers) {
+    return <PendentesClient pendingPlayers={[]} approvedPlayers={[]} />;
   }
 
+  // Filter out dismissed players
+  const undismissed = allPlayers.filter((p) => !dismissedIds.has(p.id));
+
+  // Collect creator IDs and approver IDs for name resolution
+  const userIds = new Set<string>();
+  for (const p of undismissed) {
+    if (p.created_by) userIds.add(p.created_by);
+    if (p.approved_by) userIds.add(p.approved_by);
+  }
+
+  // Resolve names and roles
   const nameMap = new Map<string, string>();
   const roleMap = new Map<string, string>();
-  if (creatorIds.size > 0) {
+  if (userIds.size > 0) {
     const [profilesRes, membershipsRes] = await Promise.all([
-      supabase.from('profiles').select('id, full_name').in('id', Array.from(creatorIds)),
-      supabase.from('club_memberships').select('user_id, role').eq('club_id', ctx.clubId).in('user_id', Array.from(creatorIds)),
+      supabase.from('profiles').select('id, full_name').in('id', Array.from(userIds)),
+      supabase.from('club_memberships').select('user_id, role').eq('club_id', ctx.clubId).in('user_id', Array.from(userIds)),
     ]);
     for (const p of profilesRes.data ?? []) {
       nameMap.set(p.id, p.full_name);
@@ -58,8 +66,8 @@ export default async function PendentesPage() {
     }
   }
 
-  function mapPlayers(players: typeof pendingPlayers) {
-    return (players ?? []).map((p) => ({
+  function mapPlayer(p: typeof undismissed[number]) {
+    return {
       id: p.id,
       name: p.name,
       dob: p.dob,
@@ -68,14 +76,20 @@ export default async function PendentesPage() {
       createdBy: nameMap.get(p.created_by ?? '') ?? '—',
       createdByRole: roleMap.get(p.created_by ?? '') ?? '—',
       createdAt: p.created_at,
-    }));
+      approvedByName: p.approved_by ? (nameMap.get(p.approved_by) ?? null) : null,
+    };
   }
 
-  return (
-    <PendentesClient
-      pendingPlayers={mapPlayers(pendingPlayers)}
-      unreviewedPlayers={mapPlayers(unreviewedPlayers)}
-      canDismiss={ctx.role === 'admin' || ctx.role === 'editor'}
-    />
-  );
+  // Split: scout-created pending approval vs already approved/auto-approved
+  // Scout-created that are still pending OR were approved by someone else (user still needs to dismiss)
+  const scoutCreated = undismissed.filter((p) => roleMap.get(p.created_by ?? '') === 'scout');
+  const nonScoutCreated = undismissed.filter((p) => roleMap.get(p.created_by ?? '') !== 'scout');
+
+  // Pending = scout-created where pending_approval is still true
+  // Approved by others = scout-created where approved_by is set (but user hasn't dismissed)
+  const pendingPlayers = scoutCreated.filter((p) => p.pending_approval).map(mapPlayer);
+  const approvedByOthers = scoutCreated.filter((p) => !p.pending_approval).map(mapPlayer);
+  const approvedPlayers = [...approvedByOthers, ...nonScoutCreated.map(mapPlayer)];
+
+  return <PendentesClient pendingPlayers={pendingPlayers} approvedPlayers={approvedPlayers} />;
 }

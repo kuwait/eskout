@@ -91,7 +91,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       }
 
       // Fetch age groups, alerts, and pending reports — all club-scoped
-      const [agRes, urgRes, impRes, pendingRes, pendingPlayersRes, unreviewedPlayersRes] = await Promise.all([
+      const [agRes, urgRes, impRes, pendingRes] = await Promise.all([
         supabase
           .from('age_groups')
           .select('id, name, generation_year, season')
@@ -112,20 +112,24 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pendente')
           .eq('club_id', clubId),
-        // Pending approval (scout-created)
-        supabase
-          .from('players')
-          .select('id', { count: 'exact', head: true })
-          .eq('pending_approval', true)
-          .eq('club_id', clubId),
-        // Unreviewed (recruiter/editor-created, admin not yet dismissed)
-        supabase
-          .from('players')
-          .select('id', { count: 'exact', head: true })
-          .eq('admin_reviewed', false)
-          .eq('pending_approval', false)
-          .eq('club_id', clubId),
       ]);
+
+      // Per-user badge: count players added by others minus this user's dismissals
+      let pendingPlayersCount = 0;
+      if (userRole === 'admin' || userRole === 'editor') {
+        const [playersRes, dismissedRes] = await Promise.all([
+          supabase
+            .from('players')
+            .select('id', { count: 'exact', head: true })
+            .eq('club_id', clubId)
+            .neq('created_by', userId),
+          supabase
+            .from('player_added_dismissals')
+            .select('player_id', { count: 'exact', head: true })
+            .eq('user_id', userId),
+        ]);
+        pendingPlayersCount = Math.max(0, (playersRes.count ?? 0) - (dismissedRes.count ?? 0));
+      }
 
       if (agRes.data) {
         ageGroups = agRes.data.map((row) => ({
@@ -140,7 +144,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         urgente: urgRes.count ?? 0,
         importante: impRes.count ?? 0,
         pendingReports: pendingRes.count ?? 0,
-        pendingPlayers: (pendingPlayersRes.count ?? 0) + (unreviewedPlayersRes.count ?? 0),
+        pendingPlayers: pendingPlayersCount,
       };
     }
   } catch {
