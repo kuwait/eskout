@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
@@ -15,6 +15,7 @@ import { useRealtimeBadges } from '@/hooks/useRealtimeBadges';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileDrawer } from '@/components/layout/MobileDrawer';
 import { RoleImpersonator } from '@/components/layout/RoleImpersonator';
+import { updateLastSeen } from '@/actions/presence';
 import type { AgeGroup } from '@/lib/types';
 import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
 
@@ -43,6 +44,19 @@ export function AppShellClient({
   const pathname = usePathname();
   const isPublic = PUBLIC_ROUTES.includes(pathname);
   const isNoShell = NO_SHELL_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
+
+  // Heartbeat: update presence every 60 seconds (page, device, last_seen_at)
+  useEffect(() => {
+    if (isPublic || !userId) return;
+    const device = window.innerWidth < 768 ? 'mobile' : 'desktop';
+    // Fire immediately on mount
+    updateLastSeen(pathname, device);
+    const interval = setInterval(() => {
+      const dev = window.innerWidth < 768 ? 'mobile' : 'desktop';
+      updateLastSeen(pathname, dev);
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [isPublic, userId, pathname]);
 
   // No shell on public routes or club picker
   if (isPublic || isNoShell) {
