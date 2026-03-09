@@ -305,12 +305,16 @@ function AddToPipelineDialog({
   }, [filters.search]);
 
   // Reset page when any filter changes
+  /* eslint-disable react-hooks/set-state-in-effect -- resets pagination when filters change */
   useEffect(() => { setPage(0); }, [debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, filters.year]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Reset filters when dialog closes
+  /* eslint-disable react-hooks/set-state-in-effect -- resets form state when dialog closes */
   useEffect(() => {
     if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); }
   }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const clubs = useMemo(() => {
     const set = new Set(availablePlayers.map((p) => p.club).filter(Boolean));
