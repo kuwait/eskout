@@ -4,6 +4,7 @@
 
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import {
   HoverCard,
@@ -31,7 +32,14 @@ const SIZES = {
   lg: { logo: 24, text: 'text-base', popover: 96 },
 };
 
+/* Detect touch device — SSR-safe via useSyncExternalStore */
+const subscribe = () => () => {};
+const getIsTouch = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const getIsTouchServer = () => false;
+
 export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '', onRemoveLogo }: ClubBadgeProps) {
+  const isTouch = useSyncExternalStore(subscribe, getIsTouch, getIsTouchServer);
+
   if (!club) return null;
 
   const s = SIZES[size];
@@ -55,6 +63,9 @@ export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', classNa
       {showName && <span className={s.text}>{club}</span>}
     </span>
   );
+
+  // Touch devices — no hover popover
+  if (isTouch) return badge;
 
   return (
     <HoverCard openDelay={300} closeDelay={100}>
