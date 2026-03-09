@@ -1944,6 +1944,7 @@ Stored as JSONB on `clubs.features`. Initial toggleable features:
 | `export` | Exportar | `true` | Excel/PDF/JSON export |
 | `positions_view` | Vista Posições | `true` | Position-by-position page |
 | `alerts` | Alertas | `true` | Priority notes / alerts page |
+| `scouting_map` | Mapa de Observações | `true` | Weekly scouting game coordination (Phase 16) |
 
 When a feature is disabled, the corresponding nav item is hidden and the route returns 404.
 
@@ -3098,6 +3099,325 @@ CREATE INDEX idx_player_list_items_player ON player_list_items (player_id);
 - **15E:** Bulk actions (multi-select add/remove, duplicate list)
 
 **Deliverable:** Personal workspace for organizing players. Each user creates themed lists, adds players from anywhere with one tap, and browses them with filters and manual sorting. Replaces external notes, bookmarks, and mental lists with an in-app tool that respects role permissions.
+
+---
+
+### Phase 16 — Mapa de Observações (Scouting Game Map)
+
+Weekly scouting coordination system. Replaces the Excel "Mapa de Observações Semanais" — the document that defines who goes where every weekend. The coordinator (admin) creates a weekly round, adds games, sees scout availability, assigns scouts to games, and tracks execution. Scouts receive in-app notifications and submit reports linked to the game.
+
+This is the **coordination backbone** of a scouting department. Without it, everything happens via WhatsApp and spreadsheets.
+
+#### 16.1. Core Concepts
+
+**Jornada (Weekly Round):** One observation planning period, typically a weekend but can span any date range. Named by the admin (e.g., "Semana 15-16 Março") or auto-named. Contains games and assignments.
+
+**Jogo (Game):** A match to observe. Can be entered manually or imported via FPF competition link. Has date, time, competition, home/away teams, venue, age group, priority, and observation notes (which players to watch, what info to gather).
+
+**Atribuição (Assignment):** Links a scout to a game. One game can have multiple scouts (observing different teams/players). One scout can have multiple games in the same jornada (consecutive games at the same venue is common).
+
+**Disponibilidade (Availability):** Scouts declare when and where they're available for the week. The coordinator uses this to make assignments.
+
+**Competição Seguida (Followed Competition):** An FPF competition the club monitors. The system periodically imports upcoming games from these competitions, populating the game pool.
+
+#### 16.2. Data Model
+
+```sql
+-- Weekly observation rounds
+CREATE TABLE scouting_rounds (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,                      -- "Semana 15-16 Mar" or auto-generated
+  start_date DATE NOT NULL,                -- First day of the round
+  end_date DATE NOT NULL,                  -- Last day of the round
+  status TEXT NOT NULL DEFAULT 'planning', -- 'planning' | 'active' | 'closed'
+  notes TEXT DEFAULT '',                   -- Admin notes for the round
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Games to observe
+CREATE TABLE scouting_games (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  round_id INT REFERENCES scouting_rounds(id) ON DELETE SET NULL, -- NULL = unassigned to any round
+  competition TEXT NOT NULL,               -- "C.D. SUB-13 / I DIVISÃO"
+  home_team TEXT NOT NULL,                 -- "Leixões S.C."
+  away_team TEXT NOT NULL,                 -- "S.C. Salgueiros"
+  age_group TEXT,                          -- "Sub-11", "Sub-15" — free text (external clubs have different escalões)
+  kickoff_at TIMESTAMPTZ NOT NULL,         -- Date + time
+  venue TEXT DEFAULT '',                   -- "Complexo Desportivo Oscar Marques"
+  venue_lat NUMERIC(9,6),                  -- Optional GPS coordinates for distance calc
+  venue_lng NUMERIC(9,6),
+  priority TEXT DEFAULT 'normal',          -- 'normal' | 'high' | 'critical'
+  pre_game_notes TEXT DEFAULT '',          -- "Relatório: Gustavo Teixeira n15", "Equipa Forte: Varzim"
+  status TEXT DEFAULT 'scheduled',         -- 'scheduled' | 'observed' | 'partially_observed' | 'missed' | 'cancelled'
+  fpf_competition_id TEXT,                 -- FPF competition ID (e.g., "23789")
+  fpf_match_id TEXT,                       -- FPF match ID (e.g., "2484199") — available after game
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Scout assignments to games
+CREATE TABLE game_assignments (
+  id SERIAL PRIMARY KEY,
+  game_id INT NOT NULL REFERENCES scouting_games(id) ON DELETE CASCADE,
+  scout_user_id UUID NOT NULL REFERENCES profiles(id),
+  assigned_by UUID REFERENCES profiles(id),
+  focus_notes TEXT DEFAULT '',             -- "Observar equipa da casa", "Foco no n8 MC"
+  status TEXT DEFAULT 'assigned',          -- 'assigned' | 'confirmed' | 'completed' | 'missed'
+  assigned_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (game_id, scout_user_id)          -- One assignment per scout per game
+);
+
+-- Scout weekly availability
+CREATE TABLE scout_availability (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  round_id INT NOT NULL REFERENCES scouting_rounds(id) ON DELETE CASCADE,
+  day DATE NOT NULL,                       -- The specific day
+  period TEXT NOT NULL,                    -- 'morning' | 'afternoon' | 'evening' | 'full_day'
+  notes TEXT DEFAULT '',                   -- "Só até às 12h", "Posso ir mais longe se for preciso"
+  UNIQUE (user_id, round_id, day, period)
+);
+
+-- Followed FPF competitions (for auto-import of games)
+CREATE TABLE followed_competitions (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  fpf_competition_id TEXT NOT NULL,        -- FPF competition ID
+  fpf_season_id TEXT NOT NULL,             -- FPF season ID
+  name TEXT NOT NULL,                      -- "C.D. SUB-13 / I DIVISÃO"
+  age_group TEXT,                          -- "Sub-13"
+  is_active BOOLEAN DEFAULT true,
+  last_synced_at TIMESTAMPTZ,
+  UNIQUE (club_id, fpf_competition_id, fpf_season_id)
+);
+
+-- Scout profiles — extend profiles with location for distance calc
+ALTER TABLE profiles ADD COLUMN location_label TEXT DEFAULT ''; -- "Gaia", "Matosinhos / Custóias"
+ALTER TABLE profiles ADD COLUMN location_lat NUMERIC(9,6);
+ALTER TABLE profiles ADD COLUMN location_lng NUMERIC(9,6);
+
+-- Link scouting_reports to games
+ALTER TABLE scouting_reports ADD COLUMN game_id INT REFERENCES scouting_games(id) ON DELETE SET NULL;
+
+-- Indexes
+CREATE INDEX idx_scouting_rounds_club ON scouting_rounds (club_id, start_date DESC);
+CREATE INDEX idx_scouting_games_round ON scouting_games (round_id);
+CREATE INDEX idx_scouting_games_kickoff ON scouting_games (club_id, kickoff_at);
+CREATE INDEX idx_game_assignments_scout ON game_assignments (scout_user_id);
+CREATE INDEX idx_game_assignments_game ON game_assignments (game_id);
+CREATE INDEX idx_scout_availability_round ON scout_availability (round_id, user_id);
+CREATE INDEX idx_followed_competitions_club ON followed_competitions (club_id);
+```
+
+**RLS:** Club-scoped. All members can read games and assignments. Scouts can read/write their own availability and see their own assignments. Admins can create/edit/delete everything.
+
+#### 16.3. Workflow
+
+**Weekly cycle (coordinator perspective):**
+
+1. **Terça/Quarta — Criar jornada:** Admin creates new round for the weekend. Sets date range.
+2. **Adicionar jogos:** Games come from 3 sources:
+   - **Followed competitions:** Auto-imported from FPF. Admin reviews and adds relevant ones to the round.
+   - **Manual entry:** Admin adds game with all details (competition, teams, venue, time, notes).
+   - **FPF link:** Paste a competition URL → system imports all upcoming games from that competition.
+3. **Ver disponibilidade:** Admin sees which scouts are available and in which periods/zones.
+4. **Atribuir scouts:** Admin assigns scouts to games. System highlights geographic conflicts (game too far from scout's zone) and time conflicts (overlapping games).
+5. **Publicar:** Admin marks round as "active" → scouts receive in-app notifications.
+6. **Fim-de-semana — Execução:** Scouts see their games, go observe, submit reports.
+7. **Segunda/Terça — Fechar jornada:** Admin reviews: games observed/missed, reports submitted. Marks round as "closed". Stats recorded.
+
+**Weekly cycle (scout perspective):**
+
+1. **Declarar disponibilidade:** At the start of the week, scout marks which days/periods they're free and confirms their zone.
+2. **Receber atribuições:** In-app notification: "Tens 3 jogos atribuídos para este fim-de-semana."
+3. **Ver jogos:** List of assigned games with date, time, venue, pre-game notes (who to watch).
+4. **Ir ao jogo:** On game day, scout can see venue details. (Future: map directions.)
+5. **Submeter relatório:** After the game, submit report linked to the game. If FPF match data is available, player list is pre-populated for selection. Report is partially pre-filled (competition, teams, date, venue).
+6. **Marcar estado:** Game status updated to "completed" (auto when report submitted) or "missed" (scout marks if couldn't attend).
+
+#### 16.4. FPF Integration
+
+**FPF Resultados** (`resultados.fpf.pt`) has structured data:
+
+- **Competition page:** `resultados.fpf.pt/Competition/Details?competitionId=23789&seasonId=105` — lists all rounds and games for a competition.
+- **Match page:** `resultados.fpf.pt/Match/GetMatchInformation?matchId=2484199` — match details including teams, players (post-game), result.
+
+**Followed competitions approach:**
+1. Admin adds FPF competition URL (paste link or enter IDs manually).
+2. System scrapes/fetches the competition calendar periodically (or on demand).
+3. Upcoming games appear in a pool: "Jogos disponíveis" — not yet assigned to any round.
+4. Admin picks which games go into this week's round.
+5. **Post-game:** When `fpf_match_id` is set, system can fetch match details (player lists, result). This enables:
+   - Player list for report pre-fill (scout selects from the match roster)
+   - Cross-reference with existing players in the database (match by FPF player ID)
+   - Auto-detect players already in pipeline/shortlist playing in this game
+
+**FPF match data availability:**
+- Competition calendar (teams, dates, venues) — available before the game
+- Match details (player lists, score) — available only after the game (when `fpf_match_id` link is published)
+- **The system must work without FPF data** — manual entry is always the fallback
+
+**Auto-suggestion (smart, not brute-force):**
+- Don't search all FPF games for all players — too heavy
+- Instead: when games are imported from followed competitions, cross-reference the teams with `players.club` in the database
+- If a player in the pipeline/shortlist plays for a team in an upcoming game, the game gets auto-tagged: "⚡ Jogador target: Manuel Silva (DC) — Padroense F.C."
+- Coordinator sees these highlights when deciding which games to include in the round
+
+#### 16.5. Pre-Game Notes (Observações)
+
+The Excel shows rich pre-game instructions per game. The `pre_game_notes` field supports this:
+
+- **Jogadores target:** "Relatório: Gustavo Teixeira n15 Benfica Gaia" — specific player to observe with name and shirt number
+- **Prioridade:** "PRIORIDADE" flag for critical games
+- **Equipa Forte:** "Equipa Forte (importante mapear): Varzim" — the whole team is worth scouting
+- **Contactos:** "Arranjar contactos: António Pereira - Ad Grijó - Médio Centro - n5" — players to approach
+- **Open scouting:** "Ver quem se destaque" — general observation, no specific targets
+
+This is free text for now. Future: structured target players linked to the game (Phase 16E).
+
+#### 16.6. Availability & Geographic Zones
+
+From the Excel, scouts have:
+- **Temporal availability:** "Sábado de Manhã", "Domingo de Manhã", "Sábado a partir das 14h"
+- **Geographic zone:** "Gaia", "Matosinhos / Custóias", "Póvoa de Varzim"
+- **Status:** Available (x) or Indisponível
+
+**In-app model:**
+- Scout declares availability per round: picks days and periods (morning/afternoon/evening/full day)
+- Scout's profile has `location_label` (free text zone name) and optional `location_lat`/`location_lng` for distance calculation
+- Admin sees availability matrix: scouts × time slots, with zone labels
+- When assigning, system shows estimated distance/time if coordinates are available (using straight-line distance or external API in future)
+
+**Conflict detection:**
+- Time overlap: scout assigned to two games that overlap or are too close in time without travel buffer
+- Geographic mismatch: game venue is outside scout's declared zone (warning, not blocking)
+- Availability mismatch: game is in a period where scout is not available (warning)
+
+#### 16.7. Pages & UI
+
+| Route | Description | Role |
+|-------|-------------|------|
+| `/observacoes` | Current/latest round overview — the weekly map | Admin, Editor |
+| `/observacoes/[id]` | Specific round detail | Admin, Editor |
+| `/observacoes/nova` | Create new round | Admin |
+| `/observacoes/competicoes` | Manage followed FPF competitions | Admin |
+| `/meus-jogos` | Scout's personal view — my assigned games this week | Scout |
+
+**Main view (`/observacoes`) — The Weekly Map:**
+
+Two layouts, togglable:
+
+**1. Table view (default — mirrors the Excel):**
+Columns: Observador | Dia | Horas | Campeonato | Jogo | Local | Observações
+Sorted by scout, then by date/time. Grouped by scout (like the Excel).
+Color-coded priority rows. Status icons (✓ observed, ✗ missed, ⏳ scheduled).
+
+**2. Timeline view:**
+Horizontal timeline: columns per time slot (Sáb Manhã, Sáb Tarde, Dom Manhã, Dom Tarde).
+Rows per scout. Games as cards in the grid cells.
+Unassigned games in a "Por atribuir" zone at the bottom.
+Drag & drop to assign (desktop). Mobile: tap game → assign modal.
+
+**Both views show:**
+- Total games / assigned / unassigned counts
+- Scout availability sidebar/panel
+- "Outras Opções" section: games in the pool not yet in this round
+
+**Round summary bar:**
+- Status badges: X jogos | Y observados | Z relatórios submetidos | W por atribuir
+- Quick actions: "Publicar" (notify scouts), "Fechar jornada"
+
+**Scout view (`/meus-jogos`):**
+- Card list of assigned games, sorted chronologically
+- Each card: date, time, competition, teams, venue, pre-game notes, priority badge
+- "Submeter Relatório" button per game → opens report form pre-filled with game context
+- Status toggle: "Fui" / "Não consegui ir"
+- Notification badge on nav item when new assignments exist
+
+#### 16.8. Notifications (In-App)
+
+No push notifications or email for now — in-app only.
+
+**Notification triggers:**
+| Event | Recipient | Message |
+|-------|-----------|---------|
+| Round published | All scouts with assignments | "Tens X jogos atribuídos para DATES" |
+| New assignment added | Assigned scout | "Novo jogo atribuído: HOME vs AWAY (DATE, TIME)" |
+| Assignment removed | Scout | "Atribuição removida: HOME vs AWAY" |
+| Game cancelled | Assigned scouts | "Jogo cancelado: HOME vs AWAY" |
+| Missing report (24h after game) | Assigned scout | "Ainda não submeteste relatório: HOME vs AWAY" |
+
+**Notification storage:**
+
+```sql
+CREATE TABLE notifications (
+  id SERIAL PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,                      -- 'assignment_new' | 'assignment_removed' | 'game_cancelled' | 'report_reminder' | 'round_published'
+  title TEXT NOT NULL,
+  body TEXT DEFAULT '',
+  link TEXT DEFAULT '',                    -- Deep link to relevant page
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_notifications_user ON notifications (user_id, is_read, created_at DESC);
+```
+
+**UI:** Bell icon in top bar with unread count badge. Dropdown shows recent notifications. Mark as read on click.
+
+#### 16.9. Report Pre-Fill from Game Context
+
+When scout clicks "Submeter Relatório" from a game card:
+
+**Always pre-filled (from game data):**
+- Competition
+- Home team / Away team
+- Date
+- Venue
+- `game_id` link (so report is connected to the game)
+
+**Pre-filled if FPF match data available (post-game):**
+- Player list from FPF match page — scout selects player from dropdown instead of typing
+- Selected player's position, shirt number from FPF data
+- If player already exists in Eskout (matched by FPF player ID), auto-links to existing profile
+
+**Pre-filled from pre-game notes:**
+- If admin specified target players in notes, those appear as suggested selections
+- Future: structured target players linked to the game
+
+#### 16.10. Feature Toggle
+
+Feature key: `scouting_map` — toggleable per club in the superadmin panel.
+
+When disabled: nav items hidden, routes return 404. Scouts only see basic submission flow.
+
+Add to `FEATURE_LABELS` in ClubDetailClient:
+```
+scouting_map: 'Mapa de Observações'
+```
+
+#### 16.11. Sub-phases
+
+- **16A:** Data model (migrations) — `scouting_rounds`, `scouting_games`, `game_assignments`, `scout_availability`, `followed_competitions`, `notifications`. Profile location fields. `scouting_reports.game_id` column. RLS policies.
+- **16B:** Round management — create/edit/close rounds. Add games manually. Admin CRUD UI (`/observacoes`).
+- **16C:** Scout availability — declare availability per round. Admin availability matrix view.
+- **16D:** Assignments — assign scouts to games. Conflict detection (time, zone). Table view (mirrors Excel). "Publicar" round to notify scouts.
+- **16E:** Scout view — `/meus-jogos` page. Game cards with status. "Submeter Relatório" with pre-fill from game context.
+- **16F:** FPF integration — followed competitions. Import games from FPF competition calendar. Auto-tag games with pipeline/shortlist player matches.
+- **16G:** Timeline view (drag & drop assignments). Round summary stats. "Fechar jornada" with coverage report.
+- **16H:** Notifications — in-app notification system. Bell icon with dropdown. Notification triggers for assignments, reminders.
+- **16I:** FPF match data — post-game player list fetch. Report pre-fill with player selection from FPF roster. Player matching with existing database.
+
+Each sub-phase deployable independently. The core (16A–16E) delivers the Excel replacement. FPF integration (16F, 16I) and polish (16G, 16H) add intelligence on top.
+
+**Deliverable:** Full scouting coordination system replacing the Excel "Mapa de Observações Semanais". Coordinators plan weekly rounds, assign scouts to games with availability and geographic awareness, and track execution. Scouts receive in-app notifications, see their assignments, and submit pre-filled reports. FPF integration auto-imports games from followed competitions and enables player list pre-fill for reports.
 
 ---
 
