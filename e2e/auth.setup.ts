@@ -29,7 +29,7 @@ async function loginAndSave(
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
   // Wait for redirect away from login
-  await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 10_000 });
+  await page.waitForURL((url: URL) => !url.pathname.includes('/login'), { timeout: 30_000 });
   await page.context().storageState({ path: storageFile });
 }
 

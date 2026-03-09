@@ -68,6 +68,17 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Warm up Supabase (free tier cold start)
+        run: |
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/" 2>/dev/null || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            [ "$STATUS" = "200" ] && break
+            sleep 5
+          done
+
       - name: Build Next.js
         run: npm run build
 

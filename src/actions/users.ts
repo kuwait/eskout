@@ -136,14 +136,14 @@ export async function inviteUser(
 
     if (profileErr) return { success: false, error: 'Utilizador criado mas erro ao guardar perfil' };
 
-    // Create club membership for the active club
+    // Create club membership for the active club (upsert in case a DB trigger already created one)
     const { error: membershipErr } = await service
       .from('club_memberships')
-      .insert({
+      .upsert({
         user_id: data.user.id,
         club_id: clubId,
         role,
-      });
+      }, { onConflict: 'user_id,club_id' });
 
     if (membershipErr) return { success: false, error: 'Utilizador criado mas erro ao associar ao clube' };
 
