@@ -101,7 +101,12 @@ function clubsMatch(a: string, b: string): boolean {
   if (a === b) return true;
   const na = normalizeClubName(a);
   const nb = normalizeClubName(b);
-  return na === nb || na.includes(nb) || nb.includes(na);
+  if (na === nb) return true;
+  // Only allow substring match when the shorter name is at least 60% of the longer
+  // Prevents false positives like "foz" matching "paraíso foz"
+  const shorter = na.length <= nb.length ? na : nb;
+  const longer = na.length > nb.length ? na : nb;
+  return shorter.length >= longer.length * 0.6 && longer.includes(shorter);
 }
 
 /* ───────────── FPF Scraper ───────────── */
