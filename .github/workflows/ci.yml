@@ -1,0 +1,39 @@
+# .github/workflows/ci.yml
+# CI pipeline: lint, typecheck, and test on every push/PR to main
+# Runs unit + integration tests via Jest (no E2E yet — requires test Supabase project)
+# RELEVANT FILES: jest.config.ts, package.json, docs/test-strategy.md
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit & integration tests
+        run: npm run test:ci
