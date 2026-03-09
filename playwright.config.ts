@@ -66,12 +66,15 @@ export default defineConfig({
   ],
 
   // Start Next.js server — production build for reliable E2E, dev for quick iteration
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: process.env.E2E_DEV ? 'npm run dev' : 'npm run build && npm run start',
-        url: 'http://localhost:3000',
-        reuseExistingServer: true,
-        timeout: 120_000,
-      },
+  // CI pre-builds, so just `npm run start`; local can use dev or build+start
+  webServer: {
+    command: process.env.CI
+      ? 'npm run start'
+      : process.env.E2E_DEV
+        ? 'npm run dev'
+        : 'npm run build && npm run start',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });
