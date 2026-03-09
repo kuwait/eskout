@@ -69,22 +69,30 @@ export function AddToSquadDialog({
   onAdded,
   onAddPlayer,
 }: AddToSquadDialogProps) {
-  // Filter allPlayers to exclude those already in the target squad
+  /* ───────────── Player pool (same logic as pipeline dialog) ───────────── */
+
   const searchablePlayers = useMemo(() => {
     const base = (allPlayers && allPlayers.length > 0) ? allPlayers : availablePlayers;
-    // Use excludeIds (optimistic, always up-to-date) when available
+    // Exclude players already in this squad
     if (excludeIds && excludeIds.size > 0) {
       return base.filter((p) => !excludeIds.has(p.id));
     }
-    // Fallback: filter by squad flags from DB data
     const filtered = squadType === 'shadow'
       ? base.filter((p) => !p.isShadowSquad)
       : base.filter((p) => !p.isRealSquad);
     return filtered.length > 0 ? filtered : availablePlayers;
   }, [allPlayers, availablePlayers, squadType, excludeIds]);
+
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  /* Debounce search — same pattern as pipeline dialog */
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   // Pre-fill position + year filters when dialog opens
   // DC_E/DC_D → DC for the position filter (base position code)
@@ -97,6 +105,7 @@ export function AddToSquadDialog({
         position: basePos,
         year: initialYear ?? '',
       });
+      setDebouncedSearch('');
       setErrorMsg(null);
     }
   }, [open, position, initialYear]);
@@ -124,12 +133,23 @@ export function AddToSquadDialog({
     return Array.from(set).sort((a, b) => b - a);
   }, [searchablePlayers]);
 
+  /* ───────────── Filter + search (identical to pipeline dialog) ───────────── */
+
   const filtered = useMemo(() => {
     let result = searchablePlayers;
-    if (filters.search) {
-      result = result.filter((p) => fuzzyMatch(`${p.name} ${p.club}`, filters.search));
+
+    if (debouncedSearch) {
+      result = result.filter((p) => {
+        const pLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
+        return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
+      });
     }
-    if (filters.position) result = result.filter((p) => p.positionNormalized === filters.position);
+    // Match primary, secondary, or tertiary position
+    if (filters.position) result = result.filter((p) =>
+      p.positionNormalized === filters.position ||
+      p.secondaryPosition === filters.position ||
+      p.tertiaryPosition === filters.position
+    );
     if (filters.club) result = result.filter((p) => p.club === filters.club);
     if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion as DepartmentOpinion));
     if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
@@ -137,11 +157,10 @@ export function AddToSquadDialog({
       const yr = parseInt(filters.year, 10);
       result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
     }
-    return result.slice(0, 30);
-  }, [searchablePlayers, filters]);
+    return result.slice(0, 50);
+  }, [searchablePlayers, debouncedSearch, filters]);
 
-  // For shadow, year filter is hidden (always pre-set) — don't count it as "active filter"
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || (squadType === 'real' && filters.year);
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -205,7 +224,7 @@ export function AddToSquadDialog({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Pesquisar nome ou clube..."
+            placeholder="Pesquisar jogador, clube, posição..."
             value={filters.search}
             onChange={(e) => updateFilter('search', e.target.value)}
             className="pl-9"

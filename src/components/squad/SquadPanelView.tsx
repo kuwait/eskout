@@ -74,19 +74,24 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
 
   /* ───────────── Fetch ───────────── */
 
-  // Fetch all players once — ~2000 players max for a youth club
-  const fetchAllPlayers = useCallback(() => {
+  // Fetch all players with pagination (Supabase caps at 1000 rows per request)
+  const fetchAllPlayers = useCallback(async () => {
     const supabase = createClient();
-    supabase
-      .from('players')
-      .select('*')
-      .order('name')
-      .range(0, 4999)
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setAllPlayers((data as PlayerRow[]).map(mapPlayerRow));
-        }
-      });
+    const PAGE = 1000;
+    const all: PlayerRow[] = [];
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .order('name')
+        .range(offset, offset + PAGE - 1);
+      if (error || !data?.length) break;
+      all.push(...(data as PlayerRow[]));
+      if (data.length < PAGE) break;
+      offset += PAGE;
+    }
+    setAllPlayers(all.map(mapPlayerRow));
   }, []);
 
   useEffect(() => {
@@ -412,7 +417,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
         position={dialogPosition}
         squadType={squadType}
         availablePlayers={availablePlayers}
-        allPlayers={squadType === 'real' ? allPlayers : undefined}
+        allPlayers={allPlayers}
         excludeIds={squadPlayerIds}
         initialYear={selectedAgeGroup ? String(selectedAgeGroup.generationYear) : undefined}
         onAddPlayer={(player) => { handleAdd(player, dialogPosition); setDialogOpen(false); }}

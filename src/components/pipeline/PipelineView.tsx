@@ -327,7 +327,12 @@ function AddToPipelineDialog({
         return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${posLabel}`, debouncedSearch);
       });
     }
-    if (filters.position) result = result.filter((p) => p.positionNormalized === filters.position);
+    // Match primary, secondary, or tertiary position
+    if (filters.position) result = result.filter((p) =>
+      p.positionNormalized === filters.position ||
+      p.secondaryPosition === filters.position ||
+      p.tertiaryPosition === filters.position
+    );
     if (filters.club) result = result.filter((p) => p.club === filters.club);
     if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion as DepartmentOpinion));
     if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
