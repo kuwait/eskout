@@ -121,9 +121,11 @@ function SortablePipelineCard({
   }
 
   // Clear hold state when drag starts (DragOverlay takes over)
+  /* eslint-disable react-hooks/set-state-in-effect -- clears UI state in response to external drag system event */
   useEffect(() => {
     if (isDragging) clearHold();
   }, [isDragging, clearHold]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // wasLongPress tracks if hold timer fired (even without actual drag movement)
   const wasLongPress = useRef(false);
@@ -149,6 +151,7 @@ function SortablePipelineCard({
       {...attributes}
       {...listeners}
       onPointerDown={(e: React.PointerEvent) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dnd-kit listeners type doesn't expose onPointerDown
         (listeners as any)?.onPointerDown?.(e);
         handlePointerDown(e);
       }}

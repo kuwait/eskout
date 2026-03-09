@@ -89,6 +89,7 @@ function parseDragId(id: string): { playerId: number; position: string } | null 
 /** true when viewport ≥ 1024px (lg breakpoint) — drives conditional render to avoid duplicate DnD IDs */
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- media query listener, setState in subscription callback */
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 1024px)');
     setIsDesktop(mql.matches);
@@ -96,6 +97,7 @@ function useIsDesktop() {
     mql.addEventListener('change', handler);
     return () => mql.removeEventListener('change', handler);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
   return isDesktop;
 }
 

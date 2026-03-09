@@ -27,6 +27,7 @@ export function useResizableColumns({ columnKeys, defaultWidths, minWidths, pers
   const [widths, setWidths] = useState<Record<string, number>>({ ...defaultWidths });
 
   // Load persisted widths after mount (client-only)
+  /* eslint-disable react-hooks/set-state-in-effect -- restores persisted column widths from localStorage after SSR */
   useEffect(() => {
     if (!persist) return;
     try {
@@ -37,6 +38,7 @@ export function useResizableColumns({ columnKeys, defaultWidths, minWidths, pers
       }
     } catch { /* ignore */ }
   }, [persist]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const tableRef = useRef<HTMLTableElement | null>(null);
   const startXRef = useRef(0);

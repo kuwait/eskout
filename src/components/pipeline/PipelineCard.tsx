@@ -98,6 +98,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
   const currentDateValue = statusConfig ? player[statusConfig.field] : null;
 
   // Populate fields from existing date when dialog opens
+  /* eslint-disable react-hooks/set-state-in-effect -- syncs form fields with external data when dialog opens */
   useEffect(() => {
     if (dialogOpen && currentDateValue) {
       const existing = currentDateValue.slice(0, 16); // "YYYY-MM-DDTHH:MM"
@@ -108,6 +109,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
       setTime('10:00');
     }
   }, [dialogOpen, currentDateValue]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function handleSave() {
     if (!statusConfig) return;

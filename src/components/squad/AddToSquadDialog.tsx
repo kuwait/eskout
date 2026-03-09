@@ -88,6 +88,7 @@ export function AddToSquadDialog({
 
   // Pre-fill position + year filters when dialog opens
   // DC_E/DC_D → DC for the position filter (base position code)
+  /* eslint-disable react-hooks/set-state-in-effect -- resets filter form when dialog opens with new position/year */
   useEffect(() => {
     if (open) {
       const basePos = position === 'DC_E' || position === 'DC_D' ? 'DC' : position;
@@ -99,6 +100,7 @@ export function AddToSquadDialog({
       setErrorMsg(null);
     }
   }, [open, position, initialYear]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const posLabel = (POSITION_LABELS as Record<string, string>)[position] ?? position;
   const title = squadType === 'shadow'

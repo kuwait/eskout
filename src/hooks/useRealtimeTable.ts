@@ -40,6 +40,7 @@ export function useRealtimeTable(
 
   // Store callbacks in refs to avoid re-subscribing on every render
   const callbacksRef = useRef(options);
+  // eslint-disable-next-line react-hooks/refs -- standard "latest ref" pattern to avoid stale closures in subscriptions
   callbacksRef.current = options;
 
   // Debounce timer ref
@@ -109,6 +110,7 @@ export function useRealtimeAny(
 ): void {
   const realtime = useRealtime();
   const callbackRef = useRef(callback);
+  // eslint-disable-next-line react-hooks/refs -- standard "latest ref" pattern to avoid stale closures
   callbackRef.current = callback;
 
   useEffect(() => {

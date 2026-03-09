@@ -1169,7 +1169,9 @@ function DeleteConfirmDialog({ open, onOpenChange, playerName, isDeleting, onCon
   const isUnlocked = confirmText === 'ELIMINAR';
 
   // Reset text when dialog opens/closes
+  /* eslint-disable react-hooks/set-state-in-effect -- resets form state when dialog closes */
   useEffect(() => { if (!open) setConfirmText(''); }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

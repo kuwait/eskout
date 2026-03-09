@@ -57,7 +57,9 @@ function isEntryDismissed(map: DismissedMap, entry: ConsensusEntry): boolean {
 export function ConsensusView({ entries }: { entries: ConsensusEntry[] }) {
   const [dMap, setDMap] = useState<DismissedMap>({});
 
+  /* eslint-disable react-hooks/set-state-in-effect -- loads dismissed state from localStorage after SSR */
   useEffect(() => { setDMap(loadDismissed()); }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const nonAligned = entries.filter((e) => e.agreementScore < 80);
   const active = nonAligned.filter((e) => !isEntryDismissed(dMap, e));

@@ -62,10 +62,12 @@ export function ReportsView({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync search input with URL on external navigation
+  /* eslint-disable react-hooks/set-state-in-effect -- syncs local input state with URL search params */
   useEffect(() => {
     const urlSearch = searchParams.get('search') ?? '';
     setSearchValue(urlSearch);
   }, [searchParams]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSearch = useCallback((value: string) => {
     setSearchValue(value);

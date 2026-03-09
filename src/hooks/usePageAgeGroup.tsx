@@ -50,12 +50,14 @@ export function usePageAgeGroup({ pageId, defaultAll = false }: UsePageAgeGroupO
   }, [pageId]);
 
   // Initialize from localStorage once ageGroups are available
+  /* eslint-disable react-hooks/set-state-in-effect -- restores persisted state from localStorage after SSR hydration */
   useEffect(() => {
     if (initialized || ageGroups.length === 0) return;
     const restored = getStoredId(pageId, ageGroups, defaultAll);
     setSelectedIdState(restored);
     setInitialized(true);
   }, [ageGroups, initialized, pageId, defaultAll]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const selected = ageGroups.find((ag) => ag.id === selectedId) ?? null;
 

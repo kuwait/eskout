@@ -29,7 +29,7 @@ import type {
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /** After idle disconnect, poll badge counts at this interval */
-const IDLE_POLL_INTERVAL_MS = 30 * 1000; // 30 seconds
+const _IDLE_POLL_INTERVAL_MS = 30 * 1000; // 30 seconds
 
 /** Debounce rapid-fire events — batch refetches within this window */
 const EVENT_DEBOUNCE_MS = 300;
@@ -85,7 +85,7 @@ export function RealtimeProvider({
   clubId,
   userId,
   userName,
-  userRole,
+  userRole: _userRole,
 }: RealtimeProviderProps) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [status, setStatus] = useState<RealtimeConnectionStatus>('connecting');
