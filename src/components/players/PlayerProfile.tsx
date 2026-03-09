@@ -68,7 +68,7 @@ import {
   getNationalityFlag,
   getPositionLabel,
 } from '@/lib/constants';
-import { updatePlayer, deletePlayer } from '@/actions/players';
+import { updatePlayer, deletePlayer, approvePlayer, rejectPlayer } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
 import type {
   Player,
@@ -112,7 +112,11 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
   const isRecruiter = userRole === 'recruiter';
-  const canEdit = userRole === 'admin' || userRole === 'editor';
+  const isScout = userRole === 'scout';
+  // Scouts and recruiters have restricted view — no scouting intelligence
+  const isRestricted = isRecruiter || isScout;
+  // All roles can edit basic info; scouting fields restricted in handleSave
+  const canEdit = true;
 
   // Detect unsaved changes by comparing draft to original player
   const hasChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(player), [draft, player]);
@@ -148,6 +152,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
   function handleSave() {
     startTransition(async () => {
+      // Basic fields — all roles can edit these
       const updates: Record<string, unknown> = {
         name: draft.name,
         dob: draft.dob,
@@ -159,18 +164,21 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         nationality: draft.nationality || null,
         shirt_number: draft.shirtNumber || null,
         contact: draft.contact || null,
-        department_opinion: draft.departmentOpinion.length > 0 ? draft.departmentOpinion : [],
-        observer: draft.observer || null,
-        observer_eval: draft.observerEval || null,
-        observer_decision: draft.observerDecision || null,
-        referred_by: draft.referredBy || null,
-        referred_by_user_id: draft.referredByUserId || null,
         photo_url: draft.photoUrl || null,
         fpf_link: draft.fpfLink || null,
         zerozero_link: draft.zerozeroLink || null,
-        recruitment_status: draft.recruitmentStatus,
-        recruitment_notes: draft.recruitmentNotes || null,
       };
+      // Scouting intelligence fields — everyone except scouts
+      if (!isScout) {
+        updates.department_opinion = draft.departmentOpinion.length > 0 ? draft.departmentOpinion : [];
+        updates.observer = draft.observer || null;
+        updates.observer_eval = draft.observerEval || null;
+        updates.observer_decision = draft.observerDecision || null;
+        updates.referred_by = draft.referredBy || null;
+        updates.referred_by_user_id = draft.referredByUserId || null;
+        updates.recruitment_status = draft.recruitmentStatus;
+        updates.recruitment_notes = draft.recruitmentNotes || null;
+      }
       const result = await updatePlayer(player.id, updates);
       if (result.success) {
         // Keep draft values visible until server refresh delivers fresh props
@@ -336,25 +344,30 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         {/* Right side — view mode actions */}
         {!editing && (
           <div className="flex items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm" title="Partilhar">
-                  <Share2 className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Partilhar</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleExportImage}>
-                  <Camera className="mr-2 h-3.5 w-3.5" />
-                  Guardar imagem
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handlePrint}>
-                  <Printer className="mr-2 h-3.5 w-3.5" />
-                  Imprimir
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <div className="mx-0.5 h-4 w-px bg-neutral-200" />
+            {/* Share hidden for scouts/recruiters */}
+            {!isRestricted && (
+              <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm" title="Partilhar">
+                    <Share2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Partilhar</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportImage}>
+                    <Camera className="mr-2 h-3.5 w-3.5" />
+                    Guardar imagem
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handlePrint}>
+                    <Printer className="mr-2 h-3.5 w-3.5" />
+                    Imprimir
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <div className="mx-0.5 h-4 w-px bg-neutral-200" />
+              </>
+            )}
             <RefreshPlayerButton player={player} />
             {canEdit && (
               <button onClick={handleEdit} className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm">
@@ -372,6 +385,49 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           </button>
         )}
       </div>
+
+      {/* ───────────── Pending approval banner ───────────── */}
+      {p.pendingApproval && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <Clock className="h-4 w-4 shrink-0 text-amber-600" />
+          <p className="flex-1 text-xs font-medium text-amber-700">
+            Jogador pendente de aprovação
+          </p>
+          {(isAdmin || userRole === 'editor') && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => {
+                  startTransition(async () => {
+                    const res = await approvePlayer(p.id);
+                    if (res.success) { toast.success('Jogador aprovado'); router.refresh(); }
+                    else toast.error(res.error);
+                  });
+                }}
+                disabled={isPending}
+                className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-green-700 transition-colors hover:bg-green-50 disabled:opacity-50"
+              >
+                <Check className="h-3 w-3" />
+                Aprovar
+              </button>
+              <button
+                onClick={() => {
+                  if (!confirm('Rejeitar e eliminar este jogador?')) return;
+                  startTransition(async () => {
+                    const res = await rejectPlayer(p.id);
+                    if (res.success) { toast.success('Jogador rejeitado'); router.back(); }
+                    else toast.error(res.error);
+                  });
+                }}
+                disabled={isPending}
+                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+              >
+                <X className="h-3 w-3" />
+                Rejeitar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ───────────── Header with Photo (view mode only) ───────────── */}
       {!editing && <div className="flex gap-4">
@@ -437,7 +493,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 xl:gap-2">
             <div className="flex items-baseline gap-2">
               <h1 className="truncate font-bold xl:text-2xl" style={{ fontSize: 'clamp(1rem, 4.5vw, 1.5rem)' }}>{shortenName(p.name)}</h1>
-              {!isRecruiter && <ObservationBadge player={p} showLabel />}
+              {!isRestricted && <ObservationBadge player={p} showLabel />}
             </div>
           {/* Club — mobile only (desktop shows in Info Básica) */}
           {!editing && p.club && (
@@ -465,10 +521,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.tertiaryPosition}
               </span>
             )}
-            {!isRecruiter && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
+            {!isRestricted && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
           </div>
           {/* Opinion badge — mobile only */}
-          {!isRecruiter && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
+          {!isRestricted && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
             <div className="xl:hidden">
               <OpinionBadge opinion={p.departmentOpinion} variant="compact" />
             </div>
@@ -656,8 +712,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 </div>
               </Section>
 
-              {/* ───────────── Section 3: Observação & Recrutamento ───────────── */}
-              <Section title="Observação & Recrutamento">
+              {/* ───────────── Section 3: Observação & Recrutamento (hidden from scouts) ───────────── */}
+              {!isScout && <Section title="Observação & Recrutamento">
                 <div className="space-y-4">
                   <EditField label="Referência">
                     <ReferralPicker
@@ -702,7 +758,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                     />
                   </EditField>
                 </div>
-              </Section>
+              </Section>}
             </div>
           </div>
 
@@ -733,7 +789,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         /* Mobile order: Avaliação → Info Básica → Observação → Notas → Recrutamento → Histórico */
         <>
         {/* Aggregate rating bar — mobile only, above the grid (hidden for recruiter) */}
-        {!isRecruiter && <div className="xl:hidden">
+        {!isRestricted && <div className="xl:hidden">
           <ScoutEvaluations
             playerId={p.id}
             evaluations={scoutEvaluations}
@@ -819,7 +875,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             </Section>
 
             {/* Observação — scout info, decision, and reports (hidden for recruiter) */}
-            {!isRecruiter && (() => {
+            {!isRestricted && (() => {
               const observerNames = p.observer ? p.observer.split(',').map((n) => n.trim()).filter(Boolean) : [];
               const hasObservation = observerNames.length > 0 || p.observerDecision || scoutingReports.length > 0 || p.reportLabels.length > 0;
               if (!hasObservation) return null;
@@ -860,7 +916,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               );
             })()}
 
-            {!isRecruiter && (
+            {!isRestricted && (
             <Section
               title="Notas de Observação"
               action={<AddNoteButton onClick={() => setShowNoteForm(true)} />}
@@ -879,7 +935,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           {/* Right column: Avaliação (desktop), Recrutamento, Histórico */}
           <div className="order-2 space-y-3 lg:order-none">
             {/* Scout evaluations — desktop only (hidden for recruiter) */}
-            {!isRecruiter && <div className="hidden xl:block">
+            {!isRestricted && <div className="hidden xl:block">
               <ScoutEvaluations
                 playerId={p.id}
                 evaluations={scoutEvaluations}
@@ -889,7 +945,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             </div>}
 
             {/* Recrutamento — hidden when completely empty, hidden for recruiter */}
-            {!isRecruiter && (p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
+            {!isRestricted && (p.recruitmentStatus || p.isRealSquad || p.isShadowSquad || p.trainingDate || p.meetingDate || p.signingDate || p.recruitmentNotes) && <Section title="Recrutamento">
               {(() => {
                 // Find when player entered current recruitment status
                 const statusEntry = statusHistory.find(
@@ -968,7 +1024,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               })()}
             </Section>}
 
-            {!isRecruiter && statusHistory.length > 0 && (
+            {!isRestricted && statusHistory.length > 0 && (
               <Section title="Histórico">
                 <StatusHistory entries={statusHistory} />
               </Section>

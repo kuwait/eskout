@@ -130,6 +130,8 @@ export function mapPlayerRow(row: PlayerRow): Player {
     shadowOrder: row.shadow_order ?? 0,
     realOrder: row.real_order ?? 0,
     pipelineOrder: row.pipeline_order ?? 0,
+    pendingApproval: row.pending_approval ?? false,
+    adminReviewed: row.admin_reviewed ?? true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     // Report rating fields — populated later by bulk query, default to empty

@@ -13,6 +13,7 @@ export interface AlertCounts {
   urgente: number;
   importante: number;
   pendingReports: number;
+  pendingPlayers: number;
 }
 
 export interface ClubInfo {
@@ -25,7 +26,7 @@ export interface ClubInfo {
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   let ageGroups: AgeGroup[] = [];
-  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0 };
+  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingPlayers: 0 };
   let userRole = 'scout';
   let clubInfo: ClubInfo | null = null;
   let isSuperadmin = false;
@@ -85,7 +86,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       }
 
       // Fetch age groups, alerts, and pending reports — all club-scoped
-      const [agRes, urgRes, impRes, pendingRes] = await Promise.all([
+      const [agRes, urgRes, impRes, pendingRes, pendingPlayersRes, unreviewedPlayersRes] = await Promise.all([
         supabase
           .from('age_groups')
           .select('id, name, generation_year, season')
@@ -106,6 +107,19 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pendente')
           .eq('club_id', clubId),
+        // Pending approval (scout-created)
+        supabase
+          .from('players')
+          .select('id', { count: 'exact', head: true })
+          .eq('pending_approval', true)
+          .eq('club_id', clubId),
+        // Unreviewed (recruiter/editor-created, admin not yet dismissed)
+        supabase
+          .from('players')
+          .select('id', { count: 'exact', head: true })
+          .eq('admin_reviewed', false)
+          .eq('pending_approval', false)
+          .eq('club_id', clubId),
       ]);
 
       if (agRes.data) {
@@ -121,6 +135,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         urgente: urgRes.count ?? 0,
         importante: impRes.count ?? 0,
         pendingReports: pendingRes.count ?? 0,
+        pendingPlayers: (pendingPlayersRes.count ?? 0) + (unreviewedPlayersRes.count ?? 0),
       };
     }
   } catch {

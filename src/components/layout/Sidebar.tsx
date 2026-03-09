@@ -9,7 +9,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell, FileText, PlusCircle,
+  Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell, FileText, PlusCircle, UserPlus,
   Download, UserCog, LogOut, Palette, ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,8 @@ const NAV_ITEMS = [
   { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true, recruiterHidden: true, feature: 'alerts' },
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
+  { href: '/meus-jogadores', label: 'Jogadores', icon: Users, scoutHidden: false, onlyRoles: ['scout', 'recruiter'], feature: null },
+  { href: '/admin/pendentes', label: 'Pendentes', icon: UserPlus, scoutHidden: true, recruiterHidden: true, onlyRoles: ['admin', 'editor'], feature: null },
 ];
 
 const ADMIN_ITEMS = [
@@ -56,6 +58,7 @@ export function Sidebar({
     ? NAV_ITEMS.filter((i) => !i.scoutHidden)
     : NAV_ITEMS.filter((i) => !('scoutOnly' in i && i.scoutOnly))
   ).filter((i) => !isRecruiter || !('recruiterHidden' in i && i.recruiterHidden))
+   .filter((i) => !('onlyRoles' in i && i.onlyRoles) || (i.onlyRoles as string[]).includes(userRole))
    .filter((i) => !i.feature || features[i.feature] !== false);
 
   const visibleAdminItems = ADMIN_ITEMS.filter(
@@ -108,6 +111,12 @@ export function Sidebar({
                       {alertCounts.importante > 0 && (
                         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 px-1.5 text-[10px] font-bold text-neutral-800">{alertCounts.importante}</span>
                       )}
+                    </span>
+                  )}
+                  {/* Pending players badge */}
+                  {item.href === '/admin/pendentes' && alertCounts.pendingPlayers > 0 && (
+                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                      {alertCounts.pendingPlayers}
                     </span>
                   )}
                 </Link>

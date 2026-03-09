@@ -146,7 +146,7 @@ export function PlayerForm() {
       const result = await createPlayer(formData);
 
       if (result.success && result.data) {
-        router.push(`/jogadores/${result.data.id}`);
+        router.push(result.data.redirectTo);
       } else {
         setError(result.error ?? 'Erro desconhecido');
       }

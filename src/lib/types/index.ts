@@ -96,6 +96,8 @@ export interface Player {
   shadowOrder: number;
   realOrder: number;
   pipelineOrder: number;
+  pendingApproval: boolean;
+  adminReviewed: boolean;
   createdAt: string;
   updatedAt: string;
   /** Average rating from scouting reports (null if no reports with ratings) */
@@ -173,6 +175,8 @@ export interface PlayerRow {
   shadow_order: number;
   real_order: number;
   pipeline_order: number;
+  pending_approval: boolean;
+  admin_reviewed: boolean;
   created_at: string;
   updated_at: string;
   created_by: string | null;

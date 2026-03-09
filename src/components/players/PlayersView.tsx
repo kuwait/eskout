@@ -119,7 +119,7 @@ export function PlayersView() {
     }
 
     Promise.all([
-      fetchAll<PlayerRow>((from, to) => supabase.from('players').select('*').order('name').range(from, to)),
+      fetchAll<PlayerRow>((from, to) => supabase.from('players').select('*').eq('pending_approval', false).order('name').range(from, to)),
       fetchAll<{ player_id: number; rating: number }>((from, to) => supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(from, to)),
       fetchAll<{ player_id: number; rating: number }>((from, to) => supabase.from('scout_evaluations').select('player_id, rating').range(from, to)),
       fetchAll<{ player_id: number; content: string; created_at: string }>((from, to) => supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(from, to)),

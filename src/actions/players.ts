@@ -12,7 +12,7 @@ import { playerFormSchema } from '@/lib/validators';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import type { ActionResponse } from '@/lib/types';
 
-export async function createPlayer(formData: FormData): Promise<ActionResponse<{ id: number }>> {
+export async function createPlayer(formData: FormData): Promise<ActionResponse<{ id: number; pendingApproval: boolean; redirectTo: string }>> {
   const raw = Object.fromEntries(formData.entries());
 
   const parsed = playerFormSchema.safeParse(raw);
@@ -29,8 +29,14 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     return { success: false, error: `Ano de nascimento ${birthYear} não corresponde a nenhum escalão` };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
   const supabase = await createClient();
+
+  // Role-based approval: scouts need approval, recruiters/editors auto-approved but admin notified
+  const isScout = role === 'scout';
+  const needsAdminReview = role === 'recruiter' || role === 'editor';
+  const pendingApproval = isScout;
+  const adminReviewed = !isScout && !needsAdminReview; // true only for admin
 
   // Duplicate detection — check by FPF/ZeroZero links first, then by name+DOB
   const fpfLink = rest.fpfLink?.trim() || null;
@@ -110,6 +116,8 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
       nationality: rest.nationality || null,
       birth_country: rest.birthCountry || null,
       created_by: userId,
+      pending_approval: pendingApproval,
+      admin_reviewed: adminReviewed,
     })
     .select('id')
     .single();
@@ -129,7 +137,15 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
   }
 
   revalidatePath('/jogadores');
-  return { success: true, data: { id: player!.id } };
+  revalidatePath('/admin/pendentes');
+  revalidatePath('/meus-jogadores');
+
+  // Scouts and recruiters go to their personal list; admins/editors go to player profile
+  const redirectTo = (isScout || role === 'recruiter')
+    ? '/meus-jogadores'
+    : `/jogadores/${player!.id}`;
+
+  return { success: true, data: { id: player!.id, pendingApproval, redirectTo } };
 }
 
 export async function deletePlayer(playerId: number): Promise<ActionResponse> {
@@ -154,6 +170,95 @@ export async function deletePlayer(playerId: number): Promise<ActionResponse> {
   revalidatePath('/jogadores');
   revalidatePath('/pipeline');
   revalidatePath('/campo');
+  return { success: true };
+}
+
+/* ───────────── Approve / Reject / Dismiss Player ───────────── */
+
+/** Approve a scout-created pending player */
+export async function approvePlayer(playerId: number): Promise<ActionResponse> {
+  const { clubId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') {
+    return { success: false, error: 'Sem permissão' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('players')
+    .update({ pending_approval: false, admin_reviewed: true })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath('/jogadores');
+  revalidatePath('/admin/pendentes');
+  return { success: true };
+}
+
+/** Reject a scout-created pending player (deletes it) */
+export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
+  const { clubId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') {
+    return { success: false, error: 'Sem permissão' };
+  }
+
+  const supabase = await createClient();
+
+  // Delete related records first
+  await supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId);
+  await supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId);
+
+  const { error } = await supabase
+    .from('players')
+    .delete()
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+    .eq('pending_approval', true);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath('/admin/pendentes');
+  return { success: true };
+}
+
+/** Dismiss a recruiter/editor notification (mark as reviewed) */
+export async function dismissPlayerReview(playerId: number): Promise<ActionResponse> {
+  const { clubId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') {
+    return { success: false, error: 'Sem permissão' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('players')
+    .update({ admin_reviewed: true })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath('/admin/pendentes');
+  return { success: true };
+}
+
+/** Dismiss all unreviewed players at once */
+export async function dismissAllPlayerReviews(): Promise<ActionResponse> {
+  const { clubId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') {
+    return { success: false, error: 'Sem permissão' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('players')
+    .update({ admin_reviewed: true })
+    .eq('club_id', clubId)
+    .eq('admin_reviewed', false);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath('/admin/pendentes');
   return { success: true };
 }
 
