@@ -6,8 +6,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { UserPlus, Clock, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 
 interface PlayerRow {
   id: number;
@@ -26,6 +28,11 @@ export function MeusJogadoresClient({
   players: PlayerRow[];
   isScout: boolean;
 }) {
+  const router = useRouter();
+
+  /* ───────────── Realtime: refresh when players change ───────────── */
+  useRealtimeTable('players', { onAny: () => router.refresh() });
+
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString('pt-PT', {
       day: '2-digit', month: '2-digit', year: 'numeric',

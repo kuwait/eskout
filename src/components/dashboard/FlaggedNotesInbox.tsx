@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { dismissFlaggedNote, updateObservationNote } from '@/actions/notes';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { FlaggedNote } from '@/lib/supabase/queries';
 import type { NotePriority } from '@/lib/types';
 
@@ -46,6 +47,9 @@ export function FlaggedNotesInbox({ notes: initialNotes }: FlaggedNotesInboxProp
   const [editTarget, setEditTarget] = useState<FlaggedNote | null>(null);
   // Local state to allow optimistic removal after dismiss
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
+
+  /* ───────────── Realtime: refresh when notes change ───────────── */
+  useRealtimeTable('observation_notes', { onAny: () => router.refresh() });
   // Local state for optimistic edits
   const [editedNotes, setEditedNotes] = useState<Map<number, Partial<FlaggedNote>>>(new Map());
 

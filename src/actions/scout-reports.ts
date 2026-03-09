@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import { normalizePosition } from '@/lib/utils/positions';
+import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 
 /* ───────────── Types ───────────── */
 
@@ -189,7 +190,7 @@ export async function submitScoutReport(
       tertiaryPosition: input.tertiaryPosition || undefined,
     };
 
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('scouting_reports')
       .insert({
         author_id: userId,
@@ -216,11 +217,14 @@ export async function submitScoutReport(
         contact_info: input.contactInfo?.trim() || null,
         // Player-level data as JSONB
         submission_player_data: submissionPlayerData,
-      });
+      })
+      .select('id')
+      .single();
 
     if (error) return { success: false, error: error.message };
 
     revalidatePath('/meus-relatorios');
+    await broadcastRowMutation(clubId, 'scouting_reports', 'INSERT', userId, inserted!.id);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
@@ -364,6 +368,7 @@ export async function approveScoutReport(
         revalidatePath('/admin/relatorios');
         revalidatePath('/meus-relatorios');
         revalidatePath(`/jogadores/${existing.id}`);
+        await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
         return { success: true, playerId: existing.id };
       }
     }
@@ -439,6 +444,8 @@ export async function approveScoutReport(
     revalidatePath('/admin/relatorios');
     revalidatePath('/meus-relatorios');
     revalidatePath('/jogadores');
+    await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
+    await broadcastRowMutation(clubId, 'players', 'INSERT', userId, player!.id);
     return { success: true, playerId: player!.id };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
@@ -466,6 +473,7 @@ export async function rejectScoutReport(reportId: number): Promise<{ success: bo
 
     revalidatePath('/admin/relatorios');
     revalidatePath('/meus-relatorios');
+    await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
@@ -1052,7 +1060,7 @@ export async function toggleReportTag(
   tag: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, role } = await getActiveClub();
+    const { clubId, userId, role } = await getActiveClub();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -1099,6 +1107,7 @@ export async function toggleReportTag(
     if (updateErr) return { success: false, error: updateErr.message };
 
     revalidatePath('/admin/relatorios');
+    await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };

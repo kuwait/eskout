@@ -5,13 +5,14 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useTransition } from 'react';
+import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { useAgeGroup } from '@/hooks/useAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { POSITION_CODES } from '@/lib/constants';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { PositionSection } from '@/components/positions/PositionSection';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { Player, PlayerRow, PositionCode } from '@/lib/types';
 
 export function PositionsView() {
@@ -19,7 +20,7 @@ export function PositionsView() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
+  const fetchPlayers = useCallback(() => {
     if (!selectedId) return;
     const supabase = createClient();
     supabase
@@ -35,6 +36,11 @@ export function PositionsView() {
         }
       });
   }, [selectedId]);
+
+  useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
+
+  /* ───────────── Realtime: refresh when players change ───────────── */
+  useRealtimeTable('players', { onAny: () => fetchPlayers() });
 
   /* ───────────── Group by position ───────────── */
 

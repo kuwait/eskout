@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { shadowSquadSchema } from '@/lib/validators';
 import type { ActionResponse } from '@/lib/types';
+import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 
 /* ───────────── Helper: log status change ───────────── */
 
@@ -84,6 +85,7 @@ export async function addToShadowSquad(
   revalidatePath('/campo');
   revalidatePath('/posicoes');
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
@@ -124,6 +126,7 @@ export async function removeFromShadowSquad(
   revalidatePath('/campo');
   revalidatePath('/posicoes');
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
@@ -175,6 +178,7 @@ export async function toggleRealSquad(
   revalidatePath('/campo');
   revalidatePath('/posicoes');
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
@@ -185,7 +189,7 @@ export async function reorderSquadPlayer(
   newOrder: number,
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
-  const { clubId } = await getActiveClub();
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
@@ -200,6 +204,7 @@ export async function reorderSquadPlayer(
   }
 
   revalidatePath('/campo');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
@@ -209,7 +214,7 @@ export async function bulkReorderSquad(
   updates: { playerId: number; order: number }[],
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
-  const { clubId } = await getActiveClub();
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
   const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
@@ -227,6 +232,7 @@ export async function bulkReorderSquad(
   }
 
   revalidatePath('/campo');
+  await broadcastBulkMutation(clubId, 'players', userId);
   return { success: true };
 }
 
@@ -276,5 +282,6 @@ export async function moveSquadPlayerPosition(
   revalidatePath('/campo');
   revalidatePath('/posicoes');
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }

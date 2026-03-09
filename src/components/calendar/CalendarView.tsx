@@ -16,6 +16,7 @@ import { CalendarList } from '@/components/calendar/CalendarList';
 import { CalendarWeek } from '@/components/calendar/CalendarWeek';
 import { EventForm } from '@/components/calendar/EventForm';
 import { CalendarExport } from '@/components/calendar/CalendarExport';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { getWeekRange, shiftWeek } from '@/lib/utils/dates';
 
 /* ───────────── Portuguese Month Names ───────────── */
@@ -59,6 +60,10 @@ export function CalendarView({ events, profiles, allPlayers, year, month, initia
   const [weekStart, setWeekStart] = useState<string>(
     initialWeekStart ?? getWeekRange(new Date().toISOString().split('T')[0]).start
   );
+
+  /* ───────────── Realtime: refresh when other users modify calendar events ───────────── */
+
+  useRealtimeTable('calendar_events', { onAny: () => router.refresh() });
 
   /* ───────────── Derived: events filtered for current week ───────────── */
 

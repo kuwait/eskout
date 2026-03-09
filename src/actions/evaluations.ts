@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import type { ActionResponse } from '@/lib/types';
+import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 
 /** Create or update the current user's evaluation for a player */
 export async function upsertScoutEvaluation(
@@ -34,6 +35,7 @@ export async function upsertScoutEvaluation(
   }
 
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'scout_evaluations', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
@@ -56,5 +58,6 @@ export async function deleteScoutEvaluation(
   }
 
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'scout_evaluations', 'DELETE', userId, playerId);
   return { success: true };
 }

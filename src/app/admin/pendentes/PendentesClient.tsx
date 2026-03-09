@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { approvePlayer, rejectPlayer, dismissPlayerReview, dismissAllPlayerReviews } from '@/actions/players';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import Link from 'next/link';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -43,6 +44,10 @@ export function PendentesClient({
   const router = useRouter();
   const [processing, setProcessing] = useState<number | null>(null);
   const [dismissingAll, setDismissingAll] = useState(false);
+
+  /* ───────────── Realtime: refresh when players/reports change ───────────── */
+  useRealtimeTable('players', { onAny: () => router.refresh() });
+  useRealtimeTable('scouting_reports', { onAny: () => router.refresh() });
 
   async function handleApprove(id: number) {
     setProcessing(id);

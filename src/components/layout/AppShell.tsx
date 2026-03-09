@@ -28,6 +28,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   let ageGroups: AgeGroup[] = [];
   let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingPlayers: 0 };
   let userRole = 'scout';
+  let userId = '';
+  let userName = '';
   let clubInfo: ClubInfo | null = null;
   let isSuperadmin = false;
 
@@ -41,13 +43,16 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       return <>{children}</>;
     }
 
-    // Fetch profile (superadmin flag)
+    userId = user.id;
+
+    // Fetch profile (superadmin flag + display name)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_superadmin')
+      .select('is_superadmin, full_name')
       .eq('id', user.id)
       .single();
     isSuperadmin = profile?.is_superadmin ?? false;
+    userName = profile?.full_name ?? user.email ?? '';
 
     if (clubId) {
       // Fetch club membership role
@@ -147,6 +152,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       ageGroups={ageGroups}
       alertCounts={alertCounts}
       userRole={userRole}
+      userId={userId}
+      userName={userName}
       clubInfo={clubInfo}
       isSuperadmin={isSuperadmin}
     >

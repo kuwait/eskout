@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import Link from 'next/link';
 import { Search, Star, FileText } from 'lucide-react';
 import { ReportFilters } from './ReportFilters';
@@ -52,6 +53,9 @@ export function ReportsView({
   const searchParams = useSearchParams();
   const [selectedReport, setSelectedReport] = useState<ScoutReportRow | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+
+  /* ───────────── Realtime: refresh when reports change ───────────── */
+  useRealtimeTable('scouting_reports', { onAny: () => router.refresh() });
 
   // Debounced search
   const [searchValue, setSearchValue] = useState(searchParams.get('search') ?? '');

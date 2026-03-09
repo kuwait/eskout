@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { observationNoteSchema } from '@/lib/validators';
 import type { ActionResponse } from '@/lib/types';
+import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 
 export async function createObservationNote(
   playerId: number,
@@ -25,20 +26,21 @@ export async function createObservationNote(
   const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
-  const { error } = await supabase.from('observation_notes').insert({
+  const { data: note, error } = await supabase.from('observation_notes').insert({
     player_id: playerId,
     author_id: userId,
     club_id: clubId,
     content: parsed.data.content,
     match_context: parsed.data.matchContext || null,
     priority,
-  });
+  }).select('id').single();
 
   if (error) {
     return { success: false, error: `Erro ao criar nota: ${error.message}` };
   }
 
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'observation_notes', 'INSERT', userId, note.id);
   return { success: true };
 }
 
@@ -49,7 +51,7 @@ export async function updateObservationNote(
   matchContext?: string,
   priority?: 'normal' | 'importante' | 'urgente'
 ): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
   const supabase = await createClient();
 
   // Only admins can edit notes
@@ -76,6 +78,7 @@ export async function updateObservationNote(
   }
 
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'observation_notes', 'UPDATE', userId, noteId);
   return { success: true };
 }
 
@@ -84,7 +87,7 @@ export async function dismissFlaggedNote(
   noteId: number,
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId } = await getActiveClub();
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -99,6 +102,7 @@ export async function dismissFlaggedNote(
 
   revalidatePath(`/jogadores/${playerId}`);
   revalidatePath('/');
+  await broadcastRowMutation(clubId, 'observation_notes', 'UPDATE', userId, noteId);
   return { success: true };
 }
 
@@ -135,5 +139,6 @@ export async function deleteObservationNote(
   }
 
   revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'observation_notes', 'DELETE', userId, noteId);
   return { success: true };
 }

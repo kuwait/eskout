@@ -18,6 +18,7 @@ import { PlayerFilters } from '@/components/players/PlayerFilters';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { DepartmentOpinion, Player, PlayerRow } from '@/lib/types';
 
 export interface PlayerFilterState {
@@ -98,14 +99,12 @@ export function PlayersView() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  /* ───────────── Fetch all players once (paginated past Supabase 1000-row limit) ───────────── */
+  /* ───────────── Fetch all players (paginated past Supabase 1000-row limit) ───────────── */
 
-  useEffect(() => {
-    const supabase = createClient();
-
-    /** Paginate through all rows to bypass the 1000-row Supabase limit */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async function fetchAll<T>(buildQuery: (from: number, to: number) => PromiseLike<{ data: any; error: any }>): Promise<T[]> {
+  /** Paginate through all rows to bypass the 1000-row Supabase limit */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function fetchAll<T>(supabase: ReturnType<typeof createClient>, buildQuery: (from: number, to: number) => PromiseLike<{ data: any; error: any }>): Promise<T[]> {
+    return (async () => {
       const all: T[] = [];
       let offset = 0;
       for (;;) {
@@ -116,13 +115,17 @@ export function PlayersView() {
         offset += SUPABASE_PAGE;
       }
       return all;
-    }
+    })();
+  }
+
+  function fetchPlayers() {
+    const supabase = createClient();
 
     Promise.all([
-      fetchAll<PlayerRow>((from, to) => supabase.from('players').select('*').eq('pending_approval', false).order('name').range(from, to)),
-      fetchAll<{ player_id: number; rating: number }>((from, to) => supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(from, to)),
-      fetchAll<{ player_id: number; rating: number }>((from, to) => supabase.from('scout_evaluations').select('player_id, rating').range(from, to)),
-      fetchAll<{ player_id: number; content: string; created_at: string }>((from, to) => supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(from, to)),
+      fetchAll<PlayerRow>(supabase, (from, to) => supabase.from('players').select('*').eq('pending_approval', false).order('name').range(from, to)),
+      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(from, to)),
+      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scout_evaluations').select('player_id, rating').range(from, to)),
+      fetchAll<{ player_id: number; content: string; created_at: string }>(supabase, (from, to) => supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(from, to)),
     ]).then(([playersData, reportsData, evalsData, notesData]) => {
       if (!playersData.length) {
         setLoading(false);
@@ -167,7 +170,16 @@ export function PlayersView() {
       setAllPlayers(mapped);
       setLoading(false);
     });
+  }
+
+  useEffect(() => {
+    fetchPlayers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ───────────── Realtime: refetch when other users modify players ───────────── */
+
+  useRealtimeTable('players', { onAny: () => fetchPlayers() });
 
   /* ───────────── Client-side filtering + search ───────────── */
 

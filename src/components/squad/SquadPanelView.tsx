@@ -19,6 +19,7 @@ import { SquadCompareView } from '@/components/squad/SquadCompareView';
 import { AddToSquadDialog } from '@/components/squad/AddToSquadDialog';
 import { addToShadowSquad, removeFromShadowSquad, toggleRealSquad, bulkReorderSquad, moveSquadPlayerPosition } from '@/actions/squads';
 import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { Player, PlayerRow, PositionCode } from '@/lib/types';
 
 type ViewMode = 'campo' | 'lista' | 'comparar';
@@ -89,6 +90,10 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
   useEffect(() => {
     fetchAllPlayers();
   }, [fetchAllPlayers]);
+
+  /* ───────────── Realtime: refetch when other users modify players ───────────── */
+
+  useRealtimeTable('players', { onAny: () => fetchAllPlayers() });
 
   /* ───────────── Group by position (sorted by order field) ───────────── */
 

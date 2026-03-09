@@ -70,6 +70,8 @@ import {
 } from '@/lib/constants';
 import { updatePlayer, deletePlayer, approvePlayer, rejectPlayer } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
+import { usePresence } from '@/hooks/usePresence';
 import type {
   Player,
   PositionCode,
@@ -132,6 +134,26 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   // Hybrid rating from player (pre-computed: report ratings + scout evaluations)
   const hybridAvgRating = player.reportAvgRating;
   const hybridRatingCount = player.reportRatingCount;
+
+  /* ───────────── Realtime: refresh when other users modify this player ───────────── */
+
+  const { pageEditors } = usePresence({
+    page: `/jogadores/${player.id}`,
+    editing,
+  });
+
+  // Refresh server data when another user modifies this player (skip if editing to avoid losing unsaved changes)
+  useRealtimeTable('players', {
+    enabled: !editing,
+    onAny: (event) => {
+      if (event.id === player.id) router.refresh();
+    },
+  });
+
+  // Also refresh on notes, evaluations, status_history changes for this player
+  useRealtimeTable('observation_notes', { onAny: () => router.refresh() });
+  useRealtimeTable('scout_evaluations', { onAny: () => router.refresh() });
+  useRealtimeTable('status_history', { onAny: () => router.refresh() });
 
   function handleEdit() {
     setDraft(player);
@@ -330,6 +352,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
   return (
     <div ref={profileRef} className="mx-auto max-w-5xl space-y-3">
+      {/* Presence banner — shows who else is viewing/editing this player */}
+      {pageEditors.length > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <Eye className="h-4 w-4 shrink-0" />
+          <span>
+            {pageEditors.map((p) => p.userName).join(', ')} está a editar este jogador
+          </span>
+        </div>
+      )}
+
       {/* Action bar — back + contextual actions */}
       <div data-export-hide className="flex items-center justify-between rounded-xl border bg-neutral-50/50 px-2 py-1.5 shadow-sm sm:px-3">
         {/* Left side — back (view) or cancel (edit) */}

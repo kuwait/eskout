@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { DepartmentOpinion, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
 export function PipelineView() {
@@ -68,6 +69,10 @@ export function PipelineView() {
   useEffect(() => {
     fetchPlayers();
   }, [fetchPlayers]);
+
+  /* ───────────── Realtime: refetch when other users modify players ───────────── */
+
+  useRealtimeTable('players', { onAny: () => fetchPlayers() });
 
   /* ───────────── Split: in abordagens vs not ───────────── */
 

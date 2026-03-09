@@ -7,6 +7,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { Mail, RotateCcw, Search, Trash2, UserPlus } from 'lucide-react';
 import {
   AlertDialog,
@@ -76,6 +77,9 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  /* ───────────── Realtime: refresh when memberships change ───────────── */
+  useRealtimeTable('club_memberships', { onAny: () => router.refresh() });
 
   // Search
   const [search, setSearch] = useState('');

@@ -1,7 +1,7 @@
 // src/components/layout/AppShellClient.tsx
-// Client-side shell with AgeGroupProvider, sidebar, mobile drawer, and club context
+// Client-side shell with AgeGroupProvider, RealtimeProvider, sidebar, mobile drawer, and club context
 // Age group selection is per-page, not global in the header
-// RELEVANT FILES: src/components/layout/AppShell.tsx, src/hooks/useAgeGroup.tsx, src/components/layout/Sidebar.tsx
+// RELEVANT FILES: src/components/layout/AppShell.tsx, src/hooks/useAgeGroup.tsx, src/lib/realtime/RealtimeProvider.tsx
 
 'use client';
 
@@ -10,6 +10,8 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import { AgeGroupProvider } from '@/hooks/useAgeGroup';
+import { RealtimeProvider } from '@/lib/realtime/RealtimeProvider';
+import { useRealtimeBadges } from '@/hooks/useRealtimeBadges';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileDrawer } from '@/components/layout/MobileDrawer';
 import { RoleImpersonator } from '@/components/layout/RoleImpersonator';
@@ -24,6 +26,8 @@ export function AppShellClient({
   ageGroups,
   alertCounts,
   userRole,
+  userId,
+  userName,
   clubInfo,
   isSuperadmin,
 }: {
@@ -31,21 +35,80 @@ export function AppShellClient({
   ageGroups: AgeGroup[];
   alertCounts: AlertCounts;
   userRole: string;
+  userId: string;
+  userName: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
 }) {
   const pathname = usePathname();
   const isPublic = PUBLIC_ROUTES.includes(pathname);
   const isNoShell = NO_SHELL_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // No shell on public routes or club picker
   if (isPublic || isNoShell) {
     return <>{children}</>;
   }
 
+  // Wrap with RealtimeProvider only when we have a club context
+  if (clubInfo?.id && userId) {
+    return (
+      <RealtimeProvider
+        clubId={clubInfo.id}
+        userId={userId}
+        userName={userName}
+        userRole={userRole}
+      >
+        <AgeGroupProvider ageGroups={ageGroups}>
+          <ShellContent
+            alertCounts={alertCounts}
+            userRole={userRole}
+            clubInfo={clubInfo}
+            isSuperadmin={isSuperadmin}
+          >
+            {children}
+          </ShellContent>
+        </AgeGroupProvider>
+      </RealtimeProvider>
+    );
+  }
+
+  // Fallback: no club selected yet — render without Realtime
   return (
     <AgeGroupProvider ageGroups={ageGroups}>
+      <ShellContent
+        alertCounts={alertCounts}
+        userRole={userRole}
+        clubInfo={clubInfo}
+        isSuperadmin={isSuperadmin}
+      >
+        {children}
+      </ShellContent>
+    </AgeGroupProvider>
+  );
+}
+
+/* ───────────── Inner Shell with Live Badges ───────────── */
+
+function ShellContent({
+  children,
+  alertCounts: initialAlertCounts,
+  userRole,
+  clubInfo,
+  isSuperadmin,
+}: {
+  children: React.ReactNode;
+  alertCounts: AlertCounts;
+  userRole: string;
+  clubInfo: ClubInfo | null;
+  isSuperadmin: boolean;
+}) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Live badge counts — updates via Realtime when other users make changes
+  const alertCounts = useRealtimeBadges(initialAlertCounts);
+
+  return (
+    <>
       <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} />
 
       {/* Mobile header with hamburger */}
@@ -87,6 +150,6 @@ export function AppShellClient({
 
       {/* Superadmin role impersonation — floating pill */}
       {isSuperadmin && <RoleImpersonator currentRole={userRole} />}
-    </AgeGroupProvider>
+    </>
   );
 }

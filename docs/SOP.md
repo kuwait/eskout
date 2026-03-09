@@ -656,7 +656,7 @@ A calendar for scheduling and tracking scouting activities.
 - Row Level Security for role-based permissions (admin/master/scout/scout_externo)
 - Free tier: 500MB DB, 1GB storage, 50K auth requests/month
 - JavaScript SDK for frontend
-- Realtime: status changes propagate to all connected users
+- Realtime Broadcast: all mutations propagate instantly to connected clients (no DB triggers needed)
 
 ### 5.3. Project Structure
 
@@ -758,6 +758,11 @@ sikout/
 │   │   │   └── MiniPitch.tsx          # Reusable pitch canvas + hover popup (shared by PlayerProfile & PlayerTable)
 │   │   └── ui/                        # shadcn/ui components
 │   ├── lib/
+│   │   ├── realtime/
+│   │   │   ├── types.ts               # Realtime type definitions (tables, events, presence)
+│   │   │   ├── broadcast.ts           # Server-side broadcast helper (service role client)
+│   │   │   ├── RealtimeProvider.tsx    # Client-side provider (1 channel/club, event bus, presence)
+│   │   │   └── index.ts               # Re-exports
 │   │   ├── supabase/
 │   │   │   ├── client.ts              # Browser Supabase client
 │   │   │   ├── server.ts              # Server-side Supabase client
@@ -774,6 +779,9 @@ sikout/
 │   └── hooks/
 │       ├── useAgeGroup.tsx            # Age group selector hook
 │       ├── usePageAgeGroup.tsx        # Per-page age group with localStorage persistence
+│       ├── useRealtimeTable.ts        # Generic realtime hook — subscribe to table mutations with debounce
+│       ├── useRealtimeBadges.ts       # Live badge count updates (alerts, pending reports)
+│       ├── usePresence.ts             # Presence awareness — who's viewing/editing same page
 │       ├── usePlayerProfilePopup.tsx  # DEPRECATED — replaced by navigation to /jogadores/{id}
 │       └── useResizableColumns.ts     # Table column resizing
 ├── scripts/

@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { calendarEventSchema } from '@/lib/validators';
 import type { ActionResponse, RecruitmentStatus } from '@/lib/types';
+import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 
 /* ───────────── Event type → pipeline status + date field mapping ───────────── */
 
@@ -145,6 +146,10 @@ export async function createCalendarEvent(formData: {
   }
 
   revalidatePath('/calendario');
+  await broadcastRowMutation(clubId, 'calendar_events', 'INSERT', userId, data.id);
+  if (parsed.data.playerId && PIPELINE_SYNC_MAP[parsed.data.eventType]) {
+    await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, parsed.data.playerId);
+  }
   return { success: true, data: { id: data.id } };
 }
 
@@ -218,13 +223,17 @@ export async function updateCalendarEvent(
   }
 
   revalidatePath('/calendario');
+  await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, eventId);
+  if (playerId && eventType && PIPELINE_SYNC_MAP[eventType]) {
+    await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  }
   return { success: true };
 }
 
 /* ───────────── Delete Event ───────────── */
 
 export async function deleteCalendarEvent(eventId: number): Promise<ActionResponse> {
-  const { clubId } = await getActiveClub();
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
   // Fetch event before deleting — need player_id and event_type for pipeline sync
@@ -257,5 +266,9 @@ export async function deleteCalendarEvent(eventId: number): Promise<ActionRespon
 
   revalidatePath('/calendario');
   revalidatePath('/pipeline');
+  await broadcastRowMutation(clubId, 'calendar_events', 'DELETE', userId, eventId);
+  if (event?.player_id && PIPELINE_SYNC_MAP[event.event_type]) {
+    await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, event.player_id);
+  }
   return { success: true };
 }

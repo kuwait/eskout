@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { playerFormSchema } from '@/lib/validators';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
+import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import type { ActionResponse } from '@/lib/types';
 
 export async function createPlayer(formData: FormData): Promise<ActionResponse<{ id: number; pendingApproval: boolean; redirectTo: string }>> {
@@ -140,6 +141,9 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
   revalidatePath('/admin/pendentes');
   revalidatePath('/meus-jogadores');
 
+  // Broadcast to other clients
+  await broadcastRowMutation(clubId, 'players', 'INSERT', userId, player!.id);
+
   // Scouts and recruiters go to their personal list; admins/editors go to player profile
   const redirectTo = (isScout || role === 'recruiter')
     ? '/meus-jogadores'
@@ -149,7 +153,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
 }
 
 export async function deletePlayer(playerId: number): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
 
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem eliminar jogadores' };
@@ -170,6 +174,9 @@ export async function deletePlayer(playerId: number): Promise<ActionResponse> {
   revalidatePath('/jogadores');
   revalidatePath('/pipeline');
   revalidatePath('/campo');
+
+  await broadcastRowMutation(clubId, 'players', 'DELETE', userId, playerId);
+
   return { success: true };
 }
 
@@ -177,7 +184,7 @@ export async function deletePlayer(playerId: number): Promise<ActionResponse> {
 
 /** Approve a scout-created pending player */
 export async function approvePlayer(playerId: number): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -193,12 +200,13 @@ export async function approvePlayer(playerId: number): Promise<ActionResponse> {
 
   revalidatePath('/jogadores');
   revalidatePath('/admin/pendentes');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
 /** Reject a scout-created pending player (deletes it) */
 export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -219,12 +227,13 @@ export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
   if (error) return { success: false, error: error.message };
 
   revalidatePath('/admin/pendentes');
+  await broadcastRowMutation(clubId, 'players', 'DELETE', userId, playerId);
   return { success: true };
 }
 
 /** Dismiss a recruiter/editor notification (mark as reviewed) */
 export async function dismissPlayerReview(playerId: number): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -239,12 +248,13 @@ export async function dismissPlayerReview(playerId: number): Promise<ActionRespo
   if (error) return { success: false, error: error.message };
 
   revalidatePath('/admin/pendentes');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
 
 /** Dismiss all unreviewed players at once */
 export async function dismissAllPlayerReviews(): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -259,6 +269,7 @@ export async function dismissAllPlayerReviews(): Promise<ActionResponse> {
   if (error) return { success: false, error: error.message };
 
   revalidatePath('/admin/pendentes');
+  await broadcastBulkMutation(clubId, 'players', userId);
   return { success: true };
 }
 
@@ -331,5 +342,8 @@ export async function updatePlayer(
   revalidatePath(`/jogadores/${playerId}`);
   revalidatePath('/pipeline');
   revalidatePath('/campo');
+
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId, Object.keys(updates));
+
   return { success: true };
 }

@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { recruitmentStatusChangeSchema } from '@/lib/validators';
 import type { ActionResponse, RecruitmentStatus } from '@/lib/types';
+import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 
 /* ───────────── Calendar <-> Pipeline sync helper ───────────── */
 
@@ -184,6 +185,10 @@ export async function updateRecruitmentStatus(
   revalidatePath('/posicoes');
   revalidatePath(`/jogadores/${playerId}`);
   revalidatePath('/');
+
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+
   return { success: true };
 }
 
@@ -193,7 +198,7 @@ export async function reorderPipelineCards(
 ): Promise<ActionResponse> {
   if (updates.length === 0) return { success: true };
 
-  const { clubId } = await getActiveClub();
+  const { clubId, userId } = await getActiveClub();
   const supabase = await createClient();
 
   // Small N per column, sequential is fine
@@ -209,6 +214,9 @@ export async function reorderPipelineCards(
   }
 
   revalidatePath('/pipeline');
+
+  await broadcastBulkMutation(clubId, 'players', userId, updates.map(u => u.playerId));
+
   return { success: true };
 }
 
@@ -254,6 +262,10 @@ export async function updateTrainingDate(
   revalidatePath('/pipeline');
   revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
+
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+
   return { success: true };
 }
 
@@ -299,6 +311,10 @@ export async function updateSigningDate(
   revalidatePath('/pipeline');
   revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
+
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+
   return { success: true };
 }
 
@@ -344,5 +360,9 @@ export async function updateMeetingDate(
   revalidatePath('/pipeline');
   revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
+
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+
   return { success: true };
 }
