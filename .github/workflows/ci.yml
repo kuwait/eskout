@@ -1,7 +1,7 @@
 # .github/workflows/ci.yml
-# CI pipeline: lint, typecheck, and test on every push/PR to main
-# Runs unit + integration tests via Jest (no E2E yet — requires test Supabase project)
-# RELEVANT FILES: jest.config.ts, package.json, docs/test-strategy.md
+# CI pipeline: lint, typecheck, unit tests, and E2E tests on every push/PR to main
+# E2E tests require test Supabase project secrets to be configured
+# RELEVANT FILES: jest.config.ts, playwright.config.ts, package.json, docs/test-strategy.md
 
 name: CI
 
@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Step 1: Lint + Typecheck + Unit Tests ──
   lint-typecheck-test:
     runs-on: ubuntu-latest
     steps:
@@ -37,3 +38,49 @@ jobs:
 
       - name: Unit & integration tests
         run: npm run test:ci
+
+  # ── Step 2: E2E Tests (requires test Supabase project) ──
+  e2e:
+    runs-on: ubuntu-latest
+    needs: lint-typecheck-test
+    if: ${{ vars.E2E_ENABLED == 'true' }}
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+      TEST_SCOUT_EMAIL: ${{ secrets.TEST_SCOUT_EMAIL }}
+      TEST_SCOUT_PASSWORD: ${{ secrets.TEST_SCOUT_PASSWORD }}
+      TEST_EDITOR_EMAIL: ${{ secrets.TEST_EDITOR_EMAIL }}
+      TEST_EDITOR_PASSWORD: ${{ secrets.TEST_EDITOR_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Run E2E tests
+        run: npx playwright test
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          CI: true
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
