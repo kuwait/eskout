@@ -81,11 +81,12 @@ All development phases — completed and planned.
 - [x] Admin reports revamp (3 tabs: Relatórios, Scouts, Consenso)
 - [ ] Scout role mobile UX (not yet designed)
 
-### 5B-0. Player Club History & Season Stats
-- [ ] Improve ZZ scraper (fix seasons, extract competition/assists)
-- [ ] Improve FPF scraper (extract club history)
-- [ ] Merge script + `club_history` column
-- [ ] "Percurso" section UI in player profile
+### 5B-0. Player Club History & Season Stats ✅ DONE
+- [x] Fix ZZ scraper: extract all sub-teams per season, correct goals parsing, extract team/escalão
+- [x] Filter out transfers table rows from career parsing
+- [x] `PlayerClubHistory.tsx` — career table with escalão pills, current season card, totals
+- [x] Responsive layout: mobile below Info Básica, desktop in right column
+- [x] Admin can delete status_history entries (migration 046 + server action + UI)
 
 ### 5B. YouTube Media Links
 - [ ] `player_videos` table + RLS + Server Action

@@ -113,10 +113,11 @@ Dedicated page `/jogadores/{id}`.
 1. **Basic Info** — DOB, age, club, number, foot, contact, referred by, observer(s), eval, decision, notes
 2. **External Links** — FPF button, ZeroZero button
 3. **Club Verification** — FPF vs DB vs ZeroZero club comparison
-4. **ZeroZero Data** — Games, goals, height, weight, photo, team history
+4. **Percurso (Club History)** — Career stats table from ZeroZero: season, club, escalão (pill badge), games (blue), goals (green). Current season hero card with aggregated totals. Career totals row. Responsive: mobile below Info Básica, desktop in right column. Visible to all roles.
 5. **Scouting Reports** — Chronological cards from PDFs with rating, decision, expandable details
 6. **Observation Notes** — Scout notes with priority styling, delete button
-7. **Recruitment** — Status badge + dropdown, notes, change history log
+7. **Status History** — Change log with admin delete capability (optimistic UI)
+8. **Recruitment** — Status badge + dropdown, notes, change history log
 
 **Profile export:** PNG via `html2canvas-pro` with CORS proxy, Print via new window.
 
