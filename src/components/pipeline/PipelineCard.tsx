@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { Calendar, Check, ChevronsUpDown, FileSignature, Phone, User, Users, X } from 'lucide-react';
+import { ArrowRightLeft, Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, Phone, Trash2, User, Users, X } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
@@ -22,8 +22,8 @@ import {
 } from '@/components/ui/dialog';
 import { updateTrainingDate, updateMeetingDate, updateSigningDate } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
-import { POSITION_LABELS } from '@/lib/constants';
-import type { Player, PositionCode } from '@/lib/types';
+import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
+import type { Player, PositionCode, RecruitmentStatus } from '@/lib/types';
 
 interface PipelineCardProps {
   player: Player;
@@ -37,6 +37,8 @@ interface PipelineCardProps {
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   /** Club-scoped profiles for contact assignment */
   clubMembers?: { id: string; fullName: string }[];
+  /** Mobile: dropdown to move card between columns (replaces drag-and-drop) */
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
 }
 
 /** Format a date string to a compact Portuguese display */
@@ -86,9 +88,18 @@ const DATE_STATUS_CONFIG = {
   },
 } as const;
 
-export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [] }: PipelineCardProps) {
+/** "João Miguel Ferreira Silva" → "João Silva" */
+function shortName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 2) return fullName;
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
+  // Mobile cards use short name; onStatusChange signals mobile mode
+  const displayName = onStatusChange ? shortName(player.name) : player.name;
   const statusConfig = player.recruitmentStatus
     ? DATE_STATUS_CONFIG[player.recruitmentStatus as keyof typeof DATE_STATUS_CONFIG]
     : undefined;
@@ -178,7 +189,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               }}
               size={20}
             />
-            <p className="truncate text-sm font-medium">{player.name}</p>
+            <p className="truncate text-sm font-medium">{displayName}</p>
           </div>
           {/* Line 2: club */}
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{player.club}</p>
@@ -230,21 +241,31 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           </button>
         )}
 
-        {/* Remove button — always visible on touch, hover on desktop */}
-        {onRemove && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-1 top-1 h-5 w-5 p-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onRemove(player.id);
-            }}
-            aria-label={`Remover ${player.name} das abordagens`}
-          >
-            <X className="h-3 w-3" />
-          </Button>
+        {/* Mobile: corner menu with "Mover" + "Apagar" */}
+        {onStatusChange && player.recruitmentStatus ? (
+          <CardActionsMenu
+            playerId={player.id}
+            currentStatus={player.recruitmentStatus as RecruitmentStatus}
+            onStatusChange={onStatusChange}
+            onRemove={onRemove}
+          />
+        ) : (
+          /* Desktop: simple remove X button */
+          onRemove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-1 top-1 h-5 w-5 p-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRemove(player.id);
+              }}
+              aria-label={`Remover ${player.name} das abordagens`}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )
         )}
       </div>
 
@@ -388,6 +409,84 @@ function ContactAssignButton({ player, clubMembers }: { player: Player; clubMemb
           )}
         </CommandList>
       </CommandDialog>
+    </>
+  );
+}
+
+/* ───────────── Card Actions Menu (mobile — replaces drag-and-drop + remove button) ───────────── */
+
+function CardActionsMenu({
+  playerId,
+  currentStatus,
+  onStatusChange,
+  onRemove,
+}: {
+  playerId: number;
+  currentStatus: RecruitmentStatus;
+  onStatusChange: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onRemove?: (playerId: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        data-no-navigate
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-neutral-100"
+        aria-label="Ações"
+      >
+        <EllipsisVertical className="h-4 w-4" />
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Mover para</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-0.5">
+            {RECRUITMENT_STATUSES.map((s) => {
+              const isCurrent = s.value === currentStatus;
+              return (
+                <button
+                  key={s.value}
+                  type="button"
+                  disabled={isCurrent}
+                  onClick={() => {
+                    onStatusChange(playerId, s.value as RecruitmentStatus);
+                    setOpen(false);
+                  }}
+                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    isCurrent
+                      ? 'cursor-default bg-neutral-100 font-medium text-foreground'
+                      : 'hover:bg-neutral-50'
+                  }`}
+                >
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${s.tailwind?.split(' ')[0] ?? 'bg-neutral-400'}`} />
+                  {s.labelPt}
+                  {isCurrent && <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Remove from pipeline */}
+          {onRemove && (
+            <>
+              <div className="border-t" />
+              <button
+                type="button"
+                onClick={() => { onRemove(playerId); setOpen(false); }}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remover das abordagens
+              </button>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -17,9 +17,9 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { SortableContext, arrayMove, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { SortableStatusColumn } from '@/components/pipeline/StatusColumn';
+import { SortableStatusColumn, StatusColumn } from '@/components/pipeline/StatusColumn';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { Player, RecruitmentStatus } from '@/lib/types';
@@ -235,6 +235,29 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
   // Column sortable IDs
   const columnIds = columnOrder.map((s) => `column-${s}`);
 
+  // Mobile: plain columns without DndContext — status dropdown replaces drag
+  if (!isDesktop) {
+    return (
+      <div className="flex flex-col gap-3 pb-4">
+        {columnOrder.map((status) => (
+          <StatusColumn
+            key={status}
+            status={status}
+            players={playersByStatus[status] ?? []}
+            showBirthYear={showBirthYear}
+            clubMembers={clubMembers}
+            onPlayerClick={onPlayerClick}
+            onRemove={onRemove}
+            onDateChange={onDateChange}
+            disableDrag
+            onStatusChange={onStatusChange}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Desktop: full DndContext with sortable columns and cards
   return (
     <DndContext
       sensors={sensors}
@@ -242,30 +265,9 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      {/* Vertical stack on mobile, horizontal scroll on desktop */}
-      {isDesktop ? (
-        <ScrollArea className="w-full">
-          <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-            <div className="flex flex-row gap-3 p-1 pb-4">
-              {columnOrder.map((status) => (
-                <SortableStatusColumn
-                  key={status}
-                  status={status}
-                  players={playersByStatus[status] ?? []}
-                  showBirthYear={showBirthYear}
-                  clubMembers={clubMembers}
-                  onPlayerClick={onPlayerClick}
-                  onRemove={onRemove}
-                  onDateChange={onDateChange}
-                />
-              ))}
-            </div>
-          </SortableContext>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      ) : (
-        <SortableContext items={columnIds} strategy={verticalListSortingStrategy}>
-          <div className={`flex flex-col gap-3 pb-4 ${isDragging ? 'overflow-hidden' : ''}`}>
+      <ScrollArea className="w-full">
+        <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+          <div className="flex flex-row gap-3 p-1 pb-4">
             {columnOrder.map((status) => (
               <SortableStatusColumn
                 key={status}
@@ -280,7 +282,8 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
             ))}
           </div>
         </SortableContext>
-      )}
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
 
       {/* Ghost card that follows the cursor while dragging */}
       <DragOverlay>

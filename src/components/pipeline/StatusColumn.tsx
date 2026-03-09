@@ -25,6 +25,10 @@ interface StatusColumnProps {
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   /** Club-scoped profiles for contact assignment in em_contacto cards */
   clubMembers?: { id: string; fullName: string }[];
+  /** Disable drag-and-drop (mobile) — cards get status dropdown instead */
+  disableDrag?: boolean;
+  /** Move card to different status column (mobile alternative to drag) */
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
 }
 
 /* ───────────── Sortable Card Wrapper ───────────── */
@@ -182,13 +186,13 @@ interface ColumnInnerProps extends StatusColumnProps {
 }
 
 const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: React.CSSProperties }>(
-  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
+  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
     const config = RECRUITMENT_STATUSES.find((s) => s.value === status);
     const label = config?.labelPt ?? status;
     const colorClass = config?.tailwind ?? 'bg-neutral-400 text-white';
 
-    // Droppable zone so empty columns accept card drops
-    const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `status-${status}` });
+    // Droppable zone so empty columns accept card drops (only when drag enabled)
+    const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `status-${status}`, disabled: disableDrag });
 
     // Drag IDs must match what KanbanBoard parses
     const sortableIds = players.map((p) => `pipeline-${p.id}-${status}`);
@@ -196,22 +200,21 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
     return (
       <div
         ref={(node) => {
-          // Merge sortable outer ref + droppable ref
-          setDropRef(node);
+          if (!disableDrag) setDropRef(node);
           if (typeof ref === 'function') ref(node);
           else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }}
         style={style}
         className={`flex w-full max-w-full flex-col overflow-hidden rounded-lg bg-neutral-50 transition-colors md:min-w-[220px] md:w-auto ${
-          isOver ? 'border-2 border-blue-400' : 'border border-transparent'
+          isOver && !disableDrag ? 'border-2 border-blue-400' : 'border border-transparent'
         }`}
       >
-        {/* Column header — entire header is the column drag handle */}
+        {/* Column header — drag handle on desktop, plain header on mobile */}
         <div
-          ref={headerDragRef}
-          className="flex cursor-grab touch-none items-center gap-2 border-b p-3 active:cursor-grabbing"
-          {...headerDragListeners}
-          {...headerDragAttributes}
+          ref={disableDrag ? undefined : headerDragRef}
+          className={`flex items-center gap-2 border-b p-3 ${disableDrag ? '' : 'cursor-grab touch-none active:cursor-grabbing'}`}
+          {...(disableDrag ? {} : headerDragListeners)}
+          {...(disableDrag ? {} : headerDragAttributes)}
         >
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>
             {label}
@@ -219,8 +222,8 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
           <span className="text-xs text-muted-foreground">{players.length}</span>
         </div>
 
-        {/* Cards */}
-        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+        {/* Cards — sortable on desktop, plain with status dropdown on mobile */}
+        {disableDrag ? (
           <div className="flex-1 space-y-2 overflow-y-auto p-2">
             {players.length === 0 && (
               <p className="py-4 text-center text-xs text-muted-foreground">
@@ -228,19 +231,41 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
               </p>
             )}
             {players.map((player) => (
-              <SortablePipelineCard
+              <PipelineCard
                 key={player.id}
                 player={player}
-                dragId={`pipeline-${player.id}-${status}`}
                 showBirthYear={showBirthYear}
                 clubMembers={clubMembers}
                 onPlayerClick={onPlayerClick}
                 onRemove={onRemove}
                 onDateChange={onDateChange}
+                onStatusChange={onStatusChange}
               />
             ))}
           </div>
-        </SortableContext>
+        ) : (
+          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            <div className="flex-1 space-y-2 overflow-y-auto p-2">
+              {players.length === 0 && (
+                <p className="py-4 text-center text-xs text-muted-foreground">
+                  Sem jogadores
+                </p>
+              )}
+              {players.map((player) => (
+                <SortablePipelineCard
+                  key={player.id}
+                  player={player}
+                  dragId={`pipeline-${player.id}-${status}`}
+                  showBirthYear={showBirthYear}
+                  clubMembers={clubMembers}
+                  onPlayerClick={onPlayerClick}
+                  onRemove={onRemove}
+                  onDateChange={onDateChange}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        )}
       </div>
     );
   }
