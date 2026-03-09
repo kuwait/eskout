@@ -10,7 +10,15 @@
 - Consider new technologies and contrarian ideas, not just the conventional wisdom
 - You may use high levels of speculation or prediction, just flag it for me
 - DO NOT BE LAZY! Always read files in full.
-- READ `docs/SOP.md` before starting any feature — it is the single source of truth for all product decisions, data model, and feature specs. Do NOT invent features not described there.
+- READ the relevant doc before starting any feature — docs are split by topic:
+  - `docs/SOP.md` — overview, product decisions, implementation rules (hub document)
+  - `docs/FEATURES.md` — feature specs (read this for any feature work)
+  - `docs/ARCHITECTURE.md` — DB schema, types, RLS, project structure
+  - `docs/DATA.md` — data sources, JSON structure, position normalization
+  - `docs/SCRAPING.md` — FPF, ZeroZero, report extraction scripts
+  - `docs/UX.md` — design principles, navigation, workflows
+  - `docs/ROADMAP.md` — development phases (1-4 done, 5-16 planned)
+  - Do NOT invent features not described in these docs.
 
 # CODE MODIFICATION WORKFLOW
 
