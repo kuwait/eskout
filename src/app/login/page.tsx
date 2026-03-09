@@ -198,7 +198,7 @@ export default function LoginPage() {
           </div>
         </div>
         <div className="flex flex-col items-center justify-center px-6">
-          <LoginForm error={error} loading={loading} onSubmit={handleSubmit} idPrefix="d" />
+          <LoginForm error={error} loading={loading} onSubmit={handleSubmit} onResetPassword={handleResetPassword} resetSent={resetSent} idPrefix="d" />
         </div>
       </div>
 
@@ -213,7 +213,7 @@ export default function LoginPage() {
         </div>
         {/* Card — dead center */}
         <div className="relative z-10 w-full self-center max-w-sm">
-          <LoginForm error={error} loading={loading} onSubmit={handleSubmit} idPrefix="m" />
+          <LoginForm error={error} loading={loading} onSubmit={handleSubmit} onResetPassword={handleResetPassword} resetSent={resetSent} idPrefix="m" />
         </div>
         {/* Bottom spacer */}
         <div className="flex-1" />
