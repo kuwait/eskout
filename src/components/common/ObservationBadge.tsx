@@ -26,6 +26,7 @@ export function ObservationBadge({ player, showLabel = false }: ObservationBadge
 
   return (
     <span
+      role="img"
       className={`inline-flex shrink-0 items-center gap-1 ${config.tailwind}`}
       title={config.tooltip}
       aria-label={`Estado de observação: ${config.labelPt}`}

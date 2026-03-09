@@ -62,8 +62,8 @@ test.describe('Mobile viewport (375×667)', () => {
 
     if (await hamburger.isVisible()) {
       await hamburger.click();
-      // Navigation drawer should appear with at least one link
-      await expect(page.locator('a[href="/jogadores"], a[href="/campo/real"], a[href="/pipeline"]').first()).toBeVisible({ timeout: 3000 });
+      // Navigation drawer should appear with visible text links
+      await expect(page.getByRole('link', { name: 'Jogadores' }).first()).toBeVisible({ timeout: 3000 });
     }
   });
 

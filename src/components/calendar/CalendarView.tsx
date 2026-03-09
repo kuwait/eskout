@@ -264,7 +264,7 @@ export function CalendarView({ events, profiles, allPlayers, year, month, initia
           >
             <Download className="h-4 w-4" />
           </Button>
-          <Button size="sm" onClick={handleNewEvent}>
+          <Button size="sm" onClick={handleNewEvent} aria-label="Novo evento">
             <Plus className="mr-1 h-4 w-4" />
             <span className="hidden sm:inline">Novo Evento</span>
           </Button>
@@ -274,7 +274,7 @@ export function CalendarView({ events, profiles, allPlayers, year, month, initia
       {/* ───────────── Navigation + View Toggle ───────────── */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => view === 'week' ? navigateWeek(-1) : navigateMonth(-1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Período anterior" onClick={() => view === 'week' ? navigateWeek(-1) : navigateMonth(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Popover open={pickerOpen} onOpenChange={(open) => { setPickerOpen(open); if (open) { setPickerYear(year); setPickerMonth(month); } }}>
@@ -286,11 +286,11 @@ export function CalendarView({ events, profiles, allPlayers, year, month, initia
             <PopoverContent align="start" className="w-auto p-3">
               {/* Year navigation */}
               <div className="mb-2 flex items-center justify-between">
-                <button type="button" onClick={() => setPickerYear((y) => y - 1)} className="rounded p-1 hover:bg-neutral-100">
+                <button type="button" onClick={() => setPickerYear((y) => y - 1)} className="rounded p-1 hover:bg-neutral-100" aria-label="Ano anterior">
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <span className="text-sm font-semibold">{pickerYear}</span>
-                <button type="button" onClick={() => setPickerYear((y) => y + 1)} className="rounded p-1 hover:bg-neutral-100">
+                <button type="button" onClick={() => setPickerYear((y) => y + 1)} className="rounded p-1 hover:bg-neutral-100" aria-label="Próximo ano">
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
@@ -378,7 +378,7 @@ export function CalendarView({ events, profiles, allPlayers, year, month, initia
               )}
             </PopoverContent>
           </Popover>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => view === 'week' ? navigateWeek(1) : navigateMonth(1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Período seguinte" onClick={() => view === 'week' ? navigateWeek(1) : navigateMonth(1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

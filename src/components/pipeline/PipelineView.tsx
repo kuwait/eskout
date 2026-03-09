@@ -200,7 +200,7 @@ export function PipelineView() {
       {/* Title + Add button */}
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-xl font-bold lg:text-2xl">Abordagens</h1>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
+        <Button size="sm" onClick={() => setDialogOpen(true)} aria-label="Adicionar jogador à pipeline">
           <Plus className="mr-1 h-4 w-4" />
           <span className="hidden sm:inline">Adicionar</span>
         </Button>

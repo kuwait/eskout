@@ -31,39 +31,42 @@ test.describe('Route protection', () => {
   });
 });
 
-/* ───────────── Role-based access ───────────── */
+/* ───────────── Scout blocked from admin routes ───────────── */
 
-test.describe('Role-based access control', () => {
+test.describe('Scout blocked from admin routes', () => {
+  test.use({ storageState: SCOUT_AUTH });
+
   test('scout cannot access admin panel', async ({ page }) => {
-    test.use({ storageState: SCOUT_AUTH });
     await page.goto('/admin/utilizadores');
-    // Should be redirected (middleware blocks scouts from /admin)
     await page.waitForURL((url) => !url.pathname.startsWith('/admin/utilizadores'), { timeout: 5000 });
   });
 
   test('scout cannot access pipeline', async ({ page }) => {
-    test.use({ storageState: SCOUT_AUTH });
     await page.goto('/pipeline');
     await page.waitForURL((url) => !url.pathname.includes('/pipeline'), { timeout: 5000 });
   });
 
   test('scout cannot access export page', async ({ page }) => {
-    test.use({ storageState: SCOUT_AUTH });
     await page.goto('/exportar');
     await page.waitForURL((url) => !url.pathname.includes('/exportar'), { timeout: 5000 });
   });
+});
+
+/* ───────────── Scout allowed routes ───────────── */
+
+test.describe('Scout allowed routes', () => {
+  test.use({ storageState: SCOUT_AUTH });
 
   test('scout CAN access player submission', async ({ page }) => {
-    test.use({ storageState: SCOUT_AUTH });
     const response = await page.goto('/submeter');
     expect(response?.status()).toBeLessThan(400);
     expect(page.url()).toContain('/submeter');
   });
 
   test('scout CAN access preferences', async ({ page }) => {
-    test.use({ storageState: SCOUT_AUTH });
     const response = await page.goto('/preferencias');
     expect(response?.status()).toBeLessThan(400);
+    expect(page.url()).toContain('/preferencias');
   });
 });
 
@@ -98,8 +101,9 @@ test.describe('Club data isolation', () => {
 /* ───────────── Cookie manipulation ───────────── */
 
 test.describe('Cookie security', () => {
+  test.use({ storageState: ADMIN_AUTH });
+
   test('invalid club cookie redirects to club picker', async ({ page }) => {
-    test.use({ storageState: ADMIN_AUTH });
     // Set a fake club ID cookie
     await page.context().addCookies([{
       name: 'eskout-club-id',
