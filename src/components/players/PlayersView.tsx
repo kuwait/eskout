@@ -64,33 +64,46 @@ export function PlayersView() {
   /* Sentinel ref for infinite scroll */
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Fetch all players + ratings client-side — .range(0, 4999) bypasses Supabase 1000 row default
+  // Fetch all players + ratings client-side with pagination (Supabase caps at 1000 rows per request)
   useEffect(() => {
     const supabase = createClient();
-    const MAX = 4999;
+    const PAGE = 1000;
+
+    /** Fetch all rows by paginating in chunks of PAGE (Supabase caps at 1000 per request) */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function fetchAll<T>(buildQuery: (from: number, to: number) => PromiseLike<{ data: any; error: any }>): Promise<T[]> {
+      const all: T[] = [];
+      let offset = 0;
+      for (;;) {
+        const { data, error } = await buildQuery(offset, offset + PAGE - 1);
+        if (error || !data?.length) break;
+        all.push(...(data as T[]));
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+      return all;
+    }
 
     Promise.all([
-      supabase.from('players').select('*').order('name').range(0, MAX),
-      supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(0, MAX),
-      supabase.from('scout_evaluations').select('player_id, rating').range(0, MAX),
-      supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(0, MAX),
-    ]).then(([playersRes, reportsRes, evalsRes, notesRes]) => {
-      if (playersRes.error || !playersRes.data?.length) {
+      fetchAll<PlayerRow>((from, to) => supabase.from('players').select('*').order('name').range(from, to)),
+      fetchAll<{ player_id: number; rating: number }>((from, to) => supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(from, to)),
+      fetchAll<{ player_id: number; rating: number }>((from, to) => supabase.from('scout_evaluations').select('player_id, rating').range(from, to)),
+      fetchAll<{ player_id: number; content: string; created_at: string }>((from, to) => supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(from, to)),
+    ]).then(([playersData, reportsData, evalsData, notesData]) => {
+      if (!playersData.length) {
         setLoading(false);
         return;
       }
 
       // Build map: playerId → all note contents (newest first, already sorted)
       const notesMap = new Map<number, string[]>();
-      if (notesRes.data) {
-        for (const n of notesRes.data) {
-          const arr = notesMap.get(n.player_id) ?? [];
-          arr.push(n.content);
-          notesMap.set(n.player_id, arr);
-        }
+      for (const n of notesData) {
+        const arr = notesMap.get(n.player_id) ?? [];
+        arr.push(n.content);
+        notesMap.set(n.player_id, arr);
       }
 
-      const mapped = (playersRes.data as unknown as PlayerRow[]).map((row) => {
+      const mapped = playersData.map((row) => {
         const player = mapPlayerRow(row);
         player.observationNotePreviews = notesMap.get(row.id) ?? [];
         return player;
@@ -105,12 +118,8 @@ export function PlayersView() {
         agg.set(playerId, existing);
       };
 
-      if (reportsRes.data) {
-        for (const r of reportsRes.data) addRating(r.player_id, r.rating!);
-      }
-      if (evalsRes.data) {
-        for (const e of evalsRes.data) addRating(e.player_id, e.rating);
-      }
+      for (const r of reportsData) addRating(r.player_id, r.rating);
+      for (const e of evalsData) addRating(e.player_id, e.rating);
 
       // Merge into players
       for (const p of mapped) {
