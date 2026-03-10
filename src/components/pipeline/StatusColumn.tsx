@@ -196,8 +196,8 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
     // Droppable zone so empty columns accept card drops (only when drag enabled)
     const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `status-${status}`, disabled: disableDrag });
 
-    // Drag IDs must match what KanbanBoard parses
-    const sortableIds = players.map((p) => `pipeline-${p.id}-${status}`);
+    // Drag IDs must match what KanbanBoard parses — status-agnostic for cross-container moves
+    const sortableIds = players.map((p) => `card-${p.id}`);
 
     return (
       <div
@@ -257,7 +257,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
                 <SortablePipelineCard
                   key={player.id}
                   player={player}
-                  dragId={`pipeline-${player.id}-${status}`}
+                  dragId={`card-${player.id}`}
                   showBirthYear={showBirthYear}
                   clubMembers={clubMembers}
                   onPlayerClick={onPlayerClick}

@@ -5,17 +5,24 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   closestCenter,
+  pointerWithin,
+  rectIntersection,
+  getFirstCollision,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
+  type CollisionDetection,
+  type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -73,30 +80,51 @@ interface KanbanBoardProps {
 
 /* ───────────── ID helpers ───────────── */
 
-/** Parse card drag ID: "pipeline-{playerId}-{status}" */
-function parseDragId(id: string): { playerId: number; status: RecruitmentStatus } | null {
-  const match = id.match(/^pipeline-(\d+)-(.+)$/);
-  if (!match) return null;
-  return { playerId: parseInt(match[1], 10), status: match[2] as RecruitmentStatus };
+/** Card drag IDs: "card-{playerId}" — status-agnostic for cross-container moves */
+function cardId(playerId: number): string { return `card-${playerId}`; }
+function parseCardId(id: string): number | null {
+  const match = id.match(/^card-(\d+)$/);
+  return match ? parseInt(match[1], 10) : null;
 }
 
-/** Parse column drag ID: "column-{status}" */
+/** Column sortable IDs */
+function columnId(status: RecruitmentStatus): string { return `column-${status}`; }
 function parseColumnId(id: string): RecruitmentStatus | null {
   const match = id.match(/^column-(.+)$/);
   return match ? (match[1] as RecruitmentStatus) : null;
 }
 
-/** Find which status column an item or droppable belongs to */
-function resolveStatus(id: string): RecruitmentStatus | null {
-  // Droppable zone: "status-{value}"
-  const statusMatch = id.match(/^status-(.+)$/);
-  if (statusMatch) return statusMatch[1] as RecruitmentStatus;
-  // Column sortable wrapper: "column-{value}"
-  const columnStatus = parseColumnId(id);
-  if (columnStatus) return columnStatus;
-  // Card: "pipeline-{playerId}-{status}"
-  const parsed = parseDragId(id);
-  return parsed?.status ?? null;
+/** Container items: status → card IDs (mirrors playersByStatus but as string arrays) */
+type ContainerItems = Record<RecruitmentStatus, string[]>;
+
+/** Build container items from player data */
+function buildContainerItems(pbs: Record<RecruitmentStatus, Player[]>): ContainerItems {
+  const items = {} as ContainerItems;
+  for (const s of RECRUITMENT_STATUSES) {
+    items[s.value] = (pbs[s.value] ?? []).map((p) => cardId(p.id));
+  }
+  return items;
+}
+
+/** All status values as a Set for quick lookup */
+const STATUS_SET = new Set(RECRUITMENT_STATUSES.map((s) => s.value));
+
+/** Find which container a card ID belongs to */
+function findContainer(id: UniqueIdentifier, items: ContainerItems): RecruitmentStatus | null {
+  const sid = String(id);
+  // Direct status match (droppable zone "status-{value}")
+  const statusMatch = sid.match(/^status-(.+)$/);
+  if (statusMatch && STATUS_SET.has(statusMatch[1] as RecruitmentStatus)) return statusMatch[1] as RecruitmentStatus;
+  // Bare status value
+  if (STATUS_SET.has(sid as RecruitmentStatus)) return sid as RecruitmentStatus;
+  // Column wrapper
+  const col = parseColumnId(sid);
+  if (col) return col;
+  // Card — search containers
+  for (const status of RECRUITMENT_STATUSES) {
+    if (items[status.value].includes(sid)) return status.value;
+  }
+  return null;
 }
 
 /* ───────────── Component ───────────── */
@@ -115,12 +143,58 @@ function useIsDesktop() {
   return isDesktop;
 }
 
+/** Force re-measurement after cross-container DOM changes */
+const MEASURING_CONFIG = {
+  droppable: { strategy: MeasuringStrategy.Always as const },
+};
+
 export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [] }: KanbanBoardProps) {
-  const [activePlayer, setActivePlayer] = useState<Player | null>(null);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(DEFAULT_ORDER);
-  const isDragging = activePlayer !== null || activeColumnId !== null;
+  const [containerItems, setContainerItems] = useState<ContainerItems>(() => buildContainerItems(playersByStatus));
+  const [clonedItems, setClonedItems] = useState<ContainerItems | null>(null);
+  const isDragging = activeId !== null || activeColumnId !== null;
   const isDesktop = useIsDesktop();
+
+  // Sync container items when props change (new data from server) and NOT dragging
+  useEffect(() => {
+    if (!isDragging) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from server data when not dragging
+      setContainerItems(buildContainerItems(playersByStatus));
+    }
+  }, [playersByStatus, isDragging]);
+
+  // Player lookup by card ID — for rendering and DragOverlay
+  const playerMap = useMemo(() => {
+    const map = new Map<string, Player>();
+    for (const players of Object.values(playersByStatus)) {
+      for (const p of players) map.set(cardId(p.id), p);
+    }
+    return map;
+  }, [playersByStatus]);
+
+  // Resolve container items to player arrays for rendering
+  const displayByStatus = useMemo(() => {
+    const result = {} as Record<RecruitmentStatus, Player[]>;
+    for (const s of RECRUITMENT_STATUSES) {
+      result[s.value] = containerItems[s.value]
+        .map((cid) => playerMap.get(cid))
+        .filter((p): p is Player => p !== undefined);
+    }
+    return result;
+  }, [containerItems, playerMap]);
+
+  // Anti-loop refs (official @dnd-kit pattern for multi-container)
+  const lastOverId = useRef<UniqueIdentifier | null>(null);
+  const recentlyMovedToNewContainer = useRef(false);
+
+  // Reset the "recently moved" flag on next animation frame after items change
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      recentlyMovedToNewContainer.current = false;
+    });
+  }, [containerItems]);
 
   // Load persisted column order from localStorage after hydration to avoid SSR mismatch
   // eslint-disable-next-line react-hooks/set-state-in-effect -- deferred read from localStorage after mount
@@ -139,41 +213,134 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 8 } });
   const sensors = useSensors(pointerSensor, touchSensor);
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const id = String(event.active.id);
+  /* ───────────── Custom collision detection (official multi-container pattern) ───────────── */
+
+  const collisionDetectionStrategy: CollisionDetection = useCallback(
+    (args) => {
+      // Column drag: only match against other columns
+      if (activeColumnId) {
+        return closestCenter({
+          ...args,
+          droppableContainers: args.droppableContainers.filter(
+            (c) => parseColumnId(String(c.id)) !== null
+          ),
+        });
+      }
+
+      // Card drag: pointerWithin → rectIntersection → drill down into container
+      const pointerCollisions = pointerWithin(args);
+      const collisions = pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
+      let overId = getFirstCollision(collisions, 'id');
+
+      if (overId != null) {
+        // If we matched a container (status droppable or column), drill down to closest card inside it
+        const overStr = String(overId);
+        const statusFromDroppable = overStr.match(/^status-(.+)$/)?.[1] as RecruitmentStatus | undefined;
+        const containerStatus = statusFromDroppable
+          ?? (STATUS_SET.has(overStr as RecruitmentStatus) ? (overStr as RecruitmentStatus) : null)
+          ?? parseColumnId(overStr);
+
+        if (containerStatus && containerItems[containerStatus]?.length > 0) {
+          const innerCollision = closestCenter({
+            ...args,
+            droppableContainers: args.droppableContainers.filter(
+              (c) => containerItems[containerStatus].includes(String(c.id))
+            ),
+          });
+          if (innerCollision.length > 0) {
+            overId = innerCollision[0].id;
+          }
+        }
+
+        lastOverId.current = overId;
+        return [{ id: overId }];
+      }
+
+      // Layout shift fallback — use cached lastOverId
+      if (recentlyMovedToNewContainer.current) {
+        lastOverId.current = activeId;
+      }
+
+      return lastOverId.current ? [{ id: lastOverId.current }] : [];
+    },
+    [activeId, activeColumnId, containerItems]
+  );
+
+  /* ───────────── Drag handlers ───────────── */
+
+  const handleDragStart = useCallback(({ active }: DragStartEvent) => {
+    const id = String(active.id);
 
     // Column drag
     if (id.startsWith('column-')) {
       setActiveColumnId(id);
-      setActivePlayer(null);
+      setActiveId(null);
+      setClonedItems(null);
       return;
     }
 
-    // Card drag
+    // Card drag — snapshot items for cancel restore
     setActiveColumnId(null);
-    const parsed = parseDragId(id);
-    if (!parsed) return;
-    const players = playersByStatus[parsed.status] ?? [];
-    const player = players.find((p) => p.id === parsed.playerId);
-    setActivePlayer(player ?? null);
-  }, [playersByStatus]);
+    setActiveId(active.id);
+    setClonedItems(containerItems);
+  }, [containerItems]);
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
+  // Cross-container move: relocate card between SortableContexts during drag
+  const handleDragOver = useCallback(({ active, over }: DragOverEvent) => {
+    if (!over || activeColumnId) return;
+    const overId = over.id;
+    const activeContainer = findContainer(active.id, containerItems);
+    const overContainer = findContainer(overId, containerItems);
+
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+
+    setContainerItems((prev) => {
+      const activeItems = prev[activeContainer];
+      const overItems = prev[overContainer];
+      const activeIndex = activeItems.indexOf(String(active.id));
+      const overIndex = overItems.indexOf(String(overId));
+
+      // Determine insert position — above or below the hovered card
+      let newIndex: number;
+      const overStr = String(overId);
+      if (overStr.startsWith('status-') || STATUS_SET.has(overId as RecruitmentStatus) || parseColumnId(overStr)) {
+        // Dropped on empty container zone
+        newIndex = overItems.length;
+      } else {
+        const isBelowOver =
+          over &&
+          active.rect.current.translated &&
+          active.rect.current.translated.top > over.rect.top + over.rect.height;
+        const modifier = isBelowOver ? 1 : 0;
+        newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length;
+      }
+
+      recentlyMovedToNewContainer.current = true;
+
+      return {
+        ...prev,
+        [activeContainer]: activeItems.filter((item) => item !== String(active.id)),
+        [overContainer]: [
+          ...overItems.slice(0, newIndex),
+          activeItems[activeIndex],
+          ...overItems.slice(newIndex),
+        ],
+      };
+    });
+  }, [activeColumnId, containerItems]);
+
+  const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
     const wasColumnDrag = activeColumnId !== null;
-    setActivePlayer(null);
-    setActiveColumnId(null);
 
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    /* ───── Column reorder ───── */
+    // Column drag end
     if (wasColumnDrag) {
-      const fromStatus = parseColumnId(activeId);
-      // over.id could be column-*, status-*, or pipeline-* — resolve all to a status
-      const toStatus = parseColumnId(overId) ?? resolveStatus(overId);
+      setActiveColumnId(null);
+      setActiveId(null);
+      setClonedItems(null);
+      if (!over) return;
+
+      const fromStatus = parseColumnId(String(active.id));
+      const toStatus = parseColumnId(String(over.id));
       if (!fromStatus || !toStatus || fromStatus === toStatus) return;
 
       setColumnOrder((prev) => {
@@ -187,53 +354,77 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       return;
     }
 
-    /* ───── Card reorder / cross-column move ───── */
-    const source = parseDragId(activeId);
-    if (!source) { console.log('[DND] parseDragId failed for:', activeId); return; }
+    // Card drag end
+    const activeContainer = findContainer(active.id, containerItems);
+    if (!activeContainer) { setActiveId(null); setClonedItems(null); return; }
 
-    const targetStatus = resolveStatus(overId);
-    console.log('[DND] drag end:', { activeId, overId, sourceStatus: source.status, targetStatus, isSameColumn: source.status === targetStatus });
-    if (!targetStatus) { console.log('[DND] resolveStatus returned null for overId:', overId); return; }
+    if (!over) { setActiveId(null); setClonedItems(null); return; }
 
-    const isSameColumn = source.status === targetStatus;
+    const overContainer = findContainer(over.id, containerItems);
+    if (!overContainer) { setActiveId(null); setClonedItems(null); return; }
 
-    if (isSameColumn) {
-      const column = playersByStatus[source.status] ?? [];
-      const oldIndex = column.findIndex((p) => p.id === source.playerId);
-      const targetParsed = parseDragId(overId);
-      const newIndex = targetParsed
-        ? column.findIndex((p) => p.id === targetParsed.playerId)
-        : column.length - 1;
+    const playerId = parseCardId(String(active.id));
+    if (playerId === null) { setActiveId(null); setClonedItems(null); return; }
 
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    // Determine original container from cloned items (before any onDragOver moves)
+    const originalContainer = clonedItems
+      ? (Object.entries(clonedItems).find(([, ids]) => ids.includes(String(active.id)))?.[0] as RecruitmentStatus | undefined) ?? activeContainer
+      : activeContainer;
 
-      const reordered = arrayMove(column, oldIndex, newIndex);
-      const updates = reordered.map((p, i) => ({ playerId: p.id, order: i }));
-      onReorder(updates);
-    } else {
-      onStatusChange(source.playerId, targetStatus);
+    // Within-container reorder
+    const activeIndex = containerItems[overContainer].indexOf(String(active.id));
+    const overIndex = containerItems[overContainer].indexOf(String(over.id));
 
-      const targetColumn = playersByStatus[targetStatus] ?? [];
-      const targetParsed = parseDragId(overId);
-      let insertIndex = targetColumn.length;
-      if (targetParsed) {
-        const idx = targetColumn.findIndex((p) => p.id === targetParsed.playerId);
-        if (idx >= 0) insertIndex = idx;
-      }
-
-      const newColumn = [...targetColumn];
-      const sourceColumn = playersByStatus[source.status] ?? [];
-      const movedPlayer = sourceColumn.find((p) => p.id === source.playerId);
-      if (movedPlayer) {
-        newColumn.splice(insertIndex, 0, movedPlayer);
-      }
-      const updates = newColumn.map((p, i) => ({ playerId: p.id, order: i }));
-      onReorder(updates);
+    if (activeIndex !== overIndex && overIndex >= 0) {
+      setContainerItems((prev) => ({
+        ...prev,
+        [overContainer]: arrayMove(prev[overContainer], activeIndex, overIndex),
+      }));
     }
-  }, [playersByStatus, onStatusChange, onReorder, activeColumnId]);
+
+    // Commit the final state
+    const finalItems = (() => {
+      const current = { ...containerItems };
+      if (activeIndex !== overIndex && overIndex >= 0) {
+        current[overContainer] = arrayMove(current[overContainer], activeIndex, overIndex);
+      }
+      return current;
+    })();
+
+    // If card moved to a different column, notify parent
+    if (originalContainer !== overContainer) {
+      onStatusChange(playerId, overContainer);
+    }
+
+    // Send reorder updates for the target column
+    const targetIds = finalItems[overContainer];
+    const updates = targetIds
+      .map((cid, i) => {
+        const pid = parseCardId(cid);
+        return pid !== null ? { playerId: pid, order: i } : null;
+      })
+      .filter((u): u is { playerId: number; order: number } => u !== null);
+    onReorder(updates);
+
+    setActiveId(null);
+    setClonedItems(null);
+  }, [containerItems, clonedItems, activeColumnId, onStatusChange, onReorder]);
+
+  const handleDragCancel = useCallback(() => {
+    // Restore pre-drag snapshot
+    if (clonedItems) {
+      setContainerItems(clonedItems);
+    }
+    setActiveId(null);
+    setActiveColumnId(null);
+    setClonedItems(null);
+  }, [clonedItems]);
+
+  // Active player for DragOverlay
+  const activePlayer = activeId ? playerMap.get(String(activeId)) ?? null : null;
 
   // Column sortable IDs
-  const columnIds = columnOrder.map((s) => `column-${s}`);
+  const columnIds = columnOrder.map((s) => columnId(s));
 
   // Mobile: plain columns without DndContext — status dropdown replaces drag
   if (!isDesktop) {
@@ -261,9 +452,12 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetectionStrategy}
+      measuring={MEASURING_CONFIG}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <ScrollArea className="w-full">
         <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
@@ -272,7 +466,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
               <SortableStatusColumn
                 key={status}
                 status={status}
-                players={playersByStatus[status] ?? []}
+                players={displayByStatus[status] ?? []}
                 showBirthYear={showBirthYear}
                 clubMembers={clubMembers}
                 onPlayerClick={onPlayerClick}
