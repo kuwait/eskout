@@ -54,9 +54,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
   const [dialogPosition, setDialogPosition] = useState<string>('GR');
   // Defer DndContext rendering to client to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
-  /* eslint-disable react-hooks/set-state-in-effect -- SSR hydration guard, must run after mount */
   useEffect(() => { setMounted(true); }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Ref for capturing squad view as image
   const squadContentRef = useRef<HTMLDivElement>(null);

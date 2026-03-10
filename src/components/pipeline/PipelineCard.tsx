@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { ArrowRightLeft, Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, Phone, Trash2, User, Users, X } from 'lucide-react';
+import { Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, Phone, Trash2, User, Users, X } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
@@ -169,7 +169,10 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
       >
         <div
           data-player-link
-          className="block w-full text-left"
+          className="block w-full cursor-pointer text-left"
+          onClick={() => onPlayerClick?.(player.id)}
+          role={onPlayerClick ? 'button' : undefined}
+          tabIndex={onPlayerClick ? 0 : undefined}
         >
           {/* Line 1: year pill + photo/placeholder with tooltip + name */}
           <div className="flex items-center gap-1.5">

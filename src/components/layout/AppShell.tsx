@@ -45,53 +45,25 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
     userId = user.id;
 
-    // Fetch profile (superadmin flag + display name)
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_superadmin, full_name')
-      .eq('id', user.id)
-      .single();
-    isSuperadmin = profile?.is_superadmin ?? false;
-    userName = profile?.full_name ?? user.email ?? '';
-
     if (clubId) {
-      // Fetch club membership role
-      const { data: membership } = await supabase
-        .from('club_memberships')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('club_id', clubId)
-        .single();
-
-      if (membership) {
-        userRole = membership.role;
-        // Superadmin role impersonation — override role from cookie
-        if (isSuperadmin) {
-          const cookieStore = await cookies();
-          const roleOverride = cookieStore.get(ROLE_OVERRIDE_COOKIE)?.value;
-          if (roleOverride) userRole = roleOverride;
-        }
-      }
-
-      // Fetch club info
-      const { data: club } = await supabase
-        .from('clubs')
-        .select('id, name, slug, logo_url, features')
-        .eq('id', clubId)
-        .single();
-
-      if (club) {
-        clubInfo = {
-          id: club.id,
-          name: club.name,
-          slug: club.slug,
-          logoUrl: club.logo_url,
-          features: (club.features ?? {}) as Record<string, boolean>,
-        };
-      }
-
-      // Fetch age groups, alerts, and pending reports — all club-scoped
-      const [agRes, urgRes, impRes, pendingRes] = await Promise.all([
+      // Fetch profile, membership, club, age groups, and alert counts — ALL in parallel
+      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('is_superadmin, full_name')
+          .eq('id', user.id)
+          .single(),
+        supabase
+          .from('club_memberships')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('club_id', clubId)
+          .single(),
+        supabase
+          .from('clubs')
+          .select('id, name, slug, logo_url, features')
+          .eq('id', clubId)
+          .single(),
         supabase
           .from('age_groups')
           .select('id, name, generation_year, season')
@@ -114,6 +86,38 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .eq('club_id', clubId),
       ]);
 
+      isSuperadmin = profileRes.data?.is_superadmin ?? false;
+      userName = profileRes.data?.full_name ?? user.email ?? '';
+
+      if (membershipRes.data) {
+        userRole = membershipRes.data.role;
+        // Superadmin role impersonation — override role from cookie
+        if (isSuperadmin) {
+          const cookieStore = await cookies();
+          const roleOverride = cookieStore.get(ROLE_OVERRIDE_COOKIE)?.value;
+          if (roleOverride) userRole = roleOverride;
+        }
+      }
+
+      if (clubRes.data) {
+        clubInfo = {
+          id: clubRes.data.id,
+          name: clubRes.data.name,
+          slug: clubRes.data.slug,
+          logoUrl: clubRes.data.logo_url,
+          features: (clubRes.data.features ?? {}) as Record<string, boolean>,
+        };
+      }
+
+      if (agRes.data) {
+        ageGroups = agRes.data.map((row) => ({
+          id: row.id,
+          name: row.name,
+          generationYear: row.generation_year,
+          season: row.season,
+        }));
+      }
+
       // Per-user badge: count players added by others minus this user's dismissals
       let pendingPlayersCount = 0;
       if (userRole === 'admin' || userRole === 'editor') {
@@ -131,21 +135,21 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         pendingPlayersCount = Math.max(0, (playersRes.count ?? 0) - (dismissedRes.count ?? 0));
       }
 
-      if (agRes.data) {
-        ageGroups = agRes.data.map((row) => ({
-          id: row.id,
-          name: row.name,
-          generationYear: row.generation_year,
-          season: row.season,
-        }));
-      }
-
       alertCounts = {
         urgente: urgRes.count ?? 0,
         importante: impRes.count ?? 0,
         pendingReports: pendingRes.count ?? 0,
         pendingPlayers: pendingPlayersCount,
       };
+    } else {
+      // No club selected — still fetch profile for userName
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_superadmin, full_name')
+        .eq('id', user.id)
+        .single();
+      isSuperadmin = profile?.is_superadmin ?? false;
+      userName = profile?.full_name ?? user.email ?? '';
     }
   } catch {
     // Supabase not configured yet — app still renders without data

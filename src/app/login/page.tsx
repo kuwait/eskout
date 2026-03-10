@@ -5,8 +5,9 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useActionState, useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { Loader2 } from 'lucide-react';
 import { login, resetPassword } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,10 +68,10 @@ function FloatingPills() {
 
 /* ───────────── Login form (shared between mobile and desktop) ───────────── */
 
-function LoginForm({ error, loading, onSubmit, onResetPassword, resetSent, idPrefix }: {
+function LoginForm({ error, isPending, formAction, onResetPassword, resetSent, idPrefix }: {
   error: string | null;
-  loading: boolean;
-  onSubmit: (formData: FormData) => void;
+  isPending: boolean;
+  formAction: (formData: FormData) => void;
   onResetPassword: (email: string) => void;
   resetSent: boolean;
   idPrefix: string;
@@ -84,7 +85,7 @@ function LoginForm({ error, loading, onSubmit, onResetPassword, resetSent, idPre
           <h2 className="text-lg font-semibold">Iniciar sessão</h2>
           <p className="text-sm text-muted-foreground">Introduza as suas credenciais</p>
         </div>
-        <form action={onSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-email`}>Email</Label>
             <Input ref={emailRef} id={`${idPrefix}-email`} name="email" type="email" placeholder="email@exemplo.com" required autoComplete="email" className="h-11" />
@@ -104,7 +105,9 @@ function LoginForm({ error, loading, onSubmit, onResetPassword, resetSent, idPre
           </div>
           {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
           {resetSent && <p className="text-sm text-green-600" role="status">Email de recuperação enviado! Verifique a sua caixa de correio.</p>}
-          <Button type="submit" className="h-11 w-full" disabled={loading}>{loading ? 'A entrar...' : 'Entrar'}</Button>
+          <Button type="submit" className="h-11 w-full" disabled={isPending}>
+            {isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A entrar...</> : 'Entrar'}
+          </Button>
         </form>
       </CardContent>
     </Card>
@@ -114,9 +117,18 @@ function LoginForm({ error, loading, onSubmit, onResetPassword, resetSent, idPre
 /* ───────────── Page ───────────── */
 
 export default function LoginPage() {
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+
+  // useActionState: React 19 built-in for server action loading + error state.
+  // isPending is true from the instant the form is submitted until the action resolves.
+  const [error, formAction, isPending] = useActionState(
+    async (_prev: string | null, formData: FormData) => {
+      const result = await login(formData);
+      // Only reached on error — success triggers redirect() inside login()
+      return result.success ? null : (result.error ?? 'Erro desconhecido');
+    },
+    null,
+  );
 
   /* Set dark status bar on iOS for this page only */
   useEffect(() => {
@@ -159,30 +171,11 @@ export default function LoginPage() {
     };
   }, []);
 
-  async function handleSubmit(formData: FormData) {
-    setError(null);
-    setResetSent(false);
-    setLoading(true);
-    const result = await login(formData);
-    if (!result.success) {
-      setError(result.error ?? 'Erro desconhecido');
-    }
-    setLoading(false);
-  }
-
   async function handleResetPassword(email: string) {
-    setError(null);
     setResetSent(false);
-    if (!email) {
-      setError('Preencha o email primeiro');
-      return;
-    }
+    if (!email) return;
     const result = await resetPassword(email);
-    if (result.success) {
-      setResetSent(true);
-    } else {
-      setError(result.error ?? 'Erro ao enviar email');
-    }
+    if (result.success) setResetSent(true);
   }
 
   return (
@@ -198,7 +191,7 @@ export default function LoginPage() {
           </div>
         </div>
         <div className="flex flex-col items-center justify-center px-6">
-          <LoginForm error={error} loading={loading} onSubmit={handleSubmit} onResetPassword={handleResetPassword} resetSent={resetSent} idPrefix="d" />
+          <LoginForm error={error} isPending={isPending} formAction={formAction} onResetPassword={handleResetPassword} resetSent={resetSent} idPrefix="d" />
         </div>
       </div>
 
@@ -213,7 +206,7 @@ export default function LoginPage() {
         </div>
         {/* Card — dead center */}
         <div className="relative z-10 w-full self-center max-w-sm">
-          <LoginForm error={error} loading={loading} onSubmit={handleSubmit} onResetPassword={handleResetPassword} resetSent={resetSent} idPrefix="m" />
+          <LoginForm error={error} isPending={isPending} formAction={formAction} onResetPassword={handleResetPassword} resetSent={resetSent} idPrefix="m" />
         </div>
         {/* Bottom spacer */}
         <div className="flex-1" />

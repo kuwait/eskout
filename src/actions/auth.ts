@@ -8,6 +8,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { setActiveClub } from '@/lib/supabase/club-context';
 import { loginSchema } from '@/lib/validators';
 import type { ActionResponse } from '@/lib/types';
 
@@ -23,10 +24,23 @@ export async function login(formData: FormData): Promise<ActionResponse> {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data: authData, error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
     return { success: false, error: 'Email ou palavra-passe incorretos' };
+  }
+
+  // Pre-set club cookie so middleware doesn't need an extra redirect loop
+  // If user has exactly one club, set it immediately; multi-club users go to picker
+  if (authData.user) {
+    const { data: memberships } = await supabase
+      .from('club_memberships')
+      .select('club_id')
+      .eq('user_id', authData.user.id);
+
+    if (memberships?.length === 1) {
+      await setActiveClub(memberships[0].club_id);
+    }
   }
 
   revalidatePath('/', 'layout');
