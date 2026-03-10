@@ -160,7 +160,8 @@ export function AddToSquadDialog({
     return result.slice(0, 50);
   }, [searchablePlayers, debouncedSearch, filters]);
 
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
+  // Shadow squad: year is always locked, so don't count it as a clearable filter
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || (squadType === 'real' && filters.year);
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -172,7 +173,7 @@ export function AddToSquadDialog({
     // Optimistic path: parent handles state + persistence
     if (onAddPlayer) {
       onAddPlayer(player);
-      setFilters(EMPTY_FILTERS);
+      setFilters({ ...EMPTY_FILTERS, year: squadType === 'shadow' ? (initialYear ?? '') : '' });
       return;
     }
 
@@ -185,7 +186,7 @@ export function AddToSquadDialog({
 
         if (result.success) {
           onAdded?.();
-          setFilters(EMPTY_FILTERS);
+          setFilters({ ...EMPTY_FILTERS, year: squadType === 'shadow' ? (initialYear ?? '') : '' });
           setErrorMsg(null);
           onOpenChange(false);
         } else {
@@ -288,7 +289,11 @@ export function AddToSquadDialog({
           )}
 
           {hasFilters && (
-            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters(EMPTY_FILTERS)}>
+            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters({
+              ...EMPTY_FILTERS,
+              // Shadow squad: year is always locked to the generation — never cleared
+              year: squadType === 'shadow' ? (initialYear ?? '') : '',
+            })}>
               <X className="mr-1 h-3 w-3" />Limpar
             </Button>
           )}
