@@ -136,7 +136,7 @@ async function fetchFpfData(fpfLink: string) {
 
     const model = JSON.parse(modelMatch[1]);
 
-    // BirthDate: FPF model uses various formats — "dd/MM/yyyy", ISO, or "27 de março de 2012"
+    // BirthDate: FPF model uses various formats — "dd/MM/yyyy", ISO, "27 de março de 2012", .NET JSON date
     let dob: string | null = null;
     const rawDob = (model.BirthDate || model.DateOfBirth || model.DataNascimento) as string | null;
     if (rawDob) {
@@ -156,6 +156,23 @@ async function fetchFpfData(fpfLink: string) {
         if (ptMatch) {
           const mm = PT_MONTHS[ptMatch[2].toLowerCase()];
           if (mm) dob = `${ptMatch[3]}-${mm}-${ptMatch[1].padStart(2, '0')}`;
+        }
+      }
+      // .NET JSON date format: "/Date(1332806400000)/"
+      if (!dob) {
+        const dotNet = rawDob.match(/\/Date\((\d+)\)\//);
+        if (dotNet) {
+          const d = new Date(parseInt(dotNet[1], 10));
+          if (!isNaN(d.getTime())) dob = d.toISOString().slice(0, 10);
+        }
+      }
+      // Last resort: try native Date parser for any unrecognized format
+      if (!dob) {
+        const d = new Date(rawDob);
+        if (!isNaN(d.getTime()) && d.getFullYear() > 1900) {
+          dob = d.toISOString().slice(0, 10);
+        } else {
+          console.warn('[FPF] Could not parse BirthDate:', rawDob);
         }
       }
     }
@@ -1207,7 +1224,11 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string, preZzDa
 
   // Merge: FPF for name/DOB/nationality, ZZ for position/foot/height/weight/photo
   const name = fpfResult?.fullName || zzResult?.fullName || null;
+  // FPF DOB is the official source — always prefer it; ZZ is fallback only
   const dob = fpfResult?.dob || zzResult?.dob || null;
+  if (!dob && fpfLink && fpfResult) {
+    errors.push('Data de nascimento não encontrada no FPF');
+  }
   const club = fpfResult?.currentClub || zzResult?.currentClub || null;
   const positionRaw = zzResult?.position ?? null;
   const position = positionRaw ? normalizePosition(positionRaw) : null;

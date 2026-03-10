@@ -213,9 +213,13 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               preZzProfile = null;
             }
           }
-          const scrapeResult = await autoScrapePlayer(player.id, fpfChanged, zzChanged, preZzProfile);
-          if (scrapeResult.errors.length > 0) {
-            toast.warning(scrapeResult.errors.join('. '), { duration: 6000 });
+          try {
+            const scrapeResult = await autoScrapePlayer(player.id, fpfChanged, zzChanged, preZzProfile);
+            if (scrapeResult.errors.length > 0) {
+              toast.warning(scrapeResult.errors.join('. '), { duration: 6000 });
+            }
+          } catch {
+            toast.warning('Erro ao atualizar dados externos. Tente usar "Atualizar" manualmente.', { duration: 6000 });
           }
           // Refresh again after scrape to show updated external data
           router.refresh();
