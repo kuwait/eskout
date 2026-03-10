@@ -72,14 +72,18 @@ All development phases — completed and planned.
 
 ## Phase 5 — Mobile UX & New Features ⬚ PLANNED
 
-### 5A. Mobile UX Overhaul ✅ DONE (admin/editor)
+### 5A. Mobile UX Overhaul ✅ DONE
 - [x] Hamburger drawer navigation
 - [x] Full mobile UX audit across all features
 - [x] Player profile mobile revamp (MiniPitch, InfoChips, sections)
 - [x] Edit mode revamp (foot selector, phone input, referral picker, etc.)
 - [x] Scout evaluations popup, OpinionBadge compact, RecruitmentCard
 - [x] Admin reports revamp (3 tabs: Relatórios, Scouts, Consenso)
-- [ ] Scout role mobile UX (not yet designed)
+- [x] Scout role mobile UX (`/submeter`, `/meus-relatorios`, `/meus-jogadores` — all mobile-first)
+- [x] Mobile pipeline: no DnD (prevents scroll interference), ⋮ action menu, short names
+- [x] Login UX: `useActionState` spinner, pre-set club cookie, `loading.tsx` skeleton
+- [x] Position filters: secondary/tertiary matching across all dialogs
+- [x] Paginated player fetch in squad dialogs (bypass Supabase 1000-row limit)
 
 ### 5B-0. Player Club History & Season Stats ✅ DONE
 - [x] Fix ZZ scraper: extract all sub-teams per season, correct goals parsing, extract team/escalão
