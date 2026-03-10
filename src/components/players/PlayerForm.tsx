@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Globe, PenLine, CheckCircle2, AlertCircle, Search, ArrowLeft } from 'lucide-react';
 import { createPlayer } from '@/actions/players';
 import { scrapeFromLinks, type ScrapedNewPlayerData } from '@/actions/scraping';
+import { fetchZzProfileClient } from '@/lib/zerozero/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,7 +87,16 @@ export function PlayerForm() {
 
     setError(null);
     startScrape(async () => {
-      const result = await scrapeFromLinks(fpf || undefined, zz || undefined);
+      // Fetch ZZ client-side via Edge proxy to avoid server IP blocking
+      let preZzData: import('@/lib/zerozero/parser').ZzParsedProfile | null | undefined = undefined;
+      if (zz) {
+        try {
+          preZzData = await fetchZzProfileClient(zz);
+        } catch {
+          preZzData = null; // blocked or failed — server action will handle error
+        }
+      }
+      const result = await scrapeFromLinks(fpf || undefined, zz || undefined, preZzData);
       setScrapeResult(result);
 
       if (!result.success) {

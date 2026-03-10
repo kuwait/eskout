@@ -18,7 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { scrapePlayerAll, applyScrapedData, type ScrapedChanges } from '@/actions/scraping';
+import { scrapePlayerAll, applyScrapedData, type ScrapedChanges, type PreFetchedZz } from '@/actions/scraping';
+import { fetchZzProfileClient, searchZzMultiStrategyClient } from '@/lib/zerozero/client';
+import { calcAgeFromDob } from '@/lib/zerozero/helpers';
 import { POSITIONS } from '@/lib/constants';
 import type { Player } from '@/lib/types';
 
@@ -38,6 +40,8 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
   const [photoSource, setPhotoSource] = useState<'fpf' | 'zz' | null>(null);
   // User-overridden positions when ZZ returns unknown position text (dropdown selection)
   const [posOverrides, setPosOverrides] = useState<{ primary?: string; secondary?: string; tertiary?: string }>({});
+  // Store client-fetched ZZ profile data so handleApply can pass it to applyScrapedData
+  const [zzProfileCache, setZzProfileCache] = useState<import('@/lib/zerozero/parser').ZzParsedProfile | null>(null);
 
   // Only show if the player has at least one external link
   if (!player.fpfLink && !player.zerozeroLink) return null;
@@ -48,7 +52,32 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
   function handleRefresh() {
     setFeedback(null);
     startTransition(async () => {
-      const res = await scrapePlayerAll(player.id);
+      // Fetch ZZ data client-side (via Edge proxy) to avoid server IP blocking
+      const preZz: PreFetchedZz = { profileData: null, searchCandidate: null, blocked: false, searchAttempted: false };
+      try {
+        if (player.zerozeroLink) {
+          // Player has confirmed ZZ link — fetch profile client-side
+          preZz.profileData = await fetchZzProfileClient(player.zerozeroLink);
+        } else if (player.name && player.dob) {
+          // No ZZ link — search client-side
+          preZz.searchAttempted = true;
+          const age = calcAgeFromDob(player.dob);
+          const candidate = await searchZzMultiStrategyClient(player.name, player.club || null, age, player.dob);
+          if (candidate) {
+            preZz.searchCandidate = candidate;
+            // Also fetch the found profile
+            preZz.profileData = await fetchZzProfileClient(candidate.url).catch(() => null);
+          }
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === 'ZZ_BLOCKED') preZz.blocked = true;
+      }
+
+      // Cache ZZ profile for handleApply (when user confirms ZZ link, we pass it to avoid re-fetch)
+      setZzProfileCache(preZz.profileData);
+
+      // Server action handles FPF + DB + merge (ZZ data already pre-fetched)
+      const res = await scrapePlayerAll(player.id, preZz);
       console.log('[RefreshPlayer] result:', JSON.stringify({ success: res.success, errors: res.errors, hasChanges: res.hasChanges, zzConfirmed: res.zzConfirmed }));
       setResult(res);
 
@@ -123,7 +152,8 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
       // Only apply ZZ link if user explicitly confirmed it
       if (selected.zzLink && result.zzLinkFound) updates.zzLinkFound = result.zzLinkFound;
 
-      await applyScrapedData(player.id, updates);
+      // Pass cached ZZ profile so applyScrapedData doesn't need to re-fetch from ZZ
+      await applyScrapedData(player.id, updates, zzProfileCache);
       setShowDialog(false);
       setFeedback('Dados atualizados');
       setTimeout(() => setFeedback(null), 3000);

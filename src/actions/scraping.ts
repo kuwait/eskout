@@ -1,7 +1,7 @@
 // src/actions/scraping.ts
 // Server Actions for scraping external data (FPF + ZeroZero) and updating player profiles
-// Runs server-side on Vercel — triggered from browser on player save or bulk update
-// RELEVANT FILES: src/actions/players.ts, src/lib/supabase/server.ts, src/lib/supabase/club-context.ts
+// ZZ fetches now primarily happen client-side via /api/zz-proxy — server-side ZZ only for bulk/auto
+// RELEVANT FILES: src/actions/players.ts, src/lib/supabase/server.ts, src/lib/zerozero/client.ts
 
 'use server';
 
@@ -9,6 +9,8 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { normalizePosition } from '@/lib/utils/positions';
+import { type ZzParsedProfile } from '@/lib/zerozero/parser';
+import { type ZzSearchCandidate } from '@/lib/zerozero/helpers';
 
 /* ───────────── Anti-blocking: rotating User-Agents + realistic headers ───────────── */
 
@@ -715,6 +717,49 @@ export async function scrapePlayerZeroZero(playerId: number): Promise<ZzScrapeRe
   };
 }
 
+/** Variant of scrapePlayerZeroZero that uses pre-fetched client-side ZZ data */
+async function scrapePlayerZeroZeroWithData(playerId: number, preData: ZzParsedProfile | null): Promise<ZzScrapeResult> {
+  const EMPTY: ZzScrapeResult = { success: false, currentClub: null, photoUrl: null, height: null, weight: null, nationality: null, birthCountry: null, position: null, foot: null, gamesSeason: null, goalsSeason: null, teamHistory: [], clubChanged: false };
+  if (!preData) return EMPTY;
+
+  const { clubId } = await getActiveClub();
+  const supabase = await createClient();
+  const { data: player } = await supabase.from('players').select('club').eq('id', playerId).eq('club_id', clubId).single();
+
+  // Update zz_* cache fields
+  await supabase.from('players').update({
+    zz_current_club: preData.currentClub,
+    zz_current_team: preData.currentTeam,
+    zz_games_season: preData.gamesSeason,
+    zz_goals_season: preData.goalsSeason,
+    zz_height: preData.height,
+    zz_weight: preData.weight,
+    zz_photo_url: preData.photoUrl,
+    zz_team_history: preData.teamHistory.length > 0 ? preData.teamHistory : null,
+    zz_last_checked: new Date().toISOString(),
+    ...(preData.clubLogoUrl ? { club_logo_url: preData.clubLogoUrl } : {}),
+  }).eq('id', playerId).eq('club_id', clubId);
+
+  const clubChanged = preData.currentClub ? !clubsMatch(preData.currentClub, player?.club ?? '') : false;
+  revalidatePath(`/jogadores/${playerId}`);
+
+  return {
+    success: true,
+    currentClub: preData.currentClub,
+    photoUrl: preData.photoUrl,
+    height: preData.height,
+    weight: preData.weight,
+    nationality: preData.nationality,
+    birthCountry: preData.birthCountry,
+    position: preData.position,
+    foot: preData.foot,
+    gamesSeason: preData.gamesSeason,
+    goalsSeason: preData.goalsSeason,
+    teamHistory: preData.teamHistory,
+    clubChanged,
+  };
+}
+
 /* ───────────── Unified Scrape (FPF + ZeroZero merged) ───────────── */
 
 /** What changed — each field shows the new value if different from current player data */
@@ -781,8 +826,17 @@ export interface ScrapedChanges {
   hasChanges: boolean;
 }
 
-/** Scrape BOTH FPF and ZeroZero for a player, merge results, return what changed */
-export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges> {
+/** Pre-fetched ZZ data from client-side — avoids server-side ZZ fetch */
+export interface PreFetchedZz {
+  profileData: ZzParsedProfile | null;
+  searchCandidate: { url: string; name: string; age: number | null; club: string | null } | null;
+  blocked: boolean;
+  searchAttempted: boolean;
+}
+
+/** Scrape BOTH FPF and ZeroZero for a player, merge results, return what changed.
+ *  When preZz is provided, ZZ data comes from client-side fetch (no server-side ZZ request). */
+export async function scrapePlayerAll(playerId: number, preZz?: PreFetchedZz): Promise<ScrapedChanges> {
   const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
@@ -816,14 +870,24 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   let zzCandidate: ZzSearchCandidate | null = null;
   let zzBlocked = false;
   let zzSearchAttempted = false;
-  if (!player.zerozero_link && player.name && player.dob) {
+
+  // When client provides pre-fetched ZZ data, use it instead of server-side fetch
+  if (preZz) {
+    zzBlocked = preZz.blocked;
+    zzSearchAttempted = preZz.searchAttempted;
+    if (preZz.searchCandidate) {
+      zzCandidate = { ...preZz.searchCandidate, position: null };
+      zzLinkFound = preZz.searchCandidate.url;
+      player.zerozero_link = preZz.searchCandidate.url;
+    }
+  } else if (!player.zerozero_link && player.name && player.dob) {
+    // Server-side fallback (bulk/auto operations)
     zzSearchAttempted = true;
     try {
       const expectedAge = calcAgeFromDob(player.dob);
       zzCandidate = await searchZzMultiStrategy(player.name, player.club, expectedAge, player.dob);
       if (zzCandidate) {
         zzLinkFound = zzCandidate.url;
-        // Set in memory so fetchZeroZeroData runs below — but NOT saved to DB yet
         player.zerozero_link = zzCandidate.url;
       }
     } catch (e) {
@@ -833,20 +897,26 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
 
   const errors: string[] = [];
 
-  // Scrape both in parallel
+  // Scrape FPF server-side + ZZ (from client or server)
   type FpfData = Awaited<ReturnType<typeof fetchFpfData>>;
   type ZzData = Awaited<ReturnType<typeof fetchZeroZeroData>>;
+
+  // ZZ: use pre-fetched client data when available, otherwise fetch server-side
+  const zzFromClient = preZz ? preZz.profileData : undefined;
 
   const [fpfResult, zzResult] = await Promise.all([
     player.fpf_link
       ? fetchFpfData(player.fpf_link).catch(() => null as FpfData)
       : Promise.resolve(null as FpfData),
-    player.zerozero_link
-      ? fetchZeroZeroData(player.zerozero_link).catch((e: unknown) => {
-          if (e instanceof Error && e.message === 'ZZ_BLOCKED') zzBlocked = true;
-          return null as ZzData;
-        })
-      : Promise.resolve(null as ZzData),
+    // If client provided ZZ data, use it directly (no server fetch)
+    zzFromClient !== undefined
+      ? Promise.resolve(zzFromClient as ZzData)
+      : player.zerozero_link
+        ? fetchZeroZeroData(player.zerozero_link).catch((e: unknown) => {
+            if (e instanceof Error && e.message === 'ZZ_BLOCKED') zzBlocked = true;
+            return null as ZzData;
+          })
+        : Promise.resolve(null as ZzData),
   ]);
 
   if (!fpfResult && player.fpf_link) errors.push('FPF indisponível');
@@ -985,7 +1055,8 @@ export async function scrapePlayerAll(playerId: number): Promise<ScrapedChanges>
   };
 }
 
-/** Apply merged scraped data to the player's main fields */
+/** Apply merged scraped data to the player's main fields.
+ *  preZzProfile: when client already fetched ZZ profile, skip server-side ZZ fetch for cache fields. */
 export async function applyScrapedData(
   playerId: number,
   updates: {
@@ -1002,7 +1073,8 @@ export async function applyScrapedData(
     foot?: string;
     /** Auto-found ZZ link — save to DB + scrape ZZ cache fields */
     zzLinkFound?: string;
-  }
+  },
+  preZzProfile?: ZzParsedProfile | null,
 ): Promise<{ success: boolean }> {
   const { clubId, role } = await getActiveClub();
   if (role === 'scout') {
@@ -1036,10 +1108,11 @@ export async function applyScrapedData(
   const { error } = await supabase.from('players').update(dbUpdates).eq('id', playerId).eq('club_id', clubId);
   if (error) return { success: false };
 
-  // Now scrape ZZ cache fields since the link is saved
+  // Fill ZZ cache fields since the link is saved
   // Also fill in main profile fields (nationality, position, foot, height, weight) if still empty
   if (updates.zzLinkFound) {
-    const zzData = await fetchZeroZeroData(updates.zzLinkFound);
+    // Use client-provided ZZ profile data when available, otherwise fetch server-side
+    const zzData = preZzProfile !== undefined ? preZzProfile : await fetchZeroZeroData(updates.zzLinkFound).catch(() => null);
     if (zzData) {
       // Get current player data to check which fields are empty
       const { data: current } = await supabase.from('players')
@@ -1102,8 +1175,9 @@ export interface ScrapedNewPlayerData {
   birthCountry: string | null;
 }
 
-/** Scrape FPF and/or ZeroZero from raw URLs — no player needed, used for creating new players */
-export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promise<ScrapedNewPlayerData> {
+/** Scrape FPF and/or ZeroZero from raw URLs — no player needed, used for creating new players.
+ *  When preZzData is provided, ZZ data comes from client-side fetch (no server-side ZZ request). */
+export async function scrapeFromLinks(fpfLink?: string, zzLink?: string, preZzData?: ZzParsedProfile | null): Promise<ScrapedNewPlayerData> {
   const EMPTY: ScrapedNewPlayerData = {
     success: false, errors: [], name: null, dob: null, club: null,
     position: null, positionRaw: null, secondaryPosition: null, tertiaryPosition: null,
@@ -1120,7 +1194,10 @@ export async function scrapeFromLinks(fpfLink?: string, zzLink?: string): Promis
 
   const [fpfResult, zzResult] = await Promise.all([
     fpfLink ? fetchFpfData(fpfLink).catch(() => null as FpfData) : Promise.resolve(null as FpfData),
-    zzLink ? fetchZeroZeroData(zzLink).catch(() => null as ZzData) : Promise.resolve(null as ZzData),
+    // Use pre-fetched client data when available
+    preZzData !== undefined
+      ? Promise.resolve(preZzData as ZzData)
+      : zzLink ? fetchZeroZeroData(zzLink).catch(() => null as ZzData) : Promise.resolve(null as ZzData),
   ]);
 
   if (!fpfResult && fpfLink) errors.push('Não foi possível aceder ao FPF');
@@ -1163,10 +1240,12 @@ export interface ScoutReportScrapeResult extends ScrapedNewPlayerData {
   zzPhotoUrl: string | null;
 }
 
-/** Used by /submeter — scrapes FPF, tries to auto-find ZZ link, then scrapes ZZ too */
+/** Used by /submeter — scrapes FPF, tries to auto-find ZZ link, then scrapes ZZ too.
+ *  When preZz is provided, ZZ data comes from client-side fetch. */
 export async function scrapeForScoutReport(
   fpfLink: string,
   zzLink?: string,
+  preZz?: { profileData: ZzParsedProfile | null; searchCandidate: { url: string; name: string; age: number | null; club: string | null } | null },
 ): Promise<ScoutReportScrapeResult> {
   const EMPTY_ZZ = { zzLinkFound: null, zzCandidateName: null, zzCandidateAge: null, zzCandidateClub: null, zzPhotoUrl: null };
 
@@ -1182,10 +1261,20 @@ export async function scrapeForScoutReport(
     };
   }
 
-  // Step 2: if no ZZ link provided, try to find one automatically
+  // Step 2: if no ZZ link provided, use client-provided search result or server-side fallback
   let resolvedZzLink = zzLink?.trim() || null;
   let candidate: ZzSearchCandidate | null = null;
-  if (!resolvedZzLink && fpfData.fullName && fpfData.dob) {
+  let preZzProfile: ZzParsedProfile | null | undefined = undefined;
+
+  if (preZz) {
+    // Client already searched and/or fetched ZZ data
+    if (preZz.searchCandidate) {
+      candidate = { ...preZz.searchCandidate, position: null };
+      resolvedZzLink = preZz.searchCandidate.url;
+    }
+    preZzProfile = preZz.profileData;
+  } else if (!resolvedZzLink && fpfData.fullName && fpfData.dob) {
+    // Server-side fallback (no client data provided)
     const birthDate = new Date(fpfData.dob);
     const age = Math.floor((Date.now() - birthDate.getTime()) / 31557600000);
     candidate = await searchZzMultiStrategy(
@@ -1201,8 +1290,8 @@ export async function scrapeForScoutReport(
     }
   }
 
-  // Step 3: scrape both with the resolved ZZ link
-  const result = await scrapeFromLinks(fpfLink, resolvedZzLink || undefined);
+  // Step 3: scrape both with the resolved ZZ link (ZZ from client when available)
+  const result = await scrapeFromLinks(fpfLink, resolvedZzLink || undefined, preZzProfile);
 
   return {
     ...result,
@@ -1216,16 +1305,21 @@ export async function scrapeForScoutReport(
 
 /* ───────────── Auto-scrape on Link Change ───────────── */
 
-/** Called after saving a player profile — scrapes any links that changed */
+/** Called after saving a player profile — scrapes any links that changed.
+ *  preZzProfile: when client already fetched ZZ profile, skip server-side ZZ fetch. */
 export async function autoScrapePlayer(
   playerId: number,
   fpfLinkChanged: boolean,
-  zzLinkChanged: boolean
+  zzLinkChanged: boolean,
+  preZzProfile?: ZzParsedProfile | null,
 ): Promise<{ errors: string[] }> {
   const errors: string[] = [];
 
   const fpfPromise = fpfLinkChanged ? scrapePlayerFpf(playerId) : Promise.resolve(null);
-  const zzPromise = zzLinkChanged ? scrapePlayerZeroZero(playerId) : Promise.resolve(null);
+  // Use client-provided ZZ profile when available
+  const zzPromise = zzLinkChanged
+    ? (preZzProfile !== undefined ? scrapePlayerZeroZeroWithData(playerId, preZzProfile) : scrapePlayerZeroZero(playerId))
+    : Promise.resolve(null);
   const [fpfResult, zzResult] = await Promise.all([fpfPromise, zzPromise]);
 
   if (fpfResult && !fpfResult.success) errors.push('FPF: falha ao aceder aos dados');
@@ -1436,13 +1530,7 @@ function countNameOverlap(a: string, b: string): number {
   return partsA.filter((p) => partsB.includes(p)).length;
 }
 
-interface ZzSearchCandidate {
-  url: string;
-  name: string;
-  age: number | null;
-  club: string | null;
-  position: string | null;
-}
+// ZzSearchCandidate imported from @/lib/zerozero/helpers
 
 /** Parse ZeroZero autocomplete search results HTML into structured candidates */
 function parseZzAutocompleteResults(html: string): ZzSearchCandidate[] {

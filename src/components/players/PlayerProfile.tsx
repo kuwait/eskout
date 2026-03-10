@@ -64,6 +64,7 @@ import {
 } from '@/lib/constants';
 import { updatePlayer, deletePlayer, approvePlayer, rejectPlayer, deleteStatusHistoryEntry } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
+import { fetchZzProfileClient } from '@/lib/zerozero/client';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { usePresence } from '@/hooks/usePresence';
 import type {
@@ -203,7 +204,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         const fpfChanged = (draft.fpfLink || '') !== (player.fpfLink || '');
         const zzChanged = (draft.zerozeroLink || '') !== (player.zerozeroLink || '');
         if (fpfChanged || zzChanged) {
-          const scrapeResult = await autoScrapePlayer(player.id, fpfChanged, zzChanged);
+          // Fetch ZZ client-side via Edge proxy when ZZ link changed
+          let preZzProfile: import('@/lib/zerozero/parser').ZzParsedProfile | null | undefined = undefined;
+          if (zzChanged && draft.zerozeroLink) {
+            try {
+              preZzProfile = await fetchZzProfileClient(draft.zerozeroLink);
+            } catch {
+              preZzProfile = null;
+            }
+          }
+          const scrapeResult = await autoScrapePlayer(player.id, fpfChanged, zzChanged, preZzProfile);
           if (scrapeResult.errors.length > 0) {
             toast.warning(scrapeResult.errors.join('. '), { duration: 6000 });
           }

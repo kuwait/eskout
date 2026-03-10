@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { submitScoutReport, type ScoutReportInput } from '@/actions/scout-reports';
 import { scrapeForScoutReport } from '@/actions/scraping';
+import { fetchZzProfileClient } from '@/lib/zerozero/client';
 import { cn } from '@/lib/utils';
 
 /* ───────────── Constants ───────────── */
@@ -186,7 +187,23 @@ export default function SubmeterPage() {
     showFeedback('info', 'A buscar dados do jogador...', 0);
 
     try {
-      const result = await scrapeForScoutReport(link, form.zerozeroLink?.trim() || undefined);
+      // Fetch ZZ data client-side via Edge proxy to avoid server IP blocking
+      const zzLink = form.zerozeroLink?.trim() || undefined;
+      let preZz: { profileData: import('@/lib/zerozero/parser').ZzParsedProfile | null; searchCandidate: { url: string; name: string; age: number | null; club: string | null } | null } | undefined;
+
+      if (zzLink) {
+        // Explicit ZZ link provided — fetch client-side
+        try {
+          const profileData = await fetchZzProfileClient(zzLink);
+          preZz = { profileData, searchCandidate: null };
+        } catch {
+          preZz = { profileData: null, searchCandidate: null };
+        }
+      }
+      // Note: auto-search without explicit ZZ link happens server-side (needs FPF data first for name/DOB)
+      // But scrapeForScoutReport will use preZz when provided
+
+      const result = await scrapeForScoutReport(link, zzLink, preZz);
 
       if (!result.success || !result.name) {
         showFeedback('error', result.errors?.join(', ') || 'Não foi possível obter dados do jogador');
