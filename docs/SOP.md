@@ -97,9 +97,9 @@ Four roles with progressively restricted access:
 | Formation | **Dynamic** — no fixed formation. Field view groups by position categories. Formation view available as visual overlay. |
 | Squad size | **Dynamic** — no limit. DC position supports sub-slots for finer granularity. |
 | Multi-age-group | **Yes** — all age groups supported |
-| Multi-user | **Yes** — 4 roles: Admin, Master, Scout, Scout Externo |
+| Multi-user | **Yes** — 4 roles: Admin, Editor, Scout, Recruiter (+ Superadmin) |
 | Authentication | Email + password per user |
-| Profiles | Admin (full access) / Master (all except admin area) / Scout (all except delete) / Scout Externo (submit only) |
+| Profiles | Admin (full access) / Editor (edit, not delete/manage users) / Scout (submit + own reports only) / Recruiter (squads/pipeline, no scouting data) |
 | Add new players | Directly in the app |
 | Change history | Yes — every status change logged with date, author, old→new |
 | Export | PDF, image, text, WhatsApp-formatted, and print for squads. Excel/PDF/JSON export at `/exportar`. |

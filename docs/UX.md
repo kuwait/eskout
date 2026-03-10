@@ -10,7 +10,8 @@ Design principles, navigation structure, and user workflows.
 - **Mobile-first** — scouts use their phone at the field
 - **Simple and clean** — minimum clicks for common actions
 - **Team identity** — Boavista FC colors: black and white/checkered as brand identity
-- **Immediate feedback** — toast notifications for actions
+- **Immediate feedback** — toast notifications for actions, login button shows spinner via `useActionState`, loading skeletons on page transitions
+- **No accidental actions on mobile** — drag-and-drop disabled where it conflicts with scroll (e.g. pipeline Kanban), replaced with explicit action menus
 - **Portuguese throughout** — all labels, buttons, messages in PT-PT
 
 ---

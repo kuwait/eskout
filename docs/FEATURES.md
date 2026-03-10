@@ -8,10 +8,12 @@ Detailed specifications for every feature in the application.
 
 ## 1. Authentication & User Management
 - Login page: email + password (Supabase Auth)
-- Three roles: `admin`, `editor`, `scout`
+- **Login UX:** React 19 `useActionState` for immediate spinner feedback on submit. Pre-sets club cookie during login (single-club users skip middleware redirect loop). Root `loading.tsx` skeleton shown instantly after redirect.
+- Four roles: `admin`, `editor`, `scout`, `recruiter`
 - Admin: full access — create/edit/delete users, assign roles, approve/reject scout reports, delete players
 - Editor: can edit players, manage squads/pipeline, approve/reject scout reports — cannot delete players or manage users
-- Scout: can only access `/submeter` (report submission) and `/meus-relatorios` (own reports) — redirected away from all other routes
+- Scout: can only access `/submeter` (report submission), `/meus-relatorios` (own reports), `/meus-jogadores`, `/preferencias` — redirected away from all other routes
+- Recruiter: can access squads, pipeline, calendar, positions — blocked from `/exportar`, `/meus-relatorios`, `/submeter`, `/admin`, `/alertas`, home page (`/`), `/jogadores` list (but can view individual player profiles)
 - User management: invite via email (Supabase Auth), set password on first login, soft delete (deactivate/reactivate)
 - Session persistence across browser sessions
 - Protected routes → redirect to login if unauthenticated
@@ -50,7 +52,7 @@ Multiple views available via tabs/sub-routes (`/campo`, `/campo/real`, `/campo/s
 - Each player card: name, position, foot, photo avatar
 - Admin can add players here (mark as "at Boavista")
 - Players can be manually reordered within position groups (`squad_order`)
-- Add player dialog: pre-fills position and birth year filters, hides players already in squad
+- Add player dialog: pre-fills position and birth year filters, hides players already in squad. Position filter matches primary, secondary, and tertiary positions. Player pool fetched via paginated queries (1000-row pages) to bypass Supabase default limit.
 - **Cross-age-group add:** players from other age groups can be added; their `age_group_id` is updated to the current squad's age group ("call up" concept)
 - Age group selector uses the navigator variant (`← Sub-15 →`)
 
@@ -89,7 +91,7 @@ Full table/list of all players (fetched once, filtered client-side):
 
 **Filters:**
 - **Birth year** — dropdown with all available years (replaces age group selector on this page)
-- Position (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL)
+- Position (GR, DD, DE, DC, MDC, MC, MOC, ED, EE, PL) — matches primary, secondary, and tertiary positions
 - Club, Department opinion, Foot (Dir, Esq, Amb), Recruitment status
 - **Date of birth range** — collapsible panel with from/to date pickers
 - Shadow squad (yes/no), Real squad (yes/no)
@@ -137,7 +139,11 @@ Dedicated page `/jogadores/{id}`.
 | `assinou` | Assinou | Dark Green |
 | `rejected` | Rejeitado | Red |
 
-Kanban board with DnD, manual ordering, reorderable columns (localStorage). Desktop=horizontal, Mobile=vertical. Every status change logged.
+**Desktop:** Kanban board with DnD (card drag between columns + column reorder via header grip). Manual ordering, reorderable columns persisted in localStorage. Horizontal layout.
+
+**Mobile:** Vertical stacked columns, no drag-and-drop (prevents scroll interference and accidental moves). Cards show short name (first + last only). Each card has a ⋮ corner menu opening a dialog with "Mover para" (status list with color dots) and "Remover das abordagens" options. Tapping the card body navigates to player profile.
+
+Every status change logged.
 
 ## 8. Position View
 For each of the 10 positions: real squad / shadow squad / pool breakdown. Visual coverage indicator.

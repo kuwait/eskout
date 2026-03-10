@@ -36,6 +36,7 @@ sikout/
 ├── src/
 │   ├── app/                           # Next.js App Router
 │   │   ├── layout.tsx                 # Root layout (font, providers)
+│   │   ├── loading.tsx                # Root loading skeleton (instant after login redirect)
 │   │   ├── page.tsx                   # Dashboard
 │   │   ├── login/page.tsx
 │   │   ├── campo/
@@ -93,6 +94,14 @@ sikout/
 ├── data/all_players.json
 └── docs/
 ```
+
+### Performance Patterns
+
+- **AppShell queries:** All server-side queries (profile, membership, club, age groups, alert counts) run in a single `Promise.all` — 7 parallel queries instead of 3 sequential rounds
+- **Login flow:** `login()` server action pre-sets club cookie for single-club users, avoiding middleware redirect loop (was: login → redirect → middleware queries memberships → redirect to set cookie → middleware again)
+- **Loading skeletons:** Root `loading.tsx` shows instant skeleton after login redirect. Admin reports page also has `loading.tsx`.
+- **Paginated fetches:** Supabase caps `.range()` at 1000 rows. SquadPanelView and PipelineView fetch in 1000-row pages to get all players.
+- **Position filter matching:** All player search dialogs (AddToSquadDialog, PlayerPickerDialog, PlayersView, PipelineView) match position filter against primary, secondary, and tertiary positions.
 
 ---
 
