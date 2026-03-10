@@ -98,8 +98,8 @@ function shortName(fullName: string): string {
 export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
-  // Mobile cards use short name; onStatusChange signals mobile mode
-  const displayName = onStatusChange ? shortName(player.name) : player.name;
+  // Short name on pipeline cards — full name truncated via CSS
+  const displayName = shortName(player.name);
   const statusConfig = player.recruitmentStatus
     ? DATE_STATUS_CONFIG[player.recruitmentStatus as keyof typeof DATE_STATUS_CONFIG]
     : undefined;
@@ -244,31 +244,14 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           </button>
         )}
 
-        {/* Mobile: corner menu with "Mover" + "Apagar" */}
-        {onStatusChange && player.recruitmentStatus ? (
+        {/* Corner menu with "Mover" + "Remover" — same on mobile and desktop */}
+        {onStatusChange && player.recruitmentStatus && (
           <CardActionsMenu
             playerId={player.id}
             currentStatus={player.recruitmentStatus as RecruitmentStatus}
             onStatusChange={onStatusChange}
             onRemove={onRemove}
           />
-        ) : (
-          /* Desktop: simple remove X button */
-          onRemove && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-1 top-1 h-5 w-5 p-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onRemove(player.id);
-              }}
-              aria-label={`Remover ${player.name} das abordagens`}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )
         )}
       </div>
 

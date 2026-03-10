@@ -41,6 +41,7 @@ function SortablePipelineCard({
   onRemove,
   onDateChange,
   clubMembers,
+  onStatusChange,
 }: {
   player: Player;
   dragId: string;
@@ -49,6 +50,7 @@ function SortablePipelineCard({
   onRemove: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   clubMembers?: { id: string; fullName: string }[];
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
 
@@ -171,7 +173,7 @@ function SortablePipelineCard({
       onPointerCancel={handlePointerUp}
       onClick={handleClick}
     >
-      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} />
+      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} onPlayerClick={onPlayerClick} onStatusChange={onStatusChange} />
     </div>
   );
 }
@@ -261,6 +263,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
                   onPlayerClick={onPlayerClick}
                   onRemove={onRemove}
                   onDateChange={onDateChange}
+                  onStatusChange={onStatusChange}
                 />
               ))}
             </div>

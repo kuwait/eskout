@@ -278,6 +278,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
                 onPlayerClick={onPlayerClick}
                 onRemove={onRemove}
                 onDateChange={onDateChange}
+                onStatusChange={onStatusChange}
               />
             ))}
           </div>
