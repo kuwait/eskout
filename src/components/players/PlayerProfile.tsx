@@ -1787,6 +1787,7 @@ function ReferralPicker({ profiles, selectedUserId, freeText, onChange }: {
           placeholder="Pesquisar utilizador ou escrever nome..."
           value={search}
           onValueChange={setSearch}
+          onClear={() => setSearch('')}
         />
         <CommandList>
           <CommandEmpty>
@@ -1877,6 +1878,7 @@ function ContactAssignPicker({ profiles, selectedUserId, onChange }: {
           placeholder="Pesquisar utilizador..."
           value={search}
           onValueChange={setSearch}
+          onClear={() => setSearch('')}
         />
         <CommandList>
           <CommandEmpty>Sem resultados</CommandEmpty>
@@ -2133,6 +2135,7 @@ function RecruitmentCard({ status, daysInStatus, contactAssignedToName, training
                   placeholder="Pesquisar utilizador..."
                   value={pickerSearch}
                   onValueChange={setPickerSearch}
+                  onClear={() => setPickerSearch('')}
                 />
                 <CommandList>
                   <CommandEmpty>Sem resultados</CommandEmpty>

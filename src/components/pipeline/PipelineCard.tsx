@@ -365,6 +365,7 @@ function ContactAssignButton({ player, clubMembers }: { player: Player; clubMemb
           placeholder="Pesquisar utilizador..."
           value={search}
           onValueChange={setSearch}
+          onClear={() => setSearch('')}
         />
         <CommandList>
           <CommandEmpty>Sem resultados</CommandEmpty>

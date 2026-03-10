@@ -8,7 +8,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import { Search, Star, FileText } from 'lucide-react';
+import { Search, Star, FileText, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { ReportFilters } from './ReportFilters';
 import { ReportPagination } from './ReportPagination';
 import { ReportDetailPanel } from './ReportDetailPanel';
@@ -107,14 +108,18 @@ export function ReportsView({
       {/* Search + Sort row */}
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-          <input
-            type="text"
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
+          <Input
             value={searchValue}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Pesquisar jogador ou clube..."
-            className="w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-neutral-400"
+            className="h-10 rounded-xl border-transparent bg-muted/50 pl-10 pr-9 shadow-none focus-visible:border-border focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-ring/20"
           />
+          {searchValue && (
+            <button type="button" onClick={() => handleSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground" aria-label="Limpar pesquisa">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <select
           value={sortKey}
