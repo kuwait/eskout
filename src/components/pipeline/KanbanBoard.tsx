@@ -29,6 +29,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SortableStatusColumn, StatusColumn } from '@/components/pipeline/StatusColumn';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
+import { cardId, parseCardId, columnId, parseColumnId, buildContainerItems, findContainer, STATUS_SET, type ContainerItems } from '@/components/pipeline/kanban-helpers';
 import type { Player, RecruitmentStatus } from '@/lib/types';
 
 /* ───────────── localStorage key for column order ───────────── */
@@ -76,55 +77,6 @@ interface KanbanBoardProps {
   onPlayerClick?: (playerId: number) => void;
   /** Club-scoped profiles for contact assignment in em_contacto cards */
   clubMembers?: { id: string; fullName: string }[];
-}
-
-/* ───────────── ID helpers ───────────── */
-
-/** Card drag IDs: "card-{playerId}" — status-agnostic for cross-container moves */
-function cardId(playerId: number): string { return `card-${playerId}`; }
-function parseCardId(id: string): number | null {
-  const match = id.match(/^card-(\d+)$/);
-  return match ? parseInt(match[1], 10) : null;
-}
-
-/** Column sortable IDs */
-function columnId(status: RecruitmentStatus): string { return `column-${status}`; }
-function parseColumnId(id: string): RecruitmentStatus | null {
-  const match = id.match(/^column-(.+)$/);
-  return match ? (match[1] as RecruitmentStatus) : null;
-}
-
-/** Container items: status → card IDs (mirrors playersByStatus but as string arrays) */
-type ContainerItems = Record<RecruitmentStatus, string[]>;
-
-/** Build container items from player data */
-function buildContainerItems(pbs: Record<RecruitmentStatus, Player[]>): ContainerItems {
-  const items = {} as ContainerItems;
-  for (const s of RECRUITMENT_STATUSES) {
-    items[s.value] = (pbs[s.value] ?? []).map((p) => cardId(p.id));
-  }
-  return items;
-}
-
-/** All status values as a Set for quick lookup */
-const STATUS_SET = new Set(RECRUITMENT_STATUSES.map((s) => s.value));
-
-/** Find which container a card ID belongs to */
-function findContainer(id: UniqueIdentifier, items: ContainerItems): RecruitmentStatus | null {
-  const sid = String(id);
-  // Direct status match (droppable zone "status-{value}")
-  const statusMatch = sid.match(/^status-(.+)$/);
-  if (statusMatch && STATUS_SET.has(statusMatch[1] as RecruitmentStatus)) return statusMatch[1] as RecruitmentStatus;
-  // Bare status value
-  if (STATUS_SET.has(sid as RecruitmentStatus)) return sid as RecruitmentStatus;
-  // Column wrapper
-  const col = parseColumnId(sid);
-  if (col) return col;
-  // Card — search containers
-  for (const status of RECRUITMENT_STATUSES) {
-    if (items[status.value].includes(sid)) return status.value;
-  }
-  return null;
 }
 
 /* ───────────── Component ───────────── */
