@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -17,6 +17,7 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from '@dnd-kit/core';
 import { FormationSlot } from '@/components/squad/FormationSlot';
 import type { Player, PositionCode } from '@/lib/types';
@@ -78,12 +79,11 @@ interface FormationViewProps {
   onDragEnd?: (info: DragEndInfo) => void;
 }
 
-/** Drag item data encoded in the draggable ID: "player-{id}-{slotId}" */
-function parseDragId(id: string): { playerId: number; position: string } | null {
-  const parts = id.split('-');
-  if (parts[0] !== 'player' || parts.length < 3) return null;
-  const position = parts.slice(2).join('-');
-  return { playerId: parseInt(parts[1], 10), position };
+/** Parse drag ID format "player-{id}" → player ID */
+function parseDragPlayerId(id: string): number | null {
+  if (!id.startsWith('player-')) return null;
+  const num = parseInt(id.replace('player-', ''), 10);
+  return isNaN(num) ? null : num;
 }
 
 /** true when viewport ≥ 1024px (lg breakpoint) — drives conditional render to avoid duplicate DnD IDs */
@@ -101,8 +101,17 @@ function useIsDesktop() {
   return isDesktop;
 }
 
+/** Virtual cross-position move during drag */
+interface DragVirtual {
+  playerId: number;
+  fromSlot: string;
+  toSlot: string;
+  toIndex: number;
+}
+
 export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd }: FormationViewProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
+  const [dragVirtual, setDragVirtual] = useState<DragVirtual | null>(null);
   const isDesktop = useIsDesktop();
 
   // Require 8px movement before activating — prevents accidental drags on tap
@@ -110,53 +119,127 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 20 } });
   const sensors = useSensors(pointerSensor, touchSensor);
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const parsed = parseDragId(String(event.active.id));
-    if (!parsed) return;
-    const players = byPosition[parsed.position] ?? [];
-    const player = players.find((p) => p.id === parsed.playerId);
-    setActivePlayer(player ?? null);
+  // Map player ID → slot for quick lookup of source position
+  const playerSlotMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const [slot, players] of Object.entries(byPosition)) {
+      for (const p of players) map.set(p.id, slot);
+    }
+    return map;
   }, [byPosition]);
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    setActivePlayer(null);
-    if (!onDragEnd) return;
+  // Display positions: during cross-position drag, player is virtually moved to target slot
+  const displayByPosition = useMemo(() => {
+    if (!dragVirtual || !activePlayer) return byPosition;
+    const result: Record<string, Player[]> = {};
+    for (const [key, players] of Object.entries(byPosition)) {
+      result[key] = [...players];
+    }
+    // Remove from source
+    if (result[dragVirtual.fromSlot]) {
+      result[dragVirtual.fromSlot] = result[dragVirtual.fromSlot].filter(
+        (p) => p.id !== dragVirtual.playerId
+      );
+    }
+    // Insert into target at index
+    if (!result[dragVirtual.toSlot]) result[dragVirtual.toSlot] = [];
+    const targetList = [...result[dragVirtual.toSlot]];
+    targetList.splice(dragVirtual.toIndex, 0, activePlayer);
+    result[dragVirtual.toSlot] = targetList;
+    return result;
+  }, [byPosition, dragVirtual, activePlayer]);
 
-    const { active, over } = event;
-    if (!over) return;
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const playerId = parseDragPlayerId(String(event.active.id));
+    if (playerId === null) return;
+    const slot = playerSlotMap.get(playerId);
+    if (!slot) return;
+    const player = (byPosition[slot] ?? []).find((p) => p.id === playerId);
+    setActivePlayer(player ?? null);
+  }, [byPosition, playerSlotMap]);
 
-    const source = parseDragId(String(active.id));
-    if (!source) return;
+  /** Detect cross-position hover → virtually move player to target slot */
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    if (!activePlayer) return;
+    const { over } = event;
+    if (!over) { setDragVirtual(null); return; }
+
+    const sourceSlot = playerSlotMap.get(activePlayer.id);
+    if (!sourceSlot) return;
 
     const overId = String(over.id);
+    let targetSlot: string | null = null;
+    let targetIndex: number | null = null;
 
-    // Dropped on a position droppable (e.g. "droppable-DC_E")
     if (overId.startsWith('droppable-')) {
-      const targetPos = overId.replace('droppable-', '');
-      const targetPlayers = byPosition[targetPos] ?? [];
+      targetSlot = overId.replace('droppable-', '');
+      // Use the current display list (which may already have the player moved)
+      const currentList = (displayByPosition[targetSlot] ?? []).filter((p) => p.id !== activePlayer.id);
+      targetIndex = currentList.length;
+    } else {
+      const overPlayerId = parseDragPlayerId(overId);
+      if (overPlayerId === null) { setDragVirtual(null); return; }
+      // Find which slot the over-player is in (using display positions, not original)
+      for (const [slot, players] of Object.entries(displayByPosition)) {
+        const idx = players.findIndex((p) => p.id === overPlayerId);
+        if (idx >= 0) {
+          targetSlot = slot;
+          targetIndex = idx;
+          break;
+        }
+      }
+    }
+
+    if (!targetSlot || targetIndex === null) { setDragVirtual(null); return; }
+
+    // Back to source position → clear virtual move
+    if (targetSlot === sourceSlot) { setDragVirtual(null); return; }
+
+    setDragVirtual({ playerId: activePlayer.id, fromSlot: sourceSlot, toSlot: targetSlot, toIndex: targetIndex });
+  }, [activePlayer, playerSlotMap, displayByPosition]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const virtual = dragVirtual;
+    setActivePlayer(null);
+    setDragVirtual(null);
+    if (!onDragEnd) return;
+
+    const playerId = parseDragPlayerId(String(event.active.id));
+    if (playerId === null) return;
+    const sourceSlot = playerSlotMap.get(playerId);
+    if (!sourceSlot) return;
+
+    const { over } = event;
+    if (!over) return;
+
+    // Cross-position move — use virtual state
+    if (virtual) {
       onDragEnd({
-        playerId: source.playerId,
-        sourcePosition: source.position,
-        targetPosition: targetPos,
-        newIndex: targetPlayers.length,
+        playerId,
+        sourcePosition: virtual.fromSlot,
+        targetPosition: virtual.toSlot,
+        newIndex: virtual.toIndex,
       });
       return;
     }
 
-    // Dropped on another player card
-    const target = parseDragId(overId);
-    if (!target) return;
+    // Same-position reorder
+    const overId = String(over.id);
+    if (overId.startsWith('droppable-')) return; // dropped on own position droppable — no-op
 
-    const targetPlayers = byPosition[target.position] ?? [];
-    const targetIndex = targetPlayers.findIndex((p) => p.id === target.playerId);
+    const overPlayerId = parseDragPlayerId(overId);
+    if (overPlayerId === null) return;
+
+    const list = byPosition[sourceSlot] ?? [];
+    const overIndex = list.findIndex((p) => p.id === overPlayerId);
 
     onDragEnd({
-      playerId: source.playerId,
-      sourcePosition: source.position,
-      targetPosition: target.position,
-      newIndex: targetIndex >= 0 ? targetIndex : targetPlayers.length,
+      playerId,
+      sourcePosition: sourceSlot,
+      targetPosition: sourceSlot,
+      newIndex: overIndex >= 0 ? overIndex : list.length,
     });
-  }, [byPosition, onDragEnd]);
+  }, [byPosition, onDragEnd, dragVirtual, playerSlotMap]);
 
   /** Render a single formation slot */
   const renderSlot = (slotId: FormationSlotId) => {
@@ -167,7 +250,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
         position={config.position}
         slotId={slotId}
         positionLabel={config.label !== config.position ? config.label : undefined}
-        players={byPosition[slotId] ?? []}
+        players={displayByPosition[slotId] ?? []}
         squadType={squadType}
         onAdd={() => onAdd(slotId)}
         onRemovePlayer={onRemovePlayer}
@@ -181,6 +264,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       {/* Conditional render (not CSS hidden) — avoids duplicate DnD droppable IDs */}
@@ -190,16 +274,29 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
           <div className="relative bg-green-700 p-4" style={{ width: 'max(100%, 720px)', minHeight: 520 }}>
             <PitchMarkingsHorizontal />
             <div className="relative flex h-full items-stretch justify-between gap-2 px-2 py-2" style={{ minHeight: 488 }}>
-              {DESKTOP_GROUPS.map((group, i) => (
-                <div
-                  key={i}
-                  className={`flex flex-1 flex-col items-center ${
-                    group.length === 1 ? 'justify-center' : 'justify-between'
-                  } py-2`}
-                >
-                  {group.map(renderSlot)}
-                </div>
-              ))}
+              {DESKTOP_GROUPS.map((group, i) => {
+                /* Group 2: MDC/MC — closer to vertical centre of pitch */
+                const isMidfield = i === 2;
+                /* Group 3: EE/MOC/ED — extremos slightly inward, MOC slightly lower */
+                const isAttacking = i === 3;
+
+                return (
+                  <div
+                    key={i}
+                    className={`flex flex-1 flex-col items-center ${
+                      isMidfield
+                        ? 'justify-center gap-[6rem]'
+                        : isAttacking
+                          ? 'justify-center gap-[3rem]'
+                          : group.length === 1
+                            ? 'justify-center'
+                            : 'justify-between'
+                    } py-2`}
+                  >
+                    {group.map(renderSlot)}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

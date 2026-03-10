@@ -52,17 +52,28 @@ export async function addToShadowSquad(
   }
   const supabase = await createClient();
 
-  // Get current state for history
+  // Get current state for history + age group for order scoping
   const { data: player } = await supabase
     .from('players')
-    .select('is_shadow_squad, shadow_position')
+    .select('is_shadow_squad, shadow_position, age_group_id')
     .eq('id', playerId)
     .eq('club_id', clubId)
     .single();
 
+  // Find max order in this position+age group so new player enters at the end
+  const { data: orderRows } = await supabase
+    .from('players')
+    .select('shadow_order')
+    .eq('club_id', clubId)
+    .eq('is_shadow_squad', true)
+    .eq('shadow_position', position)
+    .eq('age_group_id', player?.age_group_id ?? 0);
+  const maxOrder = orderRows?.reduce((max, r) => Math.max(max, r.shadow_order ?? 0), 0) ?? 0;
+  const nextOrder = maxOrder + 1;
+
   const { data: updated, error } = await supabase
     .from('players')
-    .update({ is_shadow_squad: true, shadow_position: position })
+    .update({ is_shadow_squad: true, shadow_position: position, shadow_order: nextOrder })
     .eq('id', playerId)
     .eq('club_id', clubId)
     .select('id')
@@ -156,6 +167,27 @@ export async function toggleRealSquad(
   const updateData: Record<string, unknown> = { is_real_squad: isReal };
   if (isReal && position) {
     updateData.real_squad_position = position;
+    // Find max order in this position+age group so new player enters at the end
+    // Resolve effective age group: cross-age-group call-up uses ageGroupId param, otherwise fetch from player
+    let effectiveAgeGroupId = ageGroupId;
+    if (!effectiveAgeGroupId) {
+      const { data: playerRow } = await supabase
+        .from('players')
+        .select('age_group_id')
+        .eq('id', playerId)
+        .eq('club_id', clubId)
+        .single();
+      effectiveAgeGroupId = playerRow?.age_group_id ?? 0;
+    }
+    const { data: orderRows } = await supabase
+      .from('players')
+      .select('real_order')
+      .eq('club_id', clubId)
+      .eq('is_real_squad', true)
+      .eq('real_squad_position', position)
+      .eq('age_group_id', effectiveAgeGroupId);
+    const maxOrder = orderRows?.reduce((max, r) => Math.max(max, r.real_order ?? 0), 0) ?? 0;
+    updateData.real_order = maxOrder + 1;
   }
   // Clear real_squad_position when removing from real squad
   if (!isReal) {

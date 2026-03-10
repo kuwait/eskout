@@ -57,21 +57,18 @@ function displayName(name: string): string {
 
 function DraggablePlayerCard({
   player,
-  dndId,
   index,
   squadType,
   onRemove,
   onPlayerClick,
 }: {
   player: Player;
-  /** Slot-based ID for drag (e.g. 'DC_E') */
-  dndId: string;
   index: number;
   squadType: 'real' | 'shadow';
   onRemove: () => void;
   onPlayerClick?: (playerId: number) => void;
 }) {
-  const dragId = `player-${player.id}-${dndId}`;
+  const dragId = `player-${player.id}`;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
   const [showActions, setShowActions] = useState(false);
 
@@ -199,8 +196,8 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
   // Make this slot a droppable target for cross-position drops
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `droppable-${dndId}` });
 
-  // IDs for SortableContext — use dndId so DC_E and DC_D have unique drag IDs
-  const sortableIds = players.map((p) => `player-${p.id}-${dndId}`);
+  // IDs for SortableContext — player-{id} format enables cross-position drag
+  const sortableIds = players.map((p) => `player-${p.id}`);
 
   return (
     <div
@@ -220,7 +217,6 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
           <DraggablePlayerCard
             key={p.id}
             player={p}
-            dndId={dndId}
             index={i}
             squadType={squadType}
             onRemove={() => onRemovePlayer(p.id)}

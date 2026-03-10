@@ -73,14 +73,13 @@ export function AddToSquadDialog({
 
   const searchablePlayers = useMemo(() => {
     const base = (allPlayers && allPlayers.length > 0) ? allPlayers : availablePlayers;
-    // Exclude players already in this squad
-    if (excludeIds && excludeIds.size > 0) {
-      return base.filter((p) => !excludeIds.has(p.id));
-    }
-    const filtered = squadType === 'shadow'
-      ? base.filter((p) => !p.isShadowSquad)
-      : base.filter((p) => !p.isRealSquad);
-    return filtered.length > 0 ? filtered : availablePlayers;
+    // Exclude players currently in this squad (by ID set OR by squad flag)
+    return base.filter((p) => {
+      if (excludeIds?.has(p.id)) return false;
+      if (squadType === 'shadow' && p.isShadowSquad) return false;
+      if (squadType === 'real' && p.isRealSquad) return false;
+      return true;
+    });
   }, [allPlayers, availablePlayers, squadType, excludeIds]);
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);

@@ -59,6 +59,12 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
   // Ref for capturing squad view as image
   const squadContentRef = useRef<HTMLDivElement>(null);
 
+  // Guard: block realtime refetch briefly after local mutations to preserve optimistic state
+  const mutationGuardRef = useRef(0);
+  const markMutation = useCallback(() => {
+    mutationGuardRef.current = Date.now();
+  }, []);
+
   // Players filtered by selected age group — instant tab switching, no extra fetches
   const players = useMemo(
     () => selectedId ? allPlayers.filter((p) => p.ageGroupId === selectedId) : [],
@@ -98,7 +104,12 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */
 
-  useRealtimeTable('players', { onAny: () => fetchAllPlayers() });
+  // Skip refetch if a local mutation happened recently (prevents overwriting optimistic state)
+  const guardedFetch = useCallback(() => {
+    if (Date.now() - mutationGuardRef.current < 3000) return;
+    fetchAllPlayers();
+  }, [fetchAllPlayers]);
+  useRealtimeTable('players', { onAny: guardedFetch });
 
   /* ───────────── Group by position (sorted by order field) ───────────── */
 
@@ -183,14 +194,19 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
 
   /** Optimistic add: inject player into local state, persist in background */
   function handleAdd(player: Player, pos: string) {
+    markMutation();
     if (squadType === 'shadow') {
-      // Optimistic: mark as shadow squad at this position
+      // Optimistic: mark as shadow squad at this position, order = last
       setAllPlayers((prev) => {
+        const maxOrder = prev
+          .filter((p) => p.isShadowSquad && p.shadowPosition === pos && p.ageGroupId === selectedId)
+          .reduce((max, p) => Math.max(max, p.shadowOrder), 0);
+        const nextOrder = maxOrder + 1;
         const exists = prev.find((p) => p.id === player.id);
         if (exists) {
-          return prev.map((p) => p.id === player.id ? { ...p, isShadowSquad: true, shadowPosition: pos } : p);
+          return prev.map((p) => p.id === player.id ? { ...p, isShadowSquad: true, shadowPosition: pos, shadowOrder: nextOrder } : p);
         }
-        return [...prev, { ...player, isShadowSquad: true, shadowPosition: pos }];
+        return [...prev, { ...player, isShadowSquad: true, shadowPosition: pos, shadowOrder: nextOrder }];
       });
       // Persist in background — refetch on failure to revert optimistic update
       addToShadowSquad(player.id, pos).then((res) => {
@@ -205,13 +221,17 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
       // Move player to current age group so they appear in this squad view ("call up")
       const targetAgeGroupId = selectedId;
       setAllPlayers((prev) => {
+        const maxOrder = prev
+          .filter((p) => p.isRealSquad && p.realSquadPosition === dbPos && p.ageGroupId === targetAgeGroupId)
+          .reduce((max, p) => Math.max(max, p.realOrder), 0);
+        const nextOrder = maxOrder + 1;
         const exists = prev.find((p) => p.id === player.id);
         if (exists) {
           return prev.map((p) => p.id === player.id
-            ? { ...p, isRealSquad: true, realSquadPosition: dbPos, ageGroupId: targetAgeGroupId! }
+            ? { ...p, isRealSquad: true, realSquadPosition: dbPos, ageGroupId: targetAgeGroupId!, realOrder: nextOrder }
             : p);
         }
-        return [...prev, { ...player, isRealSquad: true, realSquadPosition: dbPos, ageGroupId: targetAgeGroupId! }];
+        return [...prev, { ...player, isRealSquad: true, realSquadPosition: dbPos, ageGroupId: targetAgeGroupId!, realOrder: nextOrder }];
       });
       toggleRealSquad(player.id, true, dbPos, targetAgeGroupId ?? undefined).then((res) => {
         if (!res.success) {
@@ -225,6 +245,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
 
   /** Optimistic remove: remove from local state, persist in background */
   function handleRemove(playerId: number) {
+    markMutation();
     if (squadType === 'shadow') {
       setAllPlayers((prev) => prev.map((p) => p.id === playerId ? { ...p, isShadowSquad: false, shadowPosition: null } : p));
       removeFromShadowSquad(playerId).then((res) => {
@@ -240,6 +261,7 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
 
   /** Handle drag-and-drop reorder / position move */
   function handleDragEnd(info: DragEndInfo) {
+    markMutation();
     const { playerId, sourcePosition, targetPosition, newIndex } = info;
     const orderField = squadType === 'shadow' ? 'shadowOrder' : 'realOrder';
 
@@ -271,20 +293,42 @@ export function SquadPanelView({ squadType }: SquadPanelViewProps) {
       const dbPosition = targetPosition;
 
       const posField = squadType === 'shadow' ? 'shadowPosition' : 'realSquadPosition';
+
+      // Build sorted list of target position, insert moved player at newIndex, reassign orders
+      const targetList = (byPosition[dbPosition] ?? []).filter((p) => p.id !== playerId);
+      const insertAt = Math.min(newIndex, targetList.length);
+      const movedPlayer = allPlayers.find((p) => p.id === playerId);
+      if (movedPlayer) targetList.splice(insertAt, 0, movedPlayer);
+
+      // Map all players in target position to sequential orders
+      const orderMap = new Map<number, number>();
+      targetList.forEach((p, i) => orderMap.set(p.id, i));
+
       setAllPlayers((prev) =>
-        prev.map((p) =>
-          p.id === playerId
-            ? { ...p, [posField]: dbPosition, [orderField]: newIndex }
-            : p
-        )
+        prev.map((p) => {
+          if (p.id === playerId) {
+            return { ...p, [posField]: dbPosition, [orderField]: insertAt };
+          }
+          const newOrd = orderMap.get(p.id);
+          if (newOrd !== undefined) {
+            return { ...p, [orderField]: newOrd };
+          }
+          return p;
+        })
       );
 
-      // Persist
-      moveSquadPlayerPosition(playerId, dbPosition, newIndex, squadType).then((res) => {
+      // Persist: move player + bulk reorder target position
+      const reorderUpdates = targetList.map((p, i) => ({ playerId: p.id, order: i }));
+      moveSquadPlayerPosition(playerId, dbPosition, insertAt, squadType).then((res) => {
         if (!res.success) {
           console.error('moveSquadPlayerPosition failed:', res.error);
-          fetchAllPlayers(); // revert on failure
+          fetchAllPlayers();
+          return;
         }
+        // Reorder remaining players in target position to match
+        bulkReorderSquad(reorderUpdates, squadType).then((reorderRes) => {
+          if (!reorderRes.success) console.error('bulkReorderSquad failed:', reorderRes.error);
+        });
       });
     }
   }
