@@ -118,7 +118,7 @@ export async function updateRecruitmentStatus(
   }
 
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar estado de recrutamento' };
   }
   const supabase = await createClient();
@@ -202,7 +202,7 @@ export async function reorderPipelineCards(
   if (updates.length === 0) return { success: true };
 
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
   const supabase = await createClient();
@@ -232,7 +232,7 @@ export async function updateTrainingDate(
   dateTime: string | null
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
   const supabase = await createClient();
@@ -284,7 +284,7 @@ export async function updateSigningDate(
   dateTime: string | null
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
   const supabase = await createClient();
@@ -336,7 +336,7 @@ export async function updateMeetingDate(
   dateTime: string | null
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
   const supabase = await createClient();
