@@ -10,7 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Footprints, Handshake, Loader2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, EyeOff, Camera, Footprints, Handshake, Loader2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import {
   AlertDialog,
@@ -66,6 +66,7 @@ import {
 } from '@/lib/constants';
 import { updatePlayer, deletePlayer, approvePlayer, rejectPlayer, deleteStatusHistoryEntry } from '@/actions/players';
 import { autoScrapePlayer } from '@/actions/scraping';
+import { isPlayerObserved, addToObservationList, removeFromObservationList } from '@/actions/observation-list';
 import { fetchZzProfileClient } from '@/lib/zerozero/client';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { usePresence } from '@/hooks/usePresence';
@@ -114,6 +115,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [isDeleting, startDelete] = useTransition();
   const [historyEntries, setHistoryEntries] = useState(statusHistory);
   const profileRef = useRef<HTMLDivElement>(null);
+  const [isObserved, setIsObserved] = useState(false);
+  const [observeLoading, setObserveLoading] = useState(false);
   const isAdmin = userRole === 'admin';
   const isRecruiter = userRole === 'recruiter';
   const isScout = userRole === 'scout';
@@ -156,6 +159,27 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   useRealtimeTable('observation_notes', { onAny: () => router.refresh() });
   useRealtimeTable('scout_evaluations', { onAny: () => router.refresh() });
   useRealtimeTable('status_history', { onAny: () => router.refresh() });
+
+  /* ───────────── Observation list toggle ───────────── */
+  const canObserve = !isScout;
+  useEffect(() => {
+    if (!canObserve) return;
+    isPlayerObserved(player.id).then(setIsObserved);
+  }, [player.id, canObserve]);
+
+  async function handleToggleObserve() {
+    setObserveLoading(true);
+    if (isObserved) {
+      const res = await removeFromObservationList(player.id);
+      if (res.success) { setIsObserved(false); toast.success('Removido da lista'); }
+      else toast.error(res.error);
+    } else {
+      const res = await addToObservationList(player.id);
+      if (res.success) { setIsObserved(true); toast.success('Adicionado a A Observar'); }
+      else toast.error(res.error);
+    }
+    setObserveLoading(false);
+  }
 
   function handleEdit() {
     setDraft(player);
@@ -387,6 +411,22 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         {/* Right side — view mode actions */}
         {!editing && (
           <div className="flex items-center gap-1">
+            {/* Observation toggle — admin/editor/recruiter */}
+            {canObserve && (
+              <button
+                onClick={handleToggleObserve}
+                disabled={observeLoading}
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium transition-colors ${
+                  isObserved
+                    ? 'text-primary hover:bg-primary/10'
+                    : 'text-muted-foreground hover:bg-white hover:text-foreground hover:shadow-sm'
+                } disabled:opacity-50`}
+                title={isObserved ? 'Remover de A Observar' : 'Adicionar a A Observar'}
+              >
+                {isObserved ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{isObserved ? 'A Observar' : 'Observar'}</span>
+              </button>
+            )}
             {/* Share hidden for scouts/recruiters */}
             {!isRestricted && (
               <>
