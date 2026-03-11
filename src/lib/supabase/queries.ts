@@ -440,7 +440,7 @@ export async function getCalendarEvents(
   // 1. Fetch manual calendar events
   let eventsQuery = supabase
     .from('calendar_events')
-    .select('*, players:player_id(name, photo_url, zz_photo_url, club, position_normalized, dob, foot)')
+    .select('*, players:player_id(name, photo_url, zz_photo_url, club, position_normalized, dob, foot, training_escalao)')
     .gte('event_date', start)
     .lte('event_date', end)
     .order('event_date')
@@ -455,7 +455,7 @@ export async function getCalendarEvents(
   // 2. Fetch players with pipeline dates in this month range
   let playersQuery = supabase
     .from('players')
-    .select('id, name, age_group_id, training_date, meeting_date, signing_date, recruitment_status, photo_url, zz_photo_url, club, position_normalized, dob, foot')
+    .select('id, name, age_group_id, training_date, meeting_date, signing_date, recruitment_status, photo_url, zz_photo_url, club, position_normalized, dob, foot, training_escalao')
     .or(`training_date.gte.${start},meeting_date.gte.${start},signing_date.gte.${start}`)
     .not('recruitment_status', 'is', null);
 
@@ -484,6 +484,7 @@ export async function getCalendarEvents(
         zzPhotoUrl: player.zz_photo_url,
         club: player.club,
         positionNormalized: player.position_normalized,
+        trainingEscalao: player.training_escalao,
         dob: player.dob,
         foot: player.foot,
       };
@@ -551,6 +552,7 @@ interface SyntheticPlayerInfo {
   zzPhotoUrl: string | null;
   club: string | null;
   positionNormalized: string | null;
+  trainingEscalao: string | null;
   dob: string | null;
   foot: string | null;
 }
@@ -586,6 +588,7 @@ function playerDateToCalendarEvent(
     playerPosition: playerInfo.positionNormalized ?? null,
     playerDob: playerInfo.dob ?? null,
     playerFoot: playerInfo.foot ?? null,
+    playerTrainingEscalao: eventType === 'treino' ? (playerInfo.trainingEscalao ?? null) : null,
     eventType,
     title: `${typeLabel} — ${playerName}`,
     eventDate: dateStr,

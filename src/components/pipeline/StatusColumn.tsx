@@ -5,13 +5,26 @@
 
 'use client';
 
-import { forwardRef, useRef, useEffect, useState, useCallback } from 'react';
+import { forwardRef, useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
+import { shortName } from '@/lib/utils';
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { Player, RecruitmentStatus } from '@/lib/types';
+
+/* ───────────── Column width constants ───────────── */
+/**
+ * Card horizontal space consumed by non-name elements:
+ * - card padding: p-2.5 (10px) + pr-7 (28px) = 38px
+ * - avatar 20px + gap 6px = 26px
+ * - column padding (p-2 on card list) = 16px
+ * - border/rounding overhead ≈ 4px
+ * Total base ≈ 84px
+ */
+export const COLUMN_MIN_PX = 100;
+export const COLUMN_MAX_PX = 320;
 
 interface StatusColumnProps {
   status: RecruitmentStatus;
@@ -199,6 +212,28 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
     // Drag IDs must match what KanbanBoard parses — status-agnostic for cross-container moves
     const sortableIds = players.map((p) => `card-${p.id}`);
 
+    // Per-column dynamic width: measure longest short name with canvas
+    const columnWidth = useMemo(() => {
+      if (disableDrag || players.length === 0) return undefined;
+      let maxTextPx = 0;
+      if (typeof document !== 'undefined') {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.font = '500 14px Inter, system-ui, sans-serif';
+          for (const p of players) {
+            const w = ctx.measureText(shortName(p.name)).width;
+            if (w > maxTextPx) maxTextPx = w;
+          }
+        }
+      }
+      if (maxTextPx === 0) return COLUMN_MIN_PX;
+      // Fixed: card pad left 10 + right 24 = 34, list pad 16, avatar 20 + gap 6 = 26, border 2
+      const fixedPx = 34 + 16 + 26 + 2 + (showBirthYear ? 48 : 0);
+      const needed = Math.ceil(maxTextPx + fixedPx);
+      return Math.min(Math.max(needed, COLUMN_MIN_PX), COLUMN_MAX_PX);
+    }, [players, showBirthYear, disableDrag]);
+
     return (
       <div
         ref={(node) => {
@@ -206,8 +241,8 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
           if (typeof ref === 'function') ref(node);
           else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }}
-        style={style}
-        className={`flex w-full max-w-full flex-col overflow-hidden rounded-lg bg-neutral-50 transition-colors md:min-w-[220px] md:w-auto ${
+        style={{ ...style, ...(columnWidth ? { minWidth: columnWidth, width: columnWidth } : {}) }}
+        className={`flex w-full max-w-full flex-col overflow-hidden rounded-lg bg-neutral-50 transition-colors md:w-auto ${
           isOver && !disableDrag ? 'border-2 border-blue-400' : 'border border-transparent'
         }`}
       >

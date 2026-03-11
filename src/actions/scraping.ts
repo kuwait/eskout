@@ -994,9 +994,10 @@ export async function scrapePlayerAll(playerId: number, preZz?: PreFetchedZz): P
   const mergedBirthCountry = normalizeCountry(fpfResult?.birthCountry || (zzConfirmed ? zzData?.birthCountry : null) || null);
   const birthCountryChanged = !!mergedBirthCountry && mergedBirthCountry !== player.birth_country;
 
-  // Club logo: auto-saved in cacheUpdates above, only show as change if genuinely different
+  // Club logo: only flag as changed if (a) club actually changed, or (b) player has no logo yet
+  // FPF and ZZ return different URLs for the same club — don't nag when club is the same
   const mergedLogo = (zzConfirmed ? zzData?.clubLogoUrl : null) || fpfResult?.clubLogoUrl || null;
-  const clubLogoChanged = !!mergedLogo && mergedLogo !== (player.club_logo_url ?? '');
+  const clubLogoChanged = !!mergedLogo && (clubChanged || !player.club_logo_url);
 
   // Photos: keep separate so UI can show the right one based on ZZ confirmation
   const fpfPhotoUrl = fpfResult?.photoUrl ?? null;

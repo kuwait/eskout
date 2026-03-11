@@ -1,40 +1,31 @@
 // src/components/calendar/EventBadge.tsx
-// Card-style event entry for the calendar grid — multi-line, readable, not truncated
-// Color-coded left border by event type. Shows time, title, player name.
+// Compact event entry for the calendar grid — color-coded, scannable
+// Shows type, time, player (name, position code, club, escalão) or generic title
 // RELEVANT FILES: src/components/calendar/CalendarGrid.tsx, src/components/calendar/CalendarList.tsx, src/lib/constants.ts
 
 'use client';
 
-import { cn } from '@/lib/utils';
+import { cn, shortName } from '@/lib/utils';
 import type { CalendarEvent, CalendarEventType } from '@/lib/types';
 import { EVENT_TYPE_LABEL_MAP } from '@/lib/constants';
+
+/** Calendar-specific label overrides */
+const CALENDAR_LABEL_OVERRIDES: Partial<Record<CalendarEventType, string>> = {
+  treino: 'Treino',
+};
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 
-/* ───────────── Color map for left border accent ───────────── */
+/* ───────────── Color tokens per event type ───────────── */
 
-const BORDER_COLORS: Record<CalendarEventType, string> = {
-  treino: 'border-l-blue-500',
-  assinatura: 'border-l-green-500',
-  reuniao: 'border-l-orange-500',
-  observacao: 'border-l-purple-500',
-  outro: 'border-l-neutral-400',
+const ACCENT: Record<CalendarEventType, { border: string; bg: string; badge: string }> = {
+  treino:     { border: 'border-l-blue-500',    bg: 'bg-blue-50/80',    badge: 'bg-blue-100 text-blue-700' },
+  assinatura: { border: 'border-l-green-500',   bg: 'bg-green-50/80',   badge: 'bg-green-100 text-green-700' },
+  reuniao:    { border: 'border-l-orange-500',  bg: 'bg-orange-50/80',  badge: 'bg-orange-100 text-orange-700' },
+  observacao: { border: 'border-l-purple-500',  bg: 'bg-purple-50/80',  badge: 'bg-purple-100 text-purple-700' },
+  outro:      { border: 'border-l-neutral-400', bg: 'bg-neutral-50/80', badge: 'bg-neutral-100 text-neutral-600' },
 };
 
-const BG_COLORS: Record<CalendarEventType, string> = {
-  treino: 'bg-blue-50',
-  assinatura: 'bg-green-50',
-  reuniao: 'bg-orange-50',
-  observacao: 'bg-purple-50',
-  outro: 'bg-neutral-50',
-};
-
-const TEXT_COLORS: Record<CalendarEventType, string> = {
-  treino: 'text-blue-700',
-  assinatura: 'text-green-700',
-  reuniao: 'text-orange-700',
-  observacao: 'text-purple-700',
-  outro: 'text-neutral-600',
-};
+const DEFAULT_ACCENT = ACCENT.outro;
 
 /* ───────────── Props ───────────── */
 
@@ -46,10 +37,8 @@ interface EventBadgeProps {
 /* ───────────── Component ───────────── */
 
 export function EventBadge({ event, onClick }: EventBadgeProps) {
-  const borderColor = BORDER_COLORS[event.eventType] ?? 'border-l-neutral-400';
-  const bgColor = BG_COLORS[event.eventType] ?? 'bg-neutral-50';
-  const textColor = TEXT_COLORS[event.eventType] ?? 'text-neutral-600';
-  const typeLabel = EVENT_TYPE_LABEL_MAP[event.eventType] ?? event.eventType;
+  const colors = ACCENT[event.eventType] ?? DEFAULT_ACCENT;
+  const typeLabel = CALENDAR_LABEL_OVERRIDES[event.eventType] ?? EVENT_TYPE_LABEL_MAP[event.eventType] ?? event.eventType;
   const timeLabel = event.eventTime ? event.eventTime.slice(0, 5) : '';
 
   return (
@@ -57,72 +46,94 @@ export function EventBadge({ event, onClick }: EventBadgeProps) {
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full rounded border-l-3 p-1.5 text-left transition-opacity hover:opacity-80',
-        borderColor,
-        bgColor,
+        'w-full rounded-md border-l-[3px] px-2 py-1.5 text-left transition-all',
+        'hover:shadow-sm hover:brightness-[0.97]',
+        colors.border,
+        colors.bg,
       )}
     >
-      {/* Row 1: Type label + time + location (top-right) */}
+      {/* Row 1: type badge + time + year pill + escalão pill */}
       <div className="flex items-center gap-1">
-        <span className={cn('text-[10px] font-bold uppercase leading-none', textColor)}>
+        <span className={cn('rounded px-1 py-px text-[10px] font-bold uppercase tracking-wide leading-none', colors.badge)}>
           {typeLabel}
         </span>
         {timeLabel && (
-          <span className="text-[10px] font-medium text-neutral-500">{timeLabel}</span>
+          <span className="text-[11px] font-medium text-neutral-500">{timeLabel}</span>
         )}
         {event.isPlayerDate && (
           <span className="text-[10px] text-neutral-400" title="via Abordagens">&#x25C7;</span>
         )}
-        {/* Location pinned to the right */}
-        {event.location && (
-          <span className="ml-auto text-[10px] text-neutral-400 truncate max-w-[60%] text-right">
-            {event.location}
-          </span>
-        )}
+        {/* Right side: location + year + escalão */}
+        <span className="ml-auto flex items-center gap-1 min-w-0">
+          {event.location && (
+            <span className="truncate text-[10px] text-neutral-400 max-w-[60px]">
+              {event.location}
+            </span>
+          )}
+          {event.playerTrainingEscalao && (
+            <span className="shrink-0 rounded bg-amber-50 px-1 py-px text-[10px] font-medium text-amber-700">
+              {event.playerTrainingEscalao}
+            </span>
+          )}
+        </span>
       </div>
 
-      {/* Player name (with photo/placeholder) or title */}
+      {/* Row 2: avatar + name + year */}
       {event.playerName ? (
-        <div className="mt-0.5 flex items-center gap-1.5">
-          <PlayerAvatar
-            player={{
-              name: event.playerName,
-              photoUrl: event.playerPhotoUrl,
-              club: event.playerClub,
-              position: event.playerPosition,
-              dob: event.playerDob,
-              foot: event.playerFoot,
-            }}
-            size={20}
-          />
-          <p className="text-xs font-medium leading-snug text-neutral-900">
-            {event.playerName}
-          </p>
-        </div>
+        <>
+          <div className="mt-1 flex items-center gap-1">
+            <PlayerAvatar
+              player={{
+                name: event.playerName,
+                photoUrl: event.playerPhotoUrl,
+                club: event.playerClub,
+                position: event.playerPosition,
+                dob: event.playerDob,
+                foot: event.playerFoot,
+              }}
+              size={18}
+            />
+            <span className="truncate text-xs font-semibold leading-none text-neutral-900">
+              {shortName(event.playerName)}
+              {event.playerDob && (
+                <span className="ml-1 font-medium text-neutral-400">{new Date(event.playerDob).getFullYear()}</span>
+              )}
+            </span>
+          </div>
+          {/* Row 3: position pill + club */}
+          <div className="mt-0.5 flex items-center gap-1 pl-0.5 min-w-0">
+            {event.playerPosition && (
+              <span className="shrink-0 rounded bg-green-50 px-1 py-px text-[10px] font-semibold text-green-700">
+                {event.playerPosition}
+              </span>
+            )}
+            {event.playerClub && (
+              <span className="truncate text-[11px] font-medium leading-tight text-neutral-700">
+                {event.playerClub}
+              </span>
+            )}
+          </div>
+        </>
       ) : (
-        <p className="mt-0.5 text-xs leading-snug text-neutral-700">
+        <p className="mt-1 text-xs font-medium leading-snug text-neutral-800">
           {event.title}
         </p>
       )}
 
-      {/* Lembrete: show "Assunto: title" since player name is not shown */}
+      {/* Lembrete with player: show title */}
       {event.eventType === 'outro' && event.playerName && (
-        <p className="mt-0.5 text-[10px] leading-snug text-neutral-600">
-          Assunto: {event.title}
-        </p>
+        <p className="mt-0.5 truncate text-[11px] text-neutral-500 italic">{event.title}</p>
       )}
 
-      {/* Assignee if present */}
+      {/* Assignee */}
       {event.assigneeName && (
-        <p className="mt-0.5 text-[10px] leading-none text-neutral-400">
-          Responsável: {event.assigneeName}
-        </p>
+        <p className="mt-0.5 truncate text-[11px] text-neutral-400">{event.assigneeName}</p>
       )}
 
-      {/* Notes — always last, separated */}
+      {/* Notes */}
       {event.notes && (
-        <p className="mt-1 border-t border-neutral-200/60 pt-1 text-[10px] leading-snug text-neutral-500 line-clamp-2">
-          Notas: {event.notes}
+        <p className="mt-1 border-t border-neutral-200/50 pt-0.5 text-[11px] text-neutral-400 line-clamp-1 italic">
+          {event.notes}
         </p>
       )}
     </button>

@@ -177,6 +177,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         nationality: draft.nationality || null,
         shirt_number: draft.shirtNumber || null,
         contact: draft.contact || null,
+        height: draft.height || null,
+        weight: draft.weight || null,
         photo_url: draft.photoUrl || null,
         fpf_link: draft.fpfLink || null,
         zerozero_link: draft.zerozeroLink || null,
@@ -688,6 +690,38 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                         placeholder="Telefone, email, etc."
                         className="text-xs font-medium tracking-wide text-neutral-600"
                       />
+                    </EditField>
+                  </div>
+
+                  {/* Altura + Peso — side by side */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <EditField label="Altura (cm)">
+                      <div className="relative">
+                        <Ruler className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+                        <Input
+                          type="number"
+                          min={0}
+                          max={250}
+                          value={draft.height ?? ''}
+                          onChange={(e) => updateDraft('height', e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Ex: 175"
+                          className="pl-8 text-xs font-medium tracking-wide text-neutral-600"
+                        />
+                      </div>
+                    </EditField>
+                    <EditField label="Peso (kg)">
+                      <div className="relative">
+                        <Weight className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+                        <Input
+                          type="number"
+                          min={0}
+                          max={200}
+                          value={draft.weight ?? ''}
+                          onChange={(e) => updateDraft('weight', e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Ex: 70"
+                          className="pl-8 text-xs font-medium tracking-wide text-neutral-600"
+                        />
+                      </div>
                     </EditField>
                   </div>
                 </div>

@@ -232,6 +232,7 @@ export function makeCalendarEventRow(overrides?: Partial<CalendarEventRow>): Cal
       position_normalized: 'DC',
       dob: '2012-03-15',
       foot: 'Dir',
+      training_escalao: null,
     },
     ...overrides,
   };

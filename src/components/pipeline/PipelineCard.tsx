@@ -88,12 +88,9 @@ const DATE_STATUS_CONFIG = {
   },
 } as const;
 
-/** "João Miguel Ferreira Silva" → "João Silva" */
-function shortName(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length <= 2) return fullName;
-  return `${parts[0]} ${parts[parts.length - 1]}`;
-}
+import { shortName } from '@/lib/utils';
+// Re-export for consumers that imported from here
+export { shortName } from '@/lib/utils';
 
 export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
@@ -170,7 +167,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
   return (
     <>
       <div
-        className="group relative select-none rounded-md border bg-white p-2.5 pr-7 shadow-sm transition-shadow hover:shadow-md"
+        className="group relative select-none rounded-md border bg-white p-2.5 pr-6 shadow-sm transition-shadow hover:shadow-md"
       >
         <div
           data-player-link
@@ -197,7 +194,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               }}
               size={20}
             />
-            <p className="truncate text-sm font-medium">{displayName}</p>
+            <p className={`min-w-0 truncate font-medium ${displayName.length > 18 ? 'text-xs' : 'text-sm'}`}>{displayName}</p>
           </div>
           {/* Line 2: club */}
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{player.club}</p>

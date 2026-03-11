@@ -435,12 +435,12 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       {/* Ghost card that follows the cursor while dragging */}
       <DragOverlay>
         {activePlayer && (
-          <div className="w-[220px] scale-105 rounded-lg shadow-xl ring-2 ring-blue-400">
+          <div className="w-[240px] scale-105 rounded-lg shadow-xl ring-2 ring-blue-400">
             <PipelineCard player={activePlayer} />
           </div>
         )}
         {activeColumnId && (
-          <div className="flex h-16 min-w-[220px] items-center justify-center rounded-lg border-2 border-blue-400 bg-neutral-100 opacity-75">
+          <div className="flex h-16 min-w-[200px] items-center justify-center rounded-lg border-2 border-blue-400 bg-neutral-100 opacity-75">
             <span className="text-xs font-medium text-muted-foreground">A mover coluna…</span>
           </div>
         )}

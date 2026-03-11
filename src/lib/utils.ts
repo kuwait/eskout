@@ -20,3 +20,10 @@ export function fuzzyMatch(target: string, query: string): boolean {
   const words = normalize(query).split(/\s+/).filter(Boolean);
   return words.every((word) => normTarget.includes(word));
 }
+
+/** "João Miguel Ferreira Silva" → "João Silva" (first + last name) */
+export function shortName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 2) return fullName;
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}

@@ -457,6 +457,8 @@ export interface CalendarEvent {
   playerPosition: string | null;
   playerDob: string | null;
   playerFoot: string | null;
+  /** Escalão where the player will train (from pipeline training_escalao) */
+  playerTrainingEscalao: string | null;
   eventType: CalendarEventType;
   title: string;
   eventDate: string; // YYYY-MM-DD
@@ -497,6 +499,7 @@ export interface CalendarEventRow {
     position_normalized: string | null;
     dob: string | null;
     foot: string | null;
+    training_escalao: string | null;
   } | null;
 }
 

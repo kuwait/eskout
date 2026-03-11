@@ -200,6 +200,7 @@ export function mapCalendarEventRow(row: CalendarEventRow): CalendarEvent {
     playerPosition: row.players?.position_normalized ?? null,
     playerDob: row.players?.dob ?? null,
     playerFoot: row.players?.foot ?? null,
+    playerTrainingEscalao: row.players?.training_escalao ?? null,
     eventType: row.event_type as CalendarEvent['eventType'],
     title: row.title,
     eventDate: row.event_date,

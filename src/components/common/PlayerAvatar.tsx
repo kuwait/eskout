@@ -108,12 +108,12 @@ export function PlayerAvatar({ player, size = 20, className = '' }: PlayerAvatar
             width={size}
             height={size}
             unoptimized
-            className="rounded-full object-cover"
+            className="rounded-md object-cover"
             style={{ width: size, height: size }}
           />
         ) : (
           <span
-            className="flex items-center justify-center rounded-full bg-neutral-200 text-neutral-500"
+            className="flex items-center justify-center rounded-md bg-neutral-200 text-neutral-500"
             style={{ width: size, height: size }}
           >
             <User style={{ width: iconSize, height: iconSize }} />
