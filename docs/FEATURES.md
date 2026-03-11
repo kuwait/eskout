@@ -11,16 +11,48 @@ Detailed specifications for every feature in the application.
 - **Login UX:** React 19 `useActionState` for immediate spinner feedback on submit. Pre-sets club cookie during login (single-club users skip middleware redirect loop). Root `loading.tsx` skeleton shown instantly after redirect.
 - Four roles: `admin`, `editor`, `scout`, `recruiter`
 - Admin: full access — create/edit/delete users, assign roles, approve/reject scout reports, delete players
-- Editor: can edit players, manage squads/pipeline, approve/reject scout reports — cannot delete players or manage users
-- Scout: can only access `/submeter` (report submission), `/meus-relatorios` (own reports), `/meus-jogadores`, `/preferencias` — redirected away from all other routes
-- Recruiter: can access squads, pipeline, calendar, positions — blocked from `/exportar`, `/meus-relatorios`, `/submeter`, `/admin`, `/alertas`, home page (`/`), `/jogadores` list (but can view individual player profiles)
+- Editor: can edit players, manage squads/pipeline, approve/reject scout reports — cannot delete players or manage users. Can access `/admin/pendentes`.
+- Scout: can only access `/submeter` (report submission), `/meus-relatorios` (own reports), `/meus-jogadores`, `/preferencias`, individual player profiles — redirected away from all other routes
+- Recruiter: see Section 1.1 below
 - User management: invite via email (Supabase Auth), set password on first login, soft delete (deactivate/reactivate)
 - Session persistence across browser sessions
 - Protected routes → redirect to login if unauthenticated
+- Social media crawlers (WhatsApp, Facebook, Twitter, Telegram, LinkedIn, Slack, Discord) bypass auth to read OG meta tags
 - Role-based route protection via middleware:
-  - **Admin only:** `/admin/*` (utilizadores, relatórios)
+  - **Admin only:** `/admin/*` (utilizadores, relatórios) — exception: editors can access `/admin/pendentes`
   - **Admin + Editor:** All main pages (dashboard, campo, jogadores, pipeline, posições, calendário, alertas)
-  - **Scout:** Only `/submeter`, `/meus-relatorios`, `/mais` — all other routes redirect to `/meus-relatorios`
+  - **Scout:** Only `/submeter`, `/meus-relatorios`, `/meus-jogadores`, `/mais`, `/preferencias`, `/jogadores/{id}` — all other routes redirect to `/meus-relatorios`
+  - **Recruiter:** Blocked from `/exportar`, `/meus-relatorios`, `/submeter`, `/admin`, `/alertas` — redirected to `/campo/real`
+
+### 1.1 Recruiter Role
+
+Recruiters handle squads, pipeline, and calendar — they do not see scouting intelligence or evaluations.
+
+**Route access:**
+- Allowed: `/campo/*` (squads), `/pipeline`, `/calendario`, `/posicoes`, `/tarefas`, `/a-observar`, `/jogadores/{id}` (individual profiles), `/preferencias`
+- Blocked: `/exportar`, `/meus-relatorios`, `/submeter`, `/admin/*`, `/alertas`
+- Redirect target when blocked: `/campo/real`
+
+**Player profile restrictions (`hideScoutingData`, `hideEvaluations`):**
+- Hidden: department opinion badge, observation tier badge, scouting reports section, scout evaluations section, report labels, hybrid rating display
+- Visible: basic info (DOB, club, position, foot, contact), club verification, club history (Percurso), observation notes, status history, recruitment status
+- Observer names and observer decision remain visible; report-backed data does not
+
+**Player table/card restrictions:**
+- Evaluations column/badge hidden (`hideEvaluations` prop)
+
+**Navigation:**
+- Same nav items as admin/editor except `recruiterHidden` items are filtered out
+- No access to export, scouting submission, or report pages
+
+**Training feedback:**
+- Recruiters can add training feedback entries (presence + coach feedback)
+
+### 1.2 Superadmin
+
+A separate privilege flag (`is_superadmin` on `profiles` table), orthogonal to club roles. Superadmins access the `/master` panel (Section 29). Middleware checks `is_superadmin` before granting access — non-superadmins are redirected to `/`.
+
+**Role impersonation:** Superadmins can impersonate any role via `eskout-role-override` cookie. The middleware checks for this cookie, verifies `is_superadmin`, and applies the overridden role for route protection. Implemented in `RoleImpersonator.tsx` in the app shell.
 
 ## 2. Age Group Selector
 - Three display variants:
@@ -118,12 +150,13 @@ Dedicated page `/jogadores/{id}`.
 4. **Percurso (Club History)** — Career stats table from ZeroZero: season, club, escalão (pill badge), games (blue), goals (green). Current season hero card with aggregated totals. Career totals row. Responsive: mobile below Info Básica, desktop in right column. Visible to all roles.
 5. **Scouting Reports** — Chronological cards from PDFs with rating, decision, expandable details
 6. **Observation Notes** — Scout notes with priority styling, delete button
-7. **Status History** — Change log with admin delete capability (optimistic UI)
-8. **Recruitment** — Status badge + dropdown, notes, change history log
+7. **Training Feedback** — See Section 30
+8. **Status History** — Change log with admin delete capability (optimistic UI)
+9. **Recruitment** — Status badge + dropdown, notes, change history log
 
 **Profile export:** PNG via `html2canvas-pro` with CORS proxy, Print via new window.
 
-**Actions by role:** Admin=full, Master=no delete, Scout=own notes only, Scout Externo=no access
+**Actions by role:** Admin=full, Editor=edit (not delete), Scout=own notes only, Recruiter=restricted (see Section 1.1)
 
 ## 7. Recruitment Pipeline
 
@@ -144,6 +177,8 @@ Dedicated page `/jogadores/{id}`.
 **Mobile:** Vertical stacked columns, no drag-and-drop (prevents scroll interference and accidental moves). Cards show short name (first + last only). Each card has a ⋮ corner menu opening a dialog with "Mover para" (status list with color dots) and "Remover das abordagens" options. Tapping the card body navigates to player profile.
 
 Every status change logged.
+
+**Auto-tasks:** Pipeline status changes automatically create and complete tasks for assigned users (see Section 28).
 
 ## 8. Position View
 For each of the 10 positions: real squad / shadow squad / pool breakdown. Visual coverage indicator.
@@ -211,3 +246,194 @@ Scraped from FPF/ZeroZero, stored in `club_logo_url`. ClubBadge component with h
 
 ## 26. Table UX Improvements
 Middle-click new tab, photo hover popover, completeness suggestions, invalid URL filtering.
+
+## 27. Multi-Club Architecture
+
+The application supports multiple clubs on a single platform. Each user can belong to one or more clubs via `club_memberships` (user_id, club_id, role). A user's role is per-club, not global.
+
+### Club Picker (`/escolher-clube`)
+
+- Shown when a user has 2+ clubs and no club cookie is set, or when the user navigates there manually
+- Single-club users are auto-selected by middleware (cookie set on redirect, no picker shown)
+- Users with no club memberships see a "Sem clube associado" message
+- Superadmins always see the picker (plus a link to the `/master` panel)
+- Selected club stored in `eskout-club-id` httpOnly cookie (1-year expiry)
+
+### Club Context
+
+- All data queries are scoped to the active club (`club_id` column on players, reports, notes, pipeline, etc.)
+- `getActiveClub()` server helper reads the cookie, fetches membership, and returns `{ clubId, userId, role, club }`
+- Switching clubs clears the cookie and redirects to the picker
+- Routes that don't require a club context: `/escolher-clube`, `/preferencias`
+
+### Club Settings (`/definicoes`)
+
+Admin-only page for the active club. Two sections:
+1. **Club Identity** — edit club name and logo URL
+2. **Bulk External Data Update** — batch-scrape all players with FPF/ZeroZero links. Source selection (FPF, ZeroZero, or both). Progress bar with counts (processed, updated, errors). Runs in batches of 10.
+
+## 28. Tasks (`/tarefas`)
+
+Personal TODO list combining manual tasks and auto-generated tasks from the recruitment pipeline. Accessible to admin, editor, and recruiter roles. Scouts are excluded.
+
+### Manual Tasks
+- Create with title, optional due date, optional player link
+- Admin can create tasks assigned to other club members
+- Toggle completion (checkbox). Completed tasks show with strikethrough.
+- Pin tasks to keep them at the top
+- Edit title, due date, player link
+- Delete: users can delete their own manual tasks; admin can delete any
+
+### Auto-Generated Tasks (Pipeline)
+
+Automatically created when pipeline status changes trigger action items:
+
+| Pipeline Status | Task Source | Example |
+|----------------|-------------|---------|
+| `em_contacto` (In Contact) | `pipeline_contact` | "Contactar [Player]" — assigned to `contact_assigned_to` |
+| `vir_treinar` (Come Train) | `pipeline_training` | "Registar feedback do treino" — assigned to `contact_assigned_to` |
+| `reuniao` (Meeting) | `pipeline_meeting` | "Reuniao — [Player]" — assigned to each `meeting_attendees` member |
+| `assinar` (Signing) | `pipeline_signing` | "Assinatura — [Player]" — assigned to each `signing_attendees` member |
+
+- Auto-tasks are created idempotently (skips if uncompleted task with same user+player+source exists)
+- Moving a player out of a status auto-completes tasks from the old status
+- Uncompleting an auto-task removes any pending duplicate to avoid constraint violations
+
+### Flagged Notes Integration
+
+The tasks page also displays flagged observation notes (important/urgent priority) in a separate section, replacing the standalone `/alertas` page as the primary entry point.
+
+### UI
+
+- Badge count of pending tasks shown in nav
+- Admin can view other users' tasks via a user selector dropdown
+- Realtime updates via broadcast
+
+## 29. Superadmin Panel (`/master`)
+
+Platform-level management interface, accessible only to users with `is_superadmin = true`. Uses its own layout with a purple-accented sidebar (desktop) and hamburger drawer (mobile), separate from the club-scoped app shell.
+
+### Dashboard (`/master`)
+- KPI cards: total clubs (excludes test), total users (unique across real clubs), total players, total reports
+- Activity section: online now count (last 2 min), active in last 24h
+- This month: players added, reports submitted
+
+### Clubs (`/master/clubes`)
+- List of all clubs (excludes test clubs) with name, slug, logo, member count, active/inactive status
+- **Create club form** at the top
+- Click a club → detail page (`/master/clubes/{id}`)
+
+### Club Detail (`/master/clubes/{id}`)
+- **Club identity**: edit name and logo URL
+- **Active toggle**: activate/deactivate club. Deactivation requires typing the club name to confirm. Inactive clubs cannot be accessed by members.
+- **Feature toggles**: per-club on/off switches for optional features (see Section 31)
+- **Members list**: shows all members with name, email, role. Inline role dropdown to change roles. Remove button.
+- **Invite form**: invite new user by name + email + role. Creates Supabase Auth user and club membership.
+
+### Users (`/master/utilizadores`)
+- Lists all users across all real clubs (excludes test-only users)
+- Shows: email, full name, superadmin flag, email confirmed status, last sign-in, creation date
+- Club memberships listed per user (club name + role)
+
+### Online Activity (`/master/online`)
+- **Online now**: users with `last_seen_at` within 2 minutes. Shows name, club, role, current page, device (mobile/desktop), session duration.
+- **Active 24h**: users active in the last 24 hours
+- **Peak today**: from `platform_daily_stats` table
+- **Activity heatmap**: 7x24 grid (day of week x hour) from `status_history` over last 30 days
+- **Activity feed**: last 30 status changes with player name, user name, field changed, old/new values
+- **Filters**: excludes test-only users and users with no club membership
+- Client-side auto-refresh via polling
+
+### Navigation
+Sidebar items: Dashboard, Clubes, Utilizadores, Online. Bottom links: Trocar Clube (→ `/escolher-clube`), Preferencias, Sair (logout).
+
+## 30. Training Feedback
+
+Presence tracking and coach feedback after a player trains at the club. Displayed as a section in the player profile.
+
+**Data model:** `training_feedback` table with `club_id`, `player_id`, `author_id`, `training_date`, `escalao`, `presence`, `feedback` (text), `rating` (1-5).
+
+**Presence values:**
+
+| Value | Label (PT) | Visual |
+|-------|-----------|--------|
+| `attended` | Veio | Green badge |
+| `missed` | Faltou | Red badge |
+| `rescheduled` | Reagendado | Amber badge |
+
+**Permissions:**
+- Create: admin, editor, recruiter (scouts cannot)
+- Update: author or admin
+- Delete: author or admin
+
+**UI:** Inline add form in player profile with date picker, escalao pre-fill, presence selector, optional feedback text, optional 1-5 rating. Entries listed chronologically. Zod validation on server.
+
+## 31. Feature Toggles
+
+Clubs can enable or disable optional features. Configured per-club by superadmins via the club detail page in the master panel (Section 29). Stored as a JSON `features` object on the `clubs` table. Default is all enabled (`features[key] !== false`).
+
+**Available toggles:**
+
+| Key | Label | Controls |
+|-----|-------|----------|
+| `pipeline` | Pipeline (Abordagens) | Pipeline page + nav item |
+| `calendar` | Calendario | Calendar page + nav item |
+| `shadow_squad` | Plantel Sombra | Shadow squad panel + nav item |
+| `scouting_reports` | Relatorios de Observacao | Admin report review + nav item |
+| `scout_submissions` | Submissoes Scout | Scout submission page + Meus Relatorios |
+| `export` | Exportar | Export page + admin nav item |
+| `positions_view` | Vista Posicoes | Positions page |
+| `alerts` | Notas Prioritarias | Flagged notes / alerts |
+
+**How it works:**
+- `getActiveClub()` returns the club's features object
+- `filterNavItems(role, features)` and `filterAdminItems(features)` hide nav items for disabled features
+- Nav items and admin items have a `feature` property linking them to a toggle key
+- A feature is considered enabled if `features[key] !== false` (opt-out model, not opt-in)
+
+## 32. Observation List ("A Observar") (`/a-observar`)
+
+Personal bookmarks of players a user wants to observe. Per-user, per-club shortlist stored in `user_observation_list` table.
+
+**Access:** Admin, editor, recruiter. Scouts are excluded.
+
+**Data model:** `user_observation_list` with `club_id`, `user_id`, `player_id`, `note` (optional). Unique constraint on `(user_id, player_id, club_id)`.
+
+**Features:**
+- Add/remove players from observation list (from the list page or from a player profile via eye icon toggle)
+- Optional note per entry (editable inline)
+- Search/filter within list
+- Player cards showing name, club (with logo), position (color-coded badge by group), DOB, nationality flag, photo
+- Click player card → navigate to player profile
+- Badge count in nav showing number of bookmarked players
+- Realtime updates via broadcast
+
+**Admin view:** Admin sees a user selector dropdown to view any club member's observation list. All lists fetched via `getAllObservationLists()` which joins `profiles` for owner name.
+
+**Export:** Admin and editor can export their list as Excel (`.xlsx`). Columns: Nome, Clube, Posicao, Data Nasc., Nacionalidade, Nota, Adicionado.
+
+## 33. Themes & Preferences (`/preferencias`)
+
+User-level visual customization. Accessible to all roles (including scouts). Stored in localStorage per device.
+
+**10 themes** (8 light + 2 dark):
+
+| Theme | Description | Font |
+|-------|------------|------|
+| Eskout | Classic black and white (default) | Inter |
+| Ocean | Professional blue | DM Sans |
+| Forest | Grass green | Inter |
+| Sunset | Warm orange tones | DM Sans |
+| Berry | Elegant purple | Space Grotesk |
+| Sand | Earthy neutral | DM Sans |
+| Rose | Soft pink | DM Sans |
+| Slate | Modern gray | Space Grotesk |
+| Midnight | Dark blue (dark mode) | Space Grotesk |
+| Carbon | Dark neutral (dark mode) | Inter |
+
+**How it works:**
+- `ThemeProvider` context wraps the app, reads/writes `eskout-theme` key in localStorage
+- Anti-FOUC script in `layout.tsx` applies theme class before first paint
+- Each theme defines CSS custom properties for colors + font-family override in `globals.css`
+- `ThemePicker` component renders a grid of theme cards with color preview bars, description, font name, and active checkmark
+- Dark themes (Midnight, Carbon) include CSS overrides for hardcoded `bg-white`/`text-neutral-*` classes
