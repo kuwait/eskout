@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays, FileText, PlusCircle, UserPlus,
-  Download, UserCog, LogOut, Palette, ArrowLeftRight, ListTodo, Building2,
+  Download, UserCog, LogOut, Palette, ArrowLeftRight, ListTodo, Building2, Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, feature: 'pipeline' },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, feature: 'calendar' },
   { href: '/tarefas', label: 'Tarefas', icon: ListTodo, scoutHidden: true, feature: null },
+  { href: '/a-observar', label: 'A Observar', icon: Eye, scoutHidden: true, feature: null },
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/meus-jogadores', label: 'Jogadores', icon: Users, scoutHidden: false, onlyRoles: ['scout', 'recruiter'], feature: null },
