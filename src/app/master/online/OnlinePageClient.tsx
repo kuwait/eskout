@@ -541,12 +541,22 @@ const ACTIVITY_TYPE_CONFIG: Record<ActivityTimelineItem['type'], { icon: typeof 
 
 /* ───────────── User Activity Panel ───────────── */
 
+const PAGE_SIZE = 20;
+
 function UserActivityPanel({ user, items, isLoading, onClose }: {
   user: OnlineUser;
   items: ActivityTimelineItem[];
   isLoading: boolean;
   onClose: () => void;
 }) {
+  // Reset pagination when items change (new user selected) — track items identity
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [prevItemsLen, setPrevItemsLen] = useState(items.length);
+  if (items.length !== prevItemsLen) {
+    setPrevItemsLen(items.length);
+    setVisibleCount(PAGE_SIZE);
+  }
+
   // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -554,9 +564,12 @@ function UserActivityPanel({ user, items, isLoading, onClose }: {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Group items by date
+  // Paginate then group by date
+  const visibleItems = items.slice(0, visibleCount);
+  const hasMore = visibleCount < items.length;
+
   const grouped = new Map<string, ActivityTimelineItem[]>();
-  for (const item of items) {
+  for (const item of visibleItems) {
     const dateKey = new Date(item.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
     if (!grouped.has(dateKey)) grouped.set(dateKey, []);
     grouped.get(dateKey)!.push(item);
@@ -604,17 +617,17 @@ function UserActivityPanel({ user, items, isLoading, onClose }: {
           ) : items.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-12">Sem atividade registada.</p>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {[...grouped.entries()].map(([dateLabel, dayItems]) => (
                 <div key={dateLabel}>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{dateLabel}</p>
-                  <div className="space-y-1">
+                  <div className="divide-y divide-neutral-100 rounded-lg border bg-white">
                     {dayItems.map((item) => {
                       const cfg = ACTIVITY_TYPE_CONFIG[item.type];
                       const Icon = cfg.icon;
                       const time = new Date(item.createdAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
                       return (
-                        <div key={item.id} className="flex gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-neutral-50">
+                        <div key={item.id} className="flex gap-3 px-3 py-2.5">
                           <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${cfg.bg}`}>
                             <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
                           </div>
@@ -636,6 +649,17 @@ function UserActivityPanel({ user, items, isLoading, onClose }: {
                   </div>
                 </div>
               ))}
+
+              {/* Load more */}
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                  className="flex w-full items-center justify-center rounded-lg border border-dashed border-neutral-300 py-2 text-xs font-medium text-neutral-500 transition hover:border-neutral-400 hover:text-neutral-700"
+                >
+                  Carregar mais ({items.length - visibleCount} restantes)
+                </button>
+              )}
             </div>
           )}
         </div>
