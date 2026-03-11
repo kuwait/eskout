@@ -396,8 +396,8 @@ export function OnlinePageClient({
           <span>Utilizador</span>
           <span>Página</span>
           <span>Dispositivo</span>
-          <span>Sessão</span>
-          <span>Atividade</span>
+          <span>Duração</span>
+          <span>Visto há</span>
         </div>
 
         {filtered.length === 0 ? (
