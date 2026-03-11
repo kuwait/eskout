@@ -47,7 +47,7 @@ export async function addToShadowSquad(
   }
 
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
   const supabase = await createClient();
@@ -109,7 +109,7 @@ export async function removeFromShadowSquad(
   playerId: number
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
   const supabase = await createClient();
@@ -158,7 +158,7 @@ export async function toggleRealSquad(
   ageGroupId?: number
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
   const supabase = await createClient();
@@ -231,7 +231,7 @@ export async function reorderSquadPlayer(
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
   const supabase = await createClient();
@@ -259,7 +259,7 @@ export async function bulkReorderSquad(
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
   const supabase = await createClient();
@@ -292,7 +292,7 @@ export async function moveSquadPlayerPosition(
   squadType: 'real' | 'shadow'
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
   const supabase = await createClient();
