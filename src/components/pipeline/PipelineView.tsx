@@ -113,7 +113,6 @@ export function PipelineView() {
 
   /** Move between columns — optimistic, await server, revert on failure */
   async function handleStatusChange(playerId: number, newStatus: RecruitmentStatus) {
-    console.log('[CLIENT] handleStatusChange called:', { playerId, newStatus });
     const prev = allPlayers;
     setAllPlayers((cur) =>
       cur.map((p) => {
@@ -133,7 +132,6 @@ export function PipelineView() {
       })
     );
     const result = await updateRecruitmentStatus(playerId, newStatus);
-    console.log('[CLIENT] updateRecruitmentStatus result:', result);
     if (!result.success) {
       console.error('handleStatusChange failed:', result.error);
       setAllPlayers(prev);

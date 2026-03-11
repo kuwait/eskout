@@ -43,7 +43,6 @@ export async function listUsers(): Promise<{ success: boolean; users: UserListIt
       .select('user_id, role')
       .eq('club_id', clubId);
 
-    console.log('[Users] memberships:', memberships?.length, 'error:', membershipsErr?.message);
     if (membershipsErr || !memberships) return { success: false, users: [], error: `Erro ao carregar utilizadores: ${membershipsErr?.message}` };
 
     if (memberships.length === 0) return { success: true, users: [] };
@@ -57,12 +56,10 @@ export async function listUsers(): Promise<{ success: boolean; users: UserListIt
       .select('id, full_name, created_at, active')
       .in('id', memberUserIds);
 
-    console.log('[Users] profiles:', profiles?.length, 'error:', profilesErr?.message);
     if (profilesErr || !profiles) return { success: false, users: [], error: `Erro ao carregar perfis: ${profilesErr?.message}` };
 
     // Fetch auth users for email + last sign in
     const { data: authData, error: authErr } = await service.auth.admin.listUsers();
-    console.log('[Users] auth users:', authData?.users?.length, 'error:', authErr?.message);
     if (authErr) return { success: false, users: [], error: `Erro ao carregar dados de autenticação: ${authErr.message}` };
 
     const authMap = new Map(authData.users.map((u) => [u.id, u]));

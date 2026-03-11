@@ -78,7 +78,6 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
 
       // Server action handles FPF + DB + merge (ZZ data already pre-fetched)
       const res = await scrapePlayerAll(player.id, preZz);
-      console.log('[RefreshPlayer] result:', JSON.stringify({ success: res.success, errors: res.errors, hasChanges: res.hasChanges, zzConfirmed: res.zzConfirmed }));
       setResult(res);
 
       if (!res.success) {

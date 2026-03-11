@@ -162,13 +162,10 @@ export async function searchZzMultiStrategy(
   const allCandidates: ZzSearchCandidate[] = [];
   const seenUrls = new Set<string>();
 
-  console.log(`[ZZ Search] "${fullName}" club="${club}" age=${expectedAge} dob=${dob} variants=${JSON.stringify(variants)}`);
-
   for (let i = 0; i < variants.length; i++) {
     if (i > 0) await humanDelay(2000, 4000);
 
     const candidates = await searchZzAutocomplete(variants[i]);
-    console.log(`[ZZ Search] variant "${variants[i]}" → ${candidates.length} results: ${candidates.map((c) => `${c.name}(${c.age},${c.club})`).join(', ')}`);
     for (const c of candidates) {
       if (!seenUrls.has(c.url)) {
         seenUrls.add(c.url);
@@ -184,7 +181,6 @@ export async function searchZzMultiStrategy(
       const hasClubMatch = best.club && club && clubsMatch(best.club, club);
       const hasStrongName = countNameOverlap(best.name, fullName) >= 2 && best.age === expectedAge;
       if (hasClubMatch || hasStrongName) {
-        console.log(`[ZZ Search] Early exit: found ${best.name} (age=${best.age}, club=${best.club}) clubMatch=${!!hasClubMatch} nameOverlap=${countNameOverlap(best.name, fullName)}`);
         break;
       }
     }
@@ -192,7 +188,6 @@ export async function searchZzMultiStrategy(
 
   // Pre-filter: keep only candidates with matching age (exact or ±1 for birthday boundary)
   const shortlisted = shortlistCandidates(allCandidates, expectedAge, club, fullName);
-  console.log(`[ZZ Search] ${allCandidates.length} total candidates → ${shortlisted.length} shortlisted`);
   if (shortlisted.length === 0) return null;
 
   // Verify the best candidate by scraping their ZZ profile page to check exact DOB
@@ -201,7 +196,6 @@ export async function searchZzMultiStrategy(
   for (const candidate of shortlisted) {
     await humanDelay(1500, 3000);
     const zzData = await fetchZeroZeroData(candidate.url).catch(() => null);
-    console.log(`[ZZ Search] DOB check: ${candidate.name} (${candidate.url}) → zz_dob=${zzData?.dob} expected=${dob} match=${zzData?.dob === dob}`);
 
     if (zzData?.dob) {
       // DOB must match exactly — this is the definitive check
@@ -220,11 +214,9 @@ export async function searchZzMultiStrategy(
   // Fallback: if all profile pages were blocked but we have a high-confidence candidate,
   // return it — the user still has to confirm in the RefreshPlayerButton dialog
   if (bestUnverified) {
-    console.log(`[ZZ Search] DOB unverifiable (page blocked), accepting high-confidence match: ${bestUnverified.name} (${bestUnverified.club})`);
     return bestUnverified;
   }
 
-  console.log(`[ZZ Search] No DOB match found for "${fullName}"`);
   return null;
 }
 
