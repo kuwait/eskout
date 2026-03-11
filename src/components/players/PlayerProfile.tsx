@@ -413,50 +413,52 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           <div className="flex items-center gap-1">
             {/* Observation toggle — admin/editor/recruiter */}
             {canObserve && (
-              <button
-                onClick={handleToggleObserve}
-                disabled={observeLoading}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium transition-colors ${
-                  isObserved
-                    ? 'text-primary hover:bg-primary/10'
-                    : 'text-muted-foreground hover:bg-white hover:text-foreground hover:shadow-sm'
-                } disabled:opacity-50`}
-                title={isObserved ? 'Remover de A Observar' : 'Adicionar a A Observar'}
-              >
-                {isObserved ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{isObserved ? 'A Observar' : 'Observar'}</span>
-              </button>
+              <>
+                <button
+                  onClick={handleToggleObserve}
+                  disabled={observeLoading}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50"
+                  title={isObserved ? 'Remover de A Observar' : 'Adicionar a A Observar'}
+                >
+                  {isObserved ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">{isObserved ? 'Deixar de observar' : 'Observar'}</span>
+                </button>
+                <div className="mx-0.5 h-4 w-px bg-neutral-200" />
+              </>
             )}
             {/* Share hidden for scouts/recruiters */}
             {!isRestricted && (
               <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm" title="Partilhar">
-                    <Share2 className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Partilhar</span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportImage}>
-                    <Camera className="mr-2 h-3.5 w-3.5" />
-                    Guardar imagem
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handlePrint}>
-                    <Printer className="mr-2 h-3.5 w-3.5" />
-                    Imprimir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <div className="mx-0.5 h-4 w-px bg-neutral-200" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm" title="Partilhar">
+                      <Share2 className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Partilhar</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleExportImage}>
+                      <Camera className="mr-2 h-3.5 w-3.5" />
+                      Guardar imagem
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handlePrint}>
+                      <Printer className="mr-2 h-3.5 w-3.5" />
+                      Imprimir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="mx-0.5 h-4 w-px bg-neutral-200" />
               </>
             )}
             <RefreshPlayerButton player={player} />
             {canEdit && (
-              <button onClick={handleEdit} className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm">
-                <Pencil className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Editar</span>
-              </button>
+              <>
+                <div className="mx-0.5 h-4 w-px bg-neutral-200" />
+                <button onClick={handleEdit} className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm">
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Editar</span>
+                </button>
+              </>
             )}
           </div>
         )}
@@ -574,8 +576,9 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 xl:gap-2">
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-center gap-2">
               <h1 className="truncate font-bold xl:text-2xl" style={{ fontSize: 'clamp(1rem, 4.5vw, 1.5rem)' }}>{shortenName(p.name)}</h1>
+              {isObserved && <Eye className="h-4 w-4 text-amber-400 shrink-0" />}
               {!isRestricted && <ObservationBadge player={p} showLabel />}
             </div>
           {/* Club — mobile only (desktop shows in Info Básica) */}
@@ -2114,12 +2117,11 @@ function EditPitchPicker({ primary, secondary, tertiary, onPrimaryChange, onSeco
 /* ───────────── Recruitment Card — visual pipeline tracker ───────────── */
 
 /** Pipeline steps in order (rejeitado is special — shown as end state) */
-const PIPELINE_STEPS = ['por_tratar', 'a_observar', 'em_contacto', 'vir_treinar', 'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou'] as const;
+const PIPELINE_STEPS = ['por_tratar', 'em_contacto', 'vir_treinar', 'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou'] as const;
 
 /** Icon + color per status */
 const STATUS_VISUAL: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string; ring: string }> = {
   por_tratar:      { icon: Clock,          color: 'text-neutral-500', bg: 'bg-neutral-100',   ring: 'ring-neutral-300' },
-  a_observar:      { icon: Eye,            color: 'text-yellow-600',  bg: 'bg-yellow-100',    ring: 'ring-yellow-300' },
   em_contacto:     { icon: MessageCircle,  color: 'text-purple-600',  bg: 'bg-purple-100',    ring: 'ring-purple-300' },
   vir_treinar:     { icon: User,           color: 'text-blue-600',    bg: 'bg-blue-100',      ring: 'ring-blue-300' },
   reuniao_marcada: { icon: Handshake,      color: 'text-orange-600',  bg: 'bg-orange-100',    ring: 'ring-orange-300' },
@@ -2307,7 +2309,6 @@ function RecruitmentCard({ status, daysInStatus, contactAssignedToName, training
 function statusDescription(status: RecruitmentStatus | null): string {
   const map: Record<string, string> = {
     por_tratar: 'Jogador identificado, aguarda triagem inicial.',
-    a_observar: 'Em abordagem — necessário observar ao vivo.',
     em_contacto: 'Observado e com interesse. Contacto em curso.',
     vir_treinar: 'Convidado a treinar connosco para avaliação.',
     reuniao_marcada: 'Reunião agendada com jogador ou representante.',

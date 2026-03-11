@@ -29,6 +29,7 @@ export default async function ObservationListPage() {
       myList={myList}
       allLists={allLists}
       isAdmin={ctx.role === 'admin'}
+      canExport={ctx.role === 'admin' || ctx.role === 'editor'}
     />
   );
 }

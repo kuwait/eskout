@@ -137,7 +137,7 @@ describe('findContainer', () => {
   it('resolves droppable zone "status-{value}" to status', () => {
     expect(findContainer('status-por_tratar', items)).toBe('por_tratar');
     expect(findContainer('status-em_contacto', items)).toBe('em_contacto');
-    expect(findContainer('status-a_observar', items)).toBe('a_observar');
+    expect(findContainer('status-unknown_status', items)).toBeNull();
   });
 
   it('resolves bare status value', () => {

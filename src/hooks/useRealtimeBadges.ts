@@ -12,7 +12,7 @@ import type { AlertCounts } from '@/components/layout/AppShell';
 import type { MutationEvent } from '@/lib/realtime/types';
 
 /** Tables that affect badge counts */
-const BADGE_TABLES = new Set(['observation_notes', 'scouting_reports', 'players', 'player_added_dismissals', 'user_tasks']);
+const BADGE_TABLES = new Set(['observation_notes', 'scouting_reports', 'players', 'player_added_dismissals', 'user_tasks', 'user_observation_list']);
 
 /**
  * Live-update navigation badge counts via Realtime.
@@ -28,7 +28,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
       const supabase = createClient();
 
       // Fetch alert counts + per-user pending players (total by others minus user's dismissals)
-      const [urgRes, impRes, pendingRes, playersRes, dismissedRes, tasksRes] = await Promise.all([
+      const [urgRes, impRes, pendingRes, playersRes, dismissedRes, tasksRes, obsRes] = await Promise.all([
         supabase
           .from('observation_notes')
           .select('id', { count: 'exact', head: true })
@@ -54,6 +54,10 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
           .eq('completed', false),
+        supabase
+          .from('user_observation_list')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId),
       ]);
 
       setCounts({
@@ -62,6 +66,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
         pendingReports: pendingRes.count ?? 0,
         pendingPlayers: Math.max(0, (playersRes.count ?? 0) - (dismissedRes.count ?? 0)),
         pendingTasks: tasksRes.count ?? 0,
+        observationCount: obsRes.count ?? 0,
       });
     } catch (err) {
       console.error('[Realtime] badge refetch failed:', err);

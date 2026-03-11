@@ -28,7 +28,6 @@ const NAV_ITEMS = [
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, scoutOnly: false, feature: 'pipeline' },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, scoutOnly: false, feature: 'calendar' },
   { href: '/tarefas', label: 'Tarefas', icon: ListTodo, scoutHidden: true, scoutOnly: false, feature: null },
-  { href: '/a-observar', label: 'A Observar', icon: Eye, scoutHidden: true, scoutOnly: false, feature: null },
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/meus-jogadores', label: 'Jogadores', icon: Users, scoutHidden: false, scoutOnly: false, onlyRoles: ['scout', 'recruiter'], feature: null },
@@ -195,6 +194,22 @@ export function MobileDrawer({
                           {alertCounts.pendingPlayers}
                         </span>
                       )}
+                    </Link>
+                  )}
+                  {/* Sub-item: A Observar — under Jogadores, admin/editor/recruiter */}
+                  {item.href === '/' && !isScout && (
+                    <Link
+                      href="/a-observar"
+                      onClick={close}
+                      className={cn(
+                        'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
+                        pathname.startsWith('/a-observar')
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                      )}
+                    >
+                      <Eye className="h-4 w-4" />
+                      A Observar
                     </Link>
                   )}
                 </li>

@@ -15,6 +15,7 @@ export interface AlertCounts {
   pendingReports: number;
   pendingPlayers: number;
   pendingTasks: number;
+  observationCount: number;
 }
 
 export interface ClubInfo {
@@ -27,7 +28,7 @@ export interface ClubInfo {
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   let ageGroups: AgeGroup[] = [];
-  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingPlayers: 0, pendingTasks: 0 };
+  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingPlayers: 0, pendingTasks: 0, observationCount: 0 };
   let userRole = 'scout';
   let userId = '';
   let userName = '';
@@ -48,7 +49,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
     if (clubId) {
       // Fetch profile, membership, club, age groups, alert counts, and task count — ALL in parallel
-      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes, taskCountRes] = await Promise.all([
+      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes, taskCountRes, obsCountRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('is_superadmin, full_name')
@@ -91,6 +92,11 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .eq('club_id', clubId)
           .eq('user_id', user.id)
           .eq('completed', false),
+        supabase
+          .from('user_observation_list')
+          .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
+          .eq('user_id', user.id),
       ]);
 
       isSuperadmin = profileRes.data?.is_superadmin ?? false;
@@ -148,6 +154,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         pendingReports: pendingRes.count ?? 0,
         pendingPlayers: pendingPlayersCount,
         pendingTasks: taskCountRes.count ?? 0,
+        observationCount: obsCountRes.count ?? 0,
       };
     } else {
       // No club selected — still fetch profile for userName

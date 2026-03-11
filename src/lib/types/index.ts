@@ -26,7 +26,6 @@ export type ObserverDecision = '' | 'Assinar' | 'Acompanhar' | 'Rever' | 'Sem In
 
 export type RecruitmentStatus =
   | 'por_tratar'
-  | 'a_observar'
   | 'em_contacto'
   | 'vir_treinar'
   | 'reuniao_marcada'

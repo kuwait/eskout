@@ -54,7 +54,6 @@ const OPINIONS = [
 
 const STATUSES = [
   { value: 'por_tratar', label: 'Por Tratar' },
-  { value: 'a_observar', label: 'A Observar' },
   { value: 'em_contacto', label: 'Em Contacto' },
   { value: 'vir_treinar', label: 'Vir Treinar' },
   { value: 'reuniao_marcada', label: 'Reunião Marcada' },

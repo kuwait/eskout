@@ -109,7 +109,6 @@ export const RECRUITMENT_STATUSES: {
   tailwindLight: { bg: string; text: string; border: string; dot: string };
 }[] = [
   { value: 'por_tratar', labelPt: 'Por tratar', color: '#a3a3a3', tailwind: 'bg-neutral-400 text-white', tailwindLight: { bg: 'bg-neutral-100', text: 'text-neutral-600', border: 'border-neutral-300', dot: 'bg-neutral-400' } },
-  { value: 'a_observar', labelPt: 'A Observar', color: '#eab308', tailwind: 'bg-yellow-500 text-white', tailwindLight: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-300', dot: 'bg-yellow-500' } },
   { value: 'em_contacto', labelPt: 'Em contacto', color: '#a855f7', tailwind: 'bg-purple-500 text-white', tailwindLight: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-300', dot: 'bg-purple-500' } },
   { value: 'vir_treinar', labelPt: 'Vir treinar', color: '#3b82f6', tailwind: 'bg-blue-500 text-white', tailwindLight: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-300', dot: 'bg-blue-500' } },
   { value: 'reuniao_marcada', labelPt: 'Reunião Marcada', color: '#f97316', tailwind: 'bg-orange-500 text-white', tailwindLight: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-300', dot: 'bg-orange-500' } },

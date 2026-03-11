@@ -10,7 +10,6 @@ import type { RecruitmentStatus } from '@/lib/types';
 /** Softer tinted styles for compact variant */
 const COMPACT_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   por_tratar:       { bg: 'bg-neutral-50',  text: 'text-neutral-600', border: 'border-neutral-200' },
-  a_observar:       { bg: 'bg-yellow-50',   text: 'text-yellow-700',  border: 'border-yellow-300' },
   em_contacto:      { bg: 'bg-purple-50',   text: 'text-purple-700',  border: 'border-purple-200' },
   vir_treinar:      { bg: 'bg-blue-50',     text: 'text-blue-700',    border: 'border-blue-200' },
   reuniao_marcada:  { bg: 'bg-orange-50',   text: 'text-orange-700',  border: 'border-orange-200' },

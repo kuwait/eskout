@@ -32,7 +32,7 @@ function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] 
 const LEGACY_STATUS_MAP: Record<string, string> = {
   pool: '',
   shortlist: 'por_tratar',
-  to_observe: 'a_observar',
+  to_observe: 'por_tratar',
   target: 'em_contacto',
   in_contact: 'em_contacto',
   negotiating: 'a_decidir',
