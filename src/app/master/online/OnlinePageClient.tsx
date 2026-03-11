@@ -627,7 +627,7 @@ function UserActivityPanel({ user, items, isLoading, onClose }: {
                       const Icon = cfg.icon;
                       const time = new Date(item.createdAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
                       return (
-                        <div key={item.id} className={`flex gap-3 px-3 py-2.5 ${idx % 2 === 0 ? 'bg-neutral-100' : 'bg-white'}`}>
+                        <div key={item.id} className={`flex gap-3 px-3 py-2.5 ${idx % 2 === 0 ? 'bg-neutral-50' : ''}`}>
                           <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${cfg.bg}`}>
                             <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
                           </div>
