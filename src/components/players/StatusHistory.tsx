@@ -392,7 +392,8 @@ export function StatusHistory({ entries, maxVisible = MAX_VISIBLE_DEFAULT, canDe
             {/* Content + metadata */}
             <div className="min-w-0 flex-1">
               <div>{d.content}</div>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {/* suppressHydrationWarning: fmtRelative uses Date.now() which differs server vs client */}
+              <p className="mt-0.5 text-[11px] text-muted-foreground" suppressHydrationWarning>
                 {entry.changedByName} &middot; {fmtRelative(entry.createdAt)}
               </p>
             </div>

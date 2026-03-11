@@ -288,7 +288,7 @@ export function ObservationNotes({ playerId, notes, showForm: showFormProp, onSh
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
-                <span className="text-[11px] text-muted-foreground">{fmtRelative(note.createdAt)}</span>
+                <span className="text-[11px] text-muted-foreground" suppressHydrationWarning>{fmtRelative(note.createdAt)}</span>
               </div>
             </div>
             {note.matchContext && (
