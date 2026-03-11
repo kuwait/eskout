@@ -29,9 +29,10 @@ function parseEvalLabel(value: string): string {
 
 interface PlayerCardProps {
   player: Player;
+  hideEvaluations?: boolean;
 }
 
-export function PlayerCard({ player }: PlayerCardProps) {
+export function PlayerCard({ player, hideEvaluations = false }: PlayerCardProps) {
   const primary = getPrimaryRating(player);
   const ratingInt = primary ? Math.round(primary.value) : 0;
 
@@ -49,8 +50,8 @@ export function PlayerCard({ player }: PlayerCardProps) {
       href={`/jogadores/${player.id}`}
       className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 transition-colors hover:bg-accent/50 active:bg-accent"
     >
-      {/* Square rating badge — matches desktop EvalCell */}
-      <EvalBadge primary={primary} ratingInt={ratingInt} player={player} />
+      {/* Square rating badge — matches desktop EvalCell (hidden for recruiters) */}
+      {!hideEvaluations && <EvalBadge primary={primary} ratingInt={ratingInt} player={player} />}
 
       {/* Photo — same size and shape as rating badge */}
       {photoUrl ? (

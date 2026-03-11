@@ -9,36 +9,12 @@ import { useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Shield, ShieldCheck, Users, GitBranch, CalendarDays,
-  FileText, PlusCircle, UserPlus, Download, UserCog, LogOut, Palette, X,
-  ArrowLeftRight, ListTodo, Building2, Eye,
-} from 'lucide-react';
+import { UserPlus, LogOut, Palette, X, ArrowLeftRight, Building2, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
+import { filterNavItems, filterAdminItems } from '@/components/layout/nav-items';
 import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
-
-/* ───────────── Navigation Items ───────────── */
-
-const NAV_ITEMS = [
-  { href: '/', label: 'Jogadores', icon: Users, scoutHidden: true, scoutOnly: false, recruiterHidden: true, feature: null },
-  { href: '/campo/real', label: 'Planteis', icon: ShieldCheck, scoutHidden: true, scoutOnly: false, feature: null },
-  { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true, scoutOnly: false, feature: 'shadow_squad' },
-  { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, scoutOnly: false, feature: 'pipeline' },
-  { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, scoutOnly: false, feature: 'calendar' },
-  { href: '/tarefas', label: 'Tarefas', icon: ListTodo, scoutHidden: true, scoutOnly: false, feature: null },
-  { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
-  { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
-  { href: '/meus-jogadores', label: 'Jogadores', icon: Users, scoutHidden: false, scoutOnly: false, onlyRoles: ['scout', 'recruiter'], feature: null },
-];
-
-const ADMIN_ITEMS = [
-  { href: '/admin/relatorios', label: 'Relatórios', icon: FileText, feature: 'scouting_reports' },
-  { href: '/definicoes', label: 'Clube', icon: Shield, feature: null },
-  { href: '/exportar', label: 'Exportar', icon: Download, feature: 'export' },
-  { href: '/admin/utilizadores', label: 'Utilizadores', icon: UserCog, feature: null },
-];
 
 /* ───────────── Component ───────────── */
 
@@ -62,16 +38,8 @@ export function MobileDrawer({
   const isRecruiter = userRole === 'recruiter';
   const features = clubInfo?.features ?? {};
 
-  const visibleItems = (isScout
-    ? NAV_ITEMS.filter((i) => !i.scoutHidden)
-    : NAV_ITEMS.filter((i) => !i.scoutOnly)
-  ).filter((i) => !isRecruiter || !('recruiterHidden' in i && i.recruiterHidden))
-   .filter((i) => !('onlyRoles' in i && i.onlyRoles) || (i.onlyRoles as string[]).includes(userRole))
-   .filter((i) => !i.feature || features[i.feature] !== false);
-
-  const visibleAdminItems = ADMIN_ITEMS.filter(
-    (i) => !i.feature || features[i.feature] !== false
-  );
+  const visibleItems = filterNavItems(userRole, features);
+  const visibleAdminItems = filterAdminItems(features);
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 

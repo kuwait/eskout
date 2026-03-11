@@ -189,12 +189,10 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Recruiter — block scouting, export, and player list routes
+    // Recruiter — block scouting, export routes (player list now allowed)
     if (role === 'recruiter') {
       const isRecruiterBlocked = RECRUITER_BLOCKED_ROUTES.some((route) => pathname.startsWith(route));
-      // Block home page (/) and /jogadores list (but allow /jogadores/123 profiles)
-      const isPlayerList = pathname === '/' || pathname === '/jogadores';
-      if (isRecruiterBlocked || isPlayerList) {
+      if (isRecruiterBlocked) {
         const url = request.nextUrl.clone();
         url.pathname = '/campo/real';
         return NextResponse.redirect(url);

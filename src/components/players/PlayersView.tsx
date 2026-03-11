@@ -83,7 +83,7 @@ function multiFieldMatch(player: Player, words: string[]): boolean {
   );
 }
 
-export function PlayersView() {
+export function PlayersView({ hideEvaluations = false }: { hideEvaluations?: boolean } = {}) {
   const searchParams = useSearchParams();
   const initialClub = searchParams.get('clube') ?? '';
   const initialNationality = searchParams.get('nacionalidade') ?? '';
@@ -375,13 +375,13 @@ export function PlayersView() {
 
           {/* Desktop table */}
           <div className="hidden md:block">
-            <PlayerTable players={pageSlice} />
+            <PlayerTable players={pageSlice} hideEvaluations={hideEvaluations} />
           </div>
 
           {/* Mobile cards */}
           <div className="space-y-2 md:hidden">
             {pageSlice.map((player) => (
-              <PlayerCard key={player.id} player={player} />
+              <PlayerCard key={player.id} player={player} hideEvaluations={hideEvaluations} />
             ))}
             {filtered.length === 0 && (
               <p className="py-8 text-center text-muted-foreground">

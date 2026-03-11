@@ -120,8 +120,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const isAdmin = userRole === 'admin';
   const isRecruiter = userRole === 'recruiter';
   const isScout = userRole === 'scout';
-  // Scouts and recruiters have restricted view — no scouting intelligence
-  const isRestricted = isRecruiter || isScout;
+  // Scouts see no scouting intelligence at all (opinion, decision, reports, notes)
+  const hideScoutingData = isScout;
+  // Both scouts and recruiters cannot see star ratings / report ratings
+  const hideEvaluations = isRecruiter || isScout;
   // All roles can edit basic info; scouting fields restricted in handleSave
   const canEdit = true;
 
@@ -426,8 +428,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 <div className="mx-0.5 h-4 w-px bg-neutral-200" />
               </>
             )}
-            {/* Share hidden for scouts/recruiters */}
-            {!isRestricted && (
+            {/* Share hidden for scouts */}
+            {!hideScoutingData && (
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -579,7 +581,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             <div className="flex items-center gap-2">
               <h1 className="truncate font-bold xl:text-2xl" style={{ fontSize: 'clamp(1rem, 4.5vw, 1.5rem)' }}>{shortenName(p.name)}</h1>
               {isObserved && <Eye className="h-4 w-4 text-amber-400 shrink-0" />}
-              {!isRestricted && <ObservationBadge player={p} showLabel />}
+              {!hideScoutingData && <ObservationBadge player={p} showLabel />}
             </div>
           {/* Club — mobile only (desktop shows in Info Básica) */}
           {!editing && p.club && (
@@ -607,16 +609,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.tertiaryPosition}
               </span>
             )}
-            {!isRestricted && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
+            {!hideScoutingData && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
           </div>
           {/* Opinion badge — mobile only */}
-          {!isRestricted && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
+          {!hideScoutingData && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
             <div className="xl:hidden">
               <OpinionBadge opinion={p.departmentOpinion} variant="compact" />
             </div>
           )}
           {/* My rating — mobile only, fills remaining header height defined by left column */}
-          {!editing && !isRecruiter && (
+          {!editing && !hideEvaluations && (
             <div className="min-h-0 flex-1 overflow-hidden xl:hidden">
               <ScoutEvaluations
                 playerId={p.id}
@@ -915,8 +917,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         /* ───────────── View mode: two columns on lg ───────────── */
         /* Mobile order: Avaliação → Info Básica → Observação → Notas → Recrutamento → Histórico */
         <>
-        {/* Aggregate rating bar — mobile only, above the grid (hidden for recruiter) */}
-        {!isRestricted && <div className="xl:hidden">
+        {/* Aggregate rating bar — mobile only, above the grid (hidden for recruiter/scout) */}
+        {!hideEvaluations && <div className="xl:hidden">
           <ScoutEvaluations
             playerId={p.id}
             evaluations={scoutEvaluations}
@@ -1017,10 +1019,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </div>
             )}
 
-            {/* Observação — scout info, decision, and reports (hidden for recruiter) */}
-            {!isRestricted && (() => {
+            {/* Observação — observer names + decision visible to recruiter, reports/evals hidden */}
+            {!hideScoutingData && (() => {
               const observerNames = p.observer ? p.observer.split(',').map((n) => n.trim()).filter(Boolean) : [];
-              const hasObservation = observerNames.length > 0 || p.observerDecision || scoutingReports.length > 0 || p.reportLabels.length > 0;
+              const hasObservation = observerNames.length > 0 || p.observerDecision || (!hideEvaluations && (scoutingReports.length > 0 || p.reportLabels.length > 0));
               if (!hasObservation) return null;
               return (
                 <Section title="Observação">
@@ -1045,8 +1047,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                     </div>
                   )}
 
-                  {/* Relatórios — extracted reports or fallback to old-style links */}
-                  {(scoutingReports.length > 0 || p.reportLabels.length > 0) && (
+                  {/* Relatórios — hidden for recruiters (scouting intelligence) */}
+                  {!hideEvaluations && (scoutingReports.length > 0 || p.reportLabels.length > 0) && (
                     <div className="mt-3">
                       <ScoutingReports
                         reports={scoutingReports}
@@ -1059,7 +1061,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               );
             })()}
 
-            {!isRestricted && (
+            {!hideEvaluations && (
             <Section
               title="Notas de Observação"
               action={<AddNoteButton onClick={() => setShowNoteForm(true)} />}
@@ -1077,8 +1079,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
           {/* Right column: Avaliação (desktop), Recrutamento, Histórico */}
           <div className="order-2 space-y-3 lg:order-none">
-            {/* Scout evaluations — desktop only (hidden for recruiter) */}
-            {!isRestricted && <div className="hidden xl:block">
+            {/* Scout evaluations — desktop only (hidden for recruiter/scout) */}
+            {!hideEvaluations && <div className="hidden xl:block">
               <ScoutEvaluations
                 playerId={p.id}
                 evaluations={scoutEvaluations}

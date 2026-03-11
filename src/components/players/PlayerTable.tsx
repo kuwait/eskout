@@ -28,6 +28,7 @@ type SortDir = 'asc' | 'desc';
 
 interface PlayerTableProps {
   players: Player[];
+  hideEvaluations?: boolean;
 }
 
 /* ───────────── Rating Colors (card-style badge, same palette as PlayerProfile) ───────────── */
@@ -90,13 +91,16 @@ function SortHeader({ label, sortKeyName, onSort }: {
 
 /* ───────────── Player Table ───────────── */
 
-export function PlayerTable({ players }: PlayerTableProps) {
+export function PlayerTable({ players, hideEvaluations = false }: PlayerTableProps) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>('eval');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
+  // Filter out eval column for recruiters
+  const visibleColumns = hideEvaluations ? COLUMN_KEYS.filter((k) => k !== 'eval') : COLUMN_KEYS;
+
   const { widths, handleMouseDown, handleDoubleClick, tableRef } = useResizableColumns({
-    columnKeys: COLUMN_KEYS,
+    columnKeys: visibleColumns,
     defaultWidths: DEFAULT_WIDTHS,
     minWidths: { eval: 20 },
   });
@@ -135,7 +139,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
       <Table className="table-fixed" ref={tableRef as React.Ref<HTMLTableElement>}>
         <TableHeader>
           <TableRow>
-            {COLUMN_KEYS.map((key) => (
+            {visibleColumns.map((key) => (
               <TableHead
                 key={key}
                 className="relative select-none overflow-visible"
@@ -172,9 +176,11 @@ export function PlayerTable({ players }: PlayerTableProps) {
                 onClick={() => router.push(`/jogadores/${player.id}`)}
                 onAuxClick={(e) => { if (e.button === 1) window.open(`/jogadores/${player.id}`, '_blank'); }}
               >
+                {!hideEvaluations && (
                 <TableCell style={{ width: widths.eval }} className="!py-1 overflow-hidden">
                   <EvalCell player={player} />
                 </TableCell>
+                )}
                 <TableCell style={{ width: widths.name }}>
                   <div className="flex items-center gap-2 min-w-0">
                     {photoUrl ? (
@@ -271,7 +277,7 @@ export function PlayerTable({ players }: PlayerTableProps) {
           })}
           {sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={COLUMN_KEYS.length} className="py-8 text-center text-muted-foreground">
+              <TableCell colSpan={visibleColumns.length} className="py-8 text-center text-muted-foreground">
                 Nenhum jogador encontrado.
               </TableCell>
             </TableRow>

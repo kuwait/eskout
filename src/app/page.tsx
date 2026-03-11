@@ -7,8 +7,12 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PlayersView } from '@/components/players/PlayersView';
+import { getActiveClub } from '@/lib/supabase/club-context';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const ctx = await getActiveClub();
+  const hideEvaluations = ctx.role === 'recruiter';
+
   return (
     <div className="p-4 lg:p-6">
       <div className="mb-4 flex items-center gap-3">
@@ -20,7 +24,7 @@ export default function HomePage() {
           </Link>
         </Button>
       </div>
-      <PlayersView />
+      <PlayersView hideEvaluations={hideEvaluations} />
     </div>
   );
 }
