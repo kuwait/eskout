@@ -9,20 +9,11 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { type ZzSearchCandidate } from '@/lib/zerozero/helpers';
-import { browserHeaders, humanDelay, clubsMatch } from './helpers';
+import { browserHeaders, humanDelay, clubsMatch, calcAgeFromDob } from './helpers';
 import { fetchZeroZeroData } from './zerozero';
 
-/* ───────────── Name utilities ───────────── */
 
-/** Calculate age from DOB string (yyyy-MM-dd) */
-export function calcAgeFromDob(dob: string): number {
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
+/* ───────────── Name utilities ───────────── */
 
 /** Remove diacritics from a string for fuzzy comparison */
 function removeDiacritics(str: string): string {

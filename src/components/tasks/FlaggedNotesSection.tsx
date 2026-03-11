@@ -178,7 +178,7 @@ function NoteCard({ note, onDismiss, onEdit, onNavigate }: {
             </span>
           </div>
           <div className="flex items-center justify-between gap-1.5">
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground" suppressHydrationWarning>
               {note.authorName} · {fmtRelative(note.createdAt)}
             </span>
             <div className="flex shrink-0 items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover/card:opacity-100">

@@ -28,24 +28,56 @@ export default async function PendentesPage() {
     .eq('user_id', userId);
   const dismissedIds = new Set((dismissedRows ?? []).map((d) => d.player_id));
 
-  // Fetch all players created by OTHER users in this club
-  const { data: allPlayers } = await supabase
-    .from('players')
-    .select('id, name, dob, club, position_normalized, created_by, created_at, pending_approval, approved_by')
-    .eq('club_id', ctx.clubId)
-    .neq('created_by', userId)
-    .order('created_at', { ascending: false });
+  const playerColumns = 'id, name, dob, club, position_normalized, created_by, created_at, pending_approval, approved_by';
 
-  if (!allPlayers) {
-    return <PendentesClient pendingPlayers={[]} approvedPlayers={[]} allPlayers={[]} />;
+  interface PlayerRow {
+    id: number;
+    name: string;
+    dob: string;
+    club: string;
+    position_normalized: string | null;
+    created_by: string | null;
+    created_at: string;
+    pending_approval: boolean | null;
+    approved_by: string | null;
   }
 
-  // Filter out dismissed players
-  const undismissed = allPlayers.filter((p) => !dismissedIds.has(p.id));
+  // Paginated fetch — bypasses Supabase's 1000-row default limit
+  const FETCH_PAGE = 1000;
+  async function fetchPlayerPages(filter: 'others' | 'manual') {
+    const all: PlayerRow[] = [];
+    let page = 0;
+    let hasMore = true;
+    while (hasMore) {
+      let query = supabase
+        .from('players')
+        .select(playerColumns)
+        .eq('club_id', ctx.clubId)
+        .order('created_at', { ascending: false })
+        .range(page * FETCH_PAGE, (page + 1) * FETCH_PAGE - 1);
+      if (filter === 'others') query = query.neq('created_by', userId);
+      if (filter === 'manual') query = query.not('created_by', 'is', null);
+      const { data } = await query;
+      const rows = (data ?? []) as PlayerRow[];
+      all.push(...rows);
+      hasMore = rows.length === FETCH_PAGE;
+      page++;
+    }
+    return all;
+  }
 
-  // Collect creator IDs and approver IDs for name resolution (from ALL players, not just undismissed)
+  // Fetch players created by OTHER users (for notifications) + all manual (for history)
+  const [otherPlayers, allClubPlayers] = await Promise.all([
+    fetchPlayerPages('others'),
+    fetchPlayerPages('manual'),
+  ]);
+
+  // Filter out dismissed players (only for notification lists, not full history)
+  const undismissed = otherPlayers.filter((p) => !dismissedIds.has(p.id));
+
+  // Collect creator IDs and approver IDs for name resolution (from all club players)
   const userIds = new Set<string>();
-  for (const p of allPlayers) {
+  for (const p of allClubPlayers) {
     if (p.created_by) userIds.add(p.created_by);
     if (p.approved_by) userIds.add(p.approved_by);
   }
@@ -91,8 +123,8 @@ export default async function PendentesPage() {
   const approvedByOthers = scoutCreated.filter((p) => !p.pending_approval).map(mapPlayer);
   const approvedPlayers = [...approvedByOthers, ...nonScoutCreated.map(mapPlayer)];
 
-  // Full history (all players, including dismissed) — for "Mostrar todos" toggle
-  const allPlayersMapped = allPlayers.map(mapPlayer);
+  // Full history (all club players, including own + dismissed) — for "Histórico" panel
+  const allPlayersMapped = allClubPlayers.map(mapPlayer);
 
   return <PendentesClient pendingPlayers={pendingPlayers} approvedPlayers={approvedPlayers} allPlayers={allPlayersMapped} />;
 }

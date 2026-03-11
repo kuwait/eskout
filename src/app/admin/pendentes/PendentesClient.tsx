@@ -356,8 +356,8 @@ function AllPlayersPanel({
                               <span className="shrink-0 text-[10px] font-medium text-muted-foreground">{p.position}</span>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {p.club} · por {p.createdBy}
+                          <p className="text-xs text-muted-foreground truncate" suppressHydrationWarning>
+                            {p.club} · por {p.createdBy} às {new Date(p.createdAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
                         <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${ROLE_COLORS[p.createdByRole] ?? 'bg-neutral-100 text-neutral-600'}`}>

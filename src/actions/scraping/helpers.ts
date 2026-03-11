@@ -103,3 +103,15 @@ export function clubsMatch(a: string, b: string): boolean {
   const longer = na.length > nb.length ? na : nb;
   return shorter.length >= longer.length * 0.6 && longer.includes(shorter);
 }
+
+/* ───────────── Age calculation ───────────── */
+
+/** Calculate age from DOB string (yyyy-MM-dd) */
+export function calcAgeFromDob(dob: string): number {
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}

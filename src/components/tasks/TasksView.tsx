@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo, useRef, useTransition } from 'react';
 import { Check, ChevronDown, ChevronsUpDown, ListTodo, Plus, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -47,6 +47,9 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [, startTransition] = useTransition();
+  // Guard: suppress realtime refetches while a handler transition is in-flight
+  // Prevents race where realtime fetches stale data before the mutation commits
+  const busyRef = useRef(false);
 
   // Admin: view tasks of another user
   const isAdmin = userRole === 'admin';
@@ -55,9 +58,10 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
   const [targetSearch, setTargetSearch] = useState('');
   const targetName = targetUserId ? clubMembers.find((m) => m.id === targetUserId)?.fullName ?? null : null;
 
-  // Realtime: refetch when other users modify tasks
+  // Realtime: refetch when other users modify tasks (skip if local transition in-flight)
   useRealtimeTable('user_tasks', {
     onAny: () => {
+      if (busyRef.current) return;
       getMyTasks(targetUserId ?? undefined).then(setTasks);
     },
   });
@@ -90,15 +94,20 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
   function handleCreate(title: string, opts: { dueDate?: string | null; playerId?: number | null }) {
     setCreateDialogOpen(false);
 
+    busyRef.current = true;
     startTransition(async () => {
-      const result = await createTask(title, {
-        dueDate: opts.dueDate ?? undefined,
-        playerId: opts.playerId ?? undefined,
-        targetUserId: targetUserId ?? undefined,
-      });
-      if (result.success) {
-        const refreshed = await getMyTasks(targetUserId ?? undefined);
-        setTasks(refreshed);
+      try {
+        const result = await createTask(title, {
+          dueDate: opts.dueDate ?? undefined,
+          playerId: opts.playerId ?? undefined,
+          targetUserId: targetUserId ?? undefined,
+        });
+        if (result.success) {
+          const refreshed = await getMyTasks(targetUserId ?? undefined);
+          setTasks(refreshed);
+        }
+      } finally {
+        busyRef.current = false;
       }
     });
   }
@@ -111,11 +120,16 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
       )
     );
 
+    busyRef.current = true;
     startTransition(async () => {
-      await toggleTask(taskId);
-      // Always refetch — server may have removed a duplicate auto-task
-      const refreshed = await getMyTasks(targetUserId ?? undefined);
-      setTasks(refreshed);
+      try {
+        await toggleTask(taskId);
+        // Always refetch — server may have removed a duplicate auto-task
+        const refreshed = await getMyTasks(targetUserId ?? undefined);
+        setTasks(refreshed);
+      } finally {
+        busyRef.current = false;
+      }
     });
   }
 
@@ -123,11 +137,16 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
     // Optimistic remove
     setTasks((cur) => cur.filter((t) => t.id !== taskId));
 
+    busyRef.current = true;
     startTransition(async () => {
-      const result = await deleteTask(taskId);
-      if (!result.success) {
-        const refreshed = await getMyTasks(targetUserId ?? undefined);
-        setTasks(refreshed);
+      try {
+        const result = await deleteTask(taskId);
+        if (!result.success) {
+          const refreshed = await getMyTasks(targetUserId ?? undefined);
+          setTasks(refreshed);
+        }
+      } finally {
+        busyRef.current = false;
       }
     });
   }
@@ -152,13 +171,15 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
     );
     setEditingTask(null);
 
+    busyRef.current = true;
     startTransition(async () => {
-      const result = await updateTask(taskId, updates);
-      // Always refetch to get fresh player name/contact from server
-      const refreshed = await getMyTasks(targetUserId ?? undefined);
-      setTasks(refreshed);
-      if (!result.success) {
-        // Revert handled by refetch above
+      try {
+        await updateTask(taskId, updates);
+        // Always refetch to get fresh player name/contact from server
+        const refreshed = await getMyTasks(targetUserId ?? undefined);
+        setTasks(refreshed);
+      } finally {
+        busyRef.current = false;
       }
     });
   }
