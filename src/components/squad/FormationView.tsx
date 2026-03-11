@@ -39,11 +39,11 @@ const DESKTOP_GROUPS: FormationSlotId[][] = [
 /** Mobile groups: rows top-to-bottom on vertical pitch (GR top, PL bottom) */
 const MOBILE_GROUPS: FormationSlotId[][] = [
   ['GR'],                              // Goalkeeper
-  ['DC_E', 'DC_D'],                    // Central defenders
-  ['DE', 'DD'],                        // Full-backs
+  ['DC_D', 'DC_E'],                    // Central defenders — mirrored: pitch viewed from above
+  ['DD', 'DE'],                        // Full-backs — mirrored: pitch viewed from above
   ['MDC', 'MC'],                       // Midfield
   ['MOC'],                             // Attacking mid
-  ['EE', 'ED'],                        // Wingers — separate row, no overflow
+  ['ED', 'EE'],                        // Wingers — ED left, EE right (mirrored: pitch viewed from above)
   ['PL'],                              // Striker — own row at bottom
 ];
 

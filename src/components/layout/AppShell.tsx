@@ -14,6 +14,7 @@ export interface AlertCounts {
   importante: number;
   pendingReports: number;
   pendingPlayers: number;
+  pendingTasks: number;
 }
 
 export interface ClubInfo {
@@ -26,7 +27,7 @@ export interface ClubInfo {
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   let ageGroups: AgeGroup[] = [];
-  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingPlayers: 0 };
+  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingPlayers: 0, pendingTasks: 0 };
   let userRole = 'scout';
   let userId = '';
   let userName = '';
@@ -46,8 +47,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     userId = user.id;
 
     if (clubId) {
-      // Fetch profile, membership, club, age groups, and alert counts — ALL in parallel
-      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes] = await Promise.all([
+      // Fetch profile, membership, club, age groups, alert counts, and task count — ALL in parallel
+      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes, taskCountRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('is_superadmin, full_name')
@@ -84,6 +85,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pendente')
           .eq('club_id', clubId),
+        supabase
+          .from('user_tasks')
+          .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
+          .eq('user_id', user.id)
+          .eq('completed', false),
       ]);
 
       isSuperadmin = profileRes.data?.is_superadmin ?? false;
@@ -140,6 +147,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         importante: impRes.count ?? 0,
         pendingReports: pendingRes.count ?? 0,
         pendingPlayers: pendingPlayersCount,
+        pendingTasks: taskCountRes.count ?? 0,
       };
     } else {
       // No club selected — still fetch profile for userName

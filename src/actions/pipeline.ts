@@ -12,6 +12,36 @@ import { recruitmentStatusChangeSchema } from '@/lib/validators';
 import type { ActionResponse, RecruitmentStatus } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 
+/* ───────────── Auto-task helper ───────────── */
+
+/** Create an auto-generated task for a user (idempotent — skips if an uncompleted task already exists) */
+async function upsertAutoTask(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clubId: string,
+  userId: string,
+  playerId: number,
+  title: string,
+  source: string,
+  dueDate?: string | null,
+) {
+  // Check if an uncompleted task already exists for this user+player+source
+  const { data: existing } = await supabase
+    .from('user_tasks')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('player_id', playerId)
+    .eq('source', source)
+    .eq('completed', false)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return; // Already has an active task — skip
+
+  await supabase.from('user_tasks').insert(
+    { club_id: clubId, user_id: userId, created_by: userId, player_id: playerId, title, source, due_date: dueDate ?? null },
+  );
+}
+
 /* ───────────── Calendar <-> Pipeline sync helper ───────────── */
 
 /** Event type mapping: pipeline date field -> calendar event type */
@@ -126,7 +156,7 @@ export async function updateRecruitmentStatus(
   // Get current status and date fields for richer history context
   const { data: player } = await supabase
     .from('players')
-    .select('recruitment_status, training_date, meeting_date, signing_date')
+    .select('name, recruitment_status, training_date, meeting_date, signing_date, contact_assigned_to, meeting_attendees, signing_attendees')
     .eq('id', playerId)
     .eq('club_id', clubId)
     .single();
@@ -138,16 +168,19 @@ export async function updateRecruitmentStatus(
     return { success: true };
   }
 
-  // Auto-clear date fields when leaving their respective statuses
+  // Auto-clear date fields and context fields when leaving their respective statuses
   const updatePayload: Record<string, unknown> = { recruitment_status: newStatus };
   if (oldStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
     updatePayload.training_date = null;
+    updatePayload.training_escalao = null;
   }
   if (oldStatus === 'reuniao_marcada' && newStatus !== 'reuniao_marcada') {
     updatePayload.meeting_date = null;
+    updatePayload.meeting_attendees = '{}';
   }
   if (oldStatus === 'confirmado' && newStatus !== 'confirmado') {
     updatePayload.signing_date = null;
+    updatePayload.signing_attendees = '{}';
   }
 
   const { error } = await supabase
@@ -182,7 +215,47 @@ export async function updateRecruitmentStatus(
     notes: note ?? null,
   });
 
+  // Auto-complete tasks from the old status
+  if (oldStatus) {
+    const sourceMap: Record<string, string> = {
+      em_contacto: 'pipeline_contact',
+      reuniao_marcada: 'pipeline_meeting',
+      vir_treinar: 'pipeline_training',
+      confirmado: 'pipeline_signing',
+    };
+    const oldSource = sourceMap[oldStatus];
+    if (oldSource) {
+      await supabase
+        .from('user_tasks')
+        .update({ completed: true, completed_at: new Date().toISOString() })
+        .eq('player_id', playerId)
+        .eq('club_id', clubId)
+        .eq('source', oldSource)
+        .eq('completed', false);
+    }
+  }
+
+  // Auto-create tasks for the new status
+  const playerName = player?.name ?? `Jogador #${playerId}`;
+  if (newStatus === 'em_contacto' && player?.contact_assigned_to) {
+    await upsertAutoTask(supabase, clubId, player.contact_assigned_to, playerId, `📞 Contactar ${playerName}`, 'pipeline_contact');
+  }
+  if (newStatus === 'reuniao_marcada' && player?.meeting_attendees?.length) {
+    for (const attendeeId of player.meeting_attendees) {
+      await upsertAutoTask(supabase, clubId, attendeeId, playerId, `🤝 Reunião — ${playerName}`, 'pipeline_meeting', player.meeting_date);
+    }
+  }
+  if (newStatus === 'vir_treinar' && player?.contact_assigned_to) {
+    await upsertAutoTask(supabase, clubId, player.contact_assigned_to, playerId, `⚽ Treino — ${playerName}`, 'pipeline_training', player.training_date);
+  }
+  if (newStatus === 'confirmado' && player?.signing_attendees?.length) {
+    for (const attendeeId of player.signing_attendees) {
+      await upsertAutoTask(supabase, clubId, attendeeId, playerId, `✍️ Assinatura — ${playerName}`, 'pipeline_signing', player.signing_date);
+    }
+  }
+
   revalidatePath('/pipeline');
+  revalidatePath('/tarefas');
   revalidatePath('/calendario');
   revalidatePath('/campo');
   revalidatePath('/posicoes');
@@ -191,6 +264,8 @@ export async function updateRecruitmentStatus(
 
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+  // Notify tasks page — status changes create/complete auto-tasks
+  await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, playerId);
 
   return { success: true };
 }
@@ -268,12 +343,23 @@ export async function updateTrainingDate(
   // Sync to calendar (create/update/delete calendar event)
   await syncCalendarEvent(supabase, clubId, userId, playerId, 'training_date', dateTime);
 
+  // Sync due_date on existing training tasks for this player
+  await supabase
+    .from('user_tasks')
+    .update({ due_date: dateTime })
+    .eq('player_id', playerId)
+    .eq('club_id', clubId)
+    .eq('source', 'pipeline_training')
+    .eq('completed', false);
+
   revalidatePath('/pipeline');
+  revalidatePath('/tarefas');
   revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
 
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, playerId);
 
   return { success: true };
 }
@@ -320,12 +406,23 @@ export async function updateSigningDate(
   // Sync to calendar (create/update/delete calendar event)
   await syncCalendarEvent(supabase, clubId, userId, playerId, 'signing_date', dateTime);
 
+  // Sync due_date on existing signing tasks for this player
+  await supabase
+    .from('user_tasks')
+    .update({ due_date: dateTime })
+    .eq('player_id', playerId)
+    .eq('club_id', clubId)
+    .eq('source', 'pipeline_signing')
+    .eq('completed', false);
+
   revalidatePath('/pipeline');
+  revalidatePath('/tarefas');
   revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
 
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, playerId);
 
   return { success: true };
 }
@@ -372,12 +469,173 @@ export async function updateMeetingDate(
   // Sync to calendar (create/update/delete calendar event)
   await syncCalendarEvent(supabase, clubId, userId, playerId, 'meeting_date', dateTime);
 
+  // Sync due_date on existing meeting tasks for this player
+  await supabase
+    .from('user_tasks')
+    .update({ due_date: dateTime })
+    .eq('player_id', playerId)
+    .eq('club_id', clubId)
+    .eq('source', 'pipeline_meeting')
+    .eq('completed', false);
+
   revalidatePath('/pipeline');
+  revalidatePath('/tarefas');
   revalidatePath('/calendario');
   revalidatePath(`/jogadores/${playerId}`);
 
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
+  // Notify tasks page — meeting date is displayed on task cards
+  await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, playerId);
+
+  return { success: true };
+}
+
+/* ───────────── Meeting Attendees ───────────── */
+
+/** Update the meeting attendees for a player in 'reuniao_marcada' status */
+export async function updateMeetingAttendees(
+  playerId: number,
+  attendeeIds: string[]
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
+  const supabase = await createClient();
+
+  const { data: player } = await supabase
+    .from('players')
+    .select('name, meeting_attendees, meeting_date')
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+    .single();
+
+  const { error } = await supabase
+    .from('players')
+    .update({ meeting_attendees: attendeeIds })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar participantes: ${error.message}` };
+  }
+
+  // Create auto-tasks for new attendees
+  const playerName = player?.name ?? `Jogador #${playerId}`;
+  const oldAttendees = new Set((player?.meeting_attendees ?? []) as string[]);
+  for (const id of attendeeIds) {
+    if (!oldAttendees.has(id)) {
+      await upsertAutoTask(supabase, clubId, id, playerId, `🤝 Reunião — ${playerName}`, 'pipeline_meeting', player?.meeting_date);
+    }
+  }
+  // Auto-complete tasks for removed attendees
+  const newAttendees = new Set(attendeeIds);
+  for (const id of oldAttendees) {
+    if (!newAttendees.has(id)) {
+      await supabase
+        .from('user_tasks')
+        .update({ completed: true, completed_at: new Date().toISOString() })
+        .eq('player_id', playerId)
+        .eq('user_id', id)
+        .eq('source', 'pipeline_meeting')
+        .eq('completed', false);
+    }
+  }
+
+  revalidatePath('/pipeline');
+  revalidatePath('/tarefas');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, playerId);
+
+  return { success: true };
+}
+
+/* ───────────── Signing Attendees ───────────── */
+
+/** Update the signing attendees for a player in 'confirmado' status */
+export async function updateSigningAttendees(
+  playerId: number,
+  attendeeIds: string[]
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
+  const supabase = await createClient();
+
+  const { data: player } = await supabase
+    .from('players')
+    .select('name, signing_attendees, signing_date')
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+    .single();
+
+  const { error } = await supabase
+    .from('players')
+    .update({ signing_attendees: attendeeIds })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar responsáveis: ${error.message}` };
+  }
+
+  // Create auto-tasks for new attendees
+  const playerName = player?.name ?? `Jogador #${playerId}`;
+  const oldAttendees = new Set((player?.signing_attendees ?? []) as string[]);
+  for (const id of attendeeIds) {
+    if (!oldAttendees.has(id)) {
+      await upsertAutoTask(supabase, clubId, id, playerId, `✍️ Assinatura — ${playerName}`, 'pipeline_signing', player?.signing_date);
+    }
+  }
+  // Auto-complete tasks for removed attendees
+  const newAttendees = new Set(attendeeIds);
+  for (const id of oldAttendees) {
+    if (!newAttendees.has(id)) {
+      await supabase
+        .from('user_tasks')
+        .update({ completed: true, completed_at: new Date().toISOString() })
+        .eq('player_id', playerId)
+        .eq('user_id', id)
+        .eq('source', 'pipeline_signing')
+        .eq('completed', false);
+    }
+  }
+
+  revalidatePath('/pipeline');
+  revalidatePath('/tarefas');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, playerId);
+
+  return { success: true };
+}
+
+/* ───────────── Training Escalão ───────────── */
+
+/** Update the training escalão for a player in 'vir_treinar' status */
+export async function updateTrainingEscalao(
+  playerId: number,
+  escalao: string | null
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('players')
+    .update({ training_escalao: escalao })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar escalão: ${error.message}` };
+  }
+
+  revalidatePath('/pipeline');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
 
   return { success: true };
 }

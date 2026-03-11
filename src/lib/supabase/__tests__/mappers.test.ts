@@ -3,8 +3,8 @@
 // Validates snake_case→camelCase, null handling, legacy format compat
 // RELEVANT FILES: src/lib/supabase/mappers.ts, src/lib/types/index.ts, src/lib/__tests__/factories.ts
 
-import { mapPlayerRow, mapScoutingReportRow, mapCalendarEventRow } from '@/lib/supabase/mappers';
-import { makePlayerRow, makeScoutingReportRow, makeCalendarEventRow } from '@/lib/__tests__/factories';
+import { mapPlayerRow, mapScoutingReportRow, mapCalendarEventRow, mapUserTaskRow } from '@/lib/supabase/mappers';
+import { makePlayerRow, makeScoutingReportRow, makeCalendarEventRow, makeUserTaskRow } from '@/lib/__tests__/factories';
 
 /* ───────────── mapPlayerRow ───────────── */
 
@@ -196,5 +196,95 @@ describe('mapCalendarEventRow', () => {
     const row = makeCalendarEventRow({ assignee_name: null });
     const event = mapCalendarEventRow(row);
     expect(event.assigneeName).toBe('');
+  });
+});
+
+/* ───────────── mapUserTaskRow ───────────── */
+
+describe('mapUserTaskRow', () => {
+  it('maps all core fields from snake_case to camelCase', () => {
+    const row = makeUserTaskRow({ title: 'Agendar reunião com pais' });
+    const task = mapUserTaskRow(row);
+
+    expect(task.title).toBe('Agendar reunião com pais');
+    expect(task.userId).toBe('user-abc');
+    expect(task.clubId).toBe(1);
+    expect(task.dueDate).toBe('2026-03-15');
+    expect(task.completed).toBe(false);
+    expect(task.source).toBe('manual');
+    expect(task.pinned).toBe(false);
+  });
+
+  it('maps playerClub from joined players', () => {
+    const task = mapUserTaskRow(makeUserTaskRow());
+    expect(task.playerClub).toBe('Boavista FC');
+  });
+
+  it('maps playerMeetingDate from joined players', () => {
+    const task = mapUserTaskRow(makeUserTaskRow());
+    expect(task.playerMeetingDate).toBe('2026-03-20');
+  });
+
+  it('maps playerSigningDate from joined players', () => {
+    const task = mapUserTaskRow(makeUserTaskRow());
+    expect(task.playerSigningDate).toBe('2026-04-01');
+  });
+
+  it('maps playerMeetingAttendees as array', () => {
+    const task = mapUserTaskRow(makeUserTaskRow());
+    expect(task.playerMeetingAttendees).toEqual(['user-111', 'user-222']);
+  });
+
+  it('maps playerSigningAttendees as array', () => {
+    const task = mapUserTaskRow(makeUserTaskRow());
+    expect(task.playerSigningAttendees).toEqual(['user-333', 'user-444']);
+  });
+
+  it('handles null players join gracefully', () => {
+    const row = makeUserTaskRow({ player_id: null, players: null });
+    const task = mapUserTaskRow(row);
+
+    expect(task.playerId).toBeNull();
+    expect(task.playerName).toBeNull();
+    expect(task.playerContact).toBeNull();
+    expect(task.playerClub).toBeNull();
+    expect(task.playerMeetingDate).toBeNull();
+    expect(task.playerSigningDate).toBeNull();
+    expect(task.playerMeetingAttendees).toEqual([]);
+    expect(task.playerSigningAttendees).toEqual([]);
+  });
+
+  it('handles null attendees arrays from joined players', () => {
+    const row = makeUserTaskRow({
+      players: {
+        name: 'Pedro Santos',
+        contact: null,
+        club: 'Leixões SC',
+        meeting_date: null,
+        signing_date: null,
+        meeting_attendees: null,
+        signing_attendees: null,
+      },
+    });
+    const task = mapUserTaskRow(row);
+
+    expect(task.playerMeetingAttendees).toEqual([]);
+    expect(task.playerSigningAttendees).toEqual([]);
+  });
+});
+
+/* ───────────── mapPlayerRow — signingAttendees ───────────── */
+
+describe('mapPlayerRow — signingAttendees', () => {
+  it('maps signingAttendees from array', () => {
+    const row = makePlayerRow({ signing_attendees: ['Director Desportivo', 'Treinador'] });
+    const player = mapPlayerRow(row);
+    expect(player.signingAttendees).toEqual(['Director Desportivo', 'Treinador']);
+  });
+
+  it('returns empty array when signing_attendees is null', () => {
+    const row = makePlayerRow({ signing_attendees: null });
+    const player = mapPlayerRow(row);
+    expect(player.signingAttendees).toEqual([]);
   });
 });

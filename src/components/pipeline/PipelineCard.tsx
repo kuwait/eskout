@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, Phone, Trash2, User, Users, X } from 'lucide-react';
+import { Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, GraduationCap, Phone, Trash2, User, Users, X } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { updateTrainingDate, updateMeetingDate, updateSigningDate } from '@/actions/pipeline';
+import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { Player, PositionCode, RecruitmentStatus } from '@/lib/types';
@@ -162,6 +162,11 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
 
   const IconComponent = statusConfig?.icon ?? Calendar;
 
+  // Resolve contact_assigned_to name for vir_treinar display
+  const responsibleName = player.contactAssignedTo
+    ? (player.contactAssignedToName ?? clubMembers.find((m) => m.id === player.contactAssignedTo)?.fullName ?? null)
+    : null;
+
   return (
     <>
       <div
@@ -230,7 +235,30 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           <ContactAssignButton player={player} clubMembers={clubMembers} />
         )}
 
-        {/* Scheduled date button — for "Vir treinar" and "Reunião Marcada" */}
+        {/* Vir treinar: responsible person + escalão */}
+        {player.recruitmentStatus === 'vir_treinar' && (
+          <div className="mt-1.5 space-y-1">
+            {responsibleName && (
+              <div className="flex items-center gap-1.5 rounded bg-purple-50 px-2 py-1 text-xs text-purple-700">
+                <Phone className="h-3 w-3 shrink-0" />
+                <span className="truncate font-medium">{responsibleName}</span>
+              </div>
+            )}
+            <TrainingEscalaoButton player={player} />
+          </div>
+        )}
+
+        {/* Meeting attendees — shown on "Reunião marcada" */}
+        {player.recruitmentStatus === 'reuniao_marcada' && (
+          <MeetingAttendeesButton player={player} clubMembers={clubMembers} />
+        )}
+
+        {/* Signing attendees — shown on "Confirmado" for signing responsibility */}
+        {player.recruitmentStatus === 'confirmado' && (
+          <SigningAttendeesButton player={player} clubMembers={clubMembers} />
+        )}
+
+        {/* Scheduled date button — for "Vir treinar", "Reunião Marcada", "Confirmado" */}
         {statusConfig && (
           <button
             data-no-navigate
@@ -397,6 +425,227 @@ function ContactAssignButton({ player, clubMembers }: { player: Player; clubMemb
         </CommandList>
       </CommandDialog>
     </>
+  );
+}
+
+/* ───────────── Meeting Attendees Button for Reunião Marcada cards ───────────── */
+
+function MeetingAttendeesButton({ player, clubMembers }: { player: Player; clubMembers: { id: string; fullName: string }[] }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [isSaving, startSave] = useTransition();
+  const [localAttendees, setLocalAttendees] = useState<string[]>(player.meetingAttendees);
+
+  /* eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local state with external prop */
+  useEffect(() => { setLocalAttendees(player.meetingAttendees); }, [player.meetingAttendees]);
+
+  const filtered = clubMembers.filter((p) => !search || p.fullName.toLowerCase().includes(search.toLowerCase()));
+
+  // Resolve attendee names for display
+  const attendeeNames = localAttendees
+    .map((id) => clubMembers.find((m) => m.id === id)?.fullName)
+    .filter(Boolean) as string[];
+
+  function toggleAttendee(userId: string) {
+    const next = localAttendees.includes(userId)
+      ? localAttendees.filter((id) => id !== userId)
+      : [...localAttendees, userId];
+    setLocalAttendees(next);
+    startSave(async () => {
+      await updateMeetingAttendees(player.id, next);
+    });
+  }
+
+  return (
+    <>
+      <button
+        data-no-navigate
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
+        disabled={isSaving}
+        className={`mt-1.5 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${
+          attendeeNames.length > 0
+            ? 'bg-orange-50 text-orange-700 hover:bg-orange-100'
+            : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
+        }`}
+      >
+        <Users className="h-3 w-3 shrink-0" />
+        {attendeeNames.length > 0 ? (
+          <span className="truncate font-medium">
+            {attendeeNames.length === 1 ? attendeeNames[0] : `${attendeeNames.length} participantes`}
+          </span>
+        ) : (
+          <span className="truncate">Participantes da reunião</span>
+        )}
+        <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />
+      </button>
+      <CommandDialog open={pickerOpen} onOpenChange={(v) => { setPickerOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
+        <CommandInput
+          placeholder="Pesquisar utilizador..."
+          value={search}
+          onValueChange={setSearch}
+          onClear={() => setSearch('')}
+        />
+        <CommandList>
+          <CommandEmpty>Sem resultados</CommandEmpty>
+          <CommandGroup heading="Selecionar participantes">
+            {filtered.map((p) => {
+              const isSelected = localAttendees.includes(p.id);
+              return (
+                <CommandItem
+                  key={p.id}
+                  value={p.fullName}
+                  onSelect={() => toggleAttendee(p.id)}
+                >
+                  <div className={`mr-2 flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-orange-500 bg-orange-500' : 'border-neutral-300'}`}>
+                    {isSelected && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  {p.fullName}
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+    </>
+  );
+}
+
+/* ───────────── Signing Attendees Button for Confirmado cards ───────────── */
+
+function SigningAttendeesButton({ player, clubMembers }: { player: Player; clubMembers: { id: string; fullName: string }[] }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [isSaving, startSave] = useTransition();
+  const [localAttendees, setLocalAttendees] = useState<string[]>(player.signingAttendees);
+
+  /* eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local state with external prop */
+  useEffect(() => { setLocalAttendees(player.signingAttendees); }, [player.signingAttendees]);
+
+  const filtered = clubMembers.filter((p) => !search || p.fullName.toLowerCase().includes(search.toLowerCase()));
+
+  const attendeeNames = localAttendees
+    .map((id) => clubMembers.find((m) => m.id === id)?.fullName)
+    .filter(Boolean) as string[];
+
+  function toggleAttendee(userId: string) {
+    const next = localAttendees.includes(userId)
+      ? localAttendees.filter((id) => id !== userId)
+      : [...localAttendees, userId];
+    setLocalAttendees(next);
+    startSave(async () => {
+      await updateSigningAttendees(player.id, next);
+    });
+  }
+
+  return (
+    <>
+      <button
+        data-no-navigate
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
+        disabled={isSaving}
+        className={`mt-1.5 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${
+          attendeeNames.length > 0
+            ? 'bg-green-50 text-green-700 hover:bg-green-100'
+            : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
+        }`}
+      >
+        <Users className="h-3 w-3 shrink-0" />
+        {attendeeNames.length > 0 ? (
+          <span className="truncate font-medium">
+            {attendeeNames.length === 1 ? attendeeNames[0] : `${attendeeNames.length} responsáveis`}
+          </span>
+        ) : (
+          <span className="truncate">Responsáveis da assinatura</span>
+        )}
+        <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />
+      </button>
+      <CommandDialog open={pickerOpen} onOpenChange={(v) => { setPickerOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
+        <CommandInput
+          placeholder="Pesquisar utilizador..."
+          value={search}
+          onValueChange={setSearch}
+          onClear={() => setSearch('')}
+        />
+        <CommandList>
+          <CommandEmpty>Sem resultados</CommandEmpty>
+          <CommandGroup heading="Selecionar responsáveis">
+            {filtered.map((p) => {
+              const isSelected = localAttendees.includes(p.id);
+              return (
+                <CommandItem
+                  key={p.id}
+                  value={p.fullName}
+                  onSelect={() => toggleAttendee(p.id)}
+                >
+                  <div className={`mr-2 flex h-4 w-4 items-center justify-center rounded border ${isSelected ? 'border-green-500 bg-green-500' : 'border-neutral-300'}`}>
+                    {isSelected && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  {p.fullName}
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+    </>
+  );
+}
+
+/* ───────────── Training Escalão Button for Vir Treinar cards ───────────── */
+
+function TrainingEscalaoButton({ player }: { player: Player }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(player.trainingEscalao ?? '');
+  const [isSaving, startSave] = useTransition();
+
+  /* eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local input with external prop */
+  useEffect(() => { setValue(player.trainingEscalao ?? ''); }, [player.trainingEscalao]);
+
+  function handleSave() {
+    setEditing(false);
+    const trimmed = value.trim() || null;
+    startSave(async () => {
+      await updateTrainingEscalao(player.id, trimmed);
+    });
+  }
+
+  if (editing) {
+    return (
+      <div
+        data-no-navigate
+        className="flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Ex: Sub-14 A"
+          className="h-7 flex-1 text-xs"
+          autoFocus
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }}
+          onBlur={handleSave}
+          disabled={isSaving}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      data-no-navigate
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      className={`flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${
+        player.trainingEscalao
+          ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+          : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
+      }`}
+    >
+      <GraduationCap className="h-3 w-3 shrink-0" />
+      <span className="truncate">{player.trainingEscalao || 'Definir escalão'}</span>
+    </button>
   );
 }
 

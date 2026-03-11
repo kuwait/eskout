@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, UserTask, UserTaskRow } from '@/lib/types';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
 function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
@@ -125,6 +125,9 @@ export function mapPlayerRow(row: PlayerRow): Player {
     recruitmentNotes: row.recruitment_notes ?? '',
     contactAssignedTo: row.contact_assigned_to ?? null,
     contactAssignedToName: null, // Populated by join query in page
+    meetingAttendees: Array.isArray(row.meeting_attendees) ? row.meeting_attendees : [],
+    signingAttendees: Array.isArray(row.signing_attendees) ? row.signing_attendees : [],
+    trainingEscalao: row.training_escalao ?? null,
     isRealSquad: row.is_real_squad,
     isShadowSquad: row.is_shadow_squad,
     realSquadPosition: (row.real_squad_position as Player['realSquadPosition']) ?? null,
@@ -209,5 +212,32 @@ export function mapCalendarEventRow(row: CalendarEventRow): CalendarEvent {
     createdByName: '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── User Task Mapper ───────────── */
+
+/** Map a Supabase UserTaskRow (snake_case) to the domain UserTask type (camelCase) */
+export function mapUserTaskRow(row: UserTaskRow): UserTask {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    userId: row.user_id,
+    createdBy: row.created_by,
+    playerId: row.player_id,
+    playerName: row.players?.name ?? null,
+    playerContact: row.players?.contact ?? null,
+    playerClub: row.players?.club ?? null,
+    playerMeetingDate: row.players?.meeting_date ?? null,
+    playerSigningDate: row.players?.signing_date ?? null,
+    playerMeetingAttendees: Array.isArray(row.players?.meeting_attendees) ? row.players.meeting_attendees : [],
+    playerSigningAttendees: Array.isArray(row.players?.signing_attendees) ? row.players.signing_attendees : [],
+    title: row.title,
+    dueDate: row.due_date,
+    completed: row.completed,
+    completedAt: row.completed_at,
+    source: row.source as UserTask['source'],
+    pinned: row.pinned,
+    createdAt: row.created_at,
   };
 }

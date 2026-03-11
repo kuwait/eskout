@@ -3,6 +3,8 @@
 // Server component that fetches player data, notes, and status history
 // RELEVANT FILES: src/lib/supabase/queries.ts, src/components/players/PlayerProfile.tsx, src/components/players/ObservationNotes.tsx
 
+import type { Metadata } from 'next';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
 import {
   getPlayerById,
@@ -15,12 +17,56 @@ import {
 } from '@/lib/supabase/queries';
 import { createClient } from '@/lib/supabase/server';
 import { PlayerProfile } from '@/components/players/PlayerProfile';
+import { getPositionLabel } from '@/lib/constants';
 
 // Always fetch fresh data — status history and player data change frequently
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+/* ───────────── Open Graph metadata for WhatsApp/social sharing ───────────── */
+
+/** Lightweight query using service role — works without user session (for social crawlers) */
+async function getPlayerForOg(playerId: number) {
+  const supabase = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  const { data } = await supabase
+    .from('players')
+    .select('name, dob, club, position_normalized, photo_url, zz_photo_url')
+    .eq('id', playerId)
+    .single();
+  return data;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const playerId = parseInt(id, 10);
+  if (isNaN(playerId)) return {};
+
+  const player = await getPlayerForOg(playerId);
+  if (!player) return {};
+
+  const position = getPositionLabel(player.position_normalized);
+  const age = player.dob ? `${new Date().getFullYear() - new Date(player.dob).getFullYear()} anos` : '';
+  const parts = [position, player.club, age].filter(Boolean);
+  const description = parts.join(' · ');
+  const photoUrl = player.photo_url?.startsWith('http') ? player.photo_url
+    : player.zz_photo_url?.startsWith('http') ? player.zz_photo_url
+    : undefined;
+
+  return {
+    title: `${player.name} — Eskout`,
+    description,
+    openGraph: {
+      title: player.name,
+      description,
+      ...(photoUrl && { images: [{ url: photoUrl, width: 200, height: 200 }] }),
+    },
+  };
 }
 
 export default async function PlayerProfilePage({ params }: PageProps) {

@@ -92,6 +92,93 @@ All development phases — completed and planned.
 - [x] Responsive layout: mobile below Info Básica, desktop in right column
 - [x] Admin can delete status_history entries (migration 046 + server action + UI)
 
+### 5B-1. "Para Observar" Watchlist + Recruiter Permissions
+Personal per-user watchlist replacing the pipeline "A Observar" column. Recruiter role expanded.
+
+**Sub-phases (10 steps):**
+1. **Migration 050:** Create `observation_watchlist` table (user_id, player_id, note, club_id). Migrate existing `a_observar` players to watchlist of whoever set them (via status_history). Remove `a_observar` from DB constraint.
+2. **Types & constants cleanup:** Remove `a_observar` from `RecruitmentStatus` union, `RECRUITMENT_STATUSES`, Zod validators, `StatusBadge`, `PIPELINE_STEPS`, `ExportForm`, legacy mapper, tests.
+3. **Server actions (`actions/watchlist.ts`):** `getMyWatchlist()`, `addToWatchlist(playerId, note?)`, `removeFromWatchlist(playerId)`, `updateWatchlistNote()`. Allowed for admin, editor, recruiter.
+4. **New page `/para-observar`:** Server component + `WatchlistView.tsx` client. Player card list + add dialog (same search+filters pattern as pipeline). Realtime.
+5. **Navigation:** Add "Para Observar" to Sidebar + MobileDrawer (after Abordagens, before Calendário). Visible to admin, editor, recruiter. Hidden from scout.
+6. **Recruiter: unblock `/jogadores`:** Middleware — allow recruiter to access player list. Nav — show "Base de Dados" entry for recruiter pointing to `/jogadores`.
+7. **Recruiter: PlayerProfile visibility:** Show Notas de Observação (`!isScout` instead of `!isRestricted`). Show personal evaluation widget (stars). Keep hiding: team evaluations, opinion badges, observer/decision/reports, share/print.
+8. **Recruiter: block scouting fields in edit:** `handleSave` condition from `!isScout` to `!isScout && !isRecruiter`. Recruiter edits only: name, DOB, club, position, foot, nationality, number, contact, photo, links.
+9. **Watchlist button in player profile:** Toggle button in view mode (bookmark icon). Shows "Na tua lista" if already added. Visible to admin, editor, recruiter.
+10. **PlayersView: hide sensitive data for recruiter:** Pass `userRole`, hide opinion badges and evaluation columns in table/cards for recruiter.
+
+### 5B-2. Dynamic Role Permissions (Admin Panel)
+Database-driven permission system replacing hardcoded role checks. Club admins toggle permissions per role without deploys.
+
+**Sub-phases:**
+1. **Migration:** Add `role_permissions` JSONB column to `clubs` table with sensible defaults per role (admin always full access).
+2. **Helper `can(role, permission, ctx)`:** Single function checking `role_permissions[role][key] !== false`. Admin bypasses all checks.
+3. **Define permission keys:** `pipeline_view`, `pipeline_edit`, `player_list`, `player_edit_scouting`, `evaluations_personal`, `evaluations_team`, `notes_view`, `notes_edit`, `squads_edit`, `calendar_edit`, `export`, `watchlist`, `reports_view`, `reports_submit`.
+4. **Server actions integration:** Replace all `if (role === 'scout')` checks with `can()` calls (~15 action files).
+5. **Middleware enforcement:** Check `role_permissions` for route access (not just nav hiding).
+6. **UI component gating:** Pass permissions to client, conditionally render sections/buttons.
+7. **Admin UI (`/admin/permissoes` or `/definicoes`):** Role × permission matrix with toggle switches. Club admin (not just superadmin) can manage.
+8. **Superadmin override:** Master panel can also edit any club's role permissions.
+
+### 5B-3. "Tarefas" — Personal Task Page + Pipeline Enhancements
+Personal TODO workspace per user + pipeline data model improvements for meetings and training.
+
+**Pipeline data model (pre-requisite):**
+- `meeting_attendees uuid[]` on `players` — who attends the meeting (1 or more users). Auto-cleared when leaving `reuniao_marcada`.
+- `training_escalao text` on `players` — free text for which age group the player trains with. Auto-cleared when leaving `vir_treinar`.
+- Pipeline card "Vir treinar": show `contact_assigned_to` name (responsible person) + `training_escalao`.
+- Pipeline card "Reunião marcada": multi-select user picker for `meeting_attendees`.
+- Auto-clear both fields in `updateRecruitmentStatus` (same pattern as date fields).
+
+**Tasks data model:**
+```
+user_tasks: id, club_id, user_id (owner), created_by, player_id (optional FK),
+  title (text), due_date (date?), completed (bool), completed_at (timestamptz?),
+  source ('manual'|'pipeline_contact'|'pipeline_meeting'|'pipeline_training'),
+  pinned (bool), created_at
+  UNIQUE(user_id, player_id, source) — prevents duplicate auto-tasks
+```
+RLS: each user sees only their own. Admin can see all (for oversight).
+
+**Visibility:**
+| Role | Sees |
+|---|---|
+| Admin | Own tasks + dropdown to view/create tasks for any user |
+| Editor | Only own tasks |
+| Recruiter | Only own tasks |
+| Scout | No access |
+
+**Auto-task creation (in pipeline server actions):**
+- Player → `em_contacto` + contact assigned → task "📞 Contactar [name]" for assignee
+- Player → `reuniao_marcada` + attendees set → task "🤝 Reunião — [name] · [date]" for each attendee
+- Player → `vir_treinar` → task "⚽ Treino — [name] · [date] · [escalão]" for contact_assigned_to
+- Player advances to next state → auto-complete tasks from previous state
+
+**Admin-created tasks for others:** Target user can complete but NOT delete. Admin sees completion status.
+
+**Page layout (`/tarefas`):**
+- Header: "Tarefas" + count + `[+ Nova]` button
+- Section "Por fazer": checkbox list, manual + auto tasks mixed, sorted by due_date then created_at
+- Section "Concluídas": completed tasks (persist indefinitely — only purged after X days of user inactivity)
+- Section "Assuntos Importantes": flagged notes from /alertas (read-only links to player profiles, not checkboxes)
+- Admin: dropdown "Ver tarefas de: [Todos / User1 / User2 / ...]"
+- Mobile: tap to check/uncheck, swipe to delete (own manual tasks only)
+
+**New task form:** Title (text) + optional player picker + optional due date. Inline or mini-dialog.
+
+**Navigation:** "Tarefas" in sidebar with visual highlight (subtle background/accent to stand out). Positioned prominently — first or second item. Badge with pending count.
+
+**Sub-phases:**
+1. Migration: `meeting_attendees`, `training_escalao` on players + `user_tasks` table + RLS
+2. Pipeline card UI: attendee picker on reunião, escalão input + responsible name on vir treinar
+3. Server actions (`actions/tasks.ts`): getMyTasks, createTask, completeTask, deleteTask, getTasksForUser (admin)
+4. Page `/tarefas` + `TasksView.tsx`: manual task CRUD with checkbox list
+5. Auto-task creation in pipeline actions (updateRecruitmentStatus)
+6. Auto-complete on pipeline state advance
+7. "Assuntos Importantes" section with flagged notes
+8. Admin oversight: view/create tasks for other users
+9. Nav highlight + badge count
+
 ### 5B. YouTube Media Links
 - [ ] `player_videos` table + RLS + Server Action
 - [ ] YouTube oEmbed extraction (title + thumbnail)

@@ -91,6 +91,9 @@ export interface Player {
   recruitmentNotes: string;
   contactAssignedTo: string | null;
   contactAssignedToName: string | null;
+  meetingAttendees: string[];
+  signingAttendees: string[];
+  trainingEscalao: string | null;
   isRealSquad: boolean;
   isShadowSquad: boolean;
   realSquadPosition: string | null;
@@ -172,6 +175,9 @@ export interface PlayerRow {
   signing_date: string | null;
   recruitment_notes: string | null;
   contact_assigned_to: string | null;
+  meeting_attendees: string[] | null;
+  signing_attendees: string[] | null;
+  training_escalao: string | null;
   is_real_squad: boolean;
   is_shadow_squad: boolean;
   real_squad_position: string | null;
@@ -185,6 +191,48 @@ export interface PlayerRow {
   created_at: string;
   updated_at: string;
   created_by: string | null;
+}
+
+/* ───────────── User Tasks ───────────── */
+
+export type TaskSource = 'manual' | 'pipeline_contact' | 'pipeline_meeting' | 'pipeline_training' | 'pipeline_signing';
+
+export interface UserTask {
+  id: number;
+  clubId: number;
+  userId: string;
+  createdBy: string;
+  playerId: number | null;
+  playerName: string | null;
+  playerContact: string | null;
+  playerClub: string | null;
+  playerMeetingDate: string | null;
+  playerSigningDate: string | null;
+  playerMeetingAttendees: string[];
+  playerSigningAttendees: string[];
+  title: string;
+  dueDate: string | null;
+  completed: boolean;
+  completedAt: string | null;
+  source: TaskSource;
+  pinned: boolean;
+  createdAt: string;
+}
+
+export interface UserTaskRow {
+  id: number;
+  club_id: number;
+  user_id: string;
+  created_by: string;
+  player_id: number | null;
+  title: string;
+  due_date: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  source: string;
+  pinned: boolean;
+  created_at: string;
+  players?: { name: string; contact: string | null; club: string | null; meeting_date: string | null; signing_date: string | null; meeting_attendees: string[] | null; signing_attendees: string[] | null } | null;
 }
 
 /* ───────────── Scouting Report ───────────── */

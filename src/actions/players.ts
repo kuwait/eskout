@@ -400,6 +400,45 @@ export async function updatePlayer(
     }
   }
 
+  // Auto-task: when contact_assigned_to is set on a player in a relevant status, create a task for the assignee
+  if ('contact_assigned_to' in sanitized && sanitized.contact_assigned_to) {
+    const assigneeId = sanitized.contact_assigned_to as string;
+    const { data: current } = await supabase
+      .from('players')
+      .select('name, recruitment_status, signing_date, training_date')
+      .eq('id', playerId)
+      .eq('club_id', clubId)
+      .single();
+
+    // Map statuses to task source + title + due date (confirmado uses signing_attendees, not contact_assigned_to)
+    const statusTaskMap: Record<string, { source: string; emoji: string; label: string; dueDate: string | null }> = {
+      em_contacto: { source: 'pipeline_contact', emoji: '📞', label: 'Contactar', dueDate: null },
+      vir_treinar: { source: 'pipeline_training', emoji: '⚽', label: 'Treino —', dueDate: current?.training_date ?? null },
+    };
+
+    const taskConfig = current?.recruitment_status ? statusTaskMap[current.recruitment_status] : null;
+    if (taskConfig) {
+      const playerName = current!.name ?? `Jogador #${playerId}`;
+      const { data: existingTask } = await supabase
+        .from('user_tasks')
+        .select('id')
+        .eq('user_id', assigneeId)
+        .eq('player_id', playerId)
+        .eq('source', taskConfig.source)
+        .eq('completed', false)
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingTask) {
+        await supabase.from('user_tasks').insert(
+          { club_id: clubId, user_id: assigneeId, created_by: userId, player_id: playerId, title: `${taskConfig.emoji} ${taskConfig.label} ${playerName}`, source: taskConfig.source, due_date: taskConfig.dueDate },
+        );
+        revalidatePath('/tarefas');
+        await broadcastRowMutation(clubId, 'user_tasks', 'INSERT', userId, playerId);
+      }
+    }
+  }
+
   revalidatePath('/jogadores');
   revalidatePath(`/jogadores/${playerId}`);
   revalidatePath('/pipeline');

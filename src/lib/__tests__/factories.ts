@@ -8,6 +8,7 @@ import type {
   Player,
   PlayerRow,
   ScoutingReportRow,
+  UserTaskRow,
 } from '@/lib/types';
 
 /* ───────────── Player (domain) ───────────── */
@@ -63,6 +64,9 @@ export function makePlayer(overrides?: Partial<Player>): Player {
     recruitmentNotes: '',
     contactAssignedTo: null,
     contactAssignedToName: null,
+    meetingAttendees: [],
+    signingAttendees: [],
+    trainingEscalao: null,
     isRealSquad: false,
     isShadowSquad: false,
     realSquadPosition: null,
@@ -144,6 +148,9 @@ export function makePlayerRow(overrides?: Partial<PlayerRow>): PlayerRow {
     signing_date: null,
     recruitment_notes: null,
     contact_assigned_to: null,
+    meeting_attendees: null,
+    signing_attendees: null,
+    training_escalao: null,
     is_real_squad: false,
     is_shadow_squad: false,
     real_squad_position: null,
@@ -225,6 +232,35 @@ export function makeCalendarEventRow(overrides?: Partial<CalendarEventRow>): Cal
       position_normalized: 'DC',
       dob: '2012-03-15',
       foot: 'Dir',
+    },
+    ...overrides,
+  };
+}
+
+/* ───────────── UserTaskRow (DB snake_case) ───────────── */
+
+export function makeUserTaskRow(overrides?: Partial<UserTaskRow>): UserTaskRow {
+  return {
+    id: 1,
+    club_id: 1,
+    user_id: 'user-abc',
+    created_by: 'user-abc',
+    player_id: 1,
+    title: 'Contactar agente do jogador',
+    due_date: '2026-03-15',
+    completed: false,
+    completed_at: null,
+    source: 'manual',
+    pinned: false,
+    created_at: '2026-03-01T10:00:00Z',
+    players: {
+      name: 'João Silva',
+      contact: '912345678',
+      club: 'Boavista FC',
+      meeting_date: '2026-03-20',
+      signing_date: '2026-04-01',
+      meeting_attendees: ['user-111', 'user-222'],
+      signing_attendees: ['user-333', 'user-444'],
     },
     ...overrides,
   };

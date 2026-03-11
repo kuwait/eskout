@@ -9,8 +9,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Shield, ShieldCheck, Users, GitBranch, CalendarDays, Bell, FileText, PlusCircle, UserPlus,
-  Download, UserCog, LogOut, Palette, ArrowLeftRight,
+  Shield, ShieldCheck, Users, GitBranch, CalendarDays, FileText, PlusCircle, UserPlus,
+  Download, UserCog, LogOut, Palette, ArrowLeftRight, ListTodo,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
@@ -23,11 +23,10 @@ const NAV_ITEMS = [
   { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true, feature: 'shadow_squad' },
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, feature: 'pipeline' },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, feature: 'calendar' },
-  { href: '/alertas', label: 'Notas Prioritárias', icon: Bell, scoutHidden: true, recruiterHidden: true, feature: 'alerts' },
+  { href: '/tarefas', label: 'Tarefas', icon: ListTodo, scoutHidden: true, feature: null },
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/meus-jogadores', label: 'Jogadores', icon: Users, scoutHidden: false, onlyRoles: ['scout', 'recruiter'], feature: null },
-  { href: '/admin/pendentes', label: 'Adicionados', icon: UserPlus, scoutHidden: true, recruiterHidden: true, onlyRoles: ['admin', 'editor'], feature: null },
 ];
 
 const ADMIN_ITEMS = [
@@ -103,24 +102,42 @@ export function Sidebar({
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
-                  {/* Alert badges on Alertas tab */}
-                  {item.href === '/alertas' && (alertCounts.urgente > 0 || alertCounts.importante > 0) && (
+                  {/* Pending tasks badge + flagged notes indicator */}
+                  {item.href === '/tarefas' && (alertCounts.pendingTasks > 0 || alertCounts.urgente > 0 || alertCounts.importante > 0) && (
                     <span className="ml-auto flex items-center gap-1">
+                      {alertCounts.pendingTasks > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1.5 text-[10px] font-bold text-white">
+                          {alertCounts.pendingTasks}
+                        </span>
+                      )}
                       {alertCounts.urgente > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{alertCounts.urgente}</span>
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                          {alertCounts.urgente}
+                        </span>
                       )}
-                      {alertCounts.importante > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-400 px-1.5 text-[10px] font-bold text-neutral-800">{alertCounts.importante}</span>
-                      )}
-                    </span>
-                  )}
-                  {/* Pending players badge */}
-                  {item.href === '/admin/pendentes' && alertCounts.pendingPlayers > 0 && (
-                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                      {alertCounts.pendingPlayers}
                     </span>
                   )}
                 </Link>
+                {/* Sub-item: Adicionados (pending players) — under Jogadores, admin/editor only */}
+                {item.href === '/' && !isScout && !isRecruiter && (userRole === 'admin' || userRole === 'editor') && (
+                  <Link
+                    href="/admin/pendentes"
+                    className={cn(
+                      'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                      pathname.startsWith('/admin/pendentes')
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Adicionados
+                    {alertCounts.pendingPlayers > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                        {alertCounts.pendingPlayers}
+                      </span>
+                    )}
+                  </Link>
+                )}
               </li>
             );
           })}

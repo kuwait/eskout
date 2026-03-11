@@ -58,8 +58,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  // Redirect unauthenticated users to login
-  if (!user && !isPublicRoute) {
+  // Let social media crawlers through to read OG meta tags (WhatsApp, Telegram, Facebook, Twitter, etc.)
+  const ua = request.headers.get('user-agent') ?? '';
+  const isCrawler = /WhatsApp|facebookexternalhit|Twitterbot|TelegramBot|LinkedInBot|Slackbot|Discordbot/i.test(ua);
+
+  // Redirect unauthenticated users to login (except bots — they need OG tags)
+  if (!user && !isPublicRoute && !isCrawler) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
