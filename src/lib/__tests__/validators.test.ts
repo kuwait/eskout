@@ -10,6 +10,7 @@ import {
   shadowSquadSchema,
   calendarEventSchema,
   recruitmentStatusChangeSchema,
+  trainingFeedbackSchema,
 } from '@/lib/validators';
 
 /* ───────────── loginSchema ───────────── */
@@ -166,6 +167,63 @@ describe('calendarEventSchema', () => {
     for (const type of ['treino', 'assinatura', 'reuniao', 'observacao', 'outro']) {
       expect(calendarEventSchema.safeParse({ ...validEvent, eventType: type }).success).toBe(true);
     }
+  });
+});
+
+/* ───────────── trainingFeedbackSchema ───────────── */
+
+describe('trainingFeedbackSchema', () => {
+  const validFeedback = {
+    playerId: 42,
+    trainingDate: '2026-03-10',
+    presence: 'attended' as const,
+  };
+
+  it('accepts valid minimal feedback (playerId + date + presence)', () => {
+    const result = trainingFeedbackSchema.safeParse(validFeedback);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts all valid presence values', () => {
+    for (const p of ['attended', 'missed', 'rescheduled']) {
+      expect(trainingFeedbackSchema.safeParse({ ...validFeedback, presence: p }).success).toBe(true);
+    }
+  });
+
+  it('rejects invalid presence value', () => {
+    const result = trainingFeedbackSchema.safeParse({ ...validFeedback, presence: 'late' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts optional feedback text', () => {
+    const result = trainingFeedbackSchema.safeParse({ ...validFeedback, feedback: 'Bom treino.' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts rating 1–5', () => {
+    for (const r of [1, 2, 3, 4, 5]) {
+      expect(trainingFeedbackSchema.safeParse({ ...validFeedback, rating: r }).success).toBe(true);
+    }
+  });
+
+  it('rejects rating outside 1–5', () => {
+    expect(trainingFeedbackSchema.safeParse({ ...validFeedback, rating: 0 }).success).toBe(false);
+    expect(trainingFeedbackSchema.safeParse({ ...validFeedback, rating: 6 }).success).toBe(false);
+  });
+
+  it('rejects missing trainingDate', () => {
+    const result = trainingFeedbackSchema.safeParse({ playerId: 42, presence: 'attended', trainingDate: '' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects negative playerId', () => {
+    const result = trainingFeedbackSchema.safeParse({ ...validFeedback, playerId: -1 });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts optional escalao', () => {
+    const result = trainingFeedbackSchema.safeParse({ ...validFeedback, escalao: 'Sub-14' });
+    expect(result.success).toBe(true);
   });
 });
 

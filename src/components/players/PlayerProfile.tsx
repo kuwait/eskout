@@ -52,6 +52,7 @@ import { StatusHistory } from '@/components/players/StatusHistory';
 import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
 import { PlayerClubHistory } from '@/components/players/PlayerClubHistory';
+import { TrainingFeedbackList } from '@/components/players/TrainingFeedback';
 import {
   POSITION_LABELS,
   DEPARTMENT_OPINIONS,
@@ -79,6 +80,7 @@ import type {
   RecruitmentStatus,
   ScoutEvaluation,
   ScoutingReport,
+  TrainingFeedback,
 } from '@/lib/types';
 
 interface PlayerProfileProps {
@@ -88,6 +90,7 @@ interface PlayerProfileProps {
   statusHistory?: StatusHistoryEntry[];
   scoutingReports?: ScoutingReport[];
   scoutEvaluations?: ScoutEvaluation[];
+  trainingFeedback?: TrainingFeedback[];
   currentUserId?: string | null;
   /** If provided, "Voltar" calls this instead of router.back() */
   onClose?: () => void;
@@ -97,7 +100,7 @@ interface PlayerProfileProps {
   clubMembers?: { id: string; fullName: string }[];
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], currentUserId = null, onClose, ageGroupName, clubMembers = [] }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], trainingFeedback = [], currentUserId = null, onClose, ageGroupName, clubMembers = [] }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -1146,6 +1149,20 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 );
               })()}
             </Section>}
+
+            {/* ───────────── Training Feedback (Treinos) ───────────── */}
+            {!isScout && (
+              <Section title="Treinos no Clube">
+                <TrainingFeedbackList
+                  playerId={player.id}
+                  entries={trainingFeedback}
+                  userRole={userRole}
+                  defaultEscalao={p.trainingEscalao}
+                  currentUserName={clubMembers.find((m) => m.id === currentUserId)?.fullName}
+                  currentUserId={currentUserId}
+                />
+              </Section>
+            )}
 
             {!isScout && historyEntries.length > 0 && (() => {
               // StatusHistory deduplicates internally — check if any entries survive filtering

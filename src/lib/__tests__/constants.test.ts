@@ -13,6 +13,8 @@ import {
   CURRENT_SEASON,
   POSITION_CODES,
   SQUAD_SLOT_CODES,
+  RECRUITMENT_STATUSES,
+  TRAINING_PRESENCE,
 } from '@/lib/constants';
 import { makePlayer } from '@/lib/__tests__/factories';
 
@@ -223,5 +225,32 @@ describe('constant arrays', () => {
     expect(SQUAD_SLOT_CODES).not.toContain('MD');
     expect(SQUAD_SLOT_CODES).not.toContain('ME');
     expect(SQUAD_SLOT_CODES).not.toContain('SA');
+  });
+
+  it('RECRUITMENT_STATUSES has 9 entries with tailwindLight properties', () => {
+    expect(RECRUITMENT_STATUSES).toHaveLength(9);
+    for (const status of RECRUITMENT_STATUSES) {
+      expect(status.tailwindLight).toBeDefined();
+      expect(status.tailwindLight.bg).toMatch(/^bg-/);
+      expect(status.tailwindLight.text).toMatch(/^text-/);
+      expect(status.tailwindLight.border).toMatch(/^border-/);
+      expect(status.tailwindLight.dot).toMatch(/^bg-/);
+    }
+  });
+
+  it('TRAINING_PRESENCE has 3 values', () => {
+    expect(TRAINING_PRESENCE).toHaveLength(3);
+    const values = TRAINING_PRESENCE.map((p) => p.value);
+    expect(values).toContain('attended');
+    expect(values).toContain('missed');
+    expect(values).toContain('rescheduled');
+  });
+
+  it('TRAINING_PRESENCE entries have required fields', () => {
+    for (const p of TRAINING_PRESENCE) {
+      expect(p.labelPt).toBeTruthy();
+      expect(p.icon).toBeTruthy();
+      expect(p.color).toBeTruthy();
+    }
   });
 });

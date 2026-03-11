@@ -204,7 +204,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
   function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
     const config = RECRUITMENT_STATUSES.find((s) => s.value === status);
     const label = config?.labelPt ?? status;
-    const colorClass = config?.tailwind ?? 'bg-neutral-400 text-white';
+    const light = config?.tailwindLight ?? { bg: 'bg-neutral-100', text: 'text-neutral-600', border: 'border-neutral-300', dot: 'bg-neutral-400' };
 
     // Droppable zone so empty columns accept card drops (only when drag enabled)
     const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `status-${status}`, disabled: disableDrag });
@@ -253,10 +253,12 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
           {...(disableDrag ? {} : headerDragListeners)}
           {...(disableDrag ? {} : headerDragAttributes)}
         >
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>
+          <span className={`inline-flex items-center truncate rounded-lg border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${light.bg} ${light.border} ${light.text}`}>
             {label}
           </span>
-          <span className="text-xs text-muted-foreground">{players.length}</span>
+          <span className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-bold ${light.bg} ${light.text}`}>
+            {players.length}
+          </span>
         </div>
 
         {/* Cards — sortable on desktop, plain with status dropdown on mobile */}

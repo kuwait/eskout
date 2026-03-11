@@ -246,7 +246,7 @@ export async function updateRecruitmentStatus(
     }
   }
   if (newStatus === 'vir_treinar' && player?.contact_assigned_to) {
-    await upsertAutoTask(supabase, clubId, player.contact_assigned_to, playerId, `⚽ Treino — ${playerName}`, 'pipeline_training', player.training_date);
+    await upsertAutoTask(supabase, clubId, player.contact_assigned_to, playerId, `⚽ Registar feedback do treino — ${playerName}`, 'pipeline_training', player.training_date);
   }
   if (newStatus === 'confirmado' && player?.signing_attendees?.length) {
     for (const attendeeId of player.signing_attendees) {

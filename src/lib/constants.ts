@@ -3,7 +3,7 @@
 // Single source of truth for all domain enums and their display properties
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/utils/positions.ts, src/lib/validators.ts
 
-import type { CalendarEventType, DepartmentOpinion, ObservationTier, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
+import type { CalendarEventType, DepartmentOpinion, ObservationTier, Player, PositionCode, RecruitmentStatus, TrainingPresence } from '@/lib/types';
 
 /* ───────────── Positions ───────────── */
 
@@ -105,16 +105,18 @@ export const RECRUITMENT_STATUSES: {
   labelPt: string;
   color: string;
   tailwind: string;
+  /** Light variant: colored text on light bg with border (matches Opinião Departamento pattern) */
+  tailwindLight: { bg: string; text: string; border: string; dot: string };
 }[] = [
-  { value: 'por_tratar', labelPt: 'Por tratar', color: '#a3a3a3', tailwind: 'bg-neutral-400 text-white' },
-  { value: 'a_observar', labelPt: 'A Observar', color: '#eab308', tailwind: 'bg-yellow-500 text-white' },
-  { value: 'em_contacto', labelPt: 'Em contacto', color: '#a855f7', tailwind: 'bg-purple-500 text-white' },
-  { value: 'vir_treinar', labelPt: 'Vir treinar', color: '#3b82f6', tailwind: 'bg-blue-500 text-white' },
-  { value: 'reuniao_marcada', labelPt: 'Reunião Marcada', color: '#f97316', tailwind: 'bg-orange-500 text-white' },
-  { value: 'a_decidir', labelPt: 'A decidir', color: '#1e40af', tailwind: 'bg-blue-800 text-white' },
-  { value: 'confirmado', labelPt: 'Confirmado', color: '#22c55e', tailwind: 'bg-green-500 text-white' },
-  { value: 'assinou', labelPt: 'Assinou', color: '#16a34a', tailwind: 'bg-green-700 text-white' },
-  { value: 'rejeitado', labelPt: 'Recusou vir', color: '#ef4444', tailwind: 'bg-red-500 text-white' },
+  { value: 'por_tratar', labelPt: 'Por tratar', color: '#a3a3a3', tailwind: 'bg-neutral-400 text-white', tailwindLight: { bg: 'bg-neutral-100', text: 'text-neutral-600', border: 'border-neutral-300', dot: 'bg-neutral-400' } },
+  { value: 'a_observar', labelPt: 'A Observar', color: '#eab308', tailwind: 'bg-yellow-500 text-white', tailwindLight: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-300', dot: 'bg-yellow-500' } },
+  { value: 'em_contacto', labelPt: 'Em contacto', color: '#a855f7', tailwind: 'bg-purple-500 text-white', tailwindLight: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-300', dot: 'bg-purple-500' } },
+  { value: 'vir_treinar', labelPt: 'Vir treinar', color: '#3b82f6', tailwind: 'bg-blue-500 text-white', tailwindLight: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-300', dot: 'bg-blue-500' } },
+  { value: 'reuniao_marcada', labelPt: 'Reunião Marcada', color: '#f97316', tailwind: 'bg-orange-500 text-white', tailwindLight: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-300', dot: 'bg-orange-500' } },
+  { value: 'a_decidir', labelPt: 'A decidir', color: '#1e40af', tailwind: 'bg-blue-800 text-white', tailwindLight: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-300', dot: 'bg-blue-800' } },
+  { value: 'confirmado', labelPt: 'Confirmado', color: '#22c55e', tailwind: 'bg-green-500 text-white', tailwindLight: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-300', dot: 'bg-green-500' } },
+  { value: 'assinou', labelPt: 'Assinou', color: '#16a34a', tailwind: 'bg-green-700 text-white', tailwindLight: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300', dot: 'bg-emerald-600' } },
+  { value: 'rejeitado', labelPt: 'Recusou vir', color: '#ef4444', tailwind: 'bg-red-500 text-white', tailwindLight: { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-300', dot: 'bg-red-500' } },
 ];
 
 export const RECRUITMENT_STATUS_MAP: Record<RecruitmentStatus, string> = Object.fromEntries(
@@ -268,6 +270,14 @@ export const EVENT_TYPE_LABEL_MAP: Record<CalendarEventType, string> = Object.fr
 export const EVENT_TYPE_COLOR_MAP: Record<CalendarEventType, string> = Object.fromEntries(
   CALENDAR_EVENT_TYPES.map((t) => [t.value, t.tailwind])
 ) as Record<CalendarEventType, string>;
+
+/* ───────────── Training Presence ───────────── */
+
+export const TRAINING_PRESENCE: { value: TrainingPresence; labelPt: string; icon: string; color: string }[] = [
+  { value: 'attended', labelPt: 'Veio', icon: '✓', color: 'bg-green-50 text-green-700 border-green-200' },
+  { value: 'missed', labelPt: 'Faltou', icon: '✗', color: 'bg-red-50 text-red-700 border-red-200' },
+  { value: 'rescheduled', labelPt: 'Reagendado', icon: '↻', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+];
 
 /* ───────────── Observation Tier (Estado de Observação) ───────────── */
 

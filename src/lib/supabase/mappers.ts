@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, UserTask, UserTaskRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
 function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
@@ -211,6 +211,26 @@ export function mapCalendarEventRow(row: CalendarEventRow): CalendarEvent {
     assigneeName: resolvedAssigneeName,
     createdBy: row.created_by,
     createdByName: '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Training Feedback Mapper ───────────── */
+
+/** Map a Supabase TrainingFeedbackRow (snake_case) to the domain TrainingFeedback type (camelCase) */
+export function mapTrainingFeedbackRow(row: TrainingFeedbackRow): TrainingFeedback {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    playerId: row.player_id,
+    authorId: row.author_id,
+    authorName: row.profiles?.full_name ?? 'Desconhecido',
+    trainingDate: row.training_date,
+    escalao: row.escalao,
+    presence: row.presence as TrainingFeedback['presence'],
+    feedback: row.feedback,
+    rating: row.rating,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -503,6 +503,40 @@ export interface CalendarEventRow {
   } | null;
 }
 
+/* ───────────── Training Feedback ───────────── */
+
+export type TrainingPresence = 'attended' | 'missed' | 'rescheduled';
+
+export interface TrainingFeedback {
+  id: number;
+  clubId: string;
+  playerId: number;
+  authorId: string;
+  authorName: string;
+  trainingDate: string;
+  escalao: string | null;
+  presence: TrainingPresence;
+  feedback: string | null;
+  rating: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingFeedbackRow {
+  id: number;
+  club_id: string;
+  player_id: number;
+  author_id: string;
+  training_date: string;
+  escalao: string | null;
+  presence: string;
+  feedback: string | null;
+  rating: number | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: { full_name: string } | null;
+}
+
 /* ───────────── JSON Import Types (data/all_players.json structure) ───────────── */
 
 export interface PlayerJsonImport {

@@ -131,3 +131,18 @@ export const calendarEventSchema = z.object({
 });
 
 export type CalendarEventFormData = z.infer<typeof calendarEventSchema>;
+
+/* ───────────── Training Feedback ───────────── */
+
+const TRAINING_PRESENCE_VALUES = ['attended', 'missed', 'rescheduled'] as const;
+
+export const trainingFeedbackSchema = z.object({
+  playerId: z.number().int().positive('ID de jogador inválido'),
+  trainingDate: z.string().min(1, 'Data de treino é obrigatória'),
+  escalao: z.string().optional(),
+  presence: z.enum(TRAINING_PRESENCE_VALUES, { message: 'Presença inválida' }),
+  feedback: z.string().optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+});
+
+export type TrainingFeedbackFormData = z.infer<typeof trainingFeedbackSchema>;

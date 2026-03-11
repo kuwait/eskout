@@ -5,8 +5,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub, getActiveClubId } from '@/lib/supabase/club-context';
-import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow } from '@/lib/supabase/mappers';
-import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, StatusHistoryEntry, ObservationNote } from '@/lib/types';
+import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow, mapTrainingFeedbackRow } from '@/lib/supabase/mappers';
+import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, StatusHistoryEntry, ObservationNote, TrainingFeedback, TrainingFeedbackRow } from '@/lib/types';
 
 /* ───────────── Players ───────────── */
 
@@ -409,6 +409,24 @@ export async function getRecentChanges(ageGroupId: number, limit = 10): Promise<
     changedByName: (row.changed_by && profileMap[row.changed_by]) || 'Sistema',
     createdAt: row.created_at,
   }));
+}
+
+/* ───────────── Training Feedback ───────────── */
+
+export async function getTrainingFeedback(playerId: number): Promise<TrainingFeedback[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('training_feedback')
+    .select('*, profiles:author_id(full_name)')
+    .eq('player_id', playerId)
+    .order('training_date', { ascending: false });
+
+  if (error) {
+    console.error('[getTrainingFeedback] Failed to fetch:', error);
+    return [];
+  }
+
+  return (data ?? []).map((row) => mapTrainingFeedbackRow(row as TrainingFeedbackRow));
 }
 
 /* ───────────── Calendar Events ───────────── */

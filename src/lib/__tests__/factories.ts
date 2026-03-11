@@ -8,6 +8,7 @@ import type {
   Player,
   PlayerRow,
   ScoutingReportRow,
+  TrainingFeedbackRow,
   UserTaskRow,
 } from '@/lib/types';
 
@@ -234,6 +235,26 @@ export function makeCalendarEventRow(overrides?: Partial<CalendarEventRow>): Cal
       foot: 'Dir',
       training_escalao: null,
     },
+    ...overrides,
+  };
+}
+
+/* ───────────── TrainingFeedbackRow (DB snake_case) ───────────── */
+
+export function makeTrainingFeedbackRow(overrides?: Partial<TrainingFeedbackRow>): TrainingFeedbackRow {
+  return {
+    id: 1,
+    club_id: 'club-abc',
+    player_id: 42,
+    author_id: 'user-abc',
+    training_date: '2026-03-10',
+    escalao: 'Sub-14',
+    presence: 'attended',
+    feedback: 'Bom posicionamento no treino.',
+    rating: 4,
+    created_at: '2026-03-10T18:00:00Z',
+    updated_at: '2026-03-10T18:00:00Z',
+    profiles: { full_name: 'Carlos Lopes' },
     ...overrides,
   };
 }

@@ -3,8 +3,8 @@
 // Validates snake_case→camelCase, null handling, legacy format compat
 // RELEVANT FILES: src/lib/supabase/mappers.ts, src/lib/types/index.ts, src/lib/__tests__/factories.ts
 
-import { mapPlayerRow, mapScoutingReportRow, mapCalendarEventRow, mapUserTaskRow } from '@/lib/supabase/mappers';
-import { makePlayerRow, makeScoutingReportRow, makeCalendarEventRow, makeUserTaskRow } from '@/lib/__tests__/factories';
+import { mapPlayerRow, mapScoutingReportRow, mapCalendarEventRow, mapTrainingFeedbackRow, mapUserTaskRow } from '@/lib/supabase/mappers';
+import { makePlayerRow, makeScoutingReportRow, makeCalendarEventRow, makeTrainingFeedbackRow, makeUserTaskRow } from '@/lib/__tests__/factories';
 
 /* ───────────── mapPlayerRow ───────────── */
 
@@ -196,6 +196,47 @@ describe('mapCalendarEventRow', () => {
     const row = makeCalendarEventRow({ assignee_name: null });
     const event = mapCalendarEventRow(row);
     expect(event.assigneeName).toBe('');
+  });
+});
+
+/* ───────────── mapTrainingFeedbackRow ───────────── */
+
+describe('mapTrainingFeedbackRow', () => {
+  it('maps all fields from snake_case to camelCase', () => {
+    const row = makeTrainingFeedbackRow();
+    const fb = mapTrainingFeedbackRow(row);
+
+    expect(fb.id).toBe(1);
+    expect(fb.clubId).toBe('club-abc');
+    expect(fb.playerId).toBe(42);
+    expect(fb.authorId).toBe('user-abc');
+    expect(fb.trainingDate).toBe('2026-03-10');
+    expect(fb.escalao).toBe('Sub-14');
+    expect(fb.presence).toBe('attended');
+    expect(fb.feedback).toBe('Bom posicionamento no treino.');
+    expect(fb.rating).toBe(4);
+  });
+
+  it('resolves author name from joined profiles', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ profiles: { full_name: 'Ana Reis' } }));
+    expect(fb.authorName).toBe('Ana Reis');
+  });
+
+  it('falls back to "Desconhecido" when profiles is null', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ profiles: null }));
+    expect(fb.authorName).toBe('Desconhecido');
+  });
+
+  it('handles null optional fields', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({
+      escalao: null,
+      feedback: null,
+      rating: null,
+    }));
+
+    expect(fb.escalao).toBeNull();
+    expect(fb.feedback).toBeNull();
+    expect(fb.rating).toBeNull();
   });
 });
 
