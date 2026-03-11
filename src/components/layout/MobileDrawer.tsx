@@ -12,7 +12,7 @@ import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays,
   FileText, PlusCircle, UserPlus, Download, UserCog, LogOut, Palette, X,
-  ArrowLeftRight, ListTodo,
+  ArrowLeftRight, ListTodo, Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
@@ -48,7 +48,6 @@ export function MobileDrawer({
   alertCounts,
   userRole,
   clubInfo,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isSuperadmin,
 }: {
   open: boolean;
@@ -242,6 +241,21 @@ export function MobileDrawer({
 
         {/* Footer */}
         <div className="border-t px-3 py-3 space-y-1">
+          {isSuperadmin && (
+            <Link
+              href="/master"
+              onClick={close}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                pathname.startsWith('/master')
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              )}
+            >
+              <Building2 className="h-5 w-5" />
+              Gestão Admin Eskout
+            </Link>
+          )}
           <Link
             href="/escolher-clube"
             onClick={close}

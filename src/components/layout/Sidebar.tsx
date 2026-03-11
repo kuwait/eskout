@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays, FileText, PlusCircle, UserPlus,
-  Download, UserCog, LogOut, Palette, ArrowLeftRight, ListTodo,
+  Download, UserCog, LogOut, Palette, ArrowLeftRight, ListTodo, Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
@@ -40,7 +40,6 @@ export function Sidebar({
   alertCounts,
   userRole,
   clubInfo,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isSuperadmin,
 }: {
   alertCounts: AlertCounts;
@@ -182,6 +181,20 @@ export function Sidebar({
 
       {/* Bottom actions */}
       <div className="border-t px-3 py-3 space-y-1">
+        {isSuperadmin && (
+          <Link
+            href="/master"
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              pathname.startsWith('/master')
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )}
+          >
+            <Building2 className="h-4 w-4" />
+            Gestão Admin Eskout
+          </Link>
+        )}
         <Link
           href="/escolher-clube"
           className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"

@@ -5,9 +5,10 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Wifi, Clock, TrendingUp, Monitor, Smartphone, Search, Activity } from 'lucide-react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
+import { Wifi, Clock, TrendingUp, Monitor, Smartphone, Search, Activity, X, GitBranch, FileText, GraduationCap, Star, CalendarDays, ListChecks, UserPlus, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getUserActivityTimeline, type ActivityTimelineItem } from '@/actions/master-activity';
 
 /* ───────────── Types ───────────── */
 
@@ -210,6 +211,9 @@ export function OnlinePageClient({
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'online' | 'recent'>('online');
   const [, setTick] = useState(0);
+  const [selectedUser, setSelectedUser] = useState<OnlineUser | null>(null);
+  const [timeline, setTimeline] = useState<ActivityTimelineItem[]>([]);
+  const [isPanelPending, startPanelTransition] = useTransition();
 
   const fetchData = useCallback(async () => {
     const supabase = createClient();
@@ -264,6 +268,15 @@ export function OnlinePageClient({
       clearInterval(tickInterval);
     };
   }, [fetchData]);
+
+  function handleUserClick(user: OnlineUser) {
+    setSelectedUser(user);
+    setTimeline([]);
+    startPanelTransition(async () => {
+      const res = await getUserActivityTimeline(user.id);
+      if (res.success) setTimeline(res.items);
+    });
+  }
 
   // Current list based on tab
   const currentList = tab === 'online' ? onlineUsers : recentUsers;
@@ -396,7 +409,7 @@ export function OnlinePageClient({
             {filtered.map((user) => {
               const online = isOnline(user.lastSeenAt);
               return (
-                <li key={user.id} className="px-4 py-3">
+                <li key={user.id} className="px-4 py-3 cursor-pointer transition-colors hover:bg-purple-50/50" onClick={() => handleUserClick(user)}>
                   {/* Mobile layout */}
                   <div className="flex items-center gap-3 sm:hidden">
                     <span className="relative flex h-2.5 w-2.5 shrink-0">
@@ -499,6 +512,134 @@ export function OnlinePageClient({
           )}
         </div>
       </div>
+
+      {/* ───── User Activity Panel (slide-out) ───── */}
+      {selectedUser && (
+        <UserActivityPanel
+          user={selectedUser}
+          items={timeline}
+          isLoading={isPanelPending}
+          onClose={() => setSelectedUser(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/* ───────────── Activity Type Config ───────────── */
+
+const ACTIVITY_TYPE_CONFIG: Record<ActivityTimelineItem['type'], { icon: typeof GitBranch; color: string; bg: string }> = {
+  status_change:     { icon: GitBranch,    color: 'text-blue-600',    bg: 'bg-blue-50' },
+  observation_note:  { icon: FileText,     color: 'text-amber-600',   bg: 'bg-amber-50' },
+  training_feedback: { icon: GraduationCap, color: 'text-green-600',  bg: 'bg-green-50' },
+  scout_evaluation:  { icon: Star,         color: 'text-purple-600',  bg: 'bg-purple-50' },
+  calendar_event:    { icon: CalendarDays, color: 'text-sky-600',     bg: 'bg-sky-50' },
+  task:              { icon: ListChecks,   color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  player_created:    { icon: UserPlus,     color: 'text-orange-600',  bg: 'bg-orange-50' },
+  player_approved:   { icon: ShieldCheck,  color: 'text-teal-600',    bg: 'bg-teal-50' },
+};
+
+/* ───────────── User Activity Panel ───────────── */
+
+function UserActivityPanel({ user, items, isLoading, onClose }: {
+  user: OnlineUser;
+  items: ActivityTimelineItem[];
+  isLoading: boolean;
+  onClose: () => void;
+}) {
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  // Group items by date
+  const grouped = new Map<string, ActivityTimelineItem[]>();
+  for (const item of items) {
+    const dateKey = new Date(item.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
+    if (!grouped.has(dateKey)) grouped.set(dateKey, []);
+    grouped.get(dateKey)!.push(item);
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/30 transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Panel */}
+      <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-xl animate-in slide-in-from-right duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold truncate">{user.fullName}</h2>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {user.clubs.map((c, i) => (
+                <span key={i} className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0 text-[10px] font-medium ${ROLE_COLORS[c.role] ?? 'bg-neutral-100 text-neutral-600'}`}>
+                  {c.clubName} · {ROLE_LABELS[c.role] ?? c.role}
+                </span>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent shrink-0"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+            </div>
+          ) : items.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-12">Sem atividade registada.</p>
+          ) : (
+            <div className="space-y-6">
+              {[...grouped.entries()].map(([dateLabel, dayItems]) => (
+                <div key={dateLabel}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{dateLabel}</p>
+                  <div className="space-y-1">
+                    {dayItems.map((item) => {
+                      const cfg = ACTIVITY_TYPE_CONFIG[item.type];
+                      const Icon = cfg.icon;
+                      const time = new Date(item.createdAt).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+                      return (
+                        <div key={item.id} className="flex gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-neutral-50">
+                          <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${cfg.bg}`}>
+                            <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <p className="text-sm font-medium">{item.description}</p>
+                              <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">{time}</span>
+                            </div>
+                            {item.playerName && (
+                              <p className="text-xs text-muted-foreground">{item.playerName}</p>
+                            )}
+                            {item.detail && (
+                              <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">{item.detail}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
