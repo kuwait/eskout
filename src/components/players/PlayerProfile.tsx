@@ -944,7 +944,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                   <InfoChip icon={<Weight className="h-3.5 w-3.5" />} label="Peso" value={`${p.weight} kg`} />
                 )}
                 {p.nationality && (
-                  <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.nationality)}</span>} label="Nacionalidade" value={p.nationality} />
+                  <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.nationality)}</span>} label="Nacionalidade" value={p.nationality} href={`/?nacionalidade=${encodeURIComponent(p.nationality)}`} />
                 )}
                 {p.birthCountry && (
                   <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.birthCountry)}</span>} label="País Nasc." value={p.birthCountry} />
@@ -1560,9 +1560,9 @@ function DecisionBadge({ decision }: { decision: string }) {
 }
 
 /** Compact info chip — icon + label/value, used in Info Básica grid. wrap=true allows multi-line value */
-function InfoChip({ icon, label, value, linked, wrap }: { icon: React.ReactNode; label: string; value: string; linked?: boolean; wrap?: boolean }) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2">
+function InfoChip({ icon, label, value, linked, wrap, href }: { icon: React.ReactNode; label: string; value: string; linked?: boolean; wrap?: boolean; href?: string }) {
+  const content = (
+    <>
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-neutral-500 shadow-sm ring-1 ring-neutral-200/60">
         {icon}
       </div>
@@ -1573,6 +1573,20 @@ function InfoChip({ icon, label, value, linked, wrap }: { icon: React.ReactNode;
           {linked && <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[8px] font-bold text-blue-600">LINKED</span>}
         </div>
       </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2 transition-colors hover:bg-neutral-100/80">
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2">
+      {content}
     </div>
   );
 }

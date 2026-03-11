@@ -25,6 +25,7 @@ import type { DepartmentOpinion, Player, PlayerRow } from '@/lib/types';
 export interface PlayerFilterState {
   position: string;
   club: string;
+  nationality: string;
   opinion: string;
   foot: string;
   status: string;
@@ -39,6 +40,7 @@ export interface PlayerFilterState {
 const EMPTY_FILTERS: PlayerFilterState = {
   position: '',
   club: '',
+  nationality: '',
   opinion: '',
   foot: '',
   status: '',
@@ -84,11 +86,12 @@ function multiFieldMatch(player: Player, words: string[]): boolean {
 export function PlayersView() {
   const searchParams = useSearchParams();
   const initialClub = searchParams.get('clube') ?? '';
+  const initialNationality = searchParams.get('nacionalidade') ?? '';
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filters, setFilters] = useState<PlayerFilterState>({ ...EMPTY_FILTERS, club: initialClub });
+  const [filters, setFilters] = useState<PlayerFilterState>({ ...EMPTY_FILTERS, club: initialClub, nationality: initialNationality });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
 
@@ -202,6 +205,7 @@ export function PlayersView() {
       p.tertiaryPosition === filters.position
     );
     if (filters.club) result = result.filter((p) => p.club === filters.club);
+    if (filters.nationality) result = result.filter((p) => p.nationality === filters.nationality);
     if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion as DepartmentOpinion));
     if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
     if (filters.status) result = result.filter((p) => (p.recruitmentStatus ?? '') === filters.status);
@@ -233,9 +237,14 @@ export function PlayersView() {
     setPage(0);
   }, [debouncedSearch, filters]);
 
-  // Unique clubs for filter dropdown
+  // Unique clubs and nationalities for filter dropdowns
   const clubs = useMemo(() => {
     const set = new Set(allPlayers.map((p) => p.club).filter(Boolean));
+    return Array.from(set).sort();
+  }, [allPlayers]);
+
+  const nationalities = useMemo(() => {
+    const set = new Set(allPlayers.map((p) => p.nationality).filter(Boolean) as string[]);
     return Array.from(set).sort();
   }, [allPlayers]);
 
@@ -301,6 +310,7 @@ export function PlayersView() {
           filters={filters}
           onFiltersChange={setFilters}
           clubs={clubs}
+          nationalities={nationalities}
           birthYears={birthYears}
         />
       </div>
@@ -328,6 +338,7 @@ export function PlayersView() {
               filters={filters}
               onFiltersChange={setFilters}
               clubs={clubs}
+              nationalities={nationalities}
               birthYears={birthYears}
             />
           </div>

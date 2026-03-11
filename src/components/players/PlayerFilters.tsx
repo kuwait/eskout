@@ -16,17 +16,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { X, CalendarRange } from 'lucide-react';
-import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, RECRUITMENT_STATUSES, OBSERVATION_TIERS } from '@/lib/constants';
+import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, RECRUITMENT_STATUSES, OBSERVATION_TIERS, getNationalityFlag } from '@/lib/constants';
 import type { PlayerFilterState } from '@/components/players/PlayersView';
 
 interface PlayerFiltersProps {
   filters: PlayerFilterState;
   onFiltersChange: (filters: PlayerFilterState) => void;
   clubs: string[];
+  nationalities: string[];
   birthYears: number[];
 }
 
-export function PlayerFilters({ filters, onFiltersChange, clubs, birthYears }: PlayerFiltersProps) {
+export function PlayerFilters({ filters, onFiltersChange, clubs, nationalities, birthYears }: PlayerFiltersProps) {
   const [showDateRange, setShowDateRange] = useState(false);
 
   function update(key: keyof PlayerFilterState, value: string) {
@@ -37,6 +38,7 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, birthYears }: P
     onFiltersChange({
       position: '',
       club: '',
+      nationality: '',
       opinion: '',
       foot: '',
       status: '',
@@ -94,6 +96,21 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, birthYears }: P
             ))}
           </SelectContent>
         </Select>
+
+        {/* Nationality */}
+        {nationalities.length > 0 && (
+          <Select value={filters.nationality || 'all'} onValueChange={(v) => update('nationality', v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-[160px]" aria-label="Filtrar por nacionalidade">
+              <SelectValue placeholder="Nacionalidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Nacionalidade</SelectItem>
+              {nationalities.map((n) => (
+                <SelectItem key={n} value={n}>{getNationalityFlag(n)} {n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {/* Department Opinion */}
         <Select value={filters.opinion || 'all'} onValueChange={(v) => update('opinion', v === 'all' ? '' : v)}>
