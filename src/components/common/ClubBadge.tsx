@@ -6,6 +6,7 @@
 
 import { useSyncExternalStore } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   HoverCard,
   HoverCardContent,
@@ -22,6 +23,8 @@ interface ClubBadgeProps {
   className?: string;
   /** Callback to remove the logo (shows "Remover" in hover card) */
   onRemoveLogo?: () => void;
+  /** Wrap in a link to /?clube=X to filter the players list (default: false) */
+  linkToFilter?: boolean;
 }
 
 const SIZES = {
@@ -37,16 +40,22 @@ const subscribe = () => () => {};
 const getIsTouch = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const getIsTouchServer = () => false;
 
-export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '', onRemoveLogo }: ClubBadgeProps) {
+export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '', onRemoveLogo, linkToFilter }: ClubBadgeProps) {
   const isTouch = useSyncExternalStore(subscribe, getIsTouch, getIsTouchServer);
 
   if (!club) return null;
 
   const s = SIZES[size];
+  const clubHref = `/?clube=${encodeURIComponent(club)}`;
 
-  // No logo URL — just render plain text
+  // No logo URL — just render plain text (or link)
   if (!logoUrl) {
-    return showName ? <span className={`${s.text} ${className}`}>{club}</span> : null;
+    if (!showName) return null;
+    return linkToFilter ? (
+      <Link href={clubHref} className={`${s.text} ${className} hover:underline`} onClick={(e) => e.stopPropagation()}>{club}</Link>
+    ) : (
+      <span className={`${s.text} ${className}`}>{club}</span>
+    );
   }
 
   const badge = (
@@ -65,12 +74,20 @@ export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', classNa
   );
 
   // Touch devices — no hover popover
-  if (isTouch) return badge;
+  if (isTouch) {
+    return linkToFilter ? (
+      <Link href={clubHref} onClick={(e) => e.stopPropagation()}>{badge}</Link>
+    ) : badge;
+  }
 
   return (
     <HoverCard openDelay={300} closeDelay={100}>
       <HoverCardTrigger asChild>
-        <span className="cursor-default">{badge}</span>
+        {linkToFilter ? (
+          <Link href={clubHref} className="cursor-pointer" onClick={(e) => e.stopPropagation()}>{badge}</Link>
+        ) : (
+          <span className="cursor-default">{badge}</span>
+        )}
       </HoverCardTrigger>
       <HoverCardContent side="bottom" align="start" className="w-auto p-3">
         <div className="flex items-center gap-3">

@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Calendar, Check, ChevronsUpDown, CircleCheckBig, Clock, Eye, Camera, Footprints, Handshake, Loader2, MessageCircle, Pencil, PenLine, Phone, Printer, Ruler, Share2, Shirt, Trash2, User, Weight, X, XCircle } from 'lucide-react';
@@ -540,7 +541,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
           {/* Club — mobile only (desktop shows in Info Básica) */}
           {!editing && p.club && (
             <div className="xl:hidden">
-              <ClubBadge club={p.club} logoUrl={p.clubLogoUrl} size="sm" />
+              <ClubBadge club={p.club} logoUrl={p.clubLogoUrl} size="sm" linkToFilter />
             </div>
           )}
           {/* Positions row — hidden on mobile (shown under MiniPitch instead) */}
@@ -916,7 +917,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                   <InfoChip icon={<Calendar className="h-3.5 w-3.5" />} label="Nascimento" value={formatDate(p.dob)} />
                 )}
                 {p.club && (
-                  <div className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2">
+                  <Link href={`/?clube=${encodeURIComponent(p.club)}`} className="flex items-center gap-2.5 rounded-lg bg-neutral-50/80 px-2.5 py-2 transition-colors hover:bg-neutral-100/80">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white shadow-sm ring-1 ring-neutral-200/60">
                       {p.clubLogoUrl ? (
                         <Image src={p.clubLogoUrl} alt={p.club} width={18} height={18} className="h-[18px] w-[18px] object-contain" unoptimized />
@@ -928,7 +929,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                       <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">Clube</p>
                       <p className="line-clamp-2 font-semibold leading-snug" style={{ fontSize: 'clamp(0.65rem, 3vw, 0.875rem)' }}>{p.club}</p>
                     </div>
-                  </div>
+                  </Link>
                 )}
                 {p.shirtNumber && (
                   <InfoChip icon={<JerseySvg number={p.shirtNumber} className="h-5 w-4 text-neutral-700" />} label="Número" value={String(p.shirtNumber)} />

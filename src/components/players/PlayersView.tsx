@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
@@ -81,11 +82,13 @@ function multiFieldMatch(player: Player, words: string[]): boolean {
 }
 
 export function PlayersView() {
+  const searchParams = useSearchParams();
+  const initialClub = searchParams.get('clube') ?? '';
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filters, setFilters] = useState<PlayerFilterState>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<PlayerFilterState>({ ...EMPTY_FILTERS, club: initialClub });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
 

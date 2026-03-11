@@ -10,6 +10,7 @@ import { Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, Gradu
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -196,8 +197,8 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
             />
             <p className={`min-w-0 truncate font-medium ${displayName.length > 18 ? 'text-xs' : 'text-sm'}`}>{displayName}</p>
           </div>
-          {/* Line 2: club */}
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{player.club}</p>
+          {/* Line 2: club — links to filtered player list */}
+          <Link href={`/?clube=${encodeURIComponent(player.club)}`} onClick={(e) => e.stopPropagation()} className="mt-0.5 block truncate text-xs text-muted-foreground hover:underline">{player.club}</Link>
           {/* Line 3: position */}
           <div className="mt-1 flex items-center gap-1.5">
             {player.positionNormalized && (

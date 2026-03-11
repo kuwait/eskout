@@ -183,7 +183,7 @@ function DivergenceCard({ entry, onDismiss }: { entry: ConsensusEntry; onDismiss
                 </span>
               )}
               {entry.playerClub && (
-                <ClubBadge club={entry.playerClub} logoUrl={entry.playerClubLogoUrl} size="sm-md" className="text-muted-foreground/70" />
+                <ClubBadge club={entry.playerClub} logoUrl={entry.playerClubLogoUrl} size="sm-md" className="text-muted-foreground/70" linkToFilter />
               )}
             </div>
           )}
