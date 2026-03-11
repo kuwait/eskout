@@ -37,15 +37,15 @@ export default async function PendentesPage() {
     .order('created_at', { ascending: false });
 
   if (!allPlayers) {
-    return <PendentesClient pendingPlayers={[]} approvedPlayers={[]} />;
+    return <PendentesClient pendingPlayers={[]} approvedPlayers={[]} allPlayers={[]} />;
   }
 
   // Filter out dismissed players
   const undismissed = allPlayers.filter((p) => !dismissedIds.has(p.id));
 
-  // Collect creator IDs and approver IDs for name resolution
+  // Collect creator IDs and approver IDs for name resolution (from ALL players, not just undismissed)
   const userIds = new Set<string>();
-  for (const p of undismissed) {
+  for (const p of allPlayers) {
     if (p.created_by) userIds.add(p.created_by);
     if (p.approved_by) userIds.add(p.approved_by);
   }
@@ -91,5 +91,8 @@ export default async function PendentesPage() {
   const approvedByOthers = scoutCreated.filter((p) => !p.pending_approval).map(mapPlayer);
   const approvedPlayers = [...approvedByOthers, ...nonScoutCreated.map(mapPlayer)];
 
-  return <PendentesClient pendingPlayers={pendingPlayers} approvedPlayers={approvedPlayers} />;
+  // Full history (all players, including dismissed) — for "Mostrar todos" toggle
+  const allPlayersMapped = allPlayers.map(mapPlayer);
+
+  return <PendentesClient pendingPlayers={pendingPlayers} approvedPlayers={approvedPlayers} allPlayers={allPlayersMapped} />;
 }
