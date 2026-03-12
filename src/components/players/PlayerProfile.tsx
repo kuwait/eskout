@@ -1110,6 +1110,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                         trainingDate={p.trainingDate}
                         meetingDate={p.meetingDate}
                         signingDate={p.signingDate}
+                        meetingAttendees={p.meetingAttendees}
+                        signingAttendees={p.signingAttendees}
                         profiles={profiles}
                         selectedUserId={p.contactAssignedTo}
                         playerId={player.id}

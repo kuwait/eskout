@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { Calendar, Check, Clock, Handshake, MessageCircle, Pencil, PenLine, Phone, User, X, XCircle } from 'lucide-react';
+import { Calendar, Check, Clock, Handshake, MessageCircle, Pencil, PenLine, Phone, User, Users, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { RECRUITMENT_LABEL_MAP } from '@/lib/constants';
 import { updatePlayer } from '@/actions/players';
@@ -49,13 +49,17 @@ export function statusDescription(status: RecruitmentStatus | null): string {
 
 /* ───────────── RecruitmentCard Component ───────────── */
 
-export function RecruitmentCard({ status, daysInStatus, contactAssignedToName, trainingDate, meetingDate, signingDate, profiles = [], selectedUserId, playerId, canAssign = false }: {
+export function RecruitmentCard({ status, daysInStatus, contactAssignedToName, trainingDate, meetingDate, signingDate, meetingAttendees = [], signingAttendees = [], profiles = [], selectedUserId, playerId, canAssign = false }: {
   status: RecruitmentStatus;
   daysInStatus: number | null;
   contactAssignedToName: string | null;
   trainingDate?: string | null;
   meetingDate?: string | null;
   signingDate?: string | null;
+  /** User IDs attending the meeting */
+  meetingAttendees?: string[];
+  /** User IDs attending the signing */
+  signingAttendees?: string[];
   /** Club-scoped profiles for inline contact assignment */
   profiles?: { id: string; fullName: string }[];
   selectedUserId?: string | null;
@@ -201,6 +205,14 @@ export function RecruitmentCard({ status, daysInStatus, contactAssignedToName, t
               Responsável: <span className={`font-semibold ${vis.color}`}>{localAssignedName}</span>
             </p>
           ) : null}
+          {/* Meeting attendees — shown on "Reunião marcada" */}
+          {status === 'reuniao_marcada' && meetingAttendees.length > 0 && (
+            <AttendeesLine attendeeIds={meetingAttendees} profiles={profiles} label="Participantes" />
+          )}
+          {/* Signing attendees — shown on "Confirmado" */}
+          {status === 'confirmado' && signingAttendees.length > 0 && (
+            <AttendeesLine attendeeIds={signingAttendees} profiles={profiles} label="Responsáveis" />
+          )}
         </div>
       </div>
       {/* Dates — inline inside the card */}
@@ -217,6 +229,29 @@ export function RecruitmentCard({ status, daysInStatus, contactAssignedToName, t
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ───────────── Attendees Line ───────────── */
+
+/** Resolves user IDs to names and displays them inline */
+function AttendeesLine({ attendeeIds, profiles, label }: {
+  attendeeIds: string[];
+  profiles: { id: string; fullName: string }[];
+  label: string;
+}) {
+  const names = attendeeIds
+    .map((id) => profiles.find((p) => p.id === id)?.fullName)
+    .filter(Boolean) as string[];
+  if (names.length === 0) return null;
+
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5">
+      <Users className="h-3 w-3 text-muted-foreground/50" />
+      <span className="text-[11px] text-muted-foreground/80">
+        {label}: <span className="font-medium text-foreground/70">{names.join(', ')}</span>
+      </span>
     </div>
   );
 }
