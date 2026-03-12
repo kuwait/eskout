@@ -8,6 +8,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { clubsMatch } from '@/actions/scraping/helpers';
+import { isStale } from '@/actions/data-quality-helpers';
 
 /* ───────────── Types ───────────── */
 
@@ -60,11 +61,6 @@ export interface DataQualityResult {
   error?: string;
 }
 
-/* ───────────── Constants ───────────── */
-
-/** Threshold for considering external data stale (1 year in ms) */
-const STALE_THRESHOLD_MS = 365 * 24 * 60 * 60 * 1000;
-
 /* ───────────── Query ───────────── */
 
 export async function getDataQuality(): Promise<DataQualityResult> {
@@ -90,6 +86,7 @@ export async function getDataQuality(): Promise<DataQualityResult> {
     'foot', 'nationality',
     'fpf_current_club', 'fpf_last_checked',
     'zz_current_club', 'zz_last_checked',
+    'created_at',
   ].join(', ');
 
   type Row = {
@@ -108,6 +105,7 @@ export async function getDataQuality(): Promise<DataQualityResult> {
     fpf_last_checked: string | null;
     zz_current_club: string | null;
     zz_last_checked: string | null;
+    created_at: string | null;
   };
 
   const allRows: Row[] = [];
@@ -153,9 +151,9 @@ export async function getDataQuality(): Promise<DataQualityResult> {
       ? !clubsMatch(fpfClub, playerClub)  // fuzzy: "F.C. Foz" ≈ "Futebol Clube Foz"
       : false;
 
-    // Stale external data: has link but last check > 3 months ago (or never checked)
-    const staleFpf = hasFpf && isStale(r.fpf_last_checked, now);
-    const staleZz = hasZz && isStale(r.zz_last_checked, now);
+    // Stale external data: has link but last check > 1 year ago (or never checked, past grace period)
+    const staleFpf = hasFpf && isStale(r.fpf_last_checked, now, r.created_at);
+    const staleZz = hasZz && isStale(r.zz_last_checked, now, r.created_at);
 
     // Duplicate: same name + DOB appears more than once
     const dupeKey = r.dob ? `${r.name.toLowerCase().trim()}|${r.dob}` : null;
@@ -207,12 +205,3 @@ export async function getDataQuality(): Promise<DataQualityResult> {
   return { players, totals };
 }
 
-/* ───────────── Helpers ───────────── */
-
-/** Check if a timestamp is older than the stale threshold (or never set) */
-function isStale(lastChecked: string | null, now: number): boolean {
-  if (!lastChecked) return true;
-  const checked = new Date(lastChecked).getTime();
-  if (isNaN(checked)) return true;
-  return now - checked > STALE_THRESHOLD_MS;
-}

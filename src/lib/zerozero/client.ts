@@ -35,16 +35,28 @@ function reportProgress(step: string): void {
 
 /* ───────────── Rate Limiter ───────────── */
 
-/** Timestamp of the last ZZ fetch — used to enforce minimum delay between requests */
-let _lastFetchTime = 0;
+/** localStorage key for cross-component rate limiting (multiple refresh buttons on same page) */
+const RL_KEY = 'zz_last_fetch';
 
 /** Minimum and maximum delay between consecutive ZZ requests (ms) */
-const MIN_DELAY = 300;
-const MAX_DELAY = 1200;
+const MIN_DELAY = 3000;
+const MAX_DELAY = 6000;
+
+/** Read last fetch timestamp from localStorage (shared across concurrent calls) */
+function getLastFetchTime(): number {
+  if (typeof window === 'undefined') return 0;
+  try { return parseInt(localStorage.getItem(RL_KEY) || '0', 10) || 0; } catch { return 0; }
+}
+
+/** Save last fetch timestamp to localStorage */
+function setLastFetchTime(t: number): void {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(RL_KEY, String(t)); } catch { /* ignore */ }
+}
 
 /** Wait until enough time has passed since the last ZZ fetch, with random jitter */
 async function rateLimitWait(): Promise<void> {
-  const elapsed = Date.now() - _lastFetchTime;
+  const elapsed = Date.now() - getLastFetchTime();
   const requiredDelay = MIN_DELAY + Math.random() * (MAX_DELAY - MIN_DELAY);
   if (elapsed < requiredDelay) {
     await new Promise((r) => setTimeout(r, requiredDelay - elapsed));
@@ -57,7 +69,7 @@ async function rateLimitWait(): Promise<void> {
 async function fetchViaProxy(url: string): Promise<{ buf: ArrayBuffer; encoding: string }> {
   // Enforce minimum spacing between ZZ requests
   await rateLimitWait();
-  _lastFetchTime = Date.now();
+  setLastFetchTime(Date.now());
 
   const res = await fetch(`/api/zz-proxy?url=${encodeURIComponent(url)}`);
 

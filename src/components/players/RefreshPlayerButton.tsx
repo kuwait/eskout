@@ -21,6 +21,7 @@ import {
 import { scrapePlayerAll, applyScrapedData, type ScrapedChanges, type PreFetchedZz } from '@/actions/scraping';
 import { fetchZzProfileClient, searchZzMultiStrategyClient, setZzProgressCallback } from '@/lib/zerozero/client';
 import { calcAgeFromDob } from '@/lib/zerozero/helpers';
+import { isZzBlocked, registerZzBlock, registerZzSuccess } from '@/lib/zerozero/cooldown';
 import { POSITIONS } from '@/lib/constants';
 
 /** Minimal player shape needed for the refresh button — allows reuse from data quality page */
@@ -94,25 +95,32 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
       // Wire up progress callback so ZZ client reports live steps (writes to ref, polled by useEffect)
       setZzProgressCallback((step) => { progressRef.current = step; });
 
+      // Check ZZ cooldown — skip ZZ entirely if recently blocked (exponential backoff)
+      const zzInCooldown = isZzBlocked();
+
       // Fetch ZZ data client-side (via Edge proxy) to avoid server IP blocking
-      const preZz: PreFetchedZz = { profileData: null, searchCandidate: null, blocked: false, searchAttempted: false };
-      try {
-        if (player.zerozeroLink) {
-          // Player has confirmed ZZ link — fetch profile client-side
-          preZz.profileData = await fetchZzProfileClient(player.zerozeroLink);
-        } else if (player.name && player.dob) {
-          // No ZZ link — search client-side
-          preZz.searchAttempted = true;
-          const age = calcAgeFromDob(player.dob);
-          const candidate = await searchZzMultiStrategyClient(player.name, player.club || null, age, player.dob);
-          if (candidate) {
-            preZz.searchCandidate = candidate;
-            // Also fetch the found profile
-            preZz.profileData = await fetchZzProfileClient(candidate.url).catch(() => null);
+      const preZz: PreFetchedZz = { profileData: null, searchCandidate: null, blocked: zzInCooldown, cooldown: zzInCooldown, searchAttempted: false };
+      if (!zzInCooldown) {
+        try {
+          if (player.zerozeroLink) {
+            preZz.profileData = await fetchZzProfileClient(player.zerozeroLink);
+            registerZzSuccess();
+          } else if (player.name && player.dob) {
+            preZz.searchAttempted = true;
+            const age = calcAgeFromDob(player.dob);
+            const candidate = await searchZzMultiStrategyClient(player.name, player.club || null, age, player.dob);
+            if (candidate) {
+              preZz.searchCandidate = candidate;
+              preZz.profileData = await fetchZzProfileClient(candidate.url).catch(() => null);
+            }
+            registerZzSuccess();
+          }
+        } catch (e) {
+          if (e instanceof Error && e.message === 'ZZ_BLOCKED') {
+            preZz.blocked = true;
+            registerZzBlock();
           }
         }
-      } catch (e) {
-        if (e instanceof Error && e.message === 'ZZ_BLOCKED') preZz.blocked = true;
       }
 
       // Clear ZZ progress callback
@@ -261,7 +269,7 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
           ? 'flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50'
           : 'flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50'
         }
-        title={isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar dados'}
+        title="Atualizar dados"
       >
         {feedback === 'ok' ? (
           <Check className={compact ? 'h-4 w-4 text-emerald-500' : 'h-3.5 w-3.5 text-emerald-500'} />
@@ -288,7 +296,7 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
       )}
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+        <DialogContent onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Novos dados encontrados</DialogTitle>
             <DialogDescription>Seleciona os dados que queres atualizar.</DialogDescription>

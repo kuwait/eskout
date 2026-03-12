@@ -161,35 +161,93 @@ export function shortlistCandidates(
 
 /* ───────────── Anti-blocking: User-Agents + Headers ───────────── */
 
-const USER_AGENTS = [
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:132.0) Gecko/20100101 Firefox/132.0',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+/** Browser profiles — each UA paired with matching Accept/Accept-Language for consistency.
+ * A real Chrome user doesn't send Firefox-style Accept headers. */
+interface BrowserProfile {
+  ua: string;
+  accept: string;
+  acceptLang: string;
+}
+
+const BROWSER_PROFILES: BrowserProfile[] = [
+  // Chrome Mac
+  { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    acceptLang: 'pt-PT,pt;q=0.9,en-US;q=0.8,en;q=0.7' },
+  // Chrome Win
+  { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    acceptLang: 'pt-PT,pt;q=0.9,en;q=0.8' },
+  // Chrome Linux
+  { ua: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    acceptLang: 'pt,en-US;q=0.9,en;q=0.8' },
+  // Safari Mac
+  { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    acceptLang: 'pt-PT,pt;q=0.9' },
+  // Firefox Win
+  { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    acceptLang: 'pt-PT,pt;q=0.8,en-US;q=0.5,en;q=0.3' },
+  // Firefox Mac
+  { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:132.0) Gecko/20100101 Firefox/132.0',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    acceptLang: 'pt-PT,pt;q=0.8,en;q=0.5' },
+  // Edge Win
+  { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    acceptLang: 'pt-PT,pt;q=0.9,en-US;q=0.8,en;q=0.7' },
+  // Chrome mobile Android
+  { ua: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    acceptLang: 'pt-PT,pt;q=0.9,en;q=0.8' },
+  // Safari iOS
+  { ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1',
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    acceptLang: 'pt-PT,pt;q=0.9' },
 ];
+
+/** Referrer pages — simulate navigation from different ZZ pages or Google */
+const REFERERS = [
+  'https://www.zerozero.pt/',
+  'https://www.zerozero.pt/pesquisa.php',
+  'https://www.zerozero.pt/competicao.php?id_comp=22',
+  'https://www.google.pt/',
+  'https://www.google.com/search?q=zerozero+jogador',
+  '', // direct navigation (no referer)
+];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 /** Pick a random User-Agent for each request to avoid fingerprinting */
 export function randomUA(): string {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+  return pick(BROWSER_PROFILES).ua;
 }
 
-/** Build realistic browser headers — randomized per request */
+/** Build realistic browser headers — randomized browser profile + referer per request.
+ * Each UA is paired with matching Accept headers (Chrome ≠ Firefox ≠ Safari). */
 export function browserHeaders(extra?: Record<string, string>): Record<string, string> {
+  const profile = pick(BROWSER_PROFILES);
+  const isFirefox = profile.ua.includes('Firefox');
+  const referer = pick(REFERERS);
+
   return {
-    'User-Agent': randomUA(),
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'pt-PT,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    'User-Agent': profile.ua,
+    'Accept': profile.accept,
+    'Accept-Language': profile.acceptLang,
     'Accept-Encoding': 'gzip, deflate, br',
-    'Cache-Control': 'no-cache',
-    'Pragma': 'no-cache',
+    // Firefox doesn't send Cache-Control/Pragma on normal navigations
+    ...(isFirefox ? {} : { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }),
     'Sec-Fetch-Dest': 'document',
     'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
+    // cross-site from Google, same-origin from ZZ, none if direct
+    'Sec-Fetch-Site': referer.includes('google') ? 'cross-site' : referer.includes('zerozero') ? 'same-origin' : 'none',
     'Sec-Fetch-User': '?1',
     'Upgrade-Insecure-Requests': '1',
+    ...(referer ? { 'Referer': referer } : {}),
     ...extra,
   };
 }

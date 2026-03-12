@@ -87,6 +87,8 @@ export interface PreFetchedZz {
   profileData: ZzParsedProfile | null;
   searchCandidate: { url: string; name: string; age: number | null; club: string | null } | null;
   blocked: boolean;
+  /** ZZ was skipped due to cooldown (not a fresh block — just waiting for backoff to expire) */
+  cooldown?: boolean;
   searchAttempted: boolean;
 }
 
@@ -180,7 +182,8 @@ export async function scrapePlayerAll(playerId: number, preZz?: PreFetchedZz): P
   if (!fpfResult && player.fpf_link) errors.push('FPF indisponível');
   // Detect empty ZZ result (page returned but no useful data — e.g. VPN/geo issues)
   const zzEmpty = !!zzResult && !zzResult.fullName && !zzResult.currentClub && !zzResult.height && !zzResult.photoUrl;
-  if (zzBlocked) errors.push('ZeroZero bloqueou o acesso (captcha). Tenta mais tarde.');
+  if (zzBlocked && preZz?.cooldown) errors.push('ZeroZero em pausa (bloqueado recentemente) — apenas FPF atualizado.');
+  else if (zzBlocked) errors.push('ZeroZero bloqueou o acesso (captcha) — apenas FPF atualizado.');
   else if (zzEmpty && player.zerozero_link) errors.push('ZeroZero: página acedida mas sem dados (possível problema de rede/VPN)');
   else if (!zzResult && player.zerozero_link) errors.push('ZeroZero indisponível');
   // Nullify empty ZZ result so downstream logic doesn't use it as valid data

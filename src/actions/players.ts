@@ -108,7 +108,9 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
       observer_decision: rest.observerDecision || null,
       referred_by: rest.referredBy || null,
       fpf_link: rest.fpfLink || null,
+      fpf_last_checked: rest.fpfLink ? new Date().toISOString() : null,
       zerozero_link: rest.zerozeroLink || null,
+      zz_last_checked: rest.zerozeroLink ? new Date().toISOString() : null,
       recruitment_status: rest.recruitmentStatus || null,
       // Scraped fields (populated when creating from FPF/ZeroZero links)
       photo_url: rest.photoUrl || null,
