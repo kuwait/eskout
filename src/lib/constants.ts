@@ -449,7 +449,7 @@ export function getAgeGroups(): { name: string; generationYear: number }[] {
   const endYear = getSeasonEndYear();
   return [
     { name: 'Sénior', generationYear: endYear - 20 },
-    ...([19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7] as const).map((n) => ({
+    ...([19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6] as const).map((n) => ({
       name: `Sub-${n}`,
       generationYear: endYear - n,
     })),
@@ -465,7 +465,7 @@ export function birthYearToAgeGroup(year: number): string | null {
   const seniorCutoff = endYear - 20;
   if (year <= seniorCutoff) return 'Sénior';
   const age = endYear - year;
-  if (age >= 7 && age <= 19) return `Sub-${age}`;
+  if (age >= 6 && age <= 19) return `Sub-${age}`;
   return null;
 }
 
