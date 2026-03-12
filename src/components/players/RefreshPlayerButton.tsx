@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { Check, RefreshCw, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { scrapePlayerAll, applyScrapedData, type ScrapedChanges, type PreFetchedZz } from '@/actions/scraping';
-import { fetchZzProfileClient, searchZzMultiStrategyClient } from '@/lib/zerozero/client';
+import { fetchZzProfileClient, searchZzMultiStrategyClient, setZzProgressCallback } from '@/lib/zerozero/client';
 import { calcAgeFromDob } from '@/lib/zerozero/helpers';
 import { POSITIONS } from '@/lib/constants';
 import type { Player } from '@/lib/types';
@@ -42,6 +42,20 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
   const [posOverrides, setPosOverrides] = useState<{ primary?: string; secondary?: string; tertiary?: string }>({});
   // Store client-fetched ZZ profile data so handleApply can pass it to applyScrapedData
   const [zzProfileCache, setZzProfileCache] = useState<import('@/lib/zerozero/parser').ZzParsedProfile | null>(null);
+  // Live progress — ref holds latest step, polling interval pushes it to display state
+  // (state updates inside useTransition are deferred, so we use a ref to escape the batch)
+  const progressRef = useRef<string | null>(null);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isPending) return;
+    // Poll the ref every 150ms and sync to display state (outside the transition)
+    const id = setInterval(() => setProgressStep(progressRef.current), 150);
+    return () => {
+      clearInterval(id);
+      setProgressStep(null);
+    };
+  }, [isPending]);
 
   // Only show if the player has at least one external link
   if (!player.fpfLink && !player.zerozeroLink) return null;
@@ -51,7 +65,11 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
 
   function handleRefresh() {
     setFeedback(null);
+    progressRef.current = null;
     startTransition(async () => {
+      // Wire up progress callback so ZZ client reports live steps (writes to ref, polled by useEffect)
+      setZzProgressCallback((step) => { progressRef.current = step; });
+
       // Fetch ZZ data client-side (via Edge proxy) to avoid server IP blocking
       const preZz: PreFetchedZz = { profileData: null, searchCandidate: null, blocked: false, searchAttempted: false };
       try {
@@ -73,12 +91,17 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
         if (e instanceof Error && e.message === 'ZZ_BLOCKED') preZz.blocked = true;
       }
 
+      // Clear ZZ progress callback
+      setZzProgressCallback(null);
+
       // Cache ZZ profile for handleApply (when user confirms ZZ link, we pass it to avoid re-fetch)
       setZzProfileCache(preZz.profileData);
 
       // Server action handles FPF + DB + merge (ZZ data already pre-fetched)
+      progressRef.current = 'A consultar FPF e a processar…';
       const res = await scrapePlayerAll(player.id, preZz);
       setResult(res);
+      progressRef.current = null;
 
       if (!res.success) {
         setFeedback(res.errors.length > 0 ? `Erro: ${res.errors.join(', ')}` : 'Erro ao aceder aos dados externos');
@@ -218,8 +241,14 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
         )}
         <span className="hidden sm:inline">{isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar'}</span>
       </button>
+      {/* Live progress step — shows what's happening while scraping */}
+      {isPending && progressStep && (
+        <p className="absolute top-full mt-1 right-0 z-50 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-700 shadow-sm animate-pulse">
+          {progressStep}
+        </p>
+      )}
       {/* Show partial errors as toast-like warning below button */}
-      {feedback && feedback !== 'ok' && (
+      {!isPending && feedback && feedback !== 'ok' && (
         <p className="absolute top-full mt-1 right-0 z-50 whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-700 shadow-sm">
           ⚠ {feedback}
         </p>

@@ -507,21 +507,29 @@ Side-by-side comparison of 2-3 players. Accessible to all roles except scout. Su
 
 ## 36. Data Quality (`/admin/dados`)
 
-Admin-only page showing players with missing external data. Helps admins identify and fill data gaps.
+Admin-only page showing players with data quality issues. Helps admins identify and fix gaps, inconsistencies, and duplicates.
 
-**Tabs:**
+**Tabs (grouped by category, hidden when count = 0):**
 
-| Tab | Filter |
-|-----|--------|
-| Sem FPF e ZZ | Players with neither FPF nor ZeroZero link |
-| Sem FPF | Players without FPF link |
-| Sem ZeroZero | Players without ZeroZero link |
-| Sem Foto | Players without any photo (manual or ZZ-scraped) |
+| Group | Tab | Filter |
+|-------|-----|--------|
+| Links & Media | Sem FPF e ZZ | Players with neither FPF nor ZeroZero link |
+| Links & Media | Sem FPF | Players without FPF link |
+| Links & Media | Sem ZeroZero | Players without ZeroZero link |
+| Links & Media | Sem Foto | Players without any photo (manual or ZZ-scraped) |
+| Dados do Perfil | Sem Posição | Position not defined |
+| Dados do Perfil | Sem Nascimento | Missing date of birth |
+| Dados do Perfil | Sem Nacionalidade | Nationality not set |
+| Dados do Perfil | Sem Pé | Preferred foot not set |
+| Integridade | Clube FPF ≠ | FPF current club differs from system club |
+| Integridade | Desatualizados | FPF/ZZ data last scraped > 3 months ago |
+| Integridade | Duplicados | Same name + date of birth (possible duplicate imports) |
 
 **Features:**
-- Summary cards with counts and percentages at the top
+- Summary cards with counts and percentages (most critical: missing both, photos, mismatches, stale, duplicates)
+- Tabs hidden when category count = 0; "Tudo preenchido!" placeholder when all data is complete
 - Fuzzy search by name, club, or position
-- Status dots (FPF/ZZ/Foto) per player — green if present, red if missing
+- Context-specific status indicators per player row (e.g. mismatch badge shows FPF club name)
 - Direct link to player profile for editing
 
 **Access:** Admin only (middleware-protected).

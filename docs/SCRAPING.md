@@ -129,6 +129,20 @@ Extracts `var model = {...}` embedded JSON — fields: FullName, CurrentClub, Im
 - ZZ photo only shown if URL genuinely changed
 - Club logo auto-saved silently
 
+### Client-Side Rate Limiting & Progress
+
+All ZeroZero requests from the browser go through `/api/zz-proxy` and are rate-limited at the client level:
+
+- **Rate limiter in `fetchViaProxy`**: enforces 300–1200ms random delay between consecutive ZZ requests
+- **Multi-strategy search**: additional 2–4s between name variants, 1.5–3s before DOB verification
+- **Progress callback**: `setZzProgressCallback()` allows UI to show live step descriptions
+- **RefreshPlayerButton**: uses `useRef` + polling (150ms interval) to escape `useTransition` batching and display live progress (blue animated tooltip under button)
+
+Steps shown during refresh:
+1. "A consultar perfil ZeroZero…" (or search variants if no ZZ link)
+2. "A verificar candidato: [name]…" (DOB verification)
+3. "A consultar FPF e a processar…" (server action)
+
 ### Server Actions
 | Action | Purpose |
 |--------|---------|

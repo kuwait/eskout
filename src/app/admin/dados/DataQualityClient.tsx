@@ -1,38 +1,76 @@
 // src/app/admin/dados/DataQualityClient.tsx
 // Client component for the data quality page — tabs, search, player list
-// Shows players missing FPF, ZeroZero, both, or photo with quick links
+// Shows players with data gaps or inconsistencies, grouped by issue type
 // RELEVANT FILES: src/actions/data-quality.ts, src/app/admin/dados/page.tsx, src/lib/utils.ts
 
 'use client';
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Search, X, ExternalLink, AlertTriangle, Camera, Globe, FileSearch } from 'lucide-react';
+import {
+  Search, X, ExternalLink, AlertTriangle, Camera, Globe, FileSearch,
+  MapPin, Calendar, Flag, Footprints, Building2, Clock, Copy,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { fuzzyMatch } from '@/lib/utils';
-import type { DataGapPlayer, DataQualityResult } from '@/actions/data-quality';
+import type { DataGapPlayer, DataQualityTotals } from '@/actions/data-quality';
 
 /* ───────────── Tab Types ───────────── */
 
-type Tab = 'missing_fpf' | 'missing_zz' | 'missing_both' | 'missing_photo';
+type Tab =
+  | 'missing_fpf' | 'missing_zz' | 'missing_both' | 'missing_photo'
+  | 'missing_position' | 'missing_dob' | 'missing_nationality' | 'missing_foot'
+  | 'fpf_club_mismatch' | 'stale_data' | 'duplicates';
 
-const TABS: { value: Tab; label: string; icon: typeof AlertTriangle; description: string }[] = [
-  { value: 'missing_both', label: 'Sem FPF e ZZ', icon: AlertTriangle, description: 'Sem link FPF nem ZeroZero' },
-  { value: 'missing_fpf', label: 'Sem FPF', icon: Globe, description: 'Sem link FPF' },
-  { value: 'missing_zz', label: 'Sem ZeroZero', icon: FileSearch, description: 'Sem link ZeroZero' },
-  { value: 'missing_photo', label: 'Sem Foto', icon: Camera, description: 'Sem foto (nem manual nem ZZ)' },
+/** Tab definition with count key into totals */
+interface TabDef {
+  value: Tab;
+  label: string;
+  icon: typeof AlertTriangle;
+  description: string;
+  totalKey: keyof DataQualityTotals;
+  group: 'links' | 'profile' | 'integrity';
+}
+
+const TAB_GROUPS = [
+  { key: 'links' as const, label: 'Links & Media' },
+  { key: 'profile' as const, label: 'Dados do Perfil' },
+  { key: 'integrity' as const, label: 'Integridade' },
+];
+
+const TABS: TabDef[] = [
+  // Links & Media
+  { value: 'missing_both', label: 'Sem FPF e ZZ', icon: AlertTriangle, description: 'Sem link FPF nem ZeroZero', totalKey: 'missingBoth', group: 'links' },
+  { value: 'missing_fpf', label: 'Sem FPF', icon: Globe, description: 'Sem link FPF', totalKey: 'missingFpf', group: 'links' },
+  { value: 'missing_zz', label: 'Sem ZeroZero', icon: FileSearch, description: 'Sem link ZeroZero', totalKey: 'missingZz', group: 'links' },
+  { value: 'missing_photo', label: 'Sem Foto', icon: Camera, description: 'Sem foto (nem manual nem ZZ)', totalKey: 'missingPhoto', group: 'links' },
+  // Profile
+  { value: 'missing_position', label: 'Sem Posição', icon: MapPin, description: 'Posição não definida', totalKey: 'missingPosition', group: 'profile' },
+  { value: 'missing_dob', label: 'Sem Nascimento', icon: Calendar, description: 'Sem data de nascimento', totalKey: 'missingDob', group: 'profile' },
+  { value: 'missing_nationality', label: 'Sem Nacionalidade', icon: Flag, description: 'Nacionalidade não preenchida', totalKey: 'missingNationality', group: 'profile' },
+  { value: 'missing_foot', label: 'Sem Pé', icon: Footprints, description: 'Pé preferido não definido', totalKey: 'missingFoot', group: 'profile' },
+  // Integrity
+  { value: 'fpf_club_mismatch', label: 'Clube FPF ≠', icon: Building2, description: 'Clube FPF diferente do sistema', totalKey: 'fpfClubMismatch', group: 'integrity' },
+  { value: 'stale_data', label: 'Desatualizados', icon: Clock, description: 'Dados FPF/ZZ com +3 meses', totalKey: 'staleData', group: 'integrity' },
+  { value: 'duplicates', label: 'Duplicados', icon: Copy, description: 'Mesmo nome + data nascimento', totalKey: 'duplicates', group: 'integrity' },
 ];
 
 /* ───────────── Component ───────────── */
 
 interface Props {
   players: DataGapPlayer[];
-  totals: DataQualityResult['totals'];
+  totals: DataQualityTotals;
 }
 
 export function DataQualityClient({ players, totals }: Props) {
-  const [tab, setTab] = useState<Tab>('missing_both');
   const [search, setSearch] = useState('');
+
+  // Only show tabs that have players — hide empty categories
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => totals[t.totalKey] > 0),
+    [totals],
+  );
+  const [tab, setTab] = useState<Tab>(() => visibleTabs[0]?.value ?? 'missing_both');
 
   // Filter players by selected tab
   const tabPlayers = useMemo(() => {
@@ -41,6 +79,13 @@ export function DataQualityClient({ players, totals }: Props) {
       case 'missing_zz': return players.filter((p) => !p.hasZz);
       case 'missing_both': return players.filter((p) => !p.hasFpf && !p.hasZz);
       case 'missing_photo': return players.filter((p) => !p.hasPhoto);
+      case 'missing_position': return players.filter((p) => !p.hasPosition);
+      case 'missing_dob': return players.filter((p) => !p.hasDob);
+      case 'missing_nationality': return players.filter((p) => !p.hasNationality);
+      case 'missing_foot': return players.filter((p) => !p.hasFoot);
+      case 'fpf_club_mismatch': return players.filter((p) => p.fpfClubMismatch);
+      case 'stale_data': return players.filter((p) => p.staleData);
+      case 'duplicates': return players.filter((p) => p.duplicateKey);
     }
   }, [players, tab]);
 
@@ -48,56 +93,80 @@ export function DataQualityClient({ players, totals }: Props) {
   const filtered = useMemo(() => {
     if (!search.trim()) return tabPlayers;
     return tabPlayers.filter((p) =>
-      fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized}`, search)
+      fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized}`, search),
     );
   }, [tabPlayers, search]);
 
-  // Tab count
-  function tabCount(t: Tab): number {
-    switch (t) {
-      case 'missing_fpf': return totals.missingFpf;
-      case 'missing_zz': return totals.missingZz;
-      case 'missing_both': return totals.missingBoth;
-      case 'missing_photo': return totals.missingPhoto;
-    }
-  }
+  // Active tab definition (for context-specific column in player rows)
+  const activeTab = TABS.find((t) => t.value === tab);
 
   return (
     <div>
       {/* Summary cards */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <SummaryCard label="Total jogadores" value={totals.total} />
-        <SummaryCard label="Sem FPF" value={totals.missingFpf} pct={totals.total} warn />
-        <SummaryCard label="Sem ZeroZero" value={totals.missingZz} pct={totals.total} warn />
-        <SummaryCard label="Sem foto" value={totals.missingPhoto} pct={totals.total} warn />
+        {totals.missingBoth > 0 && <SummaryCard label="Sem FPF e ZZ" value={totals.missingBoth} pct={totals.total} warn />}
+        {totals.missingPhoto > 0 && <SummaryCard label="Sem foto" value={totals.missingPhoto} pct={totals.total} warn />}
+        {totals.fpfClubMismatch > 0 && <SummaryCard label="Clube FPF ≠" value={totals.fpfClubMismatch} pct={totals.total} warn />}
+        {totals.staleData > 0 && <SummaryCard label="Desatualizados" value={totals.staleData} pct={totals.total} warn />}
+        {totals.duplicates > 0 && <SummaryCard label="Duplicados" value={totals.duplicates} pct={totals.total} warn />}
       </div>
 
-      {/* Tabs */}
-      <div className="mb-3 flex gap-1 overflow-x-auto">
-        {TABS.map((t) => {
-          const count = tabCount(t.value);
-          const active = tab === t.value;
-          return (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                active
-                  ? 'border-foreground bg-foreground text-background'
-                  : 'border-border bg-background text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              <t.icon className="h-3.5 w-3.5" />
-              {t.label}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                active ? 'bg-background/20 text-background' : 'bg-muted text-muted-foreground'
-              }`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* All complete placeholder */}
+      {visibleTabs.length === 0 && (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-green-300 bg-green-50 py-10 dark:border-green-800 dark:bg-green-950/30">
+          <span className="text-2xl">✅</span>
+          <p className="text-sm font-medium text-green-700 dark:text-green-400">
+            Tudo preenchido!
+          </p>
+          <p className="max-w-xs text-center text-xs text-green-600/80 dark:text-green-500/80">
+            Todos os jogadores têm dados completos. Sem lacunas, inconsistências ou duplicados.
+          </p>
+        </div>
+      )}
+
+      {/* Tabs grouped by category */}
+      {visibleTabs.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {TAB_GROUPS.map((group) => {
+            const groupTabs = visibleTabs.filter((t) => t.group === group.key);
+            if (groupTabs.length === 0) return null;
+            return (
+              <div key={group.key}>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {group.label}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {groupTabs.map((t) => {
+                    const count = totals[t.totalKey];
+                    const active = tab === t.value;
+                    return (
+                      <button
+                        key={t.value}
+                        onClick={() => setTab(t.value)}
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                          active
+                            ? 'border-foreground bg-foreground text-background'
+                            : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                        }`}
+                        title={t.description}
+                      >
+                        <t.icon className="h-3.5 w-3.5" />
+                        {t.label}
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                          active ? 'bg-background/20 text-background' : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative mb-3">
@@ -133,7 +202,7 @@ export function DataQualityClient({ players, totals }: Props) {
           </p>
         )}
         {filtered.map((player) => (
-          <PlayerRow key={player.id} player={player} />
+          <PlayerRow key={player.id} player={player} activeTab={activeTab?.value} />
         ))}
       </div>
     </div>
@@ -159,16 +228,32 @@ function SummaryCard({ label, value, pct, warn }: { label: string; value: number
 
 /* ───────────── Player Row ───────────── */
 
-function PlayerRow({ player }: { player: DataGapPlayer }) {
+function PlayerRow({ player, activeTab }: { player: DataGapPlayer; activeTab?: Tab }) {
   const birthYear = player.dob ? new Date(player.dob).getFullYear() : null;
 
   return (
     <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-      {/* Status dots */}
+      {/* Status dots — show contextual dots based on active tab */}
       <div className="flex shrink-0 gap-1">
-        <StatusDot ok={player.hasFpf} label="FPF" />
-        <StatusDot ok={player.hasZz} label="ZZ" />
-        <StatusDot ok={player.hasPhoto} label="Foto" />
+        {isLinkTab(activeTab) && (
+          <>
+            <StatusDot ok={player.hasFpf} label="FPF" />
+            <StatusDot ok={player.hasZz} label="ZZ" />
+            <StatusDot ok={player.hasPhoto} label="Foto" />
+          </>
+        )}
+        {activeTab === 'missing_position' && <StatusDot ok={player.hasPosition} label="Pos" />}
+        {activeTab === 'missing_dob' && <StatusDot ok={player.hasDob} label="Nasc" />}
+        {activeTab === 'missing_nationality' && <StatusDot ok={player.hasNationality} label="Nac" />}
+        {activeTab === 'missing_foot' && <StatusDot ok={player.hasFoot} label="Pé" />}
+        {activeTab === 'fpf_club_mismatch' && <MismatchBadge player={player} />}
+        {activeTab === 'stale_data' && (
+          <>
+            {player.staleFpf && <StatusDot ok={false} label="FPF" />}
+            {player.staleZz && <StatusDot ok={false} label="ZZ" />}
+          </>
+        )}
+        {activeTab === 'duplicates' && <StatusDot ok={false} label="Dup" />}
       </div>
 
       {/* Player info */}
@@ -198,6 +283,20 @@ function PlayerRow({ player }: { player: DataGapPlayer }) {
   );
 }
 
+/* ───────────── Mismatch Badge ───────────── */
+
+/** Shows the FPF club vs system club mismatch */
+function MismatchBadge({ player }: { player: DataGapPlayer }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 text-[9px] font-bold text-amber-700"
+      title={`FPF: ${player.fpfCurrentClub ?? '?'} · Sistema: ${player.club}`}
+    >
+      {player.fpfCurrentClub ?? '?'}
+    </span>
+  );
+}
+
 /* ───────────── Status Dot ───────────── */
 
 function StatusDot({ ok, label }: { ok: boolean; label: string }) {
@@ -213,4 +312,11 @@ function StatusDot({ ok, label }: { ok: boolean; label: string }) {
       {label}
     </span>
   );
+}
+
+/* ───────────── Helpers ───────────── */
+
+/** Check if the active tab is a link/media tab (shows FPF/ZZ/Foto dots) */
+function isLinkTab(tab?: Tab): boolean {
+  return tab === 'missing_fpf' || tab === 'missing_zz' || tab === 'missing_both' || tab === 'missing_photo' || !tab;
 }

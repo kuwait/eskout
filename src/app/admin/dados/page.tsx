@@ -1,5 +1,5 @@
 // src/app/admin/dados/page.tsx
-// Admin page showing players with missing data (FPF, ZeroZero, photo URLs)
+// Admin page showing players with data quality issues (missing fields, mismatches, duplicates)
 // Helps admins identify and fill data gaps across the player database
 // RELEVANT FILES: src/actions/data-quality.ts, src/app/admin/dados/DataQualityClient.tsx, src/components/layout/nav-items.ts
 

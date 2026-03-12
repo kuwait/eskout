@@ -15,10 +15,50 @@ import {
   shortlistCandidates,
 } from './helpers';
 
+/* ───────────── Progress Callback ───────────── */
+
+/** Optional callback to report progress steps to the UI */
+export type ZzProgressCallback = (step: string) => void;
+
+/** Module-level progress callback — set by the caller before starting a scrape flow */
+let _progressCb: ZzProgressCallback | null = null;
+
+/** Set the progress callback for the current scrape flow. Call with null to clear. */
+export function setZzProgressCallback(cb: ZzProgressCallback | null): void {
+  _progressCb = cb;
+}
+
+/** Report a progress step to the UI (no-op if no callback set) */
+function reportProgress(step: string): void {
+  _progressCb?.(step);
+}
+
+/* ───────────── Rate Limiter ───────────── */
+
+/** Timestamp of the last ZZ fetch — used to enforce minimum delay between requests */
+let _lastFetchTime = 0;
+
+/** Minimum and maximum delay between consecutive ZZ requests (ms) */
+const MIN_DELAY = 300;
+const MAX_DELAY = 1200;
+
+/** Wait until enough time has passed since the last ZZ fetch, with random jitter */
+async function rateLimitWait(): Promise<void> {
+  const elapsed = Date.now() - _lastFetchTime;
+  const requiredDelay = MIN_DELAY + Math.random() * (MAX_DELAY - MIN_DELAY);
+  if (elapsed < requiredDelay) {
+    await new Promise((r) => setTimeout(r, requiredDelay - elapsed));
+  }
+}
+
 /* ───────────── Low-level Fetch via Proxy ───────────── */
 
-/** Fetch a ZeroZero URL through the CORS proxy, returning raw bytes */
+/** Fetch a ZeroZero URL through the CORS proxy, returning raw bytes. Rate-limited. */
 async function fetchViaProxy(url: string): Promise<{ buf: ArrayBuffer; encoding: string }> {
+  // Enforce minimum spacing between ZZ requests
+  await rateLimitWait();
+  _lastFetchTime = Date.now();
+
   const res = await fetch(`/api/zz-proxy?url=${encodeURIComponent(url)}`);
 
   if (!res.ok) {
@@ -43,6 +83,7 @@ async function fetchViaProxy(url: string): Promise<{ buf: ArrayBuffer; encoding:
  * Returns parsed data or null on failure. Throws Error('ZZ_BLOCKED') on captcha/block.
  */
 export async function fetchZzProfileClient(zzLink: string): Promise<ZzParsedProfile | null> {
+  reportProgress('A consultar perfil ZeroZero…');
   const { buf, encoding } = await fetchViaProxy(zzLink);
   if (buf.byteLength === 0) throw new Error('ZZ_BLOCKED');
 
@@ -64,6 +105,7 @@ export async function fetchZzProfileClient(zzLink: string): Promise<ZzParsedProf
 
 /** Fetch ZeroZero autocomplete results (client-side via proxy) */
 export async function searchZzAutocompleteClient(query: string): Promise<ZzSearchCandidate[]> {
+  reportProgress(`A pesquisar "${query}" no ZeroZero…`);
   const url = `https://www.zerozero.pt/jqc_search_search.php?queryString=${encodeURIComponent(query)}`;
   const { buf } = await fetchViaProxy(url);
   if (buf.byteLength === 0) throw new Error('ZZ_BLOCKED');
@@ -146,6 +188,7 @@ export async function searchZzMultiStrategyClient(
   let bestUnverified: ZzSearchCandidate | null = null;
   for (const candidate of shortlisted) {
     await humanDelay(1500, 3000);
+    reportProgress(`A verificar candidato: ${candidate.name}…`);
     const zzData = await fetchZzProfileClient(candidate.url).catch(() => null);
 
     if (zzData?.dob) {
