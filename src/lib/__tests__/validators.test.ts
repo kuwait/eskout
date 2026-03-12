@@ -11,6 +11,7 @@ import {
   calendarEventSchema,
   recruitmentStatusChangeSchema,
   trainingFeedbackSchema,
+  saveComparisonSchema,
 } from '@/lib/validators';
 
 /* ───────────── loginSchema ───────────── */
@@ -253,5 +254,39 @@ describe('recruitmentStatusChangeSchema', () => {
       note: 'Contactado o pai.',
     });
     expect(result.success).toBe(true);
+  });
+});
+
+/* ───────────── saveComparisonSchema ───────────── */
+
+describe('saveComparisonSchema', () => {
+  it('accepts valid comparison with 2 players', () => {
+    const result = saveComparisonSchema.safeParse({ name: 'Gustavo vs Martim', playerIds: [1, 2] });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid comparison with 3 players', () => {
+    const result = saveComparisonSchema.safeParse({ name: 'Trio DC', playerIds: [10, 20, 30] });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty name', () => {
+    const result = saveComparisonSchema.safeParse({ name: '', playerIds: [1, 2] });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects name over 60 characters', () => {
+    const result = saveComparisonSchema.safeParse({ name: 'A'.repeat(61), playerIds: [1, 2] });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects fewer than 2 players', () => {
+    const result = saveComparisonSchema.safeParse({ name: 'Solo', playerIds: [1] });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects more than 3 players', () => {
+    const result = saveComparisonSchema.safeParse({ name: 'Demais', playerIds: [1, 2, 3, 4] });
+    expect(result.success).toBe(false);
   });
 });

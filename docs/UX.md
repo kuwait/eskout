@@ -41,6 +41,7 @@ Navigation items are defined in `src/components/layout/nav-items.ts` and shared 
 |---|---|---|---|
 | `/admin/pendentes` | Adicionados | UserPlus | Admin and editor only. Badge: pending player count (red). |
 | `/listas` | Listas | List | All except scout. Personal player lists (multi-list system). |
+| `/comparar` | Comparar | Columns2 | All except scout. Side-by-side player comparison (2-3 players). |
 
 ### 2.3. Admin Section (only visible to admin role)
 

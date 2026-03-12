@@ -9,7 +9,7 @@ import { useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, X, ArrowLeftRight, Building2, List } from 'lucide-react';
+import { UserPlus, LogOut, Palette, X, ArrowLeftRight, Building2, List, Columns2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -178,6 +178,22 @@ export function MobileDrawer({
                     >
                       <List className="h-4 w-4" />
                       Listas
+                    </Link>
+                  )}
+                  {/* Sub-item: Comparar — under Jogadores, admin/editor/recruiter */}
+                  {item.href === '/' && !isScout && (
+                    <Link
+                      href="/comparar"
+                      onClick={close}
+                      className={cn(
+                        'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
+                        pathname.startsWith('/comparar')
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                      )}
+                    >
+                      <Columns2 className="h-4 w-4" />
+                      Comparar
                     </Link>
                   )}
                 </li>

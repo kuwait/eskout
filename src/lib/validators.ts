@@ -171,3 +171,12 @@ export const addToListSchema = z.object({
 });
 
 export type AddToListData = z.infer<typeof addToListSchema>;
+
+/* ───────────── Saved Comparisons ───────────── */
+
+export const saveComparisonSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório').max(60, 'Máximo 60 caracteres'),
+  playerIds: z.array(z.number().int().positive()).min(2, 'Mínimo 2 jogadores').max(3, 'Máximo 3 jogadores'),
+});
+
+export type SaveComparisonData = z.infer<typeof saveComparisonSchema>;

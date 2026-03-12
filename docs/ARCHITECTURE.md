@@ -62,6 +62,9 @@ sikout/
 │   │   │   └── [id]/
 │   │   │       ├── page.tsx
 │   │   │       └── ListDetailClient.tsx
+│   │   ├── comparar/                  # Player comparison (2-3 players side-by-side)
+│   │   │   ├── page.tsx               # Server: fetch bundles + saved comparisons
+│   │   │   └── ComparePageClient.tsx   # Client: table/cards + picker + save/load
 │   │   ├── mais/page.tsx              # "More" menu page
 │   │   ├── submeter/page.tsx          # Scout report submission
 │   │   ├── meus-relatorios/           # Scout's own reports
@@ -127,6 +130,7 @@ sikout/
 │   │   ├── export.ts                  # Export data (Excel, PDF, JSON)
 │   │   ├── clubs.ts                   # Club settings, features
 │   │   ├── player-lists.ts            # Personal player lists (multi-list system)
+│   │   ├── comparisons.ts            # Saved player comparisons CRUD
 │   │   ├── training-feedback.ts       # Training presence + feedback
 │   │   ├── presence.ts               # Heartbeat, online tracking
 │   │   ├── impersonate.ts            # Superadmin role impersonation
@@ -255,7 +259,7 @@ sikout/
 │       ├── usePlayerProfilePopup.tsx  # Quick player preview popup
 │       └── useResizableColumns.ts    # Resizable table columns
 ├── scripts/                           # Python scrapers + TS import
-├── supabase/migrations/               # 001-054 SQL migrations
+├── supabase/migrations/               # 001-056 SQL migrations
 ├── e2e/                               # Playwright E2E tests
 ├── data/all_players.json
 └── docs/
@@ -396,7 +400,7 @@ Client (RealtimeProvider) → event bus → useRealtimeTable callbacks → page 
 
 ### Tables with Realtime
 
-`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`
+`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`, `saved_comparisons`
 
 ---
 
@@ -1008,3 +1012,4 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 053 | `053_user_observation_list.sql` | Personal observation shortlist table |
 | 054 | `054_remove_a_observar_status.sql` | Remove 'a_observar' from pipeline, migrate to observation list |
 | 055 | `055_player_lists.sql` | Generic player lists system (`player_lists` + `player_list_items`), migrate from `user_observation_list` |
+| 056 | `056_saved_comparisons.sql` | Saved player comparisons (`saved_comparisons` with `player_ids int[]`) |

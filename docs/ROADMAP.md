@@ -202,9 +202,9 @@ Marketing site at `eskout.co`. Stripe-powered subscriptions (Starter/Pro/Enterpr
 
 ---
 
-## Phase 12 — Player Comparison
+## Phase 12 — Player Comparison ✅ COMPLETE
 
-Side-by-side comparison of 2-3 players at `/comparar?ids=123,456`. Mobile swipeable cards, desktop columns. Sections: basic data, position, physical, ratings, pipeline, reports, stats.
+Side-by-side comparison of 2-3 players at `/comparar?ids=123,456,789`. Mobile swipeable cards, desktop columns. Sections: basic data, position, physical, ratings, pipeline, reports, ZZ stats. Saved comparisons (max 10) with save/load/delete. Inline player picker dialog (same pattern as AddToSquadDialog). Sub-menu item under Jogadores in sidebar/drawer.
 
 ---
 

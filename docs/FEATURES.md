@@ -429,6 +429,32 @@ Generic multi-list system for personal player bookmarks. Evolved from the origin
 
 **Backward compatibility:** `/a-observar` redirects to `/listas`. Bridge functions (`addToObservationList`, `removeFromObservationList`, `isPlayerObserved`) delegate to the new system list.
 
+## 34. Player Comparison (`/comparar`)
+
+Side-by-side comparison of 2-3 players. Accessible to all roles except scout. Sub-menu item under Jogadores (below Listas) in sidebar and mobile drawer.
+
+**Route:** `/comparar?ids=123,456,789` — player IDs in query string.
+
+**Views:**
+- **Desktop:** CSS grid table with label column + player columns. Section headers span full width. Numeric values highlighted green for best.
+- **Mobile:** Horizontal scroll-snap cards with tab bar for player switching. Each card shows all sections vertically.
+- **Empty state:** Prompt to add players via inline picker dialog.
+
+**Sections compared:** Dados Básicos (DOB, age, nationality, foot, number), Posição (primary/secondary/tertiary with MiniPitch), Físico (height, weight), Avaliação (rating, opinion, decision — hidden for recruiter), Pipeline (status, real/shadow squad), Relatórios (count, average, last date — hidden for recruiter), Estatísticas ZZ (games, goals).
+
+**Saved comparisons:**
+- Table `saved_comparisons` (migration 056): `id`, `club_id`, `user_id`, `name`, `player_ids int[]`, `created_at`.
+- Max 10 per user. "Guardar" button hidden when current comparison already saved or at limit.
+- "Guardadas" dropdown in header shows other saved comparisons (excludes current). Each entry has delete button.
+- "Eliminar" button shown when viewing a saved comparison — deletes and redirects to `/comparar`.
+- "Nova" button to start fresh comparison.
+
+**Inline player picker:** Same pattern as AddToSquadDialog — all players fetched server-side via `getPickerPlayers()`, client-side `fuzzyMatch()` + filters (position, club, opinion, foot, year). Max 50 results shown.
+
+**Server action:** `src/actions/comparisons.ts` — `getSavedComparisons()`, `saveComparison()`, `deleteComparison()`. Zod validation via `saveComparisonSchema`. Realtime broadcast on mutations.
+
+---
+
 ## 33. Themes & Preferences (`/preferencias`)
 
 User-level visual customization. Accessible to all roles (including scouts). Stored in localStorage per device.

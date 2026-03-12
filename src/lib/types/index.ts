@@ -601,6 +601,28 @@ export interface PlayerListItemRow {
   } | null;
 }
 
+/* ───────────── Saved Comparisons ───────────── */
+
+export interface SavedComparison {
+  id: number;
+  clubId: string;
+  userId: string;
+  name: string;
+  playerIds: number[];
+  createdAt: string;
+  /** Player names resolved for display (not stored in DB) */
+  playerNames?: string[];
+}
+
+export interface SavedComparisonRow {
+  id: number;
+  club_id: string;
+  user_id: string;
+  name: string;
+  player_ids: number[];
+  created_at: string;
+}
+
 /* ───────────── Picker Player (lightweight for search dialogs) ───────────── */
 
 export interface PickerPlayer {
