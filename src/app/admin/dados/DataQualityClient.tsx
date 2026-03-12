@@ -51,7 +51,7 @@ const TABS: TabDef[] = [
   { value: 'missing_foot', label: 'Sem Pé', icon: Footprints, description: 'Pé preferido não definido', totalKey: 'missingFoot', group: 'profile' },
   // Integrity
   { value: 'fpf_club_mismatch', label: 'Clube FPF ≠', icon: Building2, description: 'Clube FPF diferente do sistema', totalKey: 'fpfClubMismatch', group: 'integrity' },
-  { value: 'stale_data', label: 'Desatualizados', icon: Clock, description: 'Dados FPF/ZZ com +3 meses', totalKey: 'staleData', group: 'integrity' },
+  { value: 'stale_data', label: 'Desatualizados', icon: Clock, description: 'Dados FPF/ZZ com +1 ano', totalKey: 'staleData', group: 'integrity' },
   { value: 'duplicates', label: 'Duplicados', icon: Copy, description: 'Mesmo nome + data nascimento', totalKey: 'duplicates', group: 'integrity' },
 ];
 

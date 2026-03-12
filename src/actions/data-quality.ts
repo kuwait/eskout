@@ -54,8 +54,8 @@ export interface DataQualityResult {
 
 /* ───────────── Constants ───────────── */
 
-/** Threshold for considering external data stale (3 months in ms) */
-const STALE_THRESHOLD_MS = 90 * 24 * 60 * 60 * 1000;
+/** Threshold for considering external data stale (1 year in ms) */
+const STALE_THRESHOLD_MS = 365 * 24 * 60 * 60 * 1000;
 
 /* ───────────── Query ───────────── */
 

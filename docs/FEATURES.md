@@ -522,7 +522,7 @@ Admin-only page showing players with data quality issues. Helps admins identify 
 | Dados do Perfil | Sem Nacionalidade | Nationality not set |
 | Dados do Perfil | Sem Pé | Preferred foot not set |
 | Integridade | Clube FPF ≠ | FPF current club differs from system club |
-| Integridade | Desatualizados | FPF/ZZ data last scraped > 3 months ago |
+| Integridade | Desatualizados | FPF/ZZ data last scraped > 1 year ago |
 | Integridade | Duplicados | Same name + date of birth (possible duplicate imports) |
 
 **Features:**
