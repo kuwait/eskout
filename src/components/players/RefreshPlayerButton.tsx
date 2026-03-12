@@ -285,6 +285,7 @@ export function RefreshPlayerButton({ player, compact, onUpdated, autoRefresh, o
         type="button"
         onClick={handleRefresh}
         disabled={isPending || feedback === 'ok'}
+        suppressHydrationWarning
         className={compact
           ? 'flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50'
           : 'flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50'
