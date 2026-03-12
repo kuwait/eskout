@@ -390,10 +390,11 @@ export async function fetchZeroZeroData(zzLink: string) {
     if (result.weight === 0) result.weight = null;
 
     // Career history table — extract seasons, clubs, games, goals
-    // ZZ HTML structure for summary rows (one per club per season):
-    //   td[0]: empty, td[1]: season (or empty for same-season sub-teams),
-    //   td[2]: club inside <div class="micrologo_and_text">, td[3]: games (plain number),
-    //   td[4]: goals inside <a> tag, td[5]: assists inside <a> tag
+    // Two ZZ HTML layouts for career summary rows:
+    // A) Rich layout (senior/well-known players): micrologo_and_text class present
+    //    td[0]=empty, td[1]=season, td[2]=club, td[3]=games, td[4]=goals, td[5]=assists
+    // B) Simple layout (youth players): no micrologo_and_text, plain <a> links
+    //    td[0]=season (or omitted for sub-rows), td[1]=club, td[2]=games, td[3]=goals, td[4]=assists
     // Match rows (individual games) have many more <td> cells — we skip those.
     // Stop parsing when we hit the Transferências section.
     const transferIdx = html.search(/Transfer[eê]ncias/i);
@@ -408,33 +409,41 @@ export async function fetchZeroZeroData(zzLink: string) {
     for (const row of careerRows) {
       const rowHtml = row[0];
 
-      // Only process summary rows — they contain micrologo_and_text (club cell with flag+logo)
-      if (!rowHtml.includes('micrologo_and_text')) continue;
-
       // Extract all <td> cell contents
       const tds = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => m[1]);
       if (tds.length < 4) continue;
+      // Skip match detail rows (7+ cells: date, opponent, result, etc.)
+      if (tds.length > 6) continue;
 
-      // td[1] = season (may be empty for sub-teams in same season)
-      const seasonMatch = tds[1].match(/(20\d{2}\/\d{2})/);
+      // Detect layout: rich (micrologo_and_text, 6 TDs) vs simple (plain links, 4-5 TDs)
+      const isRich = rowHtml.includes('micrologo_and_text');
+      // In rich layout td indices are shifted by 1 (td[0] is empty)
+      const offset = isRich ? 1 : 0;
+
+      // Season cell — may be empty for sub-teams in the same season
+      const seasonTd = tds[offset];
+      const seasonMatch = seasonTd?.match(/(20\d{2}\/\d{2})/);
       if (seasonMatch) currentSeason = seasonMatch[1];
       if (!currentSeason) continue;
 
-      // td[2] = club name inside <a> tag, team/escalão in brackets [Jun.C S15 B]
-      const clubMatch = tds[2].match(/<a[^>]*>([^<]+)<\/a>/);
+      // Club cell — club name inside <a> tag, team/escalão in brackets
+      const clubTd = tds[offset + 1];
+      const clubMatch = clubTd?.match(/<a[^>]*>([^<]+)<\/a>/);
       const club = clubMatch ? clubMatch[1].trim() : '';
       if (!club) continue;
 
-      const teamMatch = tds[2].match(/\[([^\]]+)\]/);
+      const teamMatch = clubTd.match(/\[([^\]]+)\]/);
       const team = teamMatch ? teamMatch[1].trim() : undefined;
 
-      // td[3] = games — strip HTML to get visible number only
-      const gamesText = tds[3].replace(/<[^>]+>/g, '').trim();
+      // Games — strip HTML to get visible number only
+      const gamesTd = tds[offset + 2] ?? '';
+      const gamesText = gamesTd.replace(/<[^>]+>/g, '').trim();
       const gamesNum = gamesText.match(/^(\d+)$/);
       const games = gamesNum ? parseInt(gamesNum[1], 10) : 0;
 
-      // td[4] = goals — text content of <a> tag (strip HTML to get visible number, not href digits)
-      const goalsText = tds.length > 4 ? tds[4].replace(/<[^>]+>/g, '').trim() : '';
+      // Goals — text content of <a> tag (strip HTML to get visible number, not href digits)
+      const goalsTd = tds[offset + 3] ?? '';
+      const goalsText = goalsTd.replace(/<[^>]+>/g, '').trim();
       const goalsNum = goalsText.match(/^(\d+)$/);
       const goals = goalsNum ? parseInt(goalsNum[1], 10) : 0;
 
