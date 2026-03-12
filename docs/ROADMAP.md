@@ -242,3 +242,30 @@ Weekly scouting coordination replacing the Excel "Mapa de Observacoes Semanais".
 - **16G:** Timeline view + round summary
 - **16H:** In-app notification system
 - **16I:** FPF match data + player list pre-fill
+
+---
+
+## Phase 17 — Quick Scout Report (Mobile-First Evaluation)
+
+Evolve the current text-heavy scout report into a fast, tap-based evaluation form designed for use during live games on mobile. Current reports (`/submeter`) are essentially free-text — this phase adds structured, quick-tap inputs so scouts can evaluate without typing.
+
+**Key changes:**
+- All roles can submit reports (not just scouts) — remove role restriction on `/submeter` and `/meus-relatorios`
+- Mobile-first tap interface: large touch targets, minimal typing, one-handed operation
+- Structured dimensions: technical, tactical, physical, mental, potential (1-5 tap rating each)
+- Quick-select tags per dimension (e.g. "Bom primeiro toque", "Lento na transição", "Forte no 1v1")
+- Position-specific tag sets (GR gets different tags than PL)
+- Overall rating (1-5 stars) + recommendation (Assinar / Acompanhar / Sem interesse)
+- Optional free-text notes for extra context
+- Match context: competition, opponent, date, score (pre-filled from Mapa de Observações if Phase 16 is done)
+- Offline-capable: save locally, sync when back online
+- Report summary view: visual card with radar/bar chart of dimensions
+
+**Sub-phases:**
+- **17A:** Open report submission to all roles (middleware + RLS + UI updates)
+- **17B:** Structured evaluation schema (migration + types + validators)
+- **17C:** Mobile tap-based form UI (`/submeter` revamp)
+- **17D:** Position-specific tag system
+- **17E:** Report summary card with visual ratings
+- **17F:** Offline draft support (localStorage + sync)
+- **17G:** Integration with Mapa de Observações (pre-fill match context)
