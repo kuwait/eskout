@@ -562,6 +562,8 @@ CREATE TABLE players (
       'por_tratar','em_contacto','vir_treinar','reuniao_marcada',
       'a_decidir','confirmado','assinou','rejeitado'
     )),
+  decision_side TEXT DEFAULT NULL
+    CHECK (decision_side IN ('club', 'player')),  -- A Decidir sub-section (migration 058)
   recruitment_notes TEXT,
   contact_assigned_to UUID REFERENCES profiles(id),
   training_date DATE,
@@ -861,7 +863,10 @@ type PositionCode = 'GR' | 'DD' | 'DE' | 'DC' | 'MDC' | 'MD' | 'MC' | 'ME' | 'MO
 /* ── Enums ── */
 type DepartmentOpinion =
   | '1ª Escolha' | '2ª Escolha' | 'Acompanhar' | 'Assinar'
-  | 'Por Observar' | 'Urgente Observar' | 'Sem interesse' | 'Potencial';
+  | 'Por Observar' | 'Urgente Observar' | 'Sem interesse' | 'Potencial'
+  | 'Ver em treino' | 'Stand-by';
+
+type DecisionSide = 'club' | 'player';
 
 type ObserverEval = '' | '2 - Dúvida' | '3 - Bom' | '4 - Muito Bom' | '5 - Excelente';
 type ObserverDecision = '' | 'Assinar' | 'Acompanhar' | 'Rever' | 'Sem Interesse';
@@ -894,6 +899,7 @@ interface Player {
   foot: Foot;
   departmentOpinion: DepartmentOpinion[];
   recruitmentStatus: RecruitmentStatus | null;
+  decisionSide: DecisionSide | null;  // A Decidir sub-section (club/player)
   contactAssignedTo: string | null;
   meetingAttendees: string[];
   signingAttendees: string[];
@@ -954,7 +960,7 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 
 ## 13. Migrations
 
-54 SQL migrations in `supabase/migrations/` (001-054). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
+58 SQL migrations in `supabase/migrations/` (001-058). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
 
 | # | File | Description |
 |---|------|-------------|
@@ -1015,3 +1021,4 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 055 | `055_player_lists.sql` | Generic player lists system (`player_lists` + `player_list_items`), migrate from `user_observation_list` |
 | 056 | `056_saved_comparisons.sql` | Saved player comparisons (`saved_comparisons` with `player_ids int[]`) |
 | 057 | `057_player_videos.sql` | Player YouTube video links (`player_videos` with oEmbed metadata) |
+| 058 | `058_add_decision_side.sql` | Add `decision_side` column to players (A Decidir club/player split) |

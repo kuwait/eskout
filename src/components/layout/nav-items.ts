@@ -6,7 +6,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays,
-  FileText, PlusCircle, ListTodo,
+  FileText, PlusCircle, ListTodo, DatabaseZap,
 } from 'lucide-react';
 
 /* ───────────── Types ───────────── */
@@ -48,6 +48,7 @@ export const ADMIN_ITEMS: AdminItem[] = [
   { href: '/definicoes', label: 'Clube', icon: Shield, feature: null },
   { href: '/exportar', label: 'Exportar', icon: FileText, feature: 'export' },
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: FileText, feature: null },
+  { href: '/admin/dados', label: 'Qualidade Dados', icon: DatabaseZap, feature: null },
 ];
 
 /* ───────────── Filtering ───────────── */

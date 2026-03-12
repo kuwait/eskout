@@ -394,23 +394,25 @@ Eskout identity — black & white base with accent colors for status:
 --eskout-gray-900: #171717;
 
 /* Status colors (department opinion) */
---status-signed: #22c55e;          /* Green — at Boavista / confirmed */
+--status-signed: #22c55e;          /* Green — Assinar */
 --status-first-choice: #3b82f6;    /* Blue — 1ª Escolha */
 --status-follow: #eab308;          /* Yellow — Acompanhar */
 --status-urgent: #f97316;          /* Orange — Urgente Observar / 2ª Escolha */
 --status-to-observe: #a3a3a3;      /* Gray — Por Observar */
 --status-no-interest: #ef4444;     /* Red — Sem interesse */
 --status-potential: #a855f7;       /* Purple — Potencial */
+--status-training: #06b6d4;        /* Cyan — Ver em treino */
+--status-standby: #64748b;         /* Slate — Stand-by */
 
 /* Pipeline colors */
---pipeline-pool: #a3a3a3;
---pipeline-shortlist: #3b82f6;
---pipeline-to-observe: #eab308;
---pipeline-target: #f97316;
---pipeline-in-contact: #a855f7;
---pipeline-negotiating: #1e40af;
---pipeline-confirmed: #22c55e;
---pipeline-rejected: #ef4444;
+--pipeline-por-tratar: #a3a3a3;
+--pipeline-em-contacto: #a855f7;
+--pipeline-vir-treinar: #3b82f6;
+--pipeline-reuniao-marcada: #f97316;
+--pipeline-a-decidir: #1e40af;
+--pipeline-confirmado: #22c55e;
+--pipeline-assinou: #16a34a;
+--pipeline-rejeitado: #ef4444;
 ```
 
 ### Typography
@@ -477,13 +479,18 @@ Eskout identity — black & white base with accent colors for status:
 | Urgente Observar  | Orange | Needs urgent live observation     |
 | Sem interesse     | Red    | Not interested                    |
 | Potencial         | Purple | Shows potential, needs more time  |
+| Ver em treino     | Cyan   | Invited to train, pending eval    |
+| Stand-by          | Slate  | Approved but no spot available    |
+| Assinar           | Green  | Decision to sign                  |
 
 ### Recruitment Pipeline
 
 ```
-pool → shortlist → to_observe → target → in_contact → negotiating → confirmed
-                                                                   → rejected
+por_tratar → em_contacto → vir_treinar → reuniao_marcada → a_decidir → confirmado → assinou
+                                                                      → rejeitado
 ```
+
+The `a_decidir` status is split into two sub-sections via `decision_side`: `'club'` (default) and `'player'`.
 
 Every status change logs: timestamp, author (user), old value, new value, optional note.
 

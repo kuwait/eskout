@@ -138,6 +138,14 @@ Personal TODO workspace per user with auto-generated tasks from pipeline actions
 - [x] All roles can add; admin/editor delete any, scout/recruiter delete own
 - [x] Max 10 videos per player, duplicate detection, note field
 
+### 5B-4. Pipeline & Opinion Enhancements ✅ DONE
+- [x] Split "A Decidir" into Club/Player sub-sections (`decision_side` column, migration 058)
+- [x] Desktop: two droppable sub-zones with dashed separator, DnD between them
+- [x] Mobile: action menu with "Alterar lado" toggle
+- [x] Status history: human-readable decision_side entries, shadow squad generation year
+- [x] New department opinions: "Ver em treino" (cyan) and "Stand-by" (slate)
+- [x] Fix pipeline horizontal scroll (remove overflow-hidden blocking ScrollArea)
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view

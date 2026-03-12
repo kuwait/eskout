@@ -130,7 +130,7 @@ Full table/list of all players (fetched once, filtered client-side):
 
 **Sorting:** By any column
 
-**Color coding (department opinion):** Green=Boavista, Blue=1ª Escolha, Yellow=Acompanhar, Orange=Urgente/2ª Escolha, Gray=Por Observar, Red=Sem interesse, Purple=Potencial
+**Color coding (department opinion):** Green=Assinar, Blue=1ª Escolha, Yellow=Acompanhar, Orange=Urgente/2ª Escolha, Gray=Por Observar, Red=Sem interesse, Purple=Potencial, Cyan=Ver em treino, Slate=Stand-by
 
 **Mobile:** Card layout with eval rating circle, name, position, club, badges. Tap → profile.
 
@@ -162,15 +162,37 @@ Dedicated page `/jogadores/{id}`.
 
 | Status | Label (PT) | Color |
 |--------|-----------|-------|
-| `pool` | Pool | Gray |
-| `shortlist` | Shortlist | Blue |
-| `to_observe` | A Observar | Yellow |
-| `target` | Alvo | Orange |
-| `in_contact` | Em Contacto | Purple |
-| `negotiating` | Em Negociação | Dark Blue |
-| `confirmed` | Confirmado | Green |
+| `por_tratar` | Por tratar | Gray |
+| `em_contacto` | Em contacto | Purple |
+| `vir_treinar` | Vir treinar | Blue |
+| `reuniao_marcada` | Reunião Marcada | Orange |
+| `a_decidir` | A decidir | Dark Blue |
+| `confirmado` | Confirmado | Green |
 | `assinou` | Assinou | Dark Green |
-| `rejected` | Rejeitado | Red |
+| `rejeitado` | Recusou vir | Red |
+
+### "A Decidir" Sub-Sections (Decision Side)
+
+The `a_decidir` column is split into two always-visible sub-sections via a `decision_side` field (`'club'` or `'player'`):
+- **Clube a decidir** — the department hasn't decided yet (default when entering `a_decidir`)
+- **Jogador a decidir** — proposal made, player/family is thinking
+
+Both sub-sections are always visible with a dashed separator. DnD between sub-sections changes `decision_side`, not the status. The field is cleared automatically when leaving `a_decidir`. See migration 058.
+
+### Department Opinions
+
+| Opinion | Color | Hex |
+|---------|-------|-----|
+| 1ª Escolha | Blue | `#3b82f6` |
+| 2ª Escolha | Orange | `#f97316` |
+| Acompanhar | Yellow | `#eab308` |
+| Por Observar | Gray | `#a3a3a3` |
+| Urgente Observar | Orange | `#f97316` |
+| Sem interesse | Red | `#ef4444` |
+| Potencial | Purple | `#a855f7` |
+| Ver em treino | Cyan | `#06b6d4` |
+| Stand-by | Slate | `#64748b` |
+| Assinar | Green | `#22c55e` |
 
 **Desktop:** Kanban board with DnD (card drag between columns + column reorder via header grip). Manual ordering, reorderable columns persisted in localStorage. Horizontal layout.
 
@@ -480,6 +502,29 @@ Side-by-side comparison of 2-3 players. Accessible to all roles except scout. Su
 **Limits:** Max 10 videos per player. Duplicate video ID detection.
 
 **Server action:** `src/actions/player-videos.ts` — `getPlayerVideos()`, `addPlayerVideo()`, `deletePlayerVideo()`. Zod validation via `addVideoSchema`. Realtime broadcast on mutations.
+
+---
+
+## 36. Data Quality (`/admin/dados`)
+
+Admin-only page showing players with missing external data. Helps admins identify and fill data gaps.
+
+**Tabs:**
+
+| Tab | Filter |
+|-----|--------|
+| Sem FPF e ZZ | Players with neither FPF nor ZeroZero link |
+| Sem FPF | Players without FPF link |
+| Sem ZeroZero | Players without ZeroZero link |
+| Sem Foto | Players without any photo (manual or ZZ-scraped) |
+
+**Features:**
+- Summary cards with counts and percentages at the top
+- Fuzzy search by name, club, or position
+- Status dots (FPF/ZZ/Foto) per player — green if present, red if missing
+- Direct link to player profile for editing
+
+**Access:** Admin only (middleware-protected).
 
 ---
 

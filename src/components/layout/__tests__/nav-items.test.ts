@@ -140,6 +140,7 @@ describe('filterAdminItems', () => {
     expect(hrefs(items)).toContain('/definicoes');
     expect(hrefs(items)).toContain('/exportar');
     expect(hrefs(items)).toContain('/admin/utilizadores');
+    expect(hrefs(items)).toContain('/admin/dados');
   });
 
   it('hides reports when scouting_reports disabled', () => {
