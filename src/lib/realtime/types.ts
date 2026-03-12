@@ -18,6 +18,8 @@ export const REALTIME_TABLES = [
   'user_tasks',
   'training_feedback',
   'user_observation_list',
+  'player_lists',
+  'player_list_items',
 ] as const;
 
 export type RealtimeTable = (typeof REALTIME_TABLES)[number];

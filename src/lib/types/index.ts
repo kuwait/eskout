@@ -536,6 +536,87 @@ export interface TrainingFeedbackRow {
   profiles?: { full_name: string } | null;
 }
 
+/* ───────────── Player Lists ───────────── */
+
+export interface PlayerList {
+  id: number;
+  clubId: string;
+  userId: string;
+  name: string;
+  emoji: string;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** Number of players in this list */
+  itemCount: number;
+  /** Most recent addition date (null if empty) */
+  lastAddedAt: string | null;
+  /** Owner name — only present in admin "view all" */
+  ownerName?: string;
+}
+
+export interface PlayerListRow {
+  id: number;
+  club_id: string;
+  user_id: string;
+  name: string;
+  emoji: string;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlayerListItem {
+  id: number;
+  listId: number;
+  playerId: number;
+  playerName: string;
+  playerClub: string;
+  playerClubLogoUrl: string | null;
+  playerPosition: string | null;
+  playerDob: string;
+  playerNationality: string | null;
+  playerPhotoUrl: string | null;
+  note: string | null;
+  sortOrder: number;
+  addedAt: string;
+}
+
+export interface PlayerListItemRow {
+  id: number;
+  list_id: number;
+  player_id: number;
+  note: string | null;
+  sort_order: number;
+  added_at: string;
+  players?: {
+    name: string;
+    club: string | null;
+    club_logo_url: string | null;
+    position_normalized: string | null;
+    dob: string | null;
+    nationality: string | null;
+    photo_url: string | null;
+    zz_photo_url: string | null;
+  } | null;
+}
+
+/* ───────────── Picker Player (lightweight for search dialogs) ───────────── */
+
+export interface PickerPlayer {
+  id: number;
+  name: string;
+  club: string;
+  clubLogoUrl: string | null;
+  positionNormalized: string | null;
+  secondaryPosition: string | null;
+  tertiaryPosition: string | null;
+  dob: string | null;
+  foot: string;
+  departmentOpinion: string[];
+  nationality: string | null;
+}
+
 /* ───────────── JSON Import Types (data/all_players.json structure) ───────────── */
 
 export interface PlayerJsonImport {

@@ -146,3 +146,28 @@ export const trainingFeedbackSchema = z.object({
 });
 
 export type TrainingFeedbackFormData = z.infer<typeof trainingFeedbackSchema>;
+
+/* ───────────── Player Lists ───────────── */
+
+export const createListSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório').max(50, 'Máximo 50 caracteres'),
+  emoji: z.string().default('📋'),
+});
+
+export type CreateListData = z.infer<typeof createListSchema>;
+
+export const renameListSchema = z.object({
+  listId: z.number().int().positive(),
+  name: z.string().min(1, 'Nome é obrigatório').max(50, 'Máximo 50 caracteres'),
+  emoji: z.string().optional(),
+});
+
+export type RenameListData = z.infer<typeof renameListSchema>;
+
+export const addToListSchema = z.object({
+  listId: z.number().int().positive(),
+  playerId: z.number().int().positive(),
+  note: z.string().optional(),
+});
+
+export type AddToListData = z.infer<typeof addToListSchema>;

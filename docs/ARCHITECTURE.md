@@ -55,9 +55,13 @@ sikout/
 │   │   ├── calendario/page.tsx        # Calendar events
 │   │   ├── tarefas/page.tsx           # Personal tasks (auto-generated + manual)
 │   │   ├── alertas/page.tsx           # Alerts dashboard
-│   │   ├── a-observar/               # Personal observation list
+│   │   ├── a-observar/page.tsx        # Redirect → /listas
+│   │   ├── listas/                    # Personal player lists (multi-list system)
 │   │   │   ├── page.tsx
-│   │   │   └── ObservationListClient.tsx
+│   │   │   ├── ListsPageClient.tsx
+│   │   │   └── [id]/
+│   │   │       ├── page.tsx
+│   │   │       └── ListDetailClient.tsx
 │   │   ├── mais/page.tsx              # "More" menu page
 │   │   ├── submeter/page.tsx          # Scout report submission
 │   │   ├── meus-relatorios/           # Scout's own reports
@@ -122,7 +126,7 @@ sikout/
 │   │   ├── scraping.ts               # FPF/ZeroZero data refresh
 │   │   ├── export.ts                  # Export data (Excel, PDF, JSON)
 │   │   ├── clubs.ts                   # Club settings, features
-│   │   ├── observation-list.ts        # Personal observation shortlist
+│   │   ├── player-lists.ts            # Personal player lists (multi-list system)
 │   │   ├── training-feedback.ts       # Training presence + feedback
 │   │   ├── presence.ts               # Heartbeat, online tracking
 │   │   ├── impersonate.ts            # Superadmin role impersonation
@@ -392,7 +396,7 @@ Client (RealtimeProvider) → event bus → useRealtimeTable callbacks → page 
 
 ### Tables with Realtime
 
-`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `user_observation_list`
+`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`
 
 ---
 
@@ -1003,3 +1007,4 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 052 | `052_training_feedback.sql` | Training feedback table (presence + rating) |
 | 053 | `053_user_observation_list.sql` | Personal observation shortlist table |
 | 054 | `054_remove_a_observar_status.sql` | Remove 'a_observar' from pipeline, migrate to observation list |
+| 055 | `055_player_lists.sql` | Generic player lists system (`player_lists` + `player_list_items`), migrate from `user_observation_list` |

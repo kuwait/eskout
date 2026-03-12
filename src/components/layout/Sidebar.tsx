@@ -8,7 +8,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, Eye } from 'lucide-react';
+import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -107,19 +107,19 @@ export function Sidebar({
                     )}
                   </Link>
                 )}
-                {/* Sub-item: A Observar — under Jogadores, admin/editor/recruiter */}
+                {/* Sub-item: Listas — under Jogadores, admin/editor/recruiter */}
                 {item.href === '/' && !isScout && (
                   <Link
-                    href="/a-observar"
+                    href="/listas"
                     className={cn(
                       'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
-                      pathname.startsWith('/a-observar')
+                      pathname.startsWith('/listas')
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
                     )}
                   >
-                    <Eye className="h-3.5 w-3.5" />
-                    A Observar
+                    <List className="h-3.5 w-3.5" />
+                    Listas
                   </Link>
                 )}
               </li>

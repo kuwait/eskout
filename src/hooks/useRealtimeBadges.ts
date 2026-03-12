@@ -12,7 +12,7 @@ import type { AlertCounts } from '@/components/layout/AppShell';
 import type { MutationEvent } from '@/lib/realtime/types';
 
 /** Tables that affect badge counts */
-const BADGE_TABLES = new Set(['observation_notes', 'scouting_reports', 'players', 'player_added_dismissals', 'user_tasks', 'user_observation_list']);
+const BADGE_TABLES = new Set(['observation_notes', 'scouting_reports', 'players', 'player_added_dismissals', 'user_tasks', 'player_lists', 'player_list_items']);
 
 /**
  * Live-update navigation badge counts via Realtime.
@@ -28,7 +28,8 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
       const supabase = createClient();
 
       // Fetch alert counts + per-user pending players (total by others minus user's dismissals)
-      const [urgRes, impRes, pendingRes, playersRes, dismissedRes, tasksRes, obsRes] = await Promise.all([
+      // First fetch user's list IDs, then count items across all lists
+      const [urgRes, impRes, pendingRes, playersRes, dismissedRes, tasksRes, listsRes] = await Promise.all([
         supabase
           .from('observation_notes')
           .select('id', { count: 'exact', head: true })
@@ -55,10 +56,21 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
           .eq('user_id', userId)
           .eq('completed', false),
         supabase
-          .from('user_observation_list')
-          .select('id', { count: 'exact', head: true })
+          .from('player_lists')
+          .select('id')
           .eq('user_id', userId),
       ]);
+
+      // Count total items across all user lists
+      let observationCount = 0;
+      const listIds = (listsRes.data ?? []).map((l: { id: number }) => l.id);
+      if (listIds.length > 0) {
+        const { count } = await supabase
+          .from('player_list_items')
+          .select('*', { count: 'exact', head: true })
+          .in('list_id', listIds);
+        observationCount = count ?? 0;
+      }
 
       setCounts({
         urgente: urgRes.count ?? 0,
@@ -66,7 +78,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
         pendingReports: pendingRes.count ?? 0,
         pendingPlayers: Math.max(0, (playersRes.count ?? 0) - (dismissedRes.count ?? 0)),
         pendingTasks: tasksRes.count ?? 0,
-        observationCount: obsRes.count ?? 0,
+        observationCount,
       });
     } catch (err) {
       console.error('[Realtime] badge refetch failed:', err);

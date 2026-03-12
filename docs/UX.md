@@ -40,7 +40,7 @@ Navigation items are defined in `src/components/layout/nav-items.ts` and shared 
 | Route | Label | Icon | Visibility |
 |---|---|---|---|
 | `/admin/pendentes` | Adicionados | UserPlus | Admin and editor only. Badge: pending player count (red). |
-| `/a-observar` | A Observar | Eye | All except scout. Personal observation shortlist. |
+| `/listas` | Listas | List | All except scout. Personal player lists (multi-list system). |
 
 ### 2.3. Admin Section (only visible to admin role)
 
@@ -104,7 +104,7 @@ Full access to everything. Sees:
 - Player profiles: all fields, evaluations, opinion badges, reports, observation notes, share/print
 - Pipeline: full DnD on desktop, action menus on mobile, all statuses
 - Tasks: own tasks + dropdown to view/create tasks for any user
-- A Observar: own list + secretly sees all users' lists
+- Listas: own lists + secretly sees all users' lists in "Todas" panel
 - Superadmin link visible if the user has the `is_superadmin` flag
 
 ### 5.2. Editor
@@ -114,7 +114,7 @@ Same as admin except:
 - Cannot delete players (soft delete restricted to admin)
 - Player profile: full edit, evaluations, opinion badges, reports visible
 - Tasks: only own tasks (no admin oversight dropdown)
-- A Observar: only own list
+- Listas: only own lists
 
 ### 5.3. Recruiter
 
@@ -132,7 +132,7 @@ Limited view focused on squads and pipeline:
 
 Minimal, submission-focused interface:
 - Nav items: Meus Relatorios, Submeter Relatorio, Jogadores (own submitted players via `/meus-jogadores`)
-- No access to squads, pipeline, calendar, tasks, a-observar, admin, export
+- No access to squads, pipeline, calendar, tasks, listas, admin, export
 - Lands on `/submeter` by default
 - Player profile: limited fields (no scouting data from other scouts)
 - `/meus-jogadores` shows only players created by this scout
@@ -156,7 +156,7 @@ Minimal, submission-focused interface:
 4. Review Adicionados — approve/reject pending player submissions
 5. Browse pipeline — move players through recruitment stages
 6. Click player — view full profile, edit data, manage evaluations
-7. Check A Observar — review personal observation shortlist
+7. Check Listas — review personal player lists (A Observar + custom lists)
 
 ### 6.3. Scout Workflow (Mobile)
 1. Open app on phone — lands on `/submeter`
@@ -171,7 +171,7 @@ Minimal, submission-focused interface:
 2. Check `/campo/real` — review real squad composition
 3. Check `/campo/sombra` — review shadow squad candidates
 4. Check `/pipeline` — monitor recruitment pipeline, move players
-5. Check `/a-observar` — manage personal observation shortlist
+5. Check `/listas` — manage personal player lists
 6. Check `/tarefas` — review own tasks (auto-generated from pipeline actions)
 
 ### 6.5. Multi-Club Switching

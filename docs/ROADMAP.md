@@ -93,15 +93,21 @@ All development phases — completed and planned.
 - [x] Responsive layout: mobile below Info Basica, desktop in right column
 - [x] Admin can delete status_history entries (migration 046 + server action + UI)
 
-### 5B-1. "A Observar" Personal Observation List ✅ DONE
-Replaced the pipeline "A Observar" column with a personal per-user observation shortlist.
-- [x] Migration 053: `user_observation_list` table (user_id, player_id, note, club_id) with RLS
-- [x] Migration 054: Migrate existing `a_observar` players to observation list (via status_history actor), remove `a_observar` from DB constraint
-- [x] Server actions (`actions/observation-list.ts`): `getMyObservationList()`, `getAllObservationLists()`, add/remove/update
-- [x] New page `/a-observar`: server component + `ObservationListClient.tsx` client view
-- [x] Admin secretly sees all users' lists; editor/recruiter see only their own
-- [x] Navigation: "A Observar" sub-item under Jogadores in Sidebar + MobileDrawer. Visible to admin, editor, recruiter. Hidden from scout.
-- [x] Types & constants cleanup: removed `a_observar` from `RecruitmentStatus` union, pipeline steps, validators
+### 5B-1. "Listas" — Personal Player Lists ✅ DONE
+Evolved from "A Observar" into a generic multi-list system. Each user can create unlimited named lists with emoji icons. "A Observar" is a system list (auto-created, non-deletable).
+- [x] Migration 053: `user_observation_list` table (original, now superseded)
+- [x] Migration 054: Migrate existing `a_observar` players to observation list, remove `a_observar` from DB constraint
+- [x] Migration 055: `player_lists` + `player_list_items` tables with full RLS, data migration from `user_observation_list`
+- [x] Server actions (`actions/player-lists.ts`): `getMyLists()`, `getAllLists()`, `getListById()`, `getListItems()`, `getPickerPlayers()`, `getPlayerListMemberships()`, `createList()`, `renameList()`, `deleteList()`, `addPlayerToList()`, `removePlayerFromList()`, `updatePlayerListMemberships()`, `updateListItemNote()`, `reorderListItems()`, `exportListExcel()` + backward-compat bridge functions
+- [x] New page `/listas`: grid of list cards with create/rename/delete dialogs, emoji picker
+- [x] New page `/listas/[id]`: list detail with player cards, add/remove/note/export
+- [x] AddPlayerDialog: same pattern as AddToSquadDialog (server-fetched players, client-side fuzzyMatch + filters)
+- [x] `ListBookmarkDropdown`: popover in player profile header to toggle list memberships with checkboxes + inline "Nova lista" creation
+- [x] Admin secretly sees all users' lists in a separate "Todas" panel
+- [x] Navigation: "Listas" in Sidebar + MobileDrawer (replaces "A Observar"). Visible to admin, editor, recruiter.
+- [x] `/a-observar` redirects to `/listas`
+- [x] Realtime: `player_lists` + `player_list_items` in broadcast tables
+- [x] Deleted: `ObservationListClient.tsx`, `actions/observation-list.ts`
 
 ### 5B-2. Recruiter Role Permissions ✅ DONE
 Expanded recruiter role access — unblocked player list and profile, restricted scouting fields.
@@ -214,9 +220,9 @@ Advanced metrics at `/analytics`. KPI cards, scout productivity table, pipeline 
 
 ---
 
-## Phase 15 — Personal Player Lists
+## Phase 15 — Personal Player Lists ✅ COMPLETE (done as Phase 5B-1)
 
-User-created lists (bookmarks). `player_lists` + `player_list_items` tables. Bookmark icon on cards/table/profile. `/listas` page with list detail, filters, manual sort.
+Implemented as part of Phase 5B-1. See "Listas" section above.
 
 ---
 

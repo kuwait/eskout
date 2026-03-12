@@ -29,7 +29,7 @@ Detailed specifications for every feature in the application.
 Recruiters handle squads, pipeline, and calendar — they do not see scouting intelligence or evaluations.
 
 **Route access:**
-- Allowed: `/campo/*` (squads), `/pipeline`, `/calendario`, `/posicoes`, `/tarefas`, `/a-observar`, `/jogadores/{id}` (individual profiles), `/preferencias`
+- Allowed: `/campo/*` (squads), `/pipeline`, `/calendario`, `/posicoes`, `/tarefas`, `/listas`, `/jogadores/{id}` (individual profiles), `/preferencias`
 - Blocked: `/exportar`, `/meus-relatorios`, `/submeter`, `/admin/*`, `/alertas`
 - Redirect target when blocked: `/campo/real`
 
@@ -391,26 +391,43 @@ Clubs can enable or disable optional features. Configured per-club by superadmin
 - Nav items and admin items have a `feature` property linking them to a toggle key
 - A feature is considered enabled if `features[key] !== false` (opt-out model, not opt-in)
 
-## 32. Observation List ("A Observar") (`/a-observar`)
+## 32. Player Lists ("Listas") (`/listas`)
 
-Personal bookmarks of players a user wants to observe. Per-user, per-club shortlist stored in `user_observation_list` table.
+Generic multi-list system for personal player bookmarks. Evolved from the original "A Observar" feature. Each user can create unlimited named lists with emoji icons. "A Observar" is a system list (auto-created, non-deletable).
 
 **Access:** Admin, editor, recruiter. Scouts are excluded.
 
-**Data model:** `user_observation_list` with `club_id`, `user_id`, `player_id`, `note` (optional). Unique constraint on `(user_id, player_id, club_id)`.
+**Data model:**
+- `player_lists` table: `id`, `club_id`, `user_id`, `name`, `emoji`, `is_system`, `created_at`, `updated_at`. Unique constraint on `(user_id, name, club_id)`.
+- `player_list_items` table: `id`, `list_id` (FK), `player_id` (FK), `note`, `sort_order`, `added_at`. Unique constraint on `(list_id, player_id)`. CASCADE delete on list removal.
 
-**Features:**
-- Add/remove players from observation list (from the list page or from a player profile via eye icon toggle)
-- Optional note per entry (editable inline)
-- Search/filter within list
-- Player cards showing name, club (with logo), position (color-coded badge by group), DOB, nationality flag, photo
+**Lists page (`/listas`):**
+- Grid of list cards showing emoji, name, item count, last added date
+- Create new list: inline form with name + emoji picker (20 curated emojis)
+- Rename/delete custom lists (system lists cannot be renamed or deleted)
+- Cards have equal height within rows
+
+**List detail (`/listas/[id]`):**
+- Player cards showing photo, name, nationality flag, position (color-coded badge), club (with logo), DOB
+- Inline note editing per player (pencil icon)
+- Remove player from list (trash icon with confirmation dialog)
+- "Adicionar" button opens AddPlayerDialog (same pattern as AddToSquadDialog: all players fetched server-side, client-side fuzzyMatch + filters for position, club, opinion, foot, year)
 - Click player card → navigate to player profile
-- Badge count in nav showing number of bookmarked players
-- Realtime updates via broadcast
 
-**Admin view:** Admin sees a user selector dropdown to view any club member's observation list. All lists fetched via `getAllObservationLists()` which joins `profiles` for owner name.
+**ListBookmarkDropdown (player profile):**
+- Bookmark icon in player profile header
+- Popover with checkboxes for all user's lists
+- Toggle individual list membership (optimistic count update)
+- Inline "Nova lista" creation
+- Filled bookmark icon when player is in any list
 
-**Export:** Admin and editor can export their list as Excel (`.xlsx`). Columns: Nome, Clube, Posicao, Data Nasc., Nacionalidade, Nota, Adicionado.
+**Admin view:** Admin sees a "Todas" panel on the lists page showing all users' lists across the club, grouped by owner name.
+
+**Export:** Admin and editor can export a list as Excel (`.xlsx`). Columns: Nome, Clube, Posição, Data Nasc., Nacionalidade, Nota, Adicionado.
+
+**Realtime:** `player_lists` and `player_list_items` in broadcast tables. List detail auto-refreshes on changes.
+
+**Backward compatibility:** `/a-observar` redirects to `/listas`. Bridge functions (`addToObservationList`, `removeFromObservationList`, `isPlayerObserved`) delegate to the new system list.
 
 ## 33. Themes & Preferences (`/preferencias`)
 

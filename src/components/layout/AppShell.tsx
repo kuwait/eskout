@@ -93,8 +93,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .eq('user_id', user.id)
           .eq('completed', false),
         supabase
-          .from('user_observation_list')
-          .select('id', { count: 'exact', head: true })
+          .from('player_lists')
+          .select('id')
           .eq('club_id', clubId)
           .eq('user_id', user.id),
       ]);
@@ -148,13 +148,24 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         pendingPlayersCount = Math.max(0, (playersRes.count ?? 0) - (dismissedRes.count ?? 0));
       }
 
+      // Count total items across all user lists
+      let observationCount = 0;
+      const listIds = (obsCountRes.data ?? []).map((l: { id: number }) => l.id);
+      if (listIds.length > 0) {
+        const { count } = await supabase
+          .from('player_list_items')
+          .select('*', { count: 'exact', head: true })
+          .in('list_id', listIds);
+        observationCount = count ?? 0;
+      }
+
       alertCounts = {
         urgente: urgRes.count ?? 0,
         importante: impRes.count ?? 0,
         pendingReports: pendingRes.count ?? 0,
         pendingPlayers: pendingPlayersCount,
         pendingTasks: taskCountRes.count ?? 0,
-        observationCount: obsCountRes.count ?? 0,
+        observationCount,
       };
     } else {
       // No club selected — still fetch profile for userName

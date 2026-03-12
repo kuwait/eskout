@@ -81,7 +81,7 @@ Four roles with progressively restricted access:
 
 | Role | Who | Access |
 |------|-----|--------|
-| **Admin** | Head of scouting, system owner | Full access. User management, club settings, import, export, delete players, all CRUD. Can see all users' observation lists and tasks. |
+| **Admin** | Head of scouting, system owner | Full access. User management, club settings, import, export, delete players, all CRUD. Can see all users' player lists and tasks. |
 | **Editor** | Formation coordinators, senior scouts | Everything except admin area: can view/edit all data, manage squads, pipeline, calendar. Cannot manage users, import, export, or delete players. Can access `/admin/pendentes` to review scout submissions. |
 | **Scout** | External/freelance scouts | Can only access dedicated submission page (`/submeter`), own reports (`/meus-relatorios`), own submitted players (`/meus-jogadores`), individual player profiles, and preferences. Cannot view the database, squads, pipeline, or any other page. |
 | **Recruiter** (Recrutador) | Club staff handling negotiations/signing | Can see plantéis (real + shadow), pipeline, calendário, posições, player list, and player profiles. **Cannot** see scouting intelligence (ratings, observations, notes, history, recruitment details in profiles), alerts, or export. Cannot submit reports. Redirected to `/campo/real` as home. |
@@ -108,7 +108,7 @@ The app is **multi-tenant**. All data is scoped to a club via `club_id` foreign 
 - `club_memberships` — links users to clubs with a role. A user can belong to **multiple clubs**.
 - `club_age_groups` — club-specific age groups (replaces global `age_groups` for new clubs).
 
-**Data tables with `club_id`:** `players`, `age_groups`, `scouting_reports`, `observation_notes`, `status_history`, `calendar_events`, `scout_evaluations`, `scout_reports`, `user_tasks`, `user_observation_list`, `training_feedback`.
+**Data tables with `club_id`:** `players`, `age_groups`, `scouting_reports`, `observation_notes`, `status_history`, `calendar_events`, `scout_evaluations`, `scout_reports`, `user_tasks`, `player_lists`, `player_list_items`, `training_feedback`.
 
 **Club switching:** Users with multiple club memberships select their active club at `/escolher-clube`. The active club ID is stored in an `httpOnly` cookie (`eskout-club-id`). If a user has only one club, it is auto-selected.
 
@@ -171,7 +171,7 @@ The app is **multi-tenant**. All data is scoped to a club via `club_id` foreign 
 | Weekly calendar | **Yes** — calendar supports month and week views with client-side toggle, popover picker, and smart navigation. |
 | Themes | **Yes** — 10 themes (8 light + 2 dark): eskout, ocean, forest, sunset, berry, sand, rose, slate, midnight, carbon. 3 fonts: Inter (default), DM Sans, Space Grotesk. Stored in localStorage per device. |
 | PWA | **Yes** — installable via minimal service worker. No offline mode, no push notifications. |
-| Observation list | **Yes** — personal "A Observar" bookmarks per user (`/a-observar`). Each user manages their own list of players to observe. Admins can secretly see all users' lists. Stored in `user_observation_list` table. |
+| Player lists | **Yes** — personal player lists per user (`/listas`). Each user manages multiple named lists with emoji icons. "A Observar" is a system list (auto-created, non-deletable). Admins can secretly see all users' lists. Stored in `player_lists` + `player_list_items` tables. |
 | Tasks | **Yes** — personal tasks page (`/tarefas`). Manual tasks + auto-generated tasks from pipeline events (contact assignments, meetings, training sessions, signings). Tasks can be pinned, completed, and deleted. Admins can see all club tasks and assign tasks to other users. |
 | Training feedback | **Yes** — after a player trains at the club, staff can log presence (attended/missed/rescheduled), free-text feedback, and optional 1-5 rating. Stored in `training_feedback` table. |
 | Scout submissions | **Yes** — scouts submit player reports via `/submeter`. Admin reviews and approves via `/admin/pendentes`. Approved submissions create players in the database. |
@@ -194,4 +194,4 @@ The app is **multi-tenant**. All data is scoped to a club via `club_id` foreign 
 12. **Roles are per-club,** stored in `club_memberships.role`. The `profiles.role` column exists for backward compatibility but `club_memberships.role` is the source of truth.
 13. **Superadmin is a boolean,** not a role. `profiles.is_superadmin = true` grants platform-level access. It is orthogonal to club roles.
 14. **Dynamic age groups.** Age groups are computed from the current date (season starts July 1). No hardcoded season tables. Use `getAgeGroups()` from `constants.ts`.
-15. **Recruitment pipeline statuses** (current, after migration 054): `por_tratar`, `em_contacto`, `vir_treinar`, `reuniao_marcada`, `a_decidir`, `confirmado`, `assinou`, `rejeitado`. The old `a_observar` status was migrated to the `user_observation_list` table.
+15. **Recruitment pipeline statuses** (current, after migration 054): `por_tratar`, `em_contacto`, `vir_treinar`, `reuniao_marcada`, `a_decidir`, `confirmado`, `assinou`, `rejeitado`. The old `a_observar` status was migrated to the `player_lists` system (via `user_observation_list` → `player_lists` + `player_list_items`).
