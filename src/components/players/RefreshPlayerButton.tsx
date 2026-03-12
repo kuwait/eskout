@@ -82,8 +82,9 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
     };
   }, [isPending]);
 
-  // Only show if the player has at least one external link
-  if (!player.fpfLink && !player.zerozeroLink) return null;
+  // Hide if the player has no external links — empty span keeps DOM tree stable (prevents hydration mismatch)
+  const hasLinks = !!(player.fpfLink || player.zerozeroLink);
+  if (!hasLinks) return <span />;
 
   // Whether ZZ data is trusted (either pre-existing link or user selected the auto-found link)
   const zzEnabled = result?.zzConfirmed || !!selected.zzLink;
