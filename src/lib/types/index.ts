@@ -536,6 +536,34 @@ export interface TrainingFeedbackRow {
   profiles?: { full_name: string } | null;
 }
 
+/* ───────────── Player Videos ───────────── */
+
+export interface PlayerVideo {
+  id: number;
+  clubId: string;
+  playerId: number;
+  url: string;
+  videoId: string;
+  title: string | null;
+  thumbnail: string | null;
+  note: string | null;
+  addedBy: string;
+  createdAt: string;
+}
+
+export interface PlayerVideoRow {
+  id: number;
+  club_id: string;
+  player_id: number;
+  url: string;
+  video_id: string;
+  title: string | null;
+  thumbnail: string | null;
+  note: string | null;
+  added_by: string;
+  created_at: string;
+}
+
 /* ───────────── Player Lists ───────────── */
 
 export interface PlayerList {

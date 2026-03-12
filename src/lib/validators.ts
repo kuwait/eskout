@@ -180,3 +180,16 @@ export const saveComparisonSchema = z.object({
 });
 
 export type SaveComparisonData = z.infer<typeof saveComparisonSchema>;
+
+/* ───────────── Player Videos ───────────── */
+
+/** Matches youtube.com/watch, youtu.be, youtube.com/shorts */
+const YOUTUBE_URL_REGEX = /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)/;
+
+export const addVideoSchema = z.object({
+  playerId: z.number().int().positive(),
+  url: z.string().url('URL inválido').regex(YOUTUBE_URL_REGEX, 'Apenas URLs do YouTube'),
+  note: z.string().max(100, 'Máximo 100 caracteres').optional(),
+});
+
+export type AddVideoData = z.infer<typeof addVideoSchema>;

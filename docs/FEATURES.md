@@ -455,6 +455,34 @@ Side-by-side comparison of 2-3 players. Accessible to all roles except scout. Su
 
 ---
 
+## 35. YouTube Media Links (Player Videos)
+
+"Media" section in player profile for YouTube video links. All roles can view and add videos.
+
+**Data model:** `player_videos` table (migration 057) — `id`, `club_id`, `player_id`, `url`, `video_id`, `title`, `thumbnail`, `note`, `added_by`, `created_at`. Separate table (not a column on `players`) to support multiple videos per player with metadata.
+
+**YouTube oEmbed:** On add, server fetches `https://www.youtube.com/oembed?url=...&format=json` to extract title + thumbnail. No API key needed. Best-effort — fails gracefully, fallback to YouTube thumbnail URL pattern.
+
+**Supported URL formats:** `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/shorts/`.
+
+**UI in player profile:**
+- "Media" section after Percurso, before Observação
+- Grid of video cards (2 columns) with thumbnail + play overlay + note/title
+- Click opens modal with embedded iframe (`youtube-nocookie.com` for privacy)
+- "Adicionar vídeo" form: URL input + optional note (max 100 chars)
+- Delete button on hover (respects permissions)
+
+**Permissions:**
+- All roles can view and add videos
+- Admin/editor can delete any video
+- Scout/recruiter can only delete their own videos
+
+**Limits:** Max 10 videos per player. Duplicate video ID detection.
+
+**Server action:** `src/actions/player-videos.ts` — `getPlayerVideos()`, `addPlayerVideo()`, `deletePlayerVideo()`. Zod validation via `addVideoSchema`. Realtime broadcast on mutations.
+
+---
+
 ## 33. Themes & Preferences (`/preferencias`)
 
 User-level visual customization. Accessible to all roles (including scouts). Stored in localStorage per device.

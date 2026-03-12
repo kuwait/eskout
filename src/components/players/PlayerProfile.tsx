@@ -43,6 +43,7 @@ import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
 import { PlayerClubHistory } from '@/components/players/PlayerClubHistory';
 import { TrainingFeedbackList } from '@/components/players/TrainingFeedback';
+import { PlayerVideos } from '@/components/players/PlayerVideos';
 import {
   POSITION_LABELS,
   NATIONALITIES,
@@ -67,6 +68,7 @@ import { DeleteConfirmDialog } from '@/components/players/DeleteConfirmDialog';
 
 import type {
   Player,
+  PlayerVideo,
   PositionCode,
   UserRole,
   ObservationNote,
@@ -86,6 +88,7 @@ interface PlayerProfileProps {
   scoutingReports?: ScoutingReport[];
   scoutEvaluations?: ScoutEvaluation[];
   trainingFeedback?: TrainingFeedback[];
+  playerVideos?: PlayerVideo[];
   currentUserId?: string | null;
   /** If provided, "Voltar" calls this instead of router.back() */
   onClose?: () => void;
@@ -95,7 +98,7 @@ interface PlayerProfileProps {
   clubMembers?: { id: string; fullName: string }[];
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], trainingFeedback = [], currentUserId = null, onClose, ageGroupName, clubMembers = [] }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [] }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -983,6 +986,16 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 </Section>
               </div>
             )}
+
+            {/* Media — YouTube videos, all roles can view */}
+            <Section title="Media">
+              <PlayerVideos
+                playerId={p.id}
+                videos={playerVideos}
+                userRole={userRole}
+                currentUserId={currentUserId}
+              />
+            </Section>
 
             {/* Observação — observer names + decision visible to recruiter, reports/evals hidden */}
             {!hideScoutingData && (() => {

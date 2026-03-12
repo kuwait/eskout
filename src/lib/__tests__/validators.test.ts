@@ -12,6 +12,7 @@ import {
   recruitmentStatusChangeSchema,
   trainingFeedbackSchema,
   saveComparisonSchema,
+  addVideoSchema,
 } from '@/lib/validators';
 
 /* ───────────── loginSchema ───────────── */
@@ -287,6 +288,45 @@ describe('saveComparisonSchema', () => {
 
   it('rejects more than 3 players', () => {
     const result = saveComparisonSchema.safeParse({ name: 'Demais', playerIds: [1, 2, 3, 4] });
+    expect(result.success).toBe(false);
+  });
+});
+
+/* ───────────── addVideoSchema ───────────── */
+
+describe('addVideoSchema', () => {
+  it('accepts youtube.com/watch URL', () => {
+    const result = addVideoSchema.safeParse({ playerId: 1, url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts youtu.be short URL', () => {
+    const result = addVideoSchema.safeParse({ playerId: 1, url: 'https://youtu.be/dQw4w9WgXcQ' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts youtube.com/shorts URL', () => {
+    const result = addVideoSchema.safeParse({ playerId: 1, url: 'https://youtube.com/shorts/dQw4w9WgXcQ' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts optional note', () => {
+    const result = addVideoSchema.safeParse({ playerId: 1, url: 'https://youtu.be/abc123xyz99', note: 'Golo vs Benfica' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects non-YouTube URL', () => {
+    const result = addVideoSchema.safeParse({ playerId: 1, url: 'https://vimeo.com/12345' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects invalid URL', () => {
+    const result = addVideoSchema.safeParse({ playerId: 1, url: 'not-a-url' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects note over 100 characters', () => {
+    const result = addVideoSchema.safeParse({ playerId: 1, url: 'https://youtu.be/dQw4w9WgXcQ', note: 'A'.repeat(101) });
     expect(result.success).toBe(false);
   });
 });
