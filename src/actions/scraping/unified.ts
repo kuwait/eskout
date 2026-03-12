@@ -225,10 +225,13 @@ export async function scrapePlayerAll(playerId: number, preZz?: PreFetchedZz): P
   const zzConfirmed = !!zzData && !zzLinkFound;
 
   // FPF-sourced: club (FPF priority), nationality, birth country
-  // "Sem Clube" means FPF has no club — don't propose it as a club change
-  const rawClub = fpfResult?.currentClub || (zzConfirmed ? zzData?.currentClub : null) || null;
-  const mergedClub = rawClub === 'Sem Clube' ? null : rawClub;
-  const clubChanged = mergedClub ? !clubsMatch(mergedClub, player.club ?? '') : false;
+  // "Sem Clube" from FPF = player left club — propose clearing club in dialog
+  const mergedClub = fpfResult?.currentClub || (zzConfirmed ? zzData?.currentClub : null) || null;
+  const clubChanged = mergedClub
+    ? mergedClub === 'Sem Clube'
+      ? Boolean(player.club?.trim())          // "Sem Clube" is a change if player currently has a club
+      : !clubsMatch(mergedClub, player.club ?? '')
+    : false;
 
   // FPF-sourced: nationality, birth country (FPF priority, ZZ fallback if confirmed)
   // normalizeCountry fixes FPF accent issues (e.g. "Guine Bissau" → "Guiné-Bissau")
@@ -237,9 +240,9 @@ export async function scrapePlayerAll(playerId: number, preZz?: PreFetchedZz): P
   const mergedBirthCountry = normalizeCountry(fpfResult?.birthCountry || (zzConfirmed ? zzData?.birthCountry : null) || null);
   const birthCountryChanged = !!mergedBirthCountry && mergedBirthCountry !== player.birth_country;
 
-  // Club logo: only flag as changed if (a) club actually changed, or (b) player has no logo yet
+  // Club logo: skip if player is "Sem Clube" (no club = no logo to show)
   // FPF and ZZ return different URLs for the same club — don't nag when club is the same
-  const mergedLogo = (zzConfirmed ? zzData?.clubLogoUrl : null) || fpfResult?.clubLogoUrl || null;
+  const mergedLogo = mergedClub === 'Sem Clube' ? null : ((zzConfirmed ? zzData?.clubLogoUrl : null) || fpfResult?.clubLogoUrl || null);
   const clubLogoChanged = !!mergedLogo && (clubChanged || !player.club_logo_url);
 
   // Photos: keep separate so UI can show the right one based on ZZ confirmation
@@ -347,7 +350,11 @@ export async function applyScrapedData(
   const supabase = await createClient();
   const dbUpdates: Record<string, unknown> = {};
 
-  if (updates.club) dbUpdates.club = updates.club;
+  // "Sem Clube" is a valid state — FPF confirmed player has no club; also clear club logo
+  if (updates.club) {
+    dbUpdates.club = updates.club;
+    if (updates.club === 'Sem Clube') dbUpdates.club_logo_url = null;
+  }
   if (updates.clubLogoUrl) dbUpdates.club_logo_url = updates.clubLogoUrl;
   if (updates.photoUrl) dbUpdates.photo_url = updates.photoUrl;
   if (updates.height) dbUpdates.height = updates.height;

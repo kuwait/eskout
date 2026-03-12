@@ -21,6 +21,18 @@ export interface FpfScrapeResult {
   clubChanged: boolean;
 }
 
+/* ───────────── Helpers ───────────── */
+
+/** Returns the current FPF season string, e.g. "2025-2026". Season starts July 1. */
+function getCurrentFpfSeason(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed: 0=Jan, 6=Jul
+  // Before July → season started previous year (e.g. Mar 2026 → "2025-2026")
+  const startYear = month < 6 ? year - 1 : year;
+  return `${startYear}-${startYear + 1}`;
+}
+
 /* ───────────── FPF Parser ───────────── */
 
 /** Parse FPF player page — extracts data from embedded `var model = {...}` JSON */
@@ -91,8 +103,17 @@ export async function fetchFpfData(fpfLink: string) {
     // Fallback: if no birth country data, assume same as nationality
     const birthCountry = (model.BirthCountry || model.CountryOfBirth || model.PlaceOfBirth || model.PaisNascimento || model.BirthPlace || nationality) as string | null;
 
+    // CurrentClub in FPF is NOT reliable — it keeps the last club even after the player left.
+    // Cross-check with the Clubs array: if the current season is missing, player is "Sem Clube".
+    const currentSeason = getCurrentFpfSeason();
+    const clubs = Array.isArray(model.Clubs) ? model.Clubs as { Season: string; Name: string }[] : [];
+    const hasCurrentSeason = clubs.some(c => c.Season === currentSeason);
+    const currentClub = hasCurrentSeason
+      ? (model.CurrentClub as string) || 'Sem Clube'
+      : 'Sem Clube';
+
     return {
-      currentClub: (model.CurrentClub as string) || 'Sem Clube',
+      currentClub,
       photoUrl,
       fullName: (model.FullName as string) || null,
       dob,
@@ -131,10 +152,10 @@ export async function scrapePlayerFpf(playerId: number): Promise<FpfScrapeResult
     ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
   }).eq('id', playerId).eq('club_id', clubId);
 
-  // "Sem Clube" is not a real club — don't flag as a club change to auto-apply
-  const clubChanged = data.currentClub && data.currentClub !== 'Sem Clube'
-    ? !clubsMatch(data.currentClub, player.club ?? '')
-    : false;
+  // "Sem Clube" = player left club — flag as change if player currently has a different club
+  const clubChanged = data.currentClub === 'Sem Clube'
+    ? Boolean(player.club?.trim()) && player.club !== 'Sem Clube'
+    : !clubsMatch(data.currentClub!, player.club ?? '');
 
   revalidatePath(`/jogadores/${playerId}`);
   return { success: true, club: data.currentClub, photoUrl: data.photoUrl, birthCountry: data.birthCountry, nationality: data.nationality, clubChanged };

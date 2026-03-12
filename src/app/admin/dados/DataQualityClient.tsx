@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Search, X, ExternalLink, AlertTriangle, Camera, Globe, FileSearch,
@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { fuzzyMatch } from '@/lib/utils';
+import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
+import type { RefreshablePlayer } from '@/components/players/RefreshPlayerButton';
 import type { DataGapPlayer, DataQualityTotals } from '@/actions/data-quality';
 
 /* ───────────── Tab Types ───────────── */
@@ -64,6 +66,11 @@ interface Props {
 
 export function DataQualityClient({ players, totals }: Props) {
   const [search, setSearch] = useState('');
+  // Track players that were updated inline — hide them from the list without full reload
+  const [updatedIds, setUpdatedIds] = useState<Set<number>>(new Set());
+  const markUpdated = useCallback((id: number) => {
+    setUpdatedIds((prev) => new Set(prev).add(id));
+  }, []);
 
   // Only show tabs that have players — hide empty categories
   const visibleTabs = useMemo(
@@ -89,13 +96,16 @@ export function DataQualityClient({ players, totals }: Props) {
     }
   }, [players, tab]);
 
-  // Apply search
+  // Apply search + hide updated players
   const filtered = useMemo(() => {
-    if (!search.trim()) return tabPlayers;
-    return tabPlayers.filter((p) =>
-      fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized}`, search),
-    );
-  }, [tabPlayers, search]);
+    let list = tabPlayers.filter((p) => !updatedIds.has(p.id));
+    if (search.trim()) {
+      list = list.filter((p) =>
+        fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized}`, search),
+      );
+    }
+    return list;
+  }, [tabPlayers, search, updatedIds]);
 
   // Active tab definition (for context-specific column in player rows)
   const activeTab = TABS.find((t) => t.value === tab);
@@ -202,7 +212,7 @@ export function DataQualityClient({ players, totals }: Props) {
           </p>
         )}
         {filtered.map((player) => (
-          <PlayerRow key={player.id} player={player} activeTab={activeTab?.value} />
+          <PlayerRow key={player.id} player={player} activeTab={activeTab?.value} onUpdated={markUpdated} />
         ))}
       </div>
     </div>
@@ -228,8 +238,37 @@ function SummaryCard({ label, value, pct, warn }: { label: string; value: number
 
 /* ───────────── Player Row ───────────── */
 
-function PlayerRow({ player, activeTab }: { player: DataGapPlayer; activeTab?: Tab }) {
+/** Show inline refresh on all tabs except duplicates (scraping won't fix duplicates) */
+function canRefreshInline(tab?: Tab): boolean {
+  return !!tab && tab !== 'duplicates';
+}
+
+/** Build a RefreshablePlayer from DataGapPlayer — only the fields the scraper dialog needs */
+function toRefreshable(p: DataGapPlayer): RefreshablePlayer {
+  return {
+    id: p.id,
+    name: p.name,
+    dob: p.dob,
+    club: p.club,
+    fpfLink: p.fpfLink ?? '',
+    zerozeroLink: p.zerozeroLink ?? '',
+    photoUrl: p.photoUrl ?? null,
+    zzPhotoUrl: p.zzPhotoUrl ?? null,
+    clubLogoUrl: null,
+    positionNormalized: p.positionNormalized,
+    secondaryPosition: null,
+    tertiaryPosition: null,
+    foot: p.foot ?? '',
+    height: null,
+    weight: null,
+    birthCountry: null,
+    nationality: p.nationality ?? null,
+  };
+}
+
+function PlayerRow({ player, activeTab, onUpdated }: { player: DataGapPlayer; activeTab?: Tab; onUpdated: (id: number) => void }) {
   const birthYear = player.dob ? new Date(player.dob).getFullYear() : null;
+  const showRefresh = canRefreshInline(activeTab) && (player.fpfLink || player.zerozeroLink);
 
   return (
     <div className="flex items-center gap-2 rounded-md border px-3 py-2">
@@ -270,6 +309,15 @@ function PlayerRow({ player, activeTab }: { player: DataGapPlayer; activeTab?: T
           {birthYear ? ` · ${birthYear}` : ''}
         </p>
       </div>
+
+      {/* Inline refresh button — for stale/mismatch tabs */}
+      {showRefresh && (
+        <RefreshPlayerButton
+          player={toRefreshable(player)}
+          compact
+          onUpdated={() => onUpdated(player.id)}
+        />
+      )}
 
       {/* Quick edit link */}
       <Link

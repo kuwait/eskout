@@ -30,6 +30,13 @@ export interface DataGapPlayer {
   staleFpf: boolean;
   staleZz: boolean;
   duplicateKey: string | null;
+  // Extra fields for inline refresh — allows scraping directly from data quality page
+  fpfLink: string | null;
+  zerozeroLink: string | null;
+  photoUrl: string | null;
+  zzPhotoUrl: string | null;
+  foot: string | null;
+  nationality: string | null;
 }
 
 export interface DataQualityTotals {
@@ -173,6 +180,12 @@ export async function getDataQuality(): Promise<DataQualityResult> {
       staleFpf,
       staleZz,
       duplicateKey: isDupe ? dupeKey : null,
+      fpfLink: r.fpf_link,
+      zerozeroLink: r.zerozero_link,
+      photoUrl: r.photo_url,
+      zzPhotoUrl: r.zz_photo_url,
+      foot: r.foot,
+      nationality: r.nationality,
     };
   });
 

@@ -22,13 +22,37 @@ import { scrapePlayerAll, applyScrapedData, type ScrapedChanges, type PreFetched
 import { fetchZzProfileClient, searchZzMultiStrategyClient, setZzProgressCallback } from '@/lib/zerozero/client';
 import { calcAgeFromDob } from '@/lib/zerozero/helpers';
 import { POSITIONS } from '@/lib/constants';
-import type { Player } from '@/lib/types';
 
-interface RefreshPlayerButtonProps {
-  player: Player;
+/** Minimal player shape needed for the refresh button — allows reuse from data quality page */
+export interface RefreshablePlayer {
+  id: number;
+  name: string;
+  dob: string | null;
+  club: string;
+  fpfLink: string;
+  zerozeroLink: string;
+  photoUrl: string | null;
+  zzPhotoUrl: string | null;
+  clubLogoUrl: string | null;
+  positionNormalized: string;
+  secondaryPosition: string | null;
+  tertiaryPosition: string | null;
+  foot: string;
+  height: number | null;
+  weight: number | null;
+  birthCountry: string | null;
+  nationality: string | null;
 }
 
-export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
+interface RefreshPlayerButtonProps {
+  player: RefreshablePlayer;
+  /** Compact mode — small icon-only button for inline use (e.g. data quality page) */
+  compact?: boolean;
+  /** Called after changes are applied — used to refresh parent list */
+  onUpdated?: () => void;
+}
+
+export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlayerButtonProps) {
   const [isPending, startTransition] = useTransition();
   const [isApplying, startApply] = useTransition();
   const [result, setResult] = useState<ScrapedChanges | null>(null);
@@ -178,6 +202,7 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
       await applyScrapedData(player.id, updates, zzProfileCache);
       setShowDialog(false);
       setFeedback('Dados atualizados');
+      onUpdated?.();
       setTimeout(() => setFeedback(null), 3000);
     });
   }
@@ -232,14 +257,22 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
         type="button"
         onClick={handleRefresh}
         disabled={isPending || feedback === 'ok'}
-        className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50"
+        className={compact
+          ? 'flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50'
+          : 'flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50'
+        }
+        title={isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar dados'}
       >
         {feedback === 'ok' ? (
-          <Check className="h-3.5 w-3.5 text-emerald-500" />
+          <Check className={compact ? 'h-4 w-4 text-emerald-500' : 'h-3.5 w-3.5 text-emerald-500'} />
+        ) : feedback === 'Dados atualizados' ? (
+          <Check className={compact ? 'h-4 w-4 text-emerald-500' : 'h-3.5 w-3.5 text-emerald-500'} />
         ) : (
-          <RefreshCw className={`h-3.5 w-3.5 ${isPending ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`${compact ? 'h-4 w-4' : 'h-3.5 w-3.5'} ${isPending ? 'animate-spin' : ''}`} />
         )}
-        <span className="hidden sm:inline">{isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar'}</span>
+        {!compact && (
+          <span className="hidden sm:inline">{isPending ? 'A verificar...' : feedback === 'ok' ? 'Sem alterações' : 'Atualizar'}</span>
+        )}
       </button>
       {/* Live progress step — shows what's happening while scraping */}
       {isPending && progressStep && (
@@ -269,13 +302,20 @@ export function RefreshPlayerButton({ player }: RefreshPlayerButtonProps) {
           <div className="space-y-3 text-sm">
             {/* ── FPF-sourced fields (always visible) ── */}
             {result?.clubChanged && result.club && (
-              <ChangeRow
-                checked={!!selected.club}
-                onToggle={() => toggleField('club')}
-                label="Clube"
-                oldValue={player.club || '—'}
-                newValue={result.club}
-              />
+              <>
+                <ChangeRow
+                  checked={!!selected.club}
+                  onToggle={() => toggleField('club')}
+                  label="Clube"
+                  oldValue={player.club || '—'}
+                  newValue={result.club}
+                />
+                {result.club === 'Sem Clube' && (
+                  <div className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
+                    Este atleta não tem inscrição na época atual na FPF. Pode ter parado de jogar — confirma antes de atualizar.
+                  </div>
+                )}
+              </>
             )}
             {result?.clubLogoChanged && result.clubLogoUrl && (
               <label className="flex items-start gap-2 cursor-pointer">
@@ -540,7 +580,7 @@ function PositionSelect({ rawText, normalizedCode, value, onChange }: {
 function PositionChangeRow({ checked, onToggle, player, result, overrides, onOverride }: {
   checked: boolean;
   onToggle: () => void;
-  player: Player;
+  player: RefreshablePlayer;
   result: ScrapedChanges;
   overrides: { primary?: string; secondary?: string; tertiary?: string };
   onOverride: (v: { primary?: string; secondary?: string; tertiary?: string }) => void;
