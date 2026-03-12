@@ -197,6 +197,19 @@ describe('getNationalityFlag', () => {
     expect(getNationalityFlag('portugal')).toBe('🇵🇹');
     expect(getNationalityFlag('BRASIL')).toBe('🇧🇷');
   });
+
+  it('matches accent-less DB values via normalizeAccents', () => {
+    expect(getNationalityFlag('Africa Do Sul')).toBe('🇿🇦');
+    expect(getNationalityFlag('Ucrania')).toBe('🇺🇦');
+    expect(getNationalityFlag('Colombia')).toBe('🇨🇴');
+    expect(getNationalityFlag('Russia')).toBe('🇷🇺');
+  });
+
+  it('resolves aliases for alternative DB spellings', () => {
+    expect(getNationalityFlag('Republica Checa')).toBe('🇨🇿');
+    expect(getNationalityFlag('Inglaterra / Reino Unido')).toBe('🏴󠁧󠁢󠁥󠁮󠁧󠁿');
+    expect(getNationalityFlag('Republica Pop.Da China')).toBe('🇨🇳');
+  });
 });
 
 /* ───────────── CURRENT_SEASON ───────────── */
