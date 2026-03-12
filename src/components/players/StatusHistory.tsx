@@ -22,7 +22,7 @@ import {
   ChevronUp,
   X,
 } from 'lucide-react';
-import { RECRUITMENT_LABEL_MAP, RECRUITMENT_STATUS_MAP, POSITION_LABELS } from '@/lib/constants';
+import { RECRUITMENT_LABEL_MAP, RECRUITMENT_STATUS_MAP, POSITION_LABELS, getAgeGroups } from '@/lib/constants';
 import type { StatusHistoryEntry, RecruitmentStatus, PositionCode } from '@/lib/types';
 
 interface StatusHistoryProps {
@@ -85,6 +85,20 @@ function fmtRelative(v: string): string {
     // Absolute date for older entries
     return d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   } catch { return v; }
+}
+
+/** Convert shadow squad tag from escalão to generation year: "Sombra Sub-14" → "Sombra 2012" */
+function shadowTagToYear(tag: string): string {
+  const match = tag.match(/^(Sombra)\s+(Sub-(\d+))$/i);
+  if (!match) return tag;
+  const n = parseInt(match[3], 10);
+  // Find the generation year for this escalão from constants
+  const ag = getAgeGroups().find((g) => g.name === match[2]);
+  if (ag) return `${match[1]} ${ag.generationYear}`;
+  // Fallback: shouldn't happen but compute manually
+  const now = new Date();
+  const endYear = now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear();
+  return `${match[1]} ${endYear - n}`;
 }
 
 /* ───────────── Entry display builder ───────────── */
@@ -188,6 +202,8 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
           if (prefixMatch) squadTag = prefixMatch[1];
         }
       }
+      // Shadow squads use generation year, not escalão
+      if (isSombra) squadTag = shadowTagToYear(squadTag);
       const isFirstAssignment = !oldValue;
       return {
         icon: <MapPin className={IC} />,

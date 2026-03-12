@@ -303,13 +303,13 @@ export async function moveSquadPlayerPosition(
   // Get old position + age group for history context
   const { data: player } = await supabase
     .from('players')
-    .select(`${positionField}, age_groups!inner(name)`)
+    .select(`${positionField}, age_groups!inner(name, generation_year)`)
     .eq('id', playerId)
     .eq('club_id', clubId)
     .single();
 
   const oldPosition = player ? (player as Record<string, unknown>)[positionField] as string | null : null;
-  const ageGroupName = player ? ((player as Record<string, unknown>).age_groups as { name: string } | null)?.name : null;
+  const ageGroupData = player ? (player as Record<string, unknown>).age_groups as { name: string; generation_year: number } | null : null;
 
   const { error } = await supabase
     .from('players')
@@ -321,8 +321,10 @@ export async function moveSquadPlayerPosition(
     return { success: false, error: `Erro ao mover jogador: ${error.message}` };
   }
 
-  const squadPrefix = squadType === 'shadow' ? 'Sombra' : 'Plantel';
-  const squadLabel = ageGroupName ? `${squadPrefix} ${ageGroupName}` : (squadType === 'shadow' ? 'Plantel Sombra' : 'Plantel');
+  // Shadow squads are by generation year (e.g. "Sombra 2012"), real squads by escalão (e.g. "Plantel Sub-14")
+  const squadLabel = squadType === 'shadow'
+    ? (ageGroupData?.generation_year ? `Sombra ${ageGroupData.generation_year}` : 'Plantel Sombra')
+    : (ageGroupData?.name ? `Plantel ${ageGroupData.name}` : 'Plantel');
   await logStatusChange(
     supabase, clubId, playerId, positionField,
     oldPosition as string, newPosition, userId,
