@@ -110,7 +110,7 @@ export function CampoView() {
 
   const renderRealPanel = () => (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold">Plantel Real</h2>
+      <h2 className="text-lg font-semibold">Plantel</h2>
       {POSITION_CODES.map((pos) => (
         <PositionGroup
           key={pos}
@@ -159,7 +159,7 @@ export function CampoView() {
       <div className="lg:hidden">
         <Tabs defaultValue="real">
           <TabsList className="mb-4 w-full">
-            <TabsTrigger value="real" className="flex-1">Plantel Real</TabsTrigger>
+            <TabsTrigger value="real" className="flex-1">Plantel</TabsTrigger>
             <TabsTrigger value="shadow" className="flex-1">Plantel Sombra</TabsTrigger>
           </TabsList>
           <TabsContent value="real">{renderRealPanel()}</TabsContent>

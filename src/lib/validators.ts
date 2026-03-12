@@ -99,6 +99,39 @@ export const realSquadSchema = z.object({
 
 export type RealSquadData = z.infer<typeof realSquadSchema>;
 
+/* ───────────── Custom Squads ───────────── */
+
+export const createSquadSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório').max(60, 'Máximo 60 caracteres'),
+  squadType: z.enum(['real', 'shadow'], { message: 'Tipo de plantel inválido' }),
+  ageGroupId: z.number().int().positive('Escalão inválido').optional(),
+  description: z.string().max(200, 'Máximo 200 caracteres').optional(),
+});
+
+export type CreateSquadData = z.infer<typeof createSquadSchema>;
+
+export const renameSquadSchema = z.object({
+  squadId: z.number().int().positive(),
+  name: z.string().min(1, 'Nome é obrigatório').max(60, 'Máximo 60 caracteres'),
+});
+
+export type RenameSquadData = z.infer<typeof renameSquadSchema>;
+
+export const updateSquadDescriptionSchema = z.object({
+  squadId: z.number().int().positive(),
+  description: z.string().max(200, 'Máximo 200 caracteres').optional(),
+});
+
+export type UpdateSquadDescriptionData = z.infer<typeof updateSquadDescriptionSchema>;
+
+export const squadPlayerSchema = z.object({
+  squadId: z.number().int().positive(),
+  playerId: z.number().int().positive('ID de jogador inválido'),
+  position: z.enum(SQUAD_POSITION_CODES, { message: 'Posição inválida' }),
+});
+
+export type SquadPlayerData = z.infer<typeof squadPlayerSchema>;
+
 /* ───────────── Recruitment Status Change ───────────── */
 
 export const recruitmentStatusChangeSchema = z.object({

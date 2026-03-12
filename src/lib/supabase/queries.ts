@@ -5,8 +5,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub, getActiveClubId } from '@/lib/supabase/club-context';
-import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow, mapTrainingFeedbackRow } from '@/lib/supabase/mappers';
-import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, StatusHistoryEntry, ObservationNote, TrainingFeedback, TrainingFeedbackRow } from '@/lib/types';
+import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow, mapTrainingFeedbackRow, mapSquadRow, mapSquadPlayerRow } from '@/lib/supabase/mappers';
+import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, SquadType, SquadWithPlayers, StatusHistoryEntry, ObservationNote, TrainingFeedback, TrainingFeedbackRow } from '@/lib/types';
 
 /* ───────────── Players ───────────── */
 
@@ -721,6 +721,95 @@ export async function fetchAllPlayers(): Promise<Player[]> {
   }
 
   return players;
+}
+
+/* ───────────── Custom Squads ───────────── */
+
+/** Fetch all squads for a club, optionally filtered by age group and/or type */
+export async function getClubSquads(
+  opts?: { ageGroupId?: number; squadType?: SquadType }
+): Promise<Squad[]> {
+  const clubId = await getActiveClubId();
+  if (!clubId) return [];
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('squads')
+    .select('*')
+    .eq('club_id', clubId)
+    .order('name');
+
+  if (opts?.ageGroupId) query = query.eq('age_group_id', opts.ageGroupId);
+  if (opts?.squadType) query = query.eq('squad_type', opts.squadType);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return (data as SquadRow[]).map(mapSquadRow);
+}
+
+/** Fetch a squad with its players joined to player data */
+export async function getSquadWithPlayers(squadId: number): Promise<SquadWithPlayers | null> {
+  const clubId = await getActiveClubId();
+  if (!clubId) return null;
+  const supabase = await createClient();
+
+  // Fetch the squad
+  const { data: squadData, error: squadError } = await supabase
+    .from('squads')
+    .select('*')
+    .eq('id', squadId)
+    .eq('club_id', clubId)
+    .single();
+
+  if (squadError || !squadData) return null;
+  const squad = mapSquadRow(squadData as SquadRow);
+
+  // Fetch squad_players with joined player data
+  const { data: spData, error: spError } = await supabase
+    .from('squad_players')
+    .select('*, players(*)')
+    .eq('squad_id', squadId)
+    .order('sort_order');
+
+  if (spError || !spData) {
+    return { ...squad, players: [] };
+  }
+
+  const players = spData.map((row) => {
+    const sp = mapSquadPlayerRow(row as SquadPlayerRow);
+    const playerRow = (row as Record<string, unknown>).players as PlayerRow;
+    return {
+      ...sp,
+      player: mapPlayerRow(playerRow),
+    };
+  });
+
+  return { ...squad, players };
+}
+
+/** Fetch all squads a player belongs to (for player profile) */
+export async function getPlayerSquads(playerId: number): Promise<(SquadPlayer & { squad: Squad })[]> {
+  const clubId = await getActiveClubId();
+  if (!clubId) return [];
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('squad_players')
+    .select('*, squads(*)')
+    .eq('player_id', playerId)
+    .eq('club_id', clubId);
+
+  if (error || !data) return [];
+
+  return data.map((row) => {
+    const sp = mapSquadPlayerRow(row as SquadPlayerRow);
+    const squadRow = (row as Record<string, unknown>).squads as SquadRow;
+    return {
+      ...sp,
+      squad: mapSquadRow(squadRow),
+    };
+  });
 }
 
 /** Fetch all players (full objects) for player picker dialogs */

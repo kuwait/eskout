@@ -8,6 +8,11 @@ import {
   playerFormSchema,
   observationNoteSchema,
   shadowSquadSchema,
+  realSquadSchema,
+  createSquadSchema,
+  renameSquadSchema,
+  updateSquadDescriptionSchema,
+  squadPlayerSchema,
   calendarEventSchema,
   recruitmentStatusChangeSchema,
   trainingFeedbackSchema,
@@ -138,6 +143,124 @@ describe('shadowSquadSchema', () => {
   it('rejects negative playerId', () => {
     const result = shadowSquadSchema.safeParse({ playerId: -1, position: 'DC' });
     expect(result.success).toBe(false);
+  });
+});
+
+/* ───────────── realSquadSchema ───────────── */
+
+describe('realSquadSchema', () => {
+  it('accepts valid player + position', () => {
+    const result = realSquadSchema.safeParse({ playerId: 10, position: 'MC' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts DC sub-slots', () => {
+    expect(realSquadSchema.safeParse({ playerId: 1, position: 'DC_E' }).success).toBe(true);
+    expect(realSquadSchema.safeParse({ playerId: 1, position: 'DC_D' }).success).toBe(true);
+  });
+
+  it('rejects invalid position', () => {
+    expect(realSquadSchema.safeParse({ playerId: 1, position: 'ZZ' }).success).toBe(false);
+  });
+
+  it('rejects negative playerId', () => {
+    expect(realSquadSchema.safeParse({ playerId: -1, position: 'GR' }).success).toBe(false);
+  });
+});
+
+/* ───────────── createSquadSchema ───────────── */
+
+describe('createSquadSchema', () => {
+  it('accepts valid real squad', () => {
+    const result = createSquadSchema.safeParse({ name: 'Sub-15 A', squadType: 'real' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts valid shadow squad with ageGroupId', () => {
+    const result = createSquadSchema.safeParse({ name: 'Sombra B', squadType: 'shadow', ageGroupId: 3 });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts optional description', () => {
+    const result = createSquadSchema.safeParse({ name: 'A', squadType: 'real', description: 'Campeonato Nacional' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty name', () => {
+    expect(createSquadSchema.safeParse({ name: '', squadType: 'real' }).success).toBe(false);
+  });
+
+  it('rejects name over 60 characters', () => {
+    expect(createSquadSchema.safeParse({ name: 'A'.repeat(61), squadType: 'real' }).success).toBe(false);
+  });
+
+  it('rejects invalid squad type', () => {
+    expect(createSquadSchema.safeParse({ name: 'Test', squadType: 'mixed' }).success).toBe(false);
+  });
+
+  it('rejects description over 200 characters', () => {
+    expect(createSquadSchema.safeParse({ name: 'A', squadType: 'real', description: 'X'.repeat(201) }).success).toBe(false);
+  });
+});
+
+/* ───────────── renameSquadSchema ───────────── */
+
+describe('renameSquadSchema', () => {
+  it('accepts valid rename', () => {
+    expect(renameSquadSchema.safeParse({ squadId: 1, name: 'Sub-15 B' }).success).toBe(true);
+  });
+
+  it('rejects empty name', () => {
+    expect(renameSquadSchema.safeParse({ squadId: 1, name: '' }).success).toBe(false);
+  });
+
+  it('rejects non-positive squadId', () => {
+    expect(renameSquadSchema.safeParse({ squadId: 0, name: 'Test' }).success).toBe(false);
+  });
+});
+
+/* ───────────── updateSquadDescriptionSchema ───────────── */
+
+describe('updateSquadDescriptionSchema', () => {
+  it('accepts valid description update', () => {
+    expect(updateSquadDescriptionSchema.safeParse({ squadId: 5, description: 'Liga Nacional' }).success).toBe(true);
+  });
+
+  it('accepts empty/undefined description (clear)', () => {
+    expect(updateSquadDescriptionSchema.safeParse({ squadId: 5 }).success).toBe(true);
+  });
+
+  it('rejects description over 200 characters', () => {
+    expect(updateSquadDescriptionSchema.safeParse({ squadId: 5, description: 'X'.repeat(201) }).success).toBe(false);
+  });
+
+  it('rejects non-positive squadId', () => {
+    expect(updateSquadDescriptionSchema.safeParse({ squadId: -1, description: 'Test' }).success).toBe(false);
+  });
+});
+
+/* ───────────── squadPlayerSchema ───────────── */
+
+describe('squadPlayerSchema', () => {
+  it('accepts valid squad player assignment', () => {
+    expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 42, position: 'DC' }).success).toBe(true);
+  });
+
+  it('accepts DC sub-slots', () => {
+    expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 1, position: 'DC_D' }).success).toBe(true);
+    expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 1, position: 'DC_E' }).success).toBe(true);
+  });
+
+  it('rejects invalid position', () => {
+    expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 1, position: 'XX' }).success).toBe(false);
+  });
+
+  it('rejects negative playerId', () => {
+    expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: -1, position: 'GR' }).success).toBe(false);
+  });
+
+  it('rejects non-positive squadId', () => {
+    expect(squadPlayerSchema.safeParse({ squadId: 0, playerId: 1, position: 'GR' }).success).toBe(false);
   });
 });
 

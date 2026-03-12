@@ -113,7 +113,7 @@ export function AddToSquadDialog({
   const posLabel = (POSITION_LABELS as Record<string, string>)[position] ?? position;
   const title = squadType === 'shadow'
     ? `Plantel Sombra — ${position} (${posLabel})`
-    : `Plantel Real — ${position} (${posLabel})`;
+    : `Plantel — ${position} (${posLabel})`;
 
   const clubs = useMemo(() => {
     const set = new Set(searchablePlayers.map((p) => p.club).filter(Boolean));

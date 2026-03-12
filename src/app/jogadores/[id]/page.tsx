@@ -15,6 +15,7 @@ import {
   getStatusHistory,
   getTrainingFeedback,
   getAllProfiles,
+  getPlayerSquads,
 } from '@/lib/supabase/queries';
 import { getPlayerVideos } from '@/actions/player-videos';
 import { createClient } from '@/lib/supabase/server';
@@ -77,7 +78,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   if (isNaN(playerId)) notFound();
 
-  const [player, role, notes, statusHistory, scoutingReports, scoutEvaluations, trainingFeedback, clubProfiles, playerVideos] = await Promise.all([
+  const [player, role, notes, statusHistory, scoutingReports, scoutEvaluations, trainingFeedback, clubProfiles, playerVideos, playerSquads] = await Promise.all([
     getPlayerById(playerId),
     getCurrentUserRole(),
     getObservationNotes(playerId),
@@ -87,6 +88,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
     getTrainingFeedback(playerId),
     getAllProfiles(),
     getPlayerVideos(playerId),
+    getPlayerSquads(playerId),
   ]);
 
   if (!player) notFound();
@@ -126,6 +128,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         currentUserId={currentUser?.id ?? null}
         ageGroupName={ageGroup?.name ?? null}
         clubMembers={clubProfiles.map((p) => ({ id: p.id, fullName: p.fullName }))}
+        playerSquads={playerSquads}
       />
     </div>
   );

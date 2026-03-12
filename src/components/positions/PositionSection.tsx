@@ -57,7 +57,7 @@ export function PositionSection({
         <div>
           <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-            Plantel Real ({realPlayers.length})
+            Plantel ({realPlayers.length})
           </p>
           {realPlayers.length === 0 ? (
             <p className="text-xs text-muted-foreground">—</p>

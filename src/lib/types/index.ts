@@ -673,6 +673,63 @@ export interface PickerPlayer {
   nationality: string | null;
 }
 
+/* ───────────── Squads (custom squads system) ───────────── */
+
+export type SquadType = 'real' | 'shadow';
+
+export interface Squad {
+  id: number;
+  clubId: string;
+  name: string;
+  description: string | null;
+  squadType: SquadType;
+  ageGroupId: number | null;
+  sortOrder: number;
+  createdBy: string | null;
+  createdAt: string;
+  /** Number of players in this squad (populated by query, not stored) */
+  playerCount?: number;
+}
+
+export interface SquadRow {
+  id: number;
+  club_id: string;
+  name: string;
+  description: string | null;
+  squad_type: string;
+  age_group_id: number | null;
+  sort_order?: number;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface SquadPlayer {
+  id: number;
+  squadId: number;
+  playerId: number;
+  clubId: string;
+  position: string;
+  sortOrder: number;
+  addedAt: string;
+}
+
+export interface SquadPlayerRow {
+  id: number;
+  squad_id: number;
+  player_id: number;
+  club_id: string;
+  position: string;
+  sort_order: number;
+  added_at: string;
+}
+
+/** Squad with its players joined (for squad detail view) */
+export interface SquadWithPlayers extends Squad {
+  players: (SquadPlayer & {
+    player: Player;
+  })[];
+}
+
 /* ───────────── JSON Import Types (data/all_players.json structure) ───────────── */
 
 export interface PlayerJsonImport {

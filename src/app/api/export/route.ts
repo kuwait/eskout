@@ -31,7 +31,7 @@ const COLUMNS: { header: string; key: string; width: number }[] = [
   { header: 'Observador', key: 'observer', width: 18 },
   { header: 'Referido por', key: 'referred_by', width: 15 },
   { header: 'Estado Pipeline', key: 'recruitment_status', width: 15 },
-  { header: 'Plantel Real', key: 'is_real_squad', width: 10 },
+  { header: 'Plantel', key: 'is_real_squad', width: 10 },
   { header: 'Plantel Sombra', key: 'is_shadow_squad', width: 12 },
   { header: 'Pos. Sombra', key: 'shadow_position', width: 10 },
   { header: 'Contacto', key: 'contact', width: 15 },

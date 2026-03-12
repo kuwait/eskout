@@ -12,7 +12,7 @@ const ADMIN_AUTH = path.join(__dirname, 'auth', 'admin.json');
 // Pages with the most user interaction — highest a11y impact
 const PAGES_TO_CHECK = [
   { route: '/', name: 'Dashboard / Jogadores' },
-  { route: '/campo/real', name: 'Plantel Real' },
+  { route: '/campo/real', name: 'Plantel' },
   { route: '/pipeline', name: 'Pipeline' },
   { route: '/calendario', name: 'Calendário' },
   { route: '/jogadores/novo', name: 'Adicionar Jogador' },

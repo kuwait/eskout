@@ -15,7 +15,7 @@ interface StatsCardsProps {
 
 const CARDS = [
   { key: 'total', icon: Users, label: 'Jogadores' },
-  { key: 'real', icon: Shield, label: 'Plantel Real' },
+  { key: 'real', icon: Shield, label: 'Plantel' },
   { key: 'shadow', icon: MapPin, label: 'Plantel Sombra' },
   { key: 'pipeline', icon: GitBranch, label: 'Pipeline Ativo' },
 ] as const;

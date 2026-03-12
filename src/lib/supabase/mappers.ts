@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
 function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
@@ -234,6 +234,36 @@ export function mapTrainingFeedbackRow(row: TrainingFeedbackRow): TrainingFeedba
     rating: row.rating,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Squad Mapper ───────────── */
+
+/** Map a Supabase SquadRow (snake_case) to the domain Squad type (camelCase) */
+export function mapSquadRow(row: SquadRow): Squad {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    name: row.name,
+    description: row.description,
+    squadType: row.squad_type as Squad['squadType'],
+    ageGroupId: row.age_group_id,
+    sortOrder: row.sort_order ?? 0,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+  };
+}
+
+/** Map a Supabase SquadPlayerRow (snake_case) to the domain SquadPlayer type (camelCase) */
+export function mapSquadPlayerRow(row: SquadPlayerRow): SquadPlayer {
+  return {
+    id: row.id,
+    squadId: row.squad_id,
+    playerId: row.player_id,
+    clubId: row.club_id,
+    position: row.position,
+    sortOrder: row.sort_order,
+    addedAt: row.added_at,
   };
 }
 

@@ -12,6 +12,8 @@ export interface ExportSquadData {
   squadType: 'real' | 'shadow';
   ageGroupLabel: string;
   byPosition: Record<string, Player[]>;
+  /** Custom squad name — if set, overrides the default "Plantel"/"Plantel Sombra" label */
+  squadName?: string;
 }
 
 /* ───────────── Helpers ───────────── */
@@ -44,14 +46,15 @@ function opinionStr(opinions: string[]): string {
   return opinions.join(', ');
 }
 
-/** Squad type label in Portuguese */
-function squadLabel(type: 'real' | 'shadow'): string {
-  return type === 'real' ? 'Plantel Real' : 'Plantel Sombra';
+/** Squad type label in Portuguese — uses custom name if available */
+function squadLabel(type: 'real' | 'shadow', customName?: string): string {
+  if (customName) return customName;
+  return type === 'real' ? 'Plantel' : 'Plantel Sombra';
 }
 
 /** Filename-safe label */
 function fileLabel(data: ExportSquadData): string {
-  return `${squadLabel(data.squadType).replace(/ /g, '_')}_${data.ageGroupLabel.replace(/ /g, '_')}`;
+  return `${squadLabel(data.squadType, data.squadName).replace(/ /g, '_')}_${data.ageGroupLabel.replace(/ /g, '_')}`;
 }
 
 /** Position emoji for WhatsApp messages */
@@ -94,7 +97,7 @@ function hideInteractiveElements(container: HTMLElement): () => void {
 /* ───────────── Plain Text ───────────── */
 
 export function exportAsText(data: ExportSquadData): string {
-  const title = `${squadLabel(data.squadType).toUpperCase()} — ${data.ageGroupLabel}`;
+  const title = `${squadLabel(data.squadType, data.squadName).toUpperCase()} — ${data.ageGroupLabel}`;
   const date = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const lines: string[] = [title, date, ''];
 
@@ -114,7 +117,7 @@ export function exportAsText(data: ExportSquadData): string {
 /* ───────────── WhatsApp Message ───────────── */
 
 export function exportAsWhatsApp(data: ExportSquadData): string {
-  const title = `⚽ *${squadLabel(data.squadType)} — ${data.ageGroupLabel}*`;
+  const title = `⚽ *${squadLabel(data.squadType, data.squadName)} — ${data.ageGroupLabel}*`;
   const date = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const lines: string[] = [title, `📅 ${date}`, ''];
 
@@ -188,7 +191,7 @@ export async function exportAsPdf(data: ExportSquadData, mode: 'download' | 'pri
   // Header
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${squadLabel(data.squadType)} — ${data.ageGroupLabel}`, margin, y);
+  doc.text(`${squadLabel(data.squadType, data.squadName)} — ${data.ageGroupLabel}`, margin, y);
   y += 7;
 
   doc.setFontSize(9);
@@ -319,7 +322,7 @@ export async function exportAsVisualPdf(element: HTMLElement, data: ExportSquadD
     // Title
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${squadLabel(data.squadType)} — ${data.ageGroupLabel}`, margin, 8);
+    doc.text(`${squadLabel(data.squadType, data.squadName)} — ${data.ageGroupLabel}`, margin, 8);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140);

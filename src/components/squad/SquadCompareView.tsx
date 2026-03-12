@@ -1,165 +1,159 @@
 // src/components/squad/SquadCompareView.tsx
-// Side-by-side comparison view — Real Squad vs Shadow Squad per position
-// Each position row shows real players on the left, shadow candidates on the right
+// Side-by-side comparison view — two squads compared position by position
+// Color-coded sides: green tint for plantel, blue tint for shadow squad
 // RELEVANT FILES: src/components/squad/SquadPanelView.tsx, src/components/common/PlayerAvatar.tsx, src/lib/constants.ts
 
 'use client';
 
-import Image from 'next/image';
-import { User, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import Link from 'next/link';
+import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { StatusBadge } from '@/components/common/StatusBadge';
 import { SQUAD_SLOTS } from '@/lib/constants';
 import type { Player } from '@/lib/types';
 
-/* ───────────── Rank colors for shadow ───────────── */
+/* ───────────── Rank indicator ───────────── */
 
-const RANK_DOT: Record<number, string> = {
-  0: 'bg-amber-400',
-  1: 'bg-neutral-300',
-  2: 'bg-amber-700',
+const RANK_COLORS: Record<number, string> = {
+  0: 'bg-amber-400 text-white',
+  1: 'bg-neutral-300 text-neutral-700',
+  2: 'bg-amber-700 text-white',
 };
 
-/** First + last name */
-function displayName(name: string): string {
-  const parts = name.trim().split(' ');
-  if (parts.length <= 2) return name;
-  return `${parts[0]} ${parts[parts.length - 1]}`;
-}
+/* ───────────── Compare card ───────────── */
 
-/* ───────────── Mini player card ───────────── */
-
-function MiniCard({ player, rank, onPlayerClick, onRemove }: { player: Player; rank?: number; onPlayerClick?: (id: number) => void; onRemove?: (id: number) => void }) {
-  const photoUrl = player.photoUrl || player.zzPhotoUrl;
-  const dobLabel = player.dob
-    ? (() => { try { return new Date(player.dob!).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return player.dob; } })()
-    : null;
+function CompareCard({ player, rank, tint }: {
+  player: Player;
+  rank?: number;
+  /** Color tint for the card border and background */
+  tint: 'green' | 'blue';
+}) {
+  const borderColor = tint === 'green' ? 'border-l-green-400' : 'border-l-blue-400';
+  const hoverBg = tint === 'green' ? 'hover:bg-green-50/50' : 'hover:bg-blue-50/50';
 
   return (
-    <div
-      className="group flex items-center gap-2 rounded-md border bg-white p-2 cursor-pointer transition-colors hover:bg-neutral-50"
-      onClick={() => onPlayerClick?.(player.id)}
+    <Link
+      href={`/jogadores/${player.id}`}
+      className={`group flex items-center gap-3 rounded-lg border border-l-[3px] ${borderColor} bg-white p-2.5 transition-colors ${hoverBg} dark:bg-neutral-950`}
     >
-      {/* Rank dot */}
+      {/* Rank */}
       {rank !== undefined && (
-        <div className="flex flex-col items-center gap-0.5">
-          <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold text-white ${RANK_DOT[rank] ?? 'bg-neutral-200 text-neutral-500'}`}>
-            {rank + 1}
-          </span>
-        </div>
-      )}
-
-      {/* Photo */}
-      {photoUrl ? (
-        <Image src={photoUrl} alt="" width={36} height={36} unoptimized className="h-9 w-9 shrink-0 rounded-lg object-cover" />
-      ) : (
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-400">
-          <User className="h-4 w-4" />
+        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${RANK_COLORS[rank] ?? 'bg-neutral-200 text-neutral-500'}`}>
+          {rank + 1}
         </span>
       )}
 
-      {/* Info */}
+      <PlayerAvatar
+        player={{
+          name: player.name,
+          photoUrl: player.photoUrl || player.zzPhotoUrl,
+          club: player.club,
+          position: player.positionNormalized,
+          dob: player.dob,
+          foot: player.foot,
+        }}
+        size={36}
+      />
+
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-semibold">{displayName(player.name)}</p>
-        <p className="truncate text-[10px] text-neutral-500">{player.club || '—'}</p>
-        <div className="flex flex-wrap gap-x-2 text-[10px] text-neutral-400">
-          {player.foot && <span>Pé: <span className="text-neutral-600">{player.foot}</span></span>}
-          {dobLabel && <span>Nasc: <span className="text-neutral-600">{dobLabel}</span></span>}
-        </div>
-        <div className="mt-0.5 flex flex-wrap gap-0.5">
-          <OpinionBadge opinion={player.departmentOpinion} className="px-1 py-0 text-[8px]" />
-          {player.recruitmentStatus && (
-            <StatusBadge status={player.recruitmentStatus} className="px-1 py-0 text-[8px]" />
-          )}
-        </div>
+        <p className="truncate text-sm font-semibold">{player.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {player.club || '—'}
+          {player.foot ? ` · ${player.foot}` : ''}
+        </p>
       </div>
 
-      {/* Remove button */}
-      {onRemove && (
-        <button
-          className="shrink-0 rounded p-1 text-red-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
-          onClick={(e) => { e.stopPropagation(); onRemove(player.id); }}
-          aria-label={`Remover ${player.name}`}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </div>
+      <OpinionBadge opinion={player.departmentOpinion} />
+    </Link>
   );
 }
 
 /* ───────────── Props ───────────── */
 
 interface SquadCompareViewProps {
-  realByPosition: Record<string, Player[]>;
-  shadowByPosition: Record<string, Player[]>;
-  onPlayerClick?: (playerId: number) => void;
-  onRemoveReal?: (playerId: number) => void;
-  onRemoveShadow?: (playerId: number) => void;
+  leftByPosition: Record<string, Player[]>;
+  leftHeader: ReactNode;
+  /** Tint for left side cards */
+  leftTint: 'green' | 'blue';
+  rightByPosition: Record<string, Player[]>;
+  rightHeader: ReactNode;
+  /** Tint for right side cards */
+  rightTint: 'green' | 'blue';
+  /** Which side gets rank dots (the shadow squad side) */
+  rankSide?: 'left' | 'right';
 }
 
 /* ───────────── Component ───────────── */
 
-export function SquadCompareView({ realByPosition, shadowByPosition, onPlayerClick, onRemoveReal, onRemoveShadow }: SquadCompareViewProps) {
+export function SquadCompareView({
+  leftByPosition, leftHeader, leftTint,
+  rightByPosition, rightHeader, rightTint,
+  rankSide,
+}: SquadCompareViewProps) {
+  const leftHeaderBg = leftTint === 'green'
+    ? 'bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300'
+    : 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-300';
+  const rightHeaderBg = rightTint === 'green'
+    ? 'bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300'
+    : 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-300';
+
   return (
-    <div className="space-y-3">
-      {/* Header row */}
-      <div className="hidden sm:grid sm:grid-cols-[100px_1fr_1fr] gap-3 px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        <div />
-        <div className="text-center">Plantel Real</div>
-        <div className="text-center">Plantel Sombra</div>
+    <div className="space-y-1.5">
+      {/* Sticky compare header — two color-coded sides with "vs" */}
+      <div className="sticky top-12 z-10 -mx-4 bg-card px-4 py-2 lg:-mx-6 lg:px-6">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className={`flex-1 rounded-lg px-3 py-2 text-center ${leftHeaderBg}`}>
+            <div className="text-xs font-bold uppercase tracking-wide">{leftHeader}</div>
+          </div>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-[10px] font-bold text-white dark:bg-neutral-600">
+            vs
+          </div>
+          <div className={`flex-1 rounded-lg px-3 py-2 text-center ${rightHeaderBg}`}>
+            <div className="text-xs font-bold uppercase tracking-wide">{rightHeader}</div>
+          </div>
+        </div>
       </div>
 
+      {/* Position rows */}
       {SQUAD_SLOTS.map(({ slot, label }) => {
-        const realPlayers = realByPosition[slot] ?? [];
-        const shadowPlayers = shadowByPosition[slot] ?? [];
+        const leftPlayers = leftByPosition[slot] ?? [];
+        const rightPlayers = rightByPosition[slot] ?? [];
+        const isEmpty = leftPlayers.length === 0 && rightPlayers.length === 0;
+
+        if (isEmpty) return null;
 
         return (
-          <div key={slot} className="rounded-lg border bg-neutral-50/50 overflow-hidden">
-            {/* Mobile: position header on top */}
-            <div className="sm:hidden border-b bg-neutral-100 px-3 py-1.5 flex items-center gap-2">
-              <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                {slot}
-              </span>
-              <span className="text-xs font-semibold">{label}</span>
+          <div key={slot}>
+            {/* Position header */}
+            <div className="mt-3 flex items-center gap-3 rounded-lg bg-neutral-100 px-3 py-2 dark:bg-neutral-800">
+              <span className="text-sm font-bold text-foreground">{slot}</span>
+              <span className="text-sm text-muted-foreground">{label}</span>
             </div>
 
-            {/* Desktop: 3-column grid */}
-            <div className="sm:grid sm:grid-cols-[100px_1fr_1fr] gap-2 p-2">
-              {/* Position label — desktop only */}
-              <div className="hidden sm:flex sm:flex-col sm:items-center sm:justify-center">
-                <span className="rounded bg-neutral-800 px-2 py-1 text-xs font-bold text-white">
-                  {slot}
-                </span>
-                <span className="mt-1 text-center text-[10px] text-muted-foreground">{label}</span>
-              </div>
-
-              {/* Real squad column */}
-              <div className="space-y-1.5 p-1">
-                {/* Mobile label */}
-                <p className="sm:hidden text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Plantel Real</p>
-                {realPlayers.length === 0 ? (
-                  <div className="flex h-12 items-center justify-center rounded-md border border-dashed text-[10px] text-muted-foreground">
+            {/* Two-column grid */}
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:gap-3">
+              {/* Left column */}
+              <div className="space-y-1.5">
+                {leftPlayers.length === 0 ? (
+                  <div className="flex h-14 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">
                     Sem jogador
                   </div>
                 ) : (
-                  realPlayers.map((p) => (
-                    <MiniCard key={p.id} player={p} onPlayerClick={onPlayerClick} onRemove={onRemoveReal} />
+                  leftPlayers.map((p, i) => (
+                    <CompareCard key={p.id} player={p} rank={rankSide === 'left' ? i : undefined} tint={leftTint} />
                   ))
                 )}
               </div>
 
-              {/* Shadow squad column */}
-              <div className="space-y-1.5 p-1">
-                {/* Mobile label */}
-                <p className="sm:hidden text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 mt-2">Plantel Sombra</p>
-                {shadowPlayers.length === 0 ? (
-                  <div className="flex h-12 items-center justify-center rounded-md border border-dashed text-[10px] text-muted-foreground">
-                    Sem candidatos
+              {/* Right column */}
+              <div className="space-y-1.5">
+                {rightPlayers.length === 0 ? (
+                  <div className="flex h-14 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">
+                    Sem jogador
                   </div>
                 ) : (
-                  shadowPlayers.map((p, i) => (
-                    <MiniCard key={p.id} player={p} rank={i} onPlayerClick={onPlayerClick} onRemove={onRemoveShadow} />
+                  rightPlayers.map((p, i) => (
+                    <CompareCard key={p.id} player={p} rank={rankSide === 'right' ? i : undefined} tint={rightTint} />
                   ))
                 )}
               </div>

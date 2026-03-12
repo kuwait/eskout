@@ -72,14 +72,26 @@ For the selected age group:
 - **Recent changes:** Last 10 status changes (date, author, player, change)
 - **Alerts:** Players whose FPF club differs from DB club, positions with zero shadow squad candidates
 
-## 4. Real Squad vs Shadow Squad (PRIMARY VIEW)
+## 4. Squads — Plantel, Sombra & Custom (PRIMARY VIEW)
 
 **This is the most important page in the app.**
 
-Multiple views available via tabs/sub-routes (`/campo`, `/campo/real`, `/campo/sombra`):
+Multiple views available via tabs/sub-routes (`/campo`, `/campo/real`, `/campo/sombra`, `/campo/[squadId]`):
 
-**Real Squad panel (`/campo/real`):**
-- All players at Boavista for this age group
+### Custom Squads
+
+Clubs can create unlimited custom squads per age group. Three squad types: `real` (Plantel), `shadow` (Sombra), and `custom`. Data stored in `squads` and `squad_players` tables (migrations 059-061). Legacy boolean flags (`is_real_squad`, `is_shadow_squad`, `shadow_position`, `real_squad_position`) kept for backward compatibility.
+
+**Squad management (`/definicoes/planteis`):** Admin-only page to create, rename, reorder, and delete custom squads. `SquadManagement.tsx` component.
+
+**Squad selector:** `SquadSelector.tsx` dropdown to switch between squads in the campo view. Custom squads accessible via `/campo/[squadId]`.
+
+**Server actions (`src/actions/squads.ts`):** `createSquad`, `deleteSquad`, `renameSquad`, `updateSquadDescription`, `addPlayerToSquad`, `removePlayerFromSquad`, `reorderSquadPlayers`, `moveSquadPlayerPosition`, `updateSquadSortOrder`, `getClubSquads`, `getSquadWithPlayers`.
+
+**Validators:** `createSquadSchema`, `renameSquadSchema`, `updateSquadDescriptionSchema`, `squadPlayerSchema`.
+
+### Plantel panel (`/campo/real`)
+- All players at the club for this age group (renamed from "Plantel Real" to "Plantel")
 - Grouped by position: GR → DD → DE → DC → MDC → MC → MOC → ED → EE → PL
 - Each player card: name, position, foot, photo avatar
 - Admin can add players here (mark as "at Boavista")
@@ -98,9 +110,9 @@ Multiple views available via tabs/sub-routes (`/campo`, `/campo/real`, `/campo/s
 - Age group selector uses the navigator variant with birth year labels
 
 **Compare view (`/campo`):**
-- Side-by-side comparison of real vs shadow
+- Side-by-side comparison of plantel vs shadow
 - Position groups aligned side by side
-- Highlight positions where real squad is thin but shadow squad has candidates
+- Highlight positions where plantel is thin but shadow squad has candidates
 - Highlight positions where shadow squad is also thin (urgent need)
 
 **Squad export:**

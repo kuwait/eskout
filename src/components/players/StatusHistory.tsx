@@ -176,11 +176,11 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
         content: added
           ? (
             <span className="text-sm">
-              Adicionado ao <span className="font-medium">Plantel Real</span>
+              Adicionado ao <span className="font-medium">Plantel</span>
               {pos && <> como <span className="inline-block rounded bg-green-50 px-1.5 py-px text-xs font-medium text-green-700">{pos}</span></>}
             </span>
           )
-          : <span className="text-sm text-muted-foreground">Removido do Plantel Real</span>,
+          : <span className="text-sm text-muted-foreground">Removido do Plantel</span>,
       };
     }
 
@@ -198,7 +198,7 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
           squadTag = notes;
         } else {
           // Old format — try to extract squad prefix
-          const prefixMatch = notes.match(/^((?:Sombra|Plantel)\s+Sub-\d+|Plantel Sombra|Plantel Real)/i);
+          const prefixMatch = notes.match(/^((?:Sombra|Plantel)\s+Sub-\d+|Plantel Sombra|Plantel)/i);
           if (prefixMatch) squadTag = prefixMatch[1];
         }
       }

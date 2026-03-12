@@ -146,6 +146,19 @@ Personal TODO workspace per user with auto-generated tasks from pipeline actions
 - [x] New department opinions: "Ver em treino" (cyan) and "Stand-by" (slate)
 - [x] Fix pipeline horizontal scroll (remove overflow-hidden blocking ScrollArea)
 
+### 5B-5. Custom Squads ✅ DONE
+Custom squad system replacing hardcoded real/shadow booleans. Clubs can create unlimited squads per age group.
+- [x] Migration 059: `squads` + `squad_players` tables with RLS
+- [x] Migration 060: `sort_order` on squads for custom ordering
+- [x] Migration 061: Migrate legacy shadow squad data to new tables
+- [x] Server actions: `createSquad`, `deleteSquad`, `renameSquad`, `updateSquadDescription`, `addPlayerToSquad`, `removePlayerFromSquad`, `reorderSquadPlayers`, `moveSquadPlayerPosition`, `updateSquadSortOrder`, `getClubSquads`, `getSquadWithPlayers`
+- [x] New components: `SquadSelector.tsx`, `CreateSquadDialog.tsx`, `DeleteSquadConfirmDialog.tsx`, `SquadManagement.tsx`
+- [x] New routes: `/campo/[squadId]` (custom squad view), `/definicoes/planteis` (admin squad management)
+- [x] Validators: `createSquadSchema`, `renameSquadSchema`, `updateSquadDescriptionSchema`, `squadPlayerSchema`
+- [x] Renamed "Plantel Real" → "Plantel" across the app
+- [x] Realtime: `squads` + `squad_players` in broadcast tables
+- [x] Legacy flags (`is_real_squad`, `is_shadow_squad`, `shadow_position`, `real_squad_position`) kept for backward compat
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view

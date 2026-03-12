@@ -8,7 +8,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2 } from 'lucide-react';
+import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -149,7 +149,10 @@ export function Sidebar({
           <ul className="mt-2 space-y-1">
             {visibleAdminItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname.startsWith(item.href);
+              // Exact match for /definicoes (Clube) to avoid highlighting when sub-page Plantéis is active
+              const isActive = item.href === '/definicoes'
+                ? pathname === '/definicoes'
+                : pathname.startsWith(item.href);
               return (
                 <li key={item.href}>
                   <Link
@@ -170,6 +173,21 @@ export function Sidebar({
                       </span>
                     )}
                   </Link>
+                  {/* Sub-item: Plantéis — under Clube */}
+                  {item.href === '/definicoes' && (
+                    <Link
+                      href="/definicoes/planteis"
+                      className={cn(
+                        'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                        pathname.startsWith('/definicoes/planteis')
+                          ? 'bg-neutral-900 text-white'
+                          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                      )}
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                      Plantéis
+                    </Link>
+                  )}
                 </li>
               );
             })}

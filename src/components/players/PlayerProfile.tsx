@@ -70,6 +70,8 @@ import type {
   Player,
   PlayerVideo,
   PositionCode,
+  Squad,
+  SquadPlayer,
   UserRole,
   ObservationNote,
   StatusHistoryEntry,
@@ -96,9 +98,11 @@ interface PlayerProfileProps {
   ageGroupName?: string | null;
   /** Club-scoped profiles for referral/contact assign dropdowns */
   clubMembers?: { id: string; fullName: string }[];
+  /** Custom squads this player belongs to (from squad_players table) */
+  playerSquads?: (SquadPlayer & { squad: Squad })[];
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [] }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [] }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -1119,48 +1123,85 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                       />
                     )}
 
-                    {/* Squad cards */}
-                    {p.isRealSquad && (
-                      <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50/60 px-3 py-2.5">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-sm font-semibold text-green-800">
-                              Atleta do Plantel{ageGroupName ? ` ${ageGroupName}` : ''}
-                            </span>
+                    {/* Squad cards — show custom squad memberships if available, fall back to legacy badges */}
+                    {playerSquads.length > 0 ? (
+                      <>
+                        {playerSquads.map((sp) => {
+                          const isReal = sp.squad.squadType === 'real';
+                          return (
+                            <div
+                              key={sp.id}
+                              className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${
+                                isReal
+                                  ? 'border-green-200 bg-green-50/60'
+                                  : 'border-purple-200 bg-purple-50/60'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`h-2 w-2 rounded-full ${isReal ? 'bg-green-500' : 'bg-purple-500'}`} />
+                                  <span className={`text-sm font-semibold ${isReal ? 'text-green-800' : 'text-purple-800'}`}>
+                                    {sp.squad.name}
+                                  </span>
+                                  {sp.squad.description && (
+                                    <span className="text-xs text-muted-foreground">— {sp.squad.description}</span>
+                                  )}
+                                </div>
+                                {sp.position && (
+                                  <p className={`mt-0.5 pl-4 text-xs ${isReal ? 'text-green-700' : 'text-purple-700'}`}>
+                                    Posição: <span className="font-bold">{getPositionLabel(sp.position)}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <>
+                        {p.isRealSquad && (
+                          <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50/60 px-3 py-2.5">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-green-500" />
+                                <span className="text-sm font-semibold text-green-800">
+                                  Atleta do Plantel{ageGroupName ? ` ${ageGroupName}` : ''}
+                                </span>
+                              </div>
+                              {p.realSquadPosition && (
+                                <p className="mt-0.5 pl-4 text-xs text-green-700">
+                                  Posição: <span className="font-bold">{getPositionLabel(p.realSquadPosition)}</span>
+                                </p>
+                              )}
+                            </div>
+                            {realSquadEntry && (
+                              <span className="text-[11px] text-muted-foreground">
+                                desde {new Date(realSquadEntry.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                            )}
                           </div>
-                          {p.realSquadPosition && (
-                            <p className="mt-0.5 pl-4 text-xs text-green-700">
-                              Posição: <span className="font-bold">{getPositionLabel(p.realSquadPosition)}</span>
-                            </p>
-                          )}
-                        </div>
-                        {realSquadEntry && (
-                          <span className="text-[11px] text-muted-foreground">
-                            desde {new Date(realSquadEntry.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </span>
                         )}
-                      </div>
-                    )}
-                    {p.isShadowSquad && (
-                      <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50/60 px-3 py-2.5">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-purple-500" />
-                            <span className="text-sm font-semibold text-purple-800">Plantel Sombra</span>
+                        {p.isShadowSquad && (
+                          <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50/60 px-3 py-2.5">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-purple-500" />
+                                <span className="text-sm font-semibold text-purple-800">Plantel Sombra</span>
+                              </div>
+                              {p.shadowPosition && (
+                                <p className="mt-0.5 pl-4 text-xs text-purple-700">
+                                  Posição: <span className="font-bold">{getPositionLabel(p.shadowPosition)}</span>
+                                </p>
+                              )}
+                            </div>
+                            {shadowSquadEntry && (
+                              <span className="text-[11px] text-muted-foreground">
+                                desde {new Date(shadowSquadEntry.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                            )}
                           </div>
-                          {p.shadowPosition && (
-                            <p className="mt-0.5 pl-4 text-xs text-purple-700">
-                              Posição: <span className="font-bold">{getPositionLabel(p.shadowPosition)}</span>
-                            </p>
-                          )}
-                        </div>
-                        {shadowSquadEntry && (
-                          <span className="text-[11px] text-muted-foreground">
-                            desde {new Date(shadowSquadEntry.createdAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </span>
                         )}
-                      </div>
+                      </>
                     )}
 
 

@@ -237,7 +237,7 @@ const FIELD_LABELS: Record<string, string> = {
   recruitment_status: 'Estado',
   department_opinion: 'Opinião',
   is_shadow_squad: 'Plantel Sombra',
-  is_real_squad: 'Plantel Real',
+  is_real_squad: 'Plantel',
   shadow_position: 'Posição Sombra',
   real_squad_position: 'Posição Real',
   position_normalized: 'Posição',

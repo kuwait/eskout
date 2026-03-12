@@ -12,7 +12,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/': 'Dashboard',
   '/jogadores': 'Jogadores',
   '/campo': 'Plantel',
-  '/campo/real': 'Plantel Real',
+  '/campo/real': 'Plantel',
   '/campo/sombra': 'Plantel Sombra',
   '/pipeline': 'Pipeline',
   '/posicoes': 'Posições',

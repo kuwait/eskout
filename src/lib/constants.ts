@@ -38,9 +38,9 @@ export const SQUAD_SLOT_CODES: SquadSlot[] = [...POSITION_CODES.filter((c) => !N
 export const SQUAD_SLOTS: { slot: SquadSlot; label: string }[] = [
   { slot: 'GR', label: 'Guarda-Redes' },
   { slot: 'DD', label: 'Defesa Direito' },
-  { slot: 'DE', label: 'Defesa Esquerdo' },
-  { slot: 'DC_E', label: 'Central (E)' },
   { slot: 'DC_D', label: 'Central (D)' },
+  { slot: 'DC_E', label: 'Central (E)' },
+  { slot: 'DE', label: 'Defesa Esquerdo' },
   { slot: 'MDC', label: 'Médio Defensivo' },
   { slot: 'MC', label: 'Médio Centro' },
   { slot: 'MOC', label: 'Médio Ofensivo' },

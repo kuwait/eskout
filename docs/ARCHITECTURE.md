@@ -45,7 +45,8 @@ sikout/
 │   │   ├── campo/
 │   │   │   ├── page.tsx               # Squad compare view
 │   │   │   ├── real/page.tsx          # Real squad panel
-│   │   │   └── sombra/page.tsx        # Shadow squad panel
+│   │   │   ├── sombra/page.tsx        # Shadow squad panel
+│   │   │   └── [squadId]/page.tsx     # Custom squad view (by squad ID)
 │   │   ├── jogadores/
 │   │   │   ├── page.tsx               # Player database
 │   │   │   ├── [id]/page.tsx          # Player profile
@@ -78,7 +79,8 @@ sikout/
 │   │   │   └── ExportForm.tsx
 │   │   ├── definicoes/                # Club settings
 │   │   │   ├── page.tsx
-│   │   │   └── DefinicoesClient.tsx
+│   │   │   ├── DefinicoesClient.tsx
+│   │   │   └── planteis/page.tsx      # Squad management (admin)
 │   │   ├── preferencias/page.tsx      # User preferences (theme, font)
 │   │   ├── definir-password/page.tsx  # Set password (invite flow)
 │   │   ├── auth/confirm/route.ts      # Auth confirmation callback
@@ -119,7 +121,7 @@ sikout/
 │   │   ├── auth.ts                    # Login, logout, password reset
 │   │   ├── players.ts                 # Player CRUD, approval
 │   │   ├── pipeline.ts               # Recruitment status changes
-│   │   ├── squads.ts                  # Shadow/real squad management
+│   │   ├── squads.ts                  # Squad management (custom squads, real/shadow, CRUD, reorder)
 │   │   ├── notes.ts                   # Observation notes CRUD
 │   │   ├── calendar.ts               # Calendar events CRUD
 │   │   ├── tasks.ts                   # Personal tasks CRUD
@@ -163,7 +165,11 @@ sikout/
 │   │   │   ├── SquadPlayerCard.tsx    # Player card in squad context
 │   │   │   ├── PositionGroup.tsx      # Position group with cards
 │   │   │   ├── AddToSquadDialog.tsx   # Add player to squad dialog
-│   │   │   └── SquadExportMenu.tsx    # Squad export options
+│   │   │   ├── SquadExportMenu.tsx    # Squad export options
+│   │   │   ├── SquadSelector.tsx      # Dropdown to switch between squads
+│   │   │   ├── CreateSquadDialog.tsx  # Create custom squad dialog
+│   │   │   ├── DeleteSquadConfirmDialog.tsx # Confirm squad deletion
+│   │   │   └── SquadManagement.tsx    # Admin squad management page
 │   │   ├── players/
 │   │   │   ├── PlayersView.tsx        # Player database page
 │   │   │   ├── PlayerTable.tsx        # Desktop table view
@@ -261,7 +267,7 @@ sikout/
 │       ├── usePlayerProfilePopup.tsx  # Quick player preview popup
 │       └── useResizableColumns.ts    # Resizable table columns
 ├── scripts/                           # Python scrapers + TS import
-├── supabase/migrations/               # 001-057 SQL migrations
+├── supabase/migrations/               # 001-061 SQL migrations
 ├── e2e/                               # Playwright E2E tests
 ├── data/all_players.json
 └── docs/
@@ -402,7 +408,7 @@ Client (RealtimeProvider) → event bus → useRealtimeTable callbacks → page 
 
 ### Tables with Realtime
 
-`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`, `saved_comparisons`, `player_videos`
+`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`, `saved_comparisons`, `player_videos`, `squads`, `squad_players`
 
 ---
 
@@ -754,6 +760,38 @@ CREATE TABLE platform_daily_stats (
   date DATE PRIMARY KEY DEFAULT CURRENT_DATE,
   peak_online INTEGER DEFAULT 0
 );
+
+-- ============================================
+-- TABLE: squads (custom squads per club/age group)
+-- ============================================
+CREATE TABLE squads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  squad_type TEXT NOT NULL DEFAULT 'custom'
+    CHECK (squad_type IN ('real', 'shadow', 'custom')),
+  age_group_id INT REFERENCES age_groups(id),
+  is_default BOOLEAN DEFAULT false,
+  sort_order INT DEFAULT 0,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(club_id, name, age_group_id)
+);
+
+-- ============================================
+-- TABLE: squad_players (players assigned to squads)
+-- ============================================
+CREATE TABLE squad_players (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  squad_id UUID NOT NULL REFERENCES squads(id) ON DELETE CASCADE,
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  position TEXT,
+  sort_order INT DEFAULT 0,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(squad_id, player_id)
+);
 ```
 
 ---
@@ -796,6 +834,13 @@ CREATE INDEX idx_training_feedback_date ON training_feedback(training_date DESC)
 
 -- Dismissals
 CREATE INDEX idx_player_dismissals_user ON player_added_dismissals(user_id);
+
+-- Squads
+CREATE INDEX idx_squads_club ON squads(club_id);
+CREATE INDEX idx_squads_age_group ON squads(club_id, age_group_id);
+CREATE INDEX idx_squad_players_squad ON squad_players(squad_id);
+CREATE INDEX idx_squad_players_player ON squad_players(player_id);
+CREATE INDEX idx_squad_players_club ON squad_players(club_id);
 ```
 
 ---
@@ -847,6 +892,14 @@ CREATE POLICY "Members read own club" ON clubs FOR SELECT
 -- ── CLUB MEMBERSHIPS ──
 -- Club members read all members in their club (migration 048)
 -- Admins manage memberships in their club
+
+-- ── SQUADS ──
+-- Read: club members see their club's squads
+-- Insert/Update/Delete: admin/editor/recruiter (not scout)
+
+-- ── SQUAD_PLAYERS ──
+-- Read: club members see squad players in their club
+-- Insert/Update/Delete: admin/editor/recruiter (not scout)
 ```
 
 ### Column-Level Trigger
@@ -955,13 +1008,41 @@ interface TrainingFeedback {
 }
 ```
 
-See `src/lib/types/index.ts` for full type definitions including `ScoutingReport`, `StatusHistoryEntry`, `ObservationNote`, `CalendarEvent`, `ScoutEvaluation`, `TrainingFeedback`, `UserTask`, and their corresponding `Row` types (snake_case from Supabase).
+```typescript
+/* ── Squad Types (custom squads) ── */
+type SquadType = 'real' | 'shadow' | 'custom';
+
+interface Squad {
+  id: string;
+  clubId: string;
+  name: string;
+  description: string | null;
+  squadType: SquadType;
+  ageGroupId: number | null;
+  isDefault: boolean;
+  sortOrder: number;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+interface SquadPlayer {
+  id: string;
+  squadId: string;
+  playerId: number;
+  clubId: string;
+  position: string | null;
+  sortOrder: number;
+  addedAt: string;
+}
+```
+
+See `src/lib/types/index.ts` for full type definitions including `ScoutingReport`, `StatusHistoryEntry`, `ObservationNote`, `CalendarEvent`, `ScoutEvaluation`, `TrainingFeedback`, `UserTask`, `Squad`, `SquadPlayer`, and their corresponding `Row` types (snake_case from Supabase).
 
 ---
 
 ## 13. Migrations
 
-58 SQL migrations in `supabase/migrations/` (001-058). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
+61 SQL migrations in `supabase/migrations/` (001-061). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
 
 | # | File | Description |
 |---|------|-------------|
@@ -1023,3 +1104,6 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 056 | `056_saved_comparisons.sql` | Saved player comparisons (`saved_comparisons` with `player_ids int[]`) |
 | 057 | `057_player_videos.sql` | Player YouTube video links (`player_videos` with oEmbed metadata) |
 | 058 | `058_add_decision_side.sql` | Add `decision_side` column to players (A Decidir club/player split) |
+| 059 | `059_custom_squads.sql` | Custom squads: `squads` + `squad_players` tables with RLS |
+| 060 | `060_squad_sort_order.sql` | Add `sort_order` to squads for custom ordering |
+| 061 | `061_migrate_missing_shadow_squads.sql` | Migrate legacy shadow squad data to `squads`/`squad_players` tables |

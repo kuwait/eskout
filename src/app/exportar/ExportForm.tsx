@@ -15,7 +15,7 @@ const PDF_COLUMNS = [
   'Nome', 'Clube', 'Posição', 'Pos. 2', 'Pos. 3', 'Pé', 'Nascimento',
   'Nº Camisola', 'Nacionalidade', 'País Nasc.', 'Altura', 'Peso',
   'Opinião Dep.', 'Decisão Obs.', 'Observador', 'Referido por',
-  'Estado Pipeline', 'Plantel Real', 'Plantel Sombra', 'Pos. Sombra',
+  'Estado Pipeline', 'Plantel', 'Plantel Sombra', 'Pos. Sombra',
   'Contacto', 'Notas',
 ];
 import {
@@ -277,7 +277,7 @@ export function ExportForm({ ageGroups, clubs }: Props) {
 
           {/* Real Squad */}
           <FilterSelect
-            label="Plantel Real"
+            label="Plantel"
             value={selectVal(realSquad)}
             onChange={(v) => setRealSquad(fromSelect(v))}
             options={[{ value: 'none', label: 'Todos' }, { value: 'yes', label: 'Sim' }, { value: 'no', label: 'Não' }]}

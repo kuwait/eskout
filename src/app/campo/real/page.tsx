@@ -1,5 +1,5 @@
 // src/app/campo/real/page.tsx
-// Plantel Real page — shows real squad players grouped by position
+// Plantel page — shows real squad players grouped by position
 // Separate route so sidebar can link directly to real squad
 // RELEVANT FILES: src/components/squad/SquadPanelView.tsx, src/components/layout/Sidebar.tsx, src/app/campo/sombra/page.tsx
 

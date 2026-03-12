@@ -726,7 +726,7 @@ function PlayerColumn({
 
         <Section title="Pipeline">
           <Row label="Estado" value={player.recruitmentStatus ?? '—'} />
-          <Row label="Plantel Real" value={player.isRealSquad ? 'Sim' : 'Não'} />
+          <Row label="Plantel" value={player.isRealSquad ? 'Sim' : 'Não'} />
           <Row label="Plantel Sombra" value={player.isShadowSquad ? 'Sim' : 'Não'} />
         </Section>
 
@@ -829,7 +829,7 @@ function CompareTable({
       {/* Pipeline */}
       <SectionHeader label="Pipeline" cols={cols} />
       <TableRow label="Estado" bundles={bundles} getValue={(p) => p.recruitmentStatus ?? '—'} addSlot={!!onAddSlot} />
-      <TableRow label="Plantel Real" bundles={bundles} getValue={(p) => p.isRealSquad ? 'Sim' : 'Não'} addSlot={!!onAddSlot} />
+      <TableRow label="Plantel" bundles={bundles} getValue={(p) => p.isRealSquad ? 'Sim' : 'Não'} addSlot={!!onAddSlot} />
       <TableRow label="Plantel Sombra" bundles={bundles} getValue={(p) => p.isShadowSquad ? 'Sim' : 'Não'} addSlot={!!onAddSlot} />
 
       {/* Relatórios */}

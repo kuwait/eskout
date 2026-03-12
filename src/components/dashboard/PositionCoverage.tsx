@@ -36,7 +36,7 @@ export function PositionCoverage({ byPosition }: PositionCoverageProps) {
                 <p className="text-xs font-bold">{code}</p>
                 <p className="truncate text-[10px] text-muted-foreground">{labelPt}</p>
                 <div className="mt-1 flex justify-center gap-2 text-xs">
-                  <span title="Plantel Real" className="text-green-700">
+                  <span title="Plantel" className="text-green-700">
                     R:{data.real}
                   </span>
                   <span title="Plantel Sombra" className="text-blue-700">
