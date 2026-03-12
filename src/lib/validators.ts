@@ -20,7 +20,8 @@ const POSITION_CODES = ['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 
 const FOOT_VALUES = ['Dir', 'Esq', 'Amb', ''] as const;
 const OPINION_VALUES = [
   '1ª Escolha', '2ª Escolha', 'Acompanhar',
-  'Por Observar', 'Urgente Observar', 'Sem interesse', 'Potencial', 'Assinar', '',
+  'Por Observar', 'Urgente Observar', 'Sem interesse', 'Potencial',
+  'Ver em treino', 'Stand-by', 'Assinar', '',
 ] as const;
 const RECRUITMENT_VALUES = [
   'por_tratar', 'em_contacto', 'vir_treinar',

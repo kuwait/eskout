@@ -19,7 +19,9 @@ export type DepartmentOpinion =
   | 'Urgente Observar'
   | 'Sem interesse'
   | 'Potencial'
-  | 'Assinar';
+  | 'Assinar'
+  | 'Ver em treino'
+  | 'Stand-by';
 
 export type ObserverEval = '' | '2 - Dúvida' | '3 - Bom' | '4 - Muito Bom' | '5 - Excelente';
 export type ObserverDecision = '' | 'Assinar' | 'Acompanhar' | 'Rever' | 'Sem Interesse';

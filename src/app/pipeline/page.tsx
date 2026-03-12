@@ -7,7 +7,7 @@ import { PipelineView } from '@/components/pipeline/PipelineView';
 
 export default function PipelinePage() {
   return (
-    <div className="max-w-full overflow-hidden p-4 lg:p-6">
+    <div className="max-w-full p-4 lg:p-6">
       <PipelineView />
     </div>
   );

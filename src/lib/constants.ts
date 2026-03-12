@@ -75,6 +75,8 @@ export const DEPARTMENT_OPINIONS: { value: DepartmentOpinion; color: string; tai
   { value: 'Urgente Observar', color: '#f97316', tailwind: 'bg-orange-500 text-white' },
   { value: 'Sem interesse', color: '#ef4444', tailwind: 'bg-red-500 text-white' },
   { value: 'Potencial', color: '#a855f7', tailwind: 'bg-purple-500 text-white' },
+  { value: 'Ver em treino', color: '#06b6d4', tailwind: 'bg-cyan-500 text-white' },
+  { value: 'Stand-by', color: '#64748b', tailwind: 'bg-slate-500 text-white' },
   { value: 'Assinar', color: '#22c55e', tailwind: 'bg-green-500 text-white' },
 ];
 

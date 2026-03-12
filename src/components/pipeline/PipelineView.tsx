@@ -228,7 +228,7 @@ export function PipelineView() {
   }
 
   return (
-    <div className="min-w-0 max-w-full overflow-x-hidden">
+    <div className="min-w-0 max-w-full">
       {/* Title + Add button */}
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-xl font-bold lg:text-2xl">Abordagens</h1>
