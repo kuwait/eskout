@@ -225,7 +225,9 @@ export async function scrapePlayerAll(playerId: number, preZz?: PreFetchedZz): P
   const zzConfirmed = !!zzData && !zzLinkFound;
 
   // FPF-sourced: club (FPF priority), nationality, birth country
-  const mergedClub = fpfResult?.currentClub || (zzConfirmed ? zzData?.currentClub : null) || null;
+  // "Sem Clube" means FPF has no club — don't propose it as a club change
+  const rawClub = fpfResult?.currentClub || (zzConfirmed ? zzData?.currentClub : null) || null;
+  const mergedClub = rawClub === 'Sem Clube' ? null : rawClub;
   const clubChanged = mergedClub ? !clubsMatch(mergedClub, player.club ?? '') : false;
 
   // FPF-sourced: nationality, birth country (FPF priority, ZZ fallback if confirmed)

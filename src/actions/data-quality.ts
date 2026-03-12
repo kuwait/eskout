@@ -7,6 +7,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
+import { clubsMatch } from '@/actions/scraping/helpers';
 
 /* ───────────── Types ───────────── */
 
@@ -135,10 +136,15 @@ export async function getDataQuality(): Promise<DataQualityResult> {
     const hasNationality = Boolean(r.nationality?.trim());
     const hasFoot = Boolean(r.foot?.trim());
 
-    // FPF club mismatch: only when both fpf_current_club and club exist
-    const fpfClub = r.fpf_current_club?.trim().toLowerCase() ?? '';
-    const playerClub = (r.club ?? '').trim().toLowerCase();
-    const fpfClubMismatch = Boolean(fpfClub && playerClub && fpfClub !== playerClub);
+    // FPF club mismatch: flag when FPF was scraped and club differs from system
+    // Uses fuzzy matching (normalizeClubName) to avoid false positives from format differences
+    // Covers: different club, FPF says no club (free agent, retired, deceased) but system has one
+    const fpfClub = r.fpf_current_club?.trim() ?? '';
+    const playerClub = (r.club ?? '').trim();
+    const fpfWasScraped = Boolean(r.fpf_last_checked);
+    const fpfClubMismatch = fpfWasScraped && playerClub
+      ? !clubsMatch(fpfClub, playerClub)  // fuzzy: "F.C. Foz" ≈ "Futebol Clube Foz"
+      : false;
 
     // Stale external data: has link but last check > 3 months ago (or never checked)
     const staleFpf = hasFpf && isStale(r.fpf_last_checked, now);

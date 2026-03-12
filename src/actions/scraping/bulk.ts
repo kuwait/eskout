@@ -85,8 +85,8 @@ export async function bulkScrapeExternalData(
           if (data.clubLogoUrl) {
             autoUpdates.club_logo_url = data.clubLogoUrl;
           }
-          // Club if changed
-          if (data.currentClub && !clubsMatch(data.currentClub, player.club ?? '')) {
+          // Club if changed — "Sem Clube" is not a real club, don't auto-apply
+          if (data.currentClub && data.currentClub !== 'Sem Clube' && !clubsMatch(data.currentClub, player.club ?? '')) {
             autoUpdates.club = data.currentClub;
           }
           // Nationality / birth country if empty

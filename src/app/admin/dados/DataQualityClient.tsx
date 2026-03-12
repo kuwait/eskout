@@ -50,7 +50,7 @@ const TABS: TabDef[] = [
   { value: 'missing_nationality', label: 'Sem Nacionalidade', icon: Flag, description: 'Nacionalidade não preenchida', totalKey: 'missingNationality', group: 'profile' },
   { value: 'missing_foot', label: 'Sem Pé', icon: Footprints, description: 'Pé preferido não definido', totalKey: 'missingFoot', group: 'profile' },
   // Integrity
-  { value: 'fpf_club_mismatch', label: 'Clube FPF ≠', icon: Building2, description: 'Clube FPF diferente do sistema', totalKey: 'fpfClubMismatch', group: 'integrity' },
+  { value: 'fpf_club_mismatch', label: 'Clube Errado', icon: Building2, description: 'Clube FPF diferente do sistema', totalKey: 'fpfClubMismatch', group: 'integrity' },
   { value: 'stale_data', label: 'Desatualizados', icon: Clock, description: 'Dados FPF/ZZ com +1 ano', totalKey: 'staleData', group: 'integrity' },
   { value: 'duplicates', label: 'Duplicados', icon: Copy, description: 'Mesmo nome + data nascimento', totalKey: 'duplicates', group: 'integrity' },
 ];
@@ -107,7 +107,7 @@ export function DataQualityClient({ players, totals }: Props) {
         <SummaryCard label="Total jogadores" value={totals.total} />
         {totals.missingBoth > 0 && <SummaryCard label="Sem FPF e ZZ" value={totals.missingBoth} pct={totals.total} warn />}
         {totals.missingPhoto > 0 && <SummaryCard label="Sem foto" value={totals.missingPhoto} pct={totals.total} warn />}
-        {totals.fpfClubMismatch > 0 && <SummaryCard label="Clube FPF ≠" value={totals.fpfClubMismatch} pct={totals.total} warn />}
+        {totals.fpfClubMismatch > 0 && <SummaryCard label="Clube errado" value={totals.fpfClubMismatch} pct={totals.total} warn />}
         {totals.staleData > 0 && <SummaryCard label="Desatualizados" value={totals.staleData} pct={totals.total} warn />}
         {totals.duplicates > 0 && <SummaryCard label="Duplicados" value={totals.duplicates} pct={totals.total} warn />}
       </div>
@@ -144,16 +144,16 @@ export function DataQualityClient({ players, totals }: Props) {
                       <button
                         key={t.value}
                         onClick={() => setTab(t.value)}
-                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
                           active
                             ? 'border-foreground bg-foreground text-background'
                             : 'border-border bg-background text-muted-foreground hover:bg-muted'
                         }`}
                         title={t.description}
                       >
-                        <t.icon className="h-3.5 w-3.5" />
-                        {t.label}
-                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        <t.icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="whitespace-nowrap">{t.label}</span>
+                        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
                           active ? 'bg-background/20 text-background' : 'bg-muted text-muted-foreground'
                         }`}>
                           {count}
@@ -287,12 +287,18 @@ function PlayerRow({ player, activeTab }: { player: DataGapPlayer; activeTab?: T
 
 /** Shows the FPF club vs system club mismatch */
 function MismatchBadge({ player }: { player: DataGapPlayer }) {
+  const isNoClub = !player.fpfCurrentClub || player.fpfCurrentClub === 'Sem Clube';
+  const fpfLabel = isNoClub ? 'Sem Clube' : player.fpfCurrentClub;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 text-[9px] font-bold text-amber-700"
-      title={`FPF: ${player.fpfCurrentClub ?? '?'} · Sistema: ${player.club}`}
+      className={`inline-flex items-center gap-1 rounded px-1.5 text-[9px] font-bold ${
+        isNoClub
+          ? 'bg-red-100 text-red-600'
+          : 'bg-amber-100 text-amber-700'
+      }`}
+      title={`FPF: ${fpfLabel} · Sistema: ${player.club}`}
     >
-      {player.fpfCurrentClub ?? '?'}
+      FPF: {fpfLabel}
     </span>
   );
 }

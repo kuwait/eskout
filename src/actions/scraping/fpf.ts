@@ -92,7 +92,7 @@ export async function fetchFpfData(fpfLink: string) {
     const birthCountry = (model.BirthCountry || model.CountryOfBirth || model.PlaceOfBirth || model.PaisNascimento || model.BirthPlace || nationality) as string | null;
 
     return {
-      currentClub: (model.CurrentClub as string) || null,
+      currentClub: (model.CurrentClub as string) || 'Sem Clube',
       photoUrl,
       fullName: (model.FullName as string) || null,
       dob,
@@ -131,7 +131,10 @@ export async function scrapePlayerFpf(playerId: number): Promise<FpfScrapeResult
     ...(data.clubLogoUrl ? { club_logo_url: data.clubLogoUrl } : {}),
   }).eq('id', playerId).eq('club_id', clubId);
 
-  const clubChanged = data.currentClub ? !clubsMatch(data.currentClub, player.club ?? '') : false;
+  // "Sem Clube" is not a real club — don't flag as a club change to auto-apply
+  const clubChanged = data.currentClub && data.currentClub !== 'Sem Clube'
+    ? !clubsMatch(data.currentClub, player.club ?? '')
+    : false;
 
   revalidatePath(`/jogadores/${playerId}`);
   return { success: true, club: data.currentClub, photoUrl: data.photoUrl, birthCountry: data.birthCountry, nationality: data.nationality, clubChanged };
