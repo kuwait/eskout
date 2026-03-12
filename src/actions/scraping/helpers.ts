@@ -104,6 +104,17 @@ export function clubsMatch(a: string, b: string): boolean {
   return shorter.length >= longer.length * 0.6 && longer.includes(shorter);
 }
 
+/* ───────────── FPF Season ID ───────────── */
+
+/** Compute FPF numeric seasonId from a reference date. Pattern: 95 + (startYear - 2015).
+ *  Season starts July 1 — e.g. Oct 2025 → 2025/26 → seasonId 105. */
+export function getFpfSeasonId(now: Date = new Date()): number {
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+  const startYear = month < 6 ? year - 1 : year;
+  return 95 + (startYear - 2015);
+}
+
 /* ───────────── Age calculation ───────────── */
 
 /** Calculate age from DOB string (yyyy-MM-dd) */

@@ -154,5 +154,37 @@ Steps shown during refresh:
 | `autoScrapePlayer(playerId, fpfChanged, zzChanged)` | Triggered after profile save if links changed |
 | `bulkScrapeExternalData(offset, limit, sources)` | Batch scrape with rate limiting |
 
+### FPF Club Import (In-App)
+
+Bulk import registered players from an FPF club page. Uses FPF's DNN/AngularJS internal APIs:
+
+| Endpoint | Method | DNN Headers | Purpose |
+|----------|--------|-------------|---------|
+| `/DesktopModules/MVC/SearchClubs/Default/GetClubsByName` | POST | ModuleId: 3220, TabId: 848 | Club autocomplete search |
+| `/DesktopModules/MVC/ClubDetail/Default/GetClubPlayers` | GET | ModuleId: 3221, TabId: 1499 | Registered players by escalão |
+
+**Season ID formula:** `95 + (startYear - 2015)` — e.g. 2025/26 season → `105`.
+
+**FPF ClassId → Escalão mapping:**
+| ClassId | Escalão |
+|---------|---------|
+| 10 | Sub-7 (Petiz) |
+| 9 | Sub-9 (Traquina) |
+| 8 | Sub-11 (Benjamim) |
+| 6 | Sub-13 (Infantil) |
+| 5 | Sub-15 (Iniciado) |
+| 4 | Sub-17 (Juvenil) |
+| 3 | Sub-19 (Júnior) |
+| 2 | Sénior |
+
+**Cookie requirement:** Club player list endpoint requires session cookies — fetched by visiting the club detail page first.
+
+| Action | Purpose |
+|--------|---------|
+| `searchFpfClubs(searchText)` | Search clubs by name (autocomplete) |
+| `getFpfClubPlayers(clubId, classId)` | Fetch registered players for club + escalão |
+| `importFpfPlayer(player, clubName)` | Import/update single player (scrapes FPF profile) |
+| `finishFpfImport()` | Revalidate pages after batch import |
+
 ### Merge Priority
 FPF for name/DOB/nationality/birthCountry, ZeroZero for position/foot/height/weight/photo/shirt number. Club: FPF priority, then ZZ.

@@ -534,6 +534,30 @@ Admin-only page showing players with data quality issues. Helps admins identify 
 
 **Access:** Admin only (middleware-protected).
 
+### FPF Club Import Tab (`?tab=importar`)
+
+Bulk import of a club's registered players directly from FPF data. Search a club by name, select which escalões to import, then import players 1-by-1 with individual FPF profile scraping.
+
+**Flow:**
+1. Search club by name (FPF autocomplete API)
+2. Select escalões to import (all pre-selected by default, select all/deselect all toggle)
+3. Fetch registered players for each selected escalão (live progress: which escalão + running count)
+4. Import each player sequentially: scrape individual FPF profile, create or update in DB
+
+**Duplicate handling:**
+- Match by FPF link first, then by name + DOB
+- Existing players are **updated** (not skipped): club, photo, nationality, birth country, club logo
+- Photo logic: if club changed → always update photo; if same club → preserve ZZ photo when `photo_url === zz_photo_url`
+
+**Created players:**
+- `department_opinion: ['Por Observar']`, `recruitment_status: null` (not added to pipeline)
+- `created_by: null`, `pending_approval: false`, `admin_reviewed: true`
+- Broadcast as system user
+
+**Rate limiting:** 2-3s between escalão fetches, 2-4s between individual player imports.
+
+**Files:** `src/actions/scraping/fpf-club-import.ts`, `src/app/admin/dados/FpfClubImportTab.tsx`
+
 ---
 
 ## 33. Themes & Preferences (`/preferencias`)

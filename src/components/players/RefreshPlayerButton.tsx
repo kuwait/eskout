@@ -51,9 +51,13 @@ interface RefreshPlayerButtonProps {
   compact?: boolean;
   /** Called after changes are applied — used to refresh parent list */
   onUpdated?: () => void;
+  /** Auto-trigger refresh on mount (used by batch "refresh all" flow) */
+  autoRefresh?: boolean;
+  /** Called when the refresh cycle finishes — dialog closed, no changes, or error (batch flow) */
+  onDismissed?: () => void;
 }
 
-export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlayerButtonProps) {
+export function RefreshPlayerButton({ player, compact, onUpdated, autoRefresh, onDismissed }: RefreshPlayerButtonProps) {
   const [isPending, startTransition] = useTransition();
   const [isApplying, startApply] = useTransition();
   const [result, setResult] = useState<ScrapedChanges | null>(null);
@@ -81,6 +85,16 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
       setProgressStep(null);
     };
   }, [isPending]);
+
+  // Auto-refresh mode — trigger handleRefresh on mount when autoRefresh is true (batch flow)
+  const autoTriggered = useRef(false);
+  useEffect(() => {
+    if (autoRefresh && !autoTriggered.current) {
+      autoTriggered.current = true;
+      handleRefresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh]);
 
   // Hide if the player has no external links — empty span keeps DOM tree stable (prevents hydration mismatch)
   const hasLinks = !!(player.fpfLink || player.zerozeroLink);
@@ -138,6 +152,8 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
 
       if (!res.success) {
         setFeedback(res.errors.length > 0 ? `Erro: ${res.errors.join(', ')}` : 'Erro ao aceder aos dados externos');
+        // Batch flow: notify parent that this player is done (error → skip to next)
+        onDismissed?.();
         return;
       }
 
@@ -169,9 +185,11 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
         // No changes but partial errors — show warning (e.g. ZZ blocked)
         setFeedback(res.errors.join('. '));
         setTimeout(() => setFeedback(null), 5000);
+        onDismissed?.();
       } else {
         setFeedback('ok');
         setTimeout(() => setFeedback(null), 2000);
+        onDismissed?.();
       }
     });
   }
@@ -212,6 +230,7 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
       setShowDialog(false);
       setFeedback('Dados atualizados');
       onUpdated?.();
+      onDismissed?.();
       setTimeout(() => setFeedback(null), 3000);
     });
   }
@@ -296,8 +315,20 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
         </p>
       )}
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent onInteractOutside={(e) => e.preventDefault()}>
+      <Dialog
+        open={showDialog}
+        onOpenChange={(open) => {
+          // Block all external dismiss triggers — only our explicit setShowDialog(false) calls should close
+          if (open) setShowDialog(true);
+          // If Radix tries to close (open=false), ignore it — we control closing via Cancel/Apply buttons
+        }}
+      >
+        <DialogContent
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Novos dados encontrados</DialogTitle>
             <DialogDescription>Seleciona os dados que queres atualizar.</DialogDescription>
@@ -499,7 +530,7 @@ export function RefreshPlayerButton({ player, compact, onUpdated }: RefreshPlaye
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => { setShowDialog(false); setFeedback(null); }}>
+            <Button variant="outline" size="sm" onClick={() => { setShowDialog(false); setFeedback(null); onDismissed?.(); }}>
               Cancelar
             </Button>
             <Button size="sm" onClick={handleApply} disabled={isApplying || !anySelected}>

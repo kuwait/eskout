@@ -9,8 +9,9 @@ import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Search, X, ExternalLink, AlertTriangle, Camera, Globe, FileSearch,
-  MapPin, Calendar, Flag, Footprints, Building2, Clock, Copy,
+  MapPin, Calendar, Flag, Footprints, Building2, Clock, Copy, RefreshCw,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { fuzzyMatch } from '@/lib/utils';
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
@@ -72,6 +73,12 @@ export function DataQualityClient({ players, totals }: Props) {
     setUpdatedIds((prev) => new Set(prev).add(id));
   }, []);
 
+  // Batch refresh state — snapshot of IDs to process, current index into that snapshot
+  const [batchQueue, setBatchQueue] = useState<number[]>([]);
+  const [batchIndex, setBatchIndex] = useState(0);
+  const batchActive = batchQueue.length > 0 && batchIndex < batchQueue.length;
+  const batchCurrentId = batchActive ? batchQueue[batchIndex] : null;
+
   // Only show tabs that have players — hide empty categories
   const visibleTabs = useMemo(
     () => TABS.filter((t) => totals[t.totalKey] > 0),
@@ -109,6 +116,30 @@ export function DataQualityClient({ players, totals }: Props) {
 
   // Active tab definition (for context-specific column in player rows)
   const activeTab = TABS.find((t) => t.value === tab);
+
+  // Refreshable players in current filtered list (have FPF or ZZ link, and tab supports refresh)
+  const refreshableFiltered = useMemo(
+    () => canRefreshInline(activeTab?.value) ? filtered.filter((p) => p.fpfLink || p.zerozeroLink) : [],
+    [filtered, activeTab],
+  );
+
+  // Advance to next player in batch — index into the frozen snapshot, not the live list
+  const handleBatchDismissed = useCallback(() => {
+    setBatchIndex((prev) => prev + 1);
+  }, []);
+
+  // Start batch refresh — snapshot current refreshable IDs so removals don't shift the queue
+  function startBatchRefresh() {
+    const ids = refreshableFiltered.map((p) => p.id);
+    setBatchQueue(ids);
+    setBatchIndex(0);
+  }
+
+  // Stop batch refresh
+  function stopBatchRefresh() {
+    setBatchQueue([]);
+    setBatchIndex(0);
+  }
 
   return (
     <div>
@@ -199,10 +230,28 @@ export function DataQualityClient({ players, totals }: Props) {
         )}
       </div>
 
-      {/* Count */}
-      <p className="mb-2 text-xs text-muted-foreground">
-        {filtered.length} jogador{filtered.length !== 1 ? 'es' : ''}
-      </p>
+      {/* Count + Refresh All button */}
+      <div className="mb-2 flex items-center gap-2">
+        <p className="text-xs text-muted-foreground">
+          {filtered.length} jogador{filtered.length !== 1 ? 'es' : ''}
+        </p>
+        {refreshableFiltered.length > 0 && !batchActive && (
+          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={startBatchRefresh}>
+            <RefreshCw className="h-3 w-3" />
+            Atualizar todos ({refreshableFiltered.length})
+          </Button>
+        )}
+        {batchActive && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-blue-600">
+              A atualizar {batchIndex + 1} de {batchQueue.length}…
+            </span>
+            <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={stopBatchRefresh}>
+              Parar
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Player list */}
       <div className="space-y-1">
@@ -211,9 +260,20 @@ export function DataQualityClient({ players, totals }: Props) {
             {search ? 'Nenhum resultado.' : 'Todos os jogadores têm estes dados preenchidos.'}
           </p>
         )}
-        {filtered.map((player) => (
-          <PlayerRow key={player.id} player={player} activeTab={activeTab?.value} onUpdated={markUpdated} />
-        ))}
+        {filtered.map((player) => {
+          // Batch targets by ID from the frozen snapshot — immune to list shifts
+          const isAutoTarget = batchActive && player.id === batchCurrentId;
+          return (
+            <PlayerRow
+              key={player.id}
+              player={player}
+              activeTab={activeTab?.value}
+              onUpdated={markUpdated}
+              autoRefresh={isAutoTarget}
+              onDismissed={isAutoTarget ? handleBatchDismissed : undefined}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -266,7 +326,10 @@ function toRefreshable(p: DataGapPlayer): RefreshablePlayer {
   };
 }
 
-function PlayerRow({ player, activeTab, onUpdated }: { player: DataGapPlayer; activeTab?: Tab; onUpdated: (id: number) => void }) {
+function PlayerRow({ player, activeTab, onUpdated, autoRefresh, onDismissed }: {
+  player: DataGapPlayer; activeTab?: Tab; onUpdated: (id: number) => void;
+  autoRefresh?: boolean; onDismissed?: () => void;
+}) {
   const birthYear = player.dob ? new Date(player.dob).getFullYear() : null;
   const showRefresh = canRefreshInline(activeTab) && (player.fpfLink || player.zerozeroLink);
 
@@ -316,6 +379,8 @@ function PlayerRow({ player, activeTab, onUpdated }: { player: DataGapPlayer; ac
           player={toRefreshable(player)}
           compact
           onUpdated={() => onUpdated(player.id)}
+          autoRefresh={autoRefresh}
+          onDismissed={onDismissed}
         />
       )}
 

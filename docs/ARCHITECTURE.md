@@ -127,6 +127,7 @@ sikout/
 │   │   ├── scout-reports.ts           # Scout report submission/review
 │   │   ├── evaluations.ts            # Scout evaluations (1-5 rating)
 │   │   ├── scraping.ts               # FPF/ZeroZero data refresh
+│   │   ├── scraping/fpf-club-import.ts # FPF club bulk import
 │   │   ├── export.ts                  # Export data (Excel, PDF, JSON)
 │   │   ├── clubs.ts                   # Club settings, features
 │   │   ├── player-lists.ts            # Personal player lists (multi-list system)
