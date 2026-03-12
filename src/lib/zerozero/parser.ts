@@ -442,6 +442,34 @@ export function parseZzProfileHtml(html: string): ZzParsedProfile | null {
   result.gamesSeason = latestGames;
   result.goalsSeason = latestGoals;
 
+  /* ── Cromo cards fallback — older seasons hidden behind login wall ── */
+  // ZZ paginates the career table for youth players ("+N registos" behind login).
+  // Cromo cards in the page header contain club+team+season for ALL seasons.
+  // Structure: <span title="CLUB TEAM">...</span> ... <div class="cromo_stats">...<a>SEASON</a>
+  // We extract these and add entries for seasons NOT already in teamHistory (no stats, games/goals=0).
+  const existingKeys = new Set(result.teamHistory.map((h) => `${h.season}|${h.club}`));
+  const cromoCards = html.matchAll(
+    /<span\s+title="([^"]+)"[^>]*style="color:[^"]*"[^>]*>[\s\S]*?<\/span>[\s\S]*?cromo_stats[\s\S]*?>(20\d{2}\/\d{2})<\/a>/gi,
+  );
+  for (const match of cromoCards) {
+    const fullTitle = match[1].trim(); // e.g. "Panther Force Jun.B S17"
+    const season = match[2];
+
+    // Parse club + team from title: club name is everything before the team abbreviation
+    // Team patterns: "Jun.X SNN", "Fut.N Jun.X SNN", "Sub-NN" etc.
+    const teamPattern = fullTitle.match(/\b((?:Fut\.\d+\s+)?Jun\.[A-Z]\s+S\d+(?:\s+[A-Z])?)$/i)
+      || fullTitle.match(/\b(Sub-\d+(?:\s+[A-Z])?)$/i);
+    const team = teamPattern ? teamPattern[1].trim() : undefined;
+    const club = team ? fullTitle.slice(0, fullTitle.length - team.length).trim() : fullTitle;
+    if (!club) continue;
+
+    const key = `${season}|${club}`;
+    if (existingKeys.has(key)) continue; // Already in career table — skip
+    existingKeys.add(key);
+
+    result.teamHistory.push({ club, ...(team ? { team } : {}), season, games: 0, goals: 0 });
+  }
+
   return result;
 }
 

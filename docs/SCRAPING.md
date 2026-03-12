@@ -119,6 +119,8 @@ Extracts `var model = {...}` embedded JSON — fields: FullName, CurrentClub, Im
   - DOB formats: `dd/MM/yyyy`, `dd-MM-yyyy`, `yyyy-MM-dd`, `yyyy-MM-dd (XX anos)`
 - **Header:** Shirt number from `<span class="number">7.</span>`, name from `<h1 class="zz-enthdr-name">`
 - **Career table:** Season, club, games, goals per row
+  - Two HTML layouts: rich (`micrologo_and_text`, 6 TDs with offset) vs simple (plain links, 4-5 TDs)
+  - **Cromo cards fallback:** ZZ paginates career table behind login ("+N registos"). Cromo cards in the page header contain club+team+season for ALL seasons — parsed as fallback with games/goals=0
 - **Captcha detection:** Detects recaptcha redirects and empty/invalid responses
 
 ### Country Name Normalization
