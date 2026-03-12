@@ -34,6 +34,8 @@ export type RecruitmentStatus =
   | 'assinou'
   | 'rejeitado';
 
+export type DecisionSide = 'club' | 'player';
+
 export type UserRole = 'admin' | 'editor' | 'scout' | 'recruiter';
 
 export type Foot = 'Dir' | 'Esq' | 'Amb' | '';
@@ -84,6 +86,7 @@ export interface Player {
   zzTeamHistory: { club: string; team?: string; season: string; games: number; goals: number }[] | null;
   zzLastChecked: string | null;
   recruitmentStatus: RecruitmentStatus | null;
+  decisionSide: DecisionSide | null;
   trainingDate: string | null;
   meetingDate: string | null;
   signingDate: string | null;
@@ -169,6 +172,7 @@ export interface PlayerRow {
   zz_team_history: { club: string; team?: string; season: string; games: number; goals: number }[] | null;
   zz_last_checked: string | null;
   recruitment_status: string;
+  decision_side: string | null;
   training_date: string | null;
   meeting_date: string | null;
   signing_date: string | null;

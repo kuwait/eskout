@@ -8,8 +8,10 @@
 import { useState } from 'react';
 import {
   ArrowRightLeft,
+  Building2,
   Shield,
   ShieldOff,
+  User,
   Users,
   UserMinus,
   MapPin,
@@ -303,6 +305,23 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
           </div>
         ),
       };
+
+    /* ── Decision side (A Decidir sub-sections) ── */
+    case 'decision_side': {
+      const isClub = newValue === 'club';
+      const sideLabel = isClub ? 'Clube a decidir' : 'Jogador a decidir';
+      const SideIcon = isClub ? Building2 : User;
+      return {
+        icon: <SideIcon className={IC} />,
+        iconBg: isClub ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600',
+        accent: isClub ? 'border-l-blue-400' : 'border-l-purple-400',
+        content: (
+          <span className="text-sm">
+            Alterado para <span className="font-medium">{sideLabel}</span>
+          </span>
+        ),
+      };
+    }
 
     /* ── Fallback ── */
     default:

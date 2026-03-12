@@ -3,7 +3,7 @@
 // Single source of truth for all domain enums and their display properties
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/utils/positions.ts, src/lib/validators.ts
 
-import type { CalendarEventType, DepartmentOpinion, ObservationTier, Player, PositionCode, RecruitmentStatus, TrainingPresence } from '@/lib/types';
+import type { CalendarEventType, DecisionSide, DepartmentOpinion, ObservationTier, Player, PositionCode, RecruitmentStatus, TrainingPresence } from '@/lib/types';
 
 /* ───────────── Positions ───────────── */
 
@@ -125,6 +125,17 @@ export const RECRUITMENT_STATUS_MAP: Record<RecruitmentStatus, string> = Object.
 export const RECRUITMENT_LABEL_MAP: Record<RecruitmentStatus, string> = Object.fromEntries(
   RECRUITMENT_STATUSES.map((s) => [s.value, s.labelPt])
 ) as Record<RecruitmentStatus, string>;
+
+/* ───────────── Decision Side (A Decidir sub-sections) ───────────── */
+
+export const DECISION_SIDES: { value: DecisionSide; labelPt: string; icon: string }[] = [
+  { value: 'club', labelPt: 'Clube a decidir', icon: 'Building2' },
+  { value: 'player', labelPt: 'Jogador a decidir', icon: 'User' },
+];
+
+export const DECISION_SIDE_LABEL_MAP: Record<DecisionSide, string> = Object.fromEntries(
+  DECISION_SIDES.map((d) => [d.value, d.labelPt])
+) as Record<DecisionSide, string>;
 
 /* ───────────── Foot ───────────── */
 

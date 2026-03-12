@@ -4,7 +4,7 @@
 // RELEVANT FILES: src/components/pipeline/KanbanBoard.tsx, src/components/pipeline/StatusColumn.tsx, src/lib/constants.ts
 
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
-import type { Player, RecruitmentStatus } from '@/lib/types';
+import type { DecisionSide, Player, RecruitmentStatus } from '@/lib/types';
 
 /* ───────────── Card & Column ID helpers ───────────── */
 
@@ -22,6 +22,17 @@ export function columnId(status: RecruitmentStatus): string { return `column-${s
 export function parseColumnId(id: string): RecruitmentStatus | null {
   const match = id.match(/^column-(.+)$/);
   return match ? (match[1] as RecruitmentStatus) : null;
+}
+
+/* ───────────── Sub-zone IDs (A Decidir: club vs player) ───────────── */
+
+/** Create a droppable zone ID for an a_decidir sub-section */
+export function subZoneId(side: DecisionSide): string { return `subzone-a_decidir-${side}`; }
+
+/** Parse a sub-zone ID back to a DecisionSide, or null if not a sub-zone */
+export function parseSubZoneId(id: string): DecisionSide | null {
+  const match = id.match(/^subzone-a_decidir-(club|player)$/);
+  return match ? (match[1] as DecisionSide) : null;
 }
 
 /* ───────────── Container items ───────────── */
@@ -44,6 +55,8 @@ export function buildContainerItems(pbs: Record<RecruitmentStatus, Player[]>): C
 /** Find which container a card/droppable/column ID belongs to */
 export function findContainer(id: string | number, items: ContainerItems): RecruitmentStatus | null {
   const sid = String(id);
+  // Sub-zone droppable ("subzone-a_decidir-club" / "subzone-a_decidir-player") → a_decidir
+  if (parseSubZoneId(sid) !== null) return 'a_decidir';
   // Direct status match (droppable zone "status-{value}")
   const statusMatch = sid.match(/^status-(.+)$/);
   if (statusMatch && STATUS_SET.has(statusMatch[1] as RecruitmentStatus)) return statusMatch[1] as RecruitmentStatus;

@@ -119,6 +119,7 @@ export function mapPlayerRow(row: PlayerRow): Player {
     zzTeamHistory: row.zz_team_history,
     zzLastChecked: row.zz_last_checked,
     recruitmentStatus: mapRecruitmentStatus(row.recruitment_status),
+    decisionSide: (row.decision_side as Player['decisionSide']) ?? null,
     trainingDate: row.training_date,
     meetingDate: row.meeting_date ?? null,
     signingDate: row.signing_date ?? null,

@@ -113,6 +113,10 @@ export const recruitmentStatusChangeSchema = z.object({
 
 export type RecruitmentStatusChangeData = z.infer<typeof recruitmentStatusChangeSchema>;
 
+/* ───────────── Decision Side (A Decidir sub-sections) ───────────── */
+
+export const decisionSideSchema = z.enum(['club', 'player']);
+
 /* ───────────── Calendar Event ───────────── */
 
 const EVENT_TYPES = ['treino', 'assinatura', 'reuniao', 'observacao', 'outro'] as const;

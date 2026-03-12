@@ -29,8 +29,8 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SortableStatusColumn, StatusColumn } from '@/components/pipeline/StatusColumn';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
-import { cardId, parseCardId, columnId, parseColumnId, buildContainerItems, findContainer, STATUS_SET, type ContainerItems } from '@/components/pipeline/kanban-helpers';
-import type { Player, RecruitmentStatus } from '@/lib/types';
+import { cardId, parseCardId, columnId, parseColumnId, parseSubZoneId, buildContainerItems, findContainer, STATUS_SET, type ContainerItems } from '@/components/pipeline/kanban-helpers';
+import type { DecisionSide, Player, RecruitmentStatus } from '@/lib/types';
 
 /* ───────────── localStorage key for column order ───────────── */
 
@@ -77,6 +77,8 @@ interface KanbanBoardProps {
   onPlayerClick?: (playerId: number) => void;
   /** Club-scoped profiles for contact assignment in em_contacto cards */
   clubMembers?: { id: string; fullName: string }[];
+  /** Change decision side within a_decidir column */
+  onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
 }
 
 /* ───────────── Component ───────────── */
@@ -100,7 +102,7 @@ const MEASURING_CONFIG = {
   droppable: { strategy: MeasuringStrategy.Always as const },
 };
 
-export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [] }: KanbanBoardProps) {
+export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [], onDecisionSideChange }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(DEFAULT_ORDER);
@@ -185,10 +187,14 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       let overId = getFirstCollision(collisions, 'id');
 
       if (overId != null) {
-        // If we matched a container (status droppable or column), drill down to closest card inside it
+        // Sub-zone droppable (a_decidir club/player) — resolve to a_decidir container and drill into cards
         const overStr = String(overId);
+        const subZone = parseSubZoneId(overStr);
+
+        // If we matched a container (status droppable, column, or sub-zone), drill down to closest card inside it
         const statusFromDroppable = overStr.match(/^status-(.+)$/)?.[1] as RecruitmentStatus | undefined;
-        const containerStatus = statusFromDroppable
+        const containerStatus = subZone ? 'a_decidir' as RecruitmentStatus
+          : statusFromDroppable
           ?? (STATUS_SET.has(overStr as RecruitmentStatus) ? (overStr as RecruitmentStatus) : null)
           ?? parseColumnId(overStr);
 
@@ -348,6 +354,23 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
       onStatusChange(playerId, overContainer);
     }
 
+    // Determine target decision side when landing in a_decidir
+    if (overContainer === 'a_decidir' && onDecisionSideChange) {
+      // First check if over.id is a sub-zone droppable directly (empty zone drop)
+      const dropSubZone = parseSubZoneId(String(over.id));
+      if (dropSubZone) {
+        onDecisionSideChange(playerId, dropSubZone);
+      } else {
+        // over.id is a card — infer sub-zone from that card's player decisionSide
+        const overCardId = parseCardId(String(over.id));
+        const overPlayer = overCardId !== null ? playerMap.get(cardId(overCardId)) : null;
+        if (overPlayer?.decisionSide) {
+          onDecisionSideChange(playerId, overPlayer.decisionSide);
+        }
+        // else: cross-column move to a_decidir — updateRecruitmentStatus already defaults to 'club'
+      }
+    }
+
     // Send reorder updates for the target column
     const targetIds = finalItems[overContainer];
     const updates = targetIds
@@ -360,7 +383,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
 
     setActiveId(null);
     setClonedItems(null);
-  }, [containerItems, clonedItems, activeColumnId, onStatusChange, onReorder]);
+  }, [containerItems, clonedItems, activeColumnId, onStatusChange, onReorder, onDecisionSideChange, playerMap]);
 
   const handleDragCancel = useCallback(() => {
     // Restore pre-drag snapshot
@@ -394,6 +417,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
             onDateChange={onDateChange}
             disableDrag
             onStatusChange={onStatusChange}
+            onDecisionSideChange={onDecisionSideChange}
           />
         ))}
       </div>
@@ -425,6 +449,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
                 onRemove={onRemove}
                 onDateChange={onDateChange}
                 onStatusChange={onStatusChange}
+                onDecisionSideChange={onDecisionSideChange}
               />
             ))}
           </div>

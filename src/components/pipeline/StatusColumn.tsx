@@ -9,10 +9,12 @@ import { forwardRef, useRef, useEffect, useState, useCallback, useMemo } from 'r
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Building2, User } from 'lucide-react';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
+import { subZoneId } from '@/components/pipeline/kanban-helpers';
 import { shortName } from '@/lib/utils';
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
-import type { Player, RecruitmentStatus } from '@/lib/types';
+import type { DecisionSide, Player, RecruitmentStatus } from '@/lib/types';
 
 /* ───────────── Column width constants ───────────── */
 /**
@@ -42,6 +44,8 @@ interface StatusColumnProps {
   disableDrag?: boolean;
   /** Move card to different status column (mobile alternative to drag) */
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  /** Change decision side within a_decidir column */
+  onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
 }
 
 /* ───────────── Sortable Card Wrapper ───────────── */
@@ -55,6 +59,7 @@ function SortablePipelineCard({
   onDateChange,
   clubMembers,
   onStatusChange,
+  onDecisionSideChange,
 }: {
   player: Player;
   dragId: string;
@@ -64,6 +69,7 @@ function SortablePipelineCard({
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   clubMembers?: { id: string; fullName: string }[];
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
 
@@ -186,7 +192,7 @@ function SortablePipelineCard({
       onPointerCancel={handlePointerUp}
       onClick={handleClick}
     >
-      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} onPlayerClick={onPlayerClick} onStatusChange={onStatusChange} />
+      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} onPlayerClick={onPlayerClick} onStatusChange={onStatusChange} onDecisionSideChange={onDecisionSideChange} />
     </div>
   );
 }
@@ -200,8 +206,95 @@ interface ColumnInnerProps extends StatusColumnProps {
   headerDragAttributes?: Record<string, unknown>;
 }
 
+/* ───────────── Decision Sub-Section (club / player split within A Decidir) ───────────── */
+
+function DecisionSubSection({
+  side,
+  players,
+  showBirthYear,
+  onPlayerClick,
+  onRemove,
+  onDateChange,
+  clubMembers,
+  onStatusChange,
+  onDecisionSideChange,
+  disableDrag,
+}: {
+  side: DecisionSide;
+  players: Player[];
+  showBirthYear?: boolean;
+  onPlayerClick?: (playerId: number) => void;
+  onRemove: (playerId: number) => void;
+  onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
+  clubMembers?: { id: string; fullName: string }[];
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
+  disableDrag?: boolean;
+}) {
+  const Icon = side === 'club' ? Building2 : User;
+  const label = side === 'club' ? 'Clube a decidir' : 'Jogador a decidir';
+  const zoneId = subZoneId(side);
+
+  // Droppable zone for this sub-section (desktop only)
+  const { setNodeRef, isOver } = useDroppable({ id: zoneId, disabled: disableDrag });
+
+  return (
+    <div
+      ref={disableDrag ? undefined : setNodeRef}
+      className={`min-h-[40px] rounded transition-colors ${
+        isOver && !disableDrag ? 'bg-blue-50' : ''
+      }`}
+    >
+      {/* Sub-header */}
+      <div className="flex items-center gap-1.5 px-1 py-1.5">
+        <Icon className="h-3 w-3 text-muted-foreground" />
+        <span className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">{label}</span>
+        <span className="rounded-full bg-neutral-200 px-1 py-px text-[9px] font-bold text-neutral-600">{players.length}</span>
+      </div>
+
+      {/* Cards */}
+      {players.length === 0 ? (
+        <p className="py-2 text-center text-[10px] text-muted-foreground/60">Sem jogadores</p>
+      ) : (
+        <div className="space-y-2">
+          {disableDrag ? (
+            players.map((player) => (
+              <PipelineCard
+                key={player.id}
+                player={player}
+                showBirthYear={showBirthYear}
+                clubMembers={clubMembers}
+                onPlayerClick={onPlayerClick}
+                onRemove={onRemove}
+                onDateChange={onDateChange}
+                onStatusChange={onStatusChange}
+                onDecisionSideChange={onDecisionSideChange}
+              />
+            ))
+          ) : (
+            players.map((player) => (
+              <SortablePipelineCard
+                key={player.id}
+                player={player}
+                dragId={`card-${player.id}`}
+                showBirthYear={showBirthYear}
+                clubMembers={clubMembers}
+                onPlayerClick={onPlayerClick}
+                onRemove={onRemove}
+                onDateChange={onDateChange}
+                onStatusChange={onStatusChange}
+                onDecisionSideChange={onDecisionSideChange}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: React.CSSProperties }>(
-  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
+  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, onDecisionSideChange, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
     const config = RECRUITMENT_STATUSES.find((s) => s.value === status);
     const label = config?.labelPt ?? status;
     const light = config?.tailwindLight ?? { bg: 'bg-neutral-100', text: 'text-neutral-600', border: 'border-neutral-300', dot: 'bg-neutral-400' };
@@ -211,6 +304,17 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
 
     // Drag IDs must match what KanbanBoard parses — status-agnostic for cross-container moves
     const sortableIds = players.map((p) => `card-${p.id}`);
+
+    // Split a_decidir players by decision_side
+    const isDecidirColumn = status === 'a_decidir';
+    const clubPlayers = useMemo(
+      () => isDecidirColumn ? players.filter((p) => p.decisionSide !== 'player') : [],
+      [isDecidirColumn, players]
+    );
+    const playerPlayers = useMemo(
+      () => isDecidirColumn ? players.filter((p) => p.decisionSide === 'player') : [],
+      [isDecidirColumn, players]
+    );
 
     // Per-column dynamic width: measure longest short name with canvas
     const columnWidth = useMemo(() => {
@@ -261,8 +365,39 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
           </span>
         </div>
 
-        {/* Cards — sortable on desktop, plain with status dropdown on mobile */}
-        {disableDrag ? (
+        {/* A Decidir: split into club/player sub-sections */}
+        {isDecidirColumn ? (
+          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            <div className="flex-1 overflow-y-auto p-2">
+              <DecisionSubSection
+                side="club"
+                players={clubPlayers}
+                showBirthYear={showBirthYear}
+                onPlayerClick={onPlayerClick}
+                onRemove={onRemove}
+                onDateChange={onDateChange}
+                clubMembers={clubMembers}
+                onStatusChange={onStatusChange}
+                onDecisionSideChange={onDecisionSideChange}
+                disableDrag={disableDrag}
+              />
+              {/* Dashed separator */}
+              <div className="my-2 border-t border-dashed border-neutral-300" />
+              <DecisionSubSection
+                side="player"
+                players={playerPlayers}
+                showBirthYear={showBirthYear}
+                onPlayerClick={onPlayerClick}
+                onRemove={onRemove}
+                onDateChange={onDateChange}
+                clubMembers={clubMembers}
+                onStatusChange={onStatusChange}
+                onDecisionSideChange={onDecisionSideChange}
+                disableDrag={disableDrag}
+              />
+            </div>
+          </SortableContext>
+        ) : disableDrag ? (
           <div className="flex-1 space-y-2 overflow-y-auto p-2">
             {players.length === 0 && (
               <p className="py-4 text-center text-xs text-muted-foreground">

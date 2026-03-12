@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, GraduationCap, Phone, Trash2, User, Users, X } from 'lucide-react';
+import { Building2, Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, GraduationCap, Phone, Trash2, User, Users, X } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
@@ -24,7 +24,7 @@ import {
 import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
-import type { Player, PositionCode, RecruitmentStatus } from '@/lib/types';
+import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
 
 interface PipelineCardProps {
   player: Player;
@@ -40,6 +40,8 @@ interface PipelineCardProps {
   clubMembers?: { id: string; fullName: string }[];
   /** Mobile: dropdown to move card between columns (replaces drag-and-drop) */
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  /** Change decision side within a_decidir column */
+  onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
 }
 
 /** Format a date string to a compact Portuguese display */
@@ -93,7 +95,7 @@ import { shortName } from '@/lib/utils';
 // Re-export for consumers that imported from here
 export { shortName } from '@/lib/utils';
 
-export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange }: PipelineCardProps) {
+export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
   // Short name on pipeline cards — full name truncated via CSS
@@ -215,6 +217,17 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           )}
         </div>
 
+        {/* Decision side indicator — shown on "A decidir" cards */}
+        {player.recruitmentStatus === 'a_decidir' && player.decisionSide && (
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+            {player.decisionSide === 'club' ? (
+              <><Building2 className="h-2.5 w-2.5" /> Clube</>
+            ) : (
+              <><User className="h-2.5 w-2.5" /> Jogador</>
+            )}
+          </div>
+        )}
+
         {/* Contact info — shown on "Por tratar" to make it easy to call */}
         {player.recruitmentStatus === 'por_tratar' && player.contact && (
           <a
@@ -275,8 +288,10 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           <CardActionsMenu
             playerId={player.id}
             currentStatus={player.recruitmentStatus as RecruitmentStatus}
+            currentDecisionSide={player.decisionSide}
             onStatusChange={onStatusChange}
             onRemove={onRemove}
+            onDecisionSideChange={onDecisionSideChange}
           />
         )}
       </div>
@@ -652,15 +667,26 @@ function TrainingEscalaoButton({ player }: { player: Player }) {
 function CardActionsMenu({
   playerId,
   currentStatus,
+  currentDecisionSide,
   onStatusChange,
   onRemove,
+  onDecisionSideChange,
 }: {
   playerId: number;
   currentStatus: RecruitmentStatus;
+  currentDecisionSide?: DecisionSide | null;
   onStatusChange: (playerId: number, newStatus: RecruitmentStatus) => void;
   onRemove?: (playerId: number) => void;
+  onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Follow-up: when user picks "A decidir", show side picker instead of closing
+  const [showDecisionPicker, setShowDecisionPicker] = useState(false);
+
+  function handleClose() {
+    setOpen(false);
+    setShowDecisionPicker(false);
+  }
 
   return (
     <>
@@ -674,49 +700,124 @@ function CardActionsMenu({
         <EllipsisVertical className="h-4 w-4" />
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle className="text-sm">Mover para</DialogTitle>
+            <DialogTitle className="text-sm">
+              {showDecisionPicker ? 'Quem está a decidir?' : 'Mover para'}
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-0.5">
-            {RECRUITMENT_STATUSES.map((s) => {
-              const isCurrent = s.value === currentStatus;
-              return (
-                <button
-                  key={s.value}
-                  type="button"
-                  disabled={isCurrent}
-                  onClick={() => {
-                    onStatusChange(playerId, s.value as RecruitmentStatus);
-                    setOpen(false);
-                  }}
-                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                    isCurrent
-                      ? 'cursor-default bg-neutral-100 font-medium text-foreground'
-                      : 'hover:bg-neutral-50'
-                  }`}
-                >
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${s.tailwind?.split(' ')[0] ?? 'bg-neutral-400'}`} />
-                  {s.labelPt}
-                  {isCurrent && <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
-                </button>
-              );
-            })}
-          </div>
 
-          {/* Remove from pipeline */}
-          {onRemove && (
-            <>
-              <div className="border-t" />
+          {showDecisionPicker ? (
+            /* Decision side picker — shown after selecting "A decidir" */
+            <div className="flex flex-col gap-1.5">
               <button
                 type="button"
-                onClick={() => { onRemove(playerId); setOpen(false); }}
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  onStatusChange(playerId, 'a_decidir');
+                  onDecisionSideChange?.(playerId, 'club');
+                  handleClose();
+                }}
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-neutral-50"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Remover das abordagens
+                <Building2 className="h-4 w-4 text-blue-600" />
+                Clube a decidir
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onStatusChange(playerId, 'a_decidir');
+                  onDecisionSideChange?.(playerId, 'player');
+                  handleClose();
+                }}
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-neutral-50"
+              >
+                <User className="h-4 w-4 text-purple-600" />
+                Jogador a decidir
+              </button>
+            </div>
+          ) : (
+            /* Standard status list */
+            <>
+              <div className="flex flex-col gap-0.5">
+                {RECRUITMENT_STATUSES.map((s) => {
+                  const isCurrent = s.value === currentStatus;
+                  return (
+                    <button
+                      key={s.value}
+                      type="button"
+                      disabled={isCurrent}
+                      onClick={() => {
+                        // "A decidir" from another column → show side picker
+                        if (s.value === 'a_decidir' && currentStatus !== 'a_decidir') {
+                          setShowDecisionPicker(true);
+                          return;
+                        }
+                        onStatusChange(playerId, s.value as RecruitmentStatus);
+                        handleClose();
+                      }}
+                      className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                        isCurrent
+                          ? 'cursor-default bg-neutral-100 font-medium text-foreground'
+                          : 'hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${s.tailwind?.split(' ')[0] ?? 'bg-neutral-400'}`} />
+                      {s.labelPt}
+                      {isCurrent && <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Decision side toggle — when already in a_decidir, let user switch sides */}
+              {currentStatus === 'a_decidir' && onDecisionSideChange && (
+                <>
+                  <div className="border-t" />
+                  <div className="flex flex-col gap-0.5">
+                    <p className="px-3 py-1 text-xs font-medium text-muted-foreground">Alterar lado</p>
+                    <button
+                      type="button"
+                      disabled={currentDecisionSide === 'club'}
+                      onClick={() => { onDecisionSideChange(playerId, 'club'); handleClose(); }}
+                      className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${
+                        currentDecisionSide === 'club' ? 'cursor-default bg-neutral-100 font-medium' : 'hover:bg-neutral-50'
+                      }`}
+                    >
+                      <Building2 className="h-3.5 w-3.5 text-blue-600" />
+                      Clube a decidir
+                      {currentDecisionSide === 'club' && <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentDecisionSide === 'player'}
+                      onClick={() => { onDecisionSideChange(playerId, 'player'); handleClose(); }}
+                      className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${
+                        currentDecisionSide === 'player' ? 'cursor-default bg-neutral-100 font-medium' : 'hover:bg-neutral-50'
+                      }`}
+                    >
+                      <User className="h-3.5 w-3.5 text-purple-600" />
+                      Jogador a decidir
+                      {currentDecisionSide === 'player' && <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Remove from pipeline */}
+              {onRemove && (
+                <>
+                  <div className="border-t" />
+                  <button
+                    type="button"
+                    onClick={() => { onRemove(playerId); handleClose(); }}
+                    className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remover das abordagens
+                  </button>
+                </>
+              )}
             </>
           )}
         </DialogContent>

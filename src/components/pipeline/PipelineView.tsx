@@ -14,7 +14,7 @@ import { fuzzyMatch } from '@/lib/utils';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
-import { updateRecruitmentStatus, reorderPipelineCards } from '@/actions/pipeline';
+import { updateRecruitmentStatus, reorderPipelineCards, updateDecisionSide } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import type { DepartmentOpinion, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
+import type { DecisionSide, DepartmentOpinion, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
 export function PipelineView() {
   const router = useRouter();
@@ -118,6 +118,12 @@ export function PipelineView() {
       cur.map((p) => {
         if (p.id !== playerId) return p;
         const updated = { ...p, recruitmentStatus: newStatus };
+        // Auto-set decision_side when entering a_decidir, clear when leaving
+        if (newStatus === 'a_decidir') {
+          updated.decisionSide = 'club';
+        } else if (p.recruitmentStatus === 'a_decidir') {
+          updated.decisionSide = null;
+        }
         // Clear date fields when leaving their respective statuses (mirrors server logic)
         if (p.recruitmentStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
           updated.trainingDate = null;
@@ -134,6 +140,21 @@ export function PipelineView() {
     const result = await updateRecruitmentStatus(playerId, newStatus);
     if (!result.success) {
       console.error('handleStatusChange failed:', result.error);
+      setAllPlayers(prev);
+    }
+  }
+
+  /** Change decision side within a_decidir — optimistic + server persist */
+  async function handleDecisionSideChange(playerId: number, side: DecisionSide) {
+    const prev = allPlayers;
+    setAllPlayers((cur) =>
+      cur.map((p) =>
+        p.id === playerId ? { ...p, decisionSide: side } : p
+      )
+    );
+    const result = await updateDecisionSide(playerId, side);
+    if (!result.success) {
+      console.error('handleDecisionSideChange failed:', result.error);
       setAllPlayers(prev);
     }
   }
@@ -234,6 +255,7 @@ export function PipelineView() {
         onRemove={handleRemove}
         onDateChange={handleDateChange}
         onReorder={handleReorder}
+        onDecisionSideChange={handleDecisionSideChange}
       />
 
       {/* Add to abordagens dialog — shows ALL players, always adds as 'por_tratar' */}

@@ -8,8 +8,8 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
-import { recruitmentStatusChangeSchema } from '@/lib/validators';
-import type { ActionResponse, RecruitmentStatus } from '@/lib/types';
+import { recruitmentStatusChangeSchema, decisionSideSchema } from '@/lib/validators';
+import type { ActionResponse, DecisionSide, RecruitmentStatus } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 
 /* ───────────── Auto-task helper ───────────── */
@@ -170,6 +170,12 @@ export async function updateRecruitmentStatus(
 
   // Auto-clear date fields and context fields when leaving their respective statuses
   const updatePayload: Record<string, unknown> = { recruitment_status: newStatus };
+  // Auto-set decision_side when entering a_decidir, auto-clear when leaving
+  if (newStatus === 'a_decidir') {
+    updatePayload.decision_side = 'club';
+  } else if (oldStatus === 'a_decidir') {
+    updatePayload.decision_side = null;
+  }
   if (oldStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
     updatePayload.training_date = null;
     updatePayload.training_escalao = null;
@@ -635,6 +641,67 @@ export async function updateTrainingEscalao(
   }
 
   revalidatePath('/pipeline');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+
+  return { success: true };
+}
+
+/* ───────────── Decision Side (A Decidir sub-sections) ───────────── */
+
+/** Update decision_side for a player in 'a_decidir' status (club vs player deciding) */
+export async function updateDecisionSide(
+  playerId: number,
+  side: DecisionSide
+): Promise<ActionResponse> {
+  const parsed = decisionSideSchema.safeParse(side);
+  if (!parsed.success) {
+    return { success: false, error: 'Lado de decisão inválido' };
+  }
+
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
+  const supabase = await createClient();
+
+  // Get current values for history
+  const { data: player } = await supabase
+    .from('players')
+    .select('decision_side, recruitment_status')
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+    .single();
+
+  if (!player || player.recruitment_status !== 'a_decidir') {
+    return { success: false, error: 'Jogador não está no estado "A decidir"' };
+  }
+
+  const oldSide = player.decision_side;
+  if (oldSide === side) return { success: true };
+
+  const { error } = await supabase
+    .from('players')
+    .update({ decision_side: side })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar lado de decisão: ${error.message}` };
+  }
+
+  // Log to status_history
+  await supabase.from('status_history').insert({
+    club_id: clubId,
+    player_id: playerId,
+    field_changed: 'decision_side',
+    old_value: oldSide,
+    new_value: side,
+    changed_by: userId,
+  });
+
+  revalidatePath('/pipeline');
+  revalidatePath(`/jogadores/${playerId}`);
+
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
 
   return { success: true };

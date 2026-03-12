@@ -8,6 +8,8 @@ import {
   parseCardId,
   columnId,
   parseColumnId,
+  subZoneId,
+  parseSubZoneId,
   buildContainerItems,
   findContainer,
   STATUS_SET,
@@ -90,6 +92,29 @@ describe('STATUS_SET', () => {
   });
 });
 
+/* ───────────── subZoneId / parseSubZoneId ───────────── */
+
+describe('subZoneId', () => {
+  it('formats decision side as sub-zone ID', () => {
+    expect(subZoneId('club')).toBe('subzone-a_decidir-club');
+    expect(subZoneId('player')).toBe('subzone-a_decidir-player');
+  });
+});
+
+describe('parseSubZoneId', () => {
+  it('extracts decision side from valid sub-zone ID', () => {
+    expect(parseSubZoneId('subzone-a_decidir-club')).toBe('club');
+    expect(parseSubZoneId('subzone-a_decidir-player')).toBe('player');
+  });
+
+  it('returns null for invalid formats', () => {
+    expect(parseSubZoneId('subzone-a_decidir-invalid')).toBeNull();
+    expect(parseSubZoneId('status-a_decidir')).toBeNull();
+    expect(parseSubZoneId('card-42')).toBeNull();
+    expect(parseSubZoneId('')).toBeNull();
+  });
+});
+
 /* ───────────── buildContainerItems ───────────── */
 
 describe('buildContainerItems', () => {
@@ -168,6 +193,11 @@ describe('findContainer', () => {
 
   it('handles numeric IDs by converting to string', () => {
     expect(findContainer(42, items)).toBeNull();
+  });
+
+  it('resolves sub-zone IDs to a_decidir container', () => {
+    expect(findContainer('subzone-a_decidir-club', items)).toBe('a_decidir');
+    expect(findContainer('subzone-a_decidir-player', items)).toBe('a_decidir');
   });
 
   it('finds card after cross-container move (card in different column)', () => {
