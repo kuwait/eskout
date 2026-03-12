@@ -134,10 +134,9 @@ Personal TODO workspace per user with auto-generated tasks from pipeline actions
 ### 5B. YouTube Media Links ✅ DONE
 - [x] `player_videos` table + RLS + Server Action (migration 057)
 - [x] YouTube oEmbed extraction (title + thumbnail, no API key)
-- [x] "Media" section in player profile (thumbnail grid + modal embed)
+- [x] "Media" section in player profile (compact rows, opens YouTube directly)
 - [x] All roles can add; admin/editor delete any, scout/recruiter delete own
 - [x] Max 10 videos per player, duplicate detection, note field
-- [x] Privacy-safe embed via youtube-nocookie.com
 
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions

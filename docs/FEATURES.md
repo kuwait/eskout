@@ -467,8 +467,8 @@ Side-by-side comparison of 2-3 players. Accessible to all roles except scout. Su
 
 **UI in player profile:**
 - "Media" section after Percurso, before Observação
-- Grid of video cards (2 columns) with thumbnail + play overlay + note/title
-- Click opens modal with embedded iframe (`youtube-nocookie.com` for privacy)
+- Compact horizontal rows: small thumbnail (80×48px) + note/title, click opens YouTube in new tab
+- YouTube play button overlay on thumbnail
 - "Adicionar vídeo" form: URL input + optional note (max 100 chars)
 - Delete button on hover (respects permissions)
 

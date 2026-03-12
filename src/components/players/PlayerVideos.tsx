@@ -1,5 +1,5 @@
 // src/components/players/PlayerVideos.tsx
-// "Media" section in player profile — YouTube video cards with inline embed modal
+// "Media" section in player profile — compact YouTube video cards that open on YouTube
 // All roles can view and add; admin/editor delete any, scout/recruiter delete own
 // RELEVANT FILES: src/actions/player-videos.ts, src/components/players/PlayerProfile.tsx, src/lib/types/index.ts
 
@@ -9,7 +9,6 @@ import { useState, useTransition } from 'react';
 import { Play, Plus, X, Youtube, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { addPlayerVideo, deletePlayerVideo } from '@/actions/player-videos';
 import { toast } from 'sonner';
 import type { PlayerVideo, UserRole } from '@/lib/types';
@@ -36,7 +35,6 @@ export function PlayerVideos({
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
   const [isPending, startTransition] = useTransition();
-  const [embedVideo, setEmbedVideo] = useState<PlayerVideo | null>(null);
 
   const canDelete = (video: PlayerVideo) =>
     userRole === 'admin' || userRole === 'editor' || video.addedBy === currentUserId;
@@ -71,14 +69,13 @@ export function PlayerVideos({
 
   return (
     <>
-      {/* Video grid */}
+      {/* Video list — compact rows */}
       {videos.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
           {videos.map((video) => (
-            <VideoCard
+            <VideoRow
               key={video.id}
               video={video}
-              onPlay={() => setEmbedVideo(video)}
               onDelete={canDelete(video) ? () => handleDelete(video) : undefined}
             />
           ))}
@@ -129,79 +126,67 @@ export function PlayerVideos({
           </Button>
         )
       )}
-
-      {/* Embed modal */}
-      <Dialog open={!!embedVideo} onOpenChange={(open) => { if (!open) setEmbedVideo(null); }}>
-        <DialogContent className="max-w-2xl p-0 overflow-hidden">
-          <DialogTitle className="sr-only">{embedVideo?.title ?? 'Vídeo'}</DialogTitle>
-          {embedVideo && (
-            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${embedVideo.videoId}?autoplay=1`}
-                title={embedVideo.title ?? 'Vídeo'}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 h-full w-full"
-              />
-            </div>
-          )}
-          {embedVideo?.note && (
-            <p className="px-4 py-2 text-sm text-muted-foreground">{embedVideo.note}</p>
-          )}
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
 
-/* ───────────── Video Card ───────────── */
+/* ───────────── Video Row (compact thumbnail + title → opens YouTube) ───────────── */
 
-function VideoCard({
+function VideoRow({
   video,
-  onPlay,
   onDelete,
 }: {
   video: PlayerVideo;
-  onPlay: () => void;
   onDelete?: () => void;
 }) {
-  const thumbnailUrl = video.thumbnail || `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg`;
+  const thumbnailUrl = video.thumbnail || `https://img.youtube.com/vi/${video.videoId}/default.jpg`;
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border bg-card">
-      {/* Thumbnail with play overlay */}
-      <button
-        type="button"
-        onClick={onPlay}
-        className="relative block w-full aspect-video bg-neutral-100 overflow-hidden"
+    <div className="group flex items-center gap-2.5 rounded-lg border bg-card p-1.5 pr-2 transition-colors hover:bg-accent/30">
+      {/* Compact thumbnail — opens YouTube */}
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative shrink-0 h-12 w-[80px] rounded overflow-hidden bg-neutral-100"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={thumbnailUrl}
-          alt={video.title ?? ''}
+          alt=""
           className="h-full w-full object-cover"
           loading="lazy"
         />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/30">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white shadow-lg">
-            <Play className="h-4 w-4 ml-0.5" fill="currentColor" />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white">
+            <Play className="h-2.5 w-2.5 ml-px" fill="currentColor" />
           </div>
         </div>
-      </button>
+      </a>
 
-      {/* Info */}
-      <div className="px-2 py-1.5">
-        <p className="truncate text-[11px] font-medium leading-tight">
+      {/* Title + note */}
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="min-w-0 flex-1"
+      >
+        <p className="truncate text-xs font-medium leading-tight">
           {video.note || video.title || 'Vídeo'}
         </p>
-      </div>
+        {video.note && video.title && (
+          <p className="truncate text-[10px] text-muted-foreground leading-tight mt-0.5">
+            {video.title}
+          </p>
+        )}
+      </a>
 
-      {/* Delete button */}
+      {/* Actions */}
       {onDelete && (
         <button
           type="button"
           onClick={onDelete}
-          className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
+          className="shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:text-destructive opacity-0 group-hover:opacity-100"
           title="Eliminar"
         >
           <X className="h-3 w-3" />
