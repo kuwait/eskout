@@ -39,7 +39,8 @@ import type { DecisionSide, DepartmentOpinion, Player, PlayerRow, RecruitmentSta
 export function PipelineView({ clubId }: { clubId: string }) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
-  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  const [pipelinePlayers, setPipelinePlayers] = useState<Player[]>([]);
+  const [dialogPlayers, setDialogPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clubMembers, setClubMembers] = useState<{ id: string; fullName: string }[]>([]);
@@ -53,13 +54,14 @@ export function PipelineView({ clubId }: { clubId: string }) {
 
   /* ───────────── Fetch ───────────── */
 
-  const fetchPlayers = useCallback(async () => {
+  // Fetch only players with recruitment_status (in the pipeline) — fast, ~100-200 rows
+  const fetchPipelinePlayers = useCallback(async () => {
     const supabase = createClient();
     const PAGE = 1000;
     const all: PlayerRow[] = [];
     let offset = 0;
     for (;;) {
-      let query = supabase.from('players').select('*').eq('club_id', clubId);
+      let query = supabase.from('players').select('*').eq('club_id', clubId).not('recruitment_status', 'is', null);
       if (selectedId) query = query.eq('age_group_id', selectedId);
       const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
       if (error || !data?.length) break;
@@ -68,13 +70,36 @@ export function PipelineView({ clubId }: { clubId: string }) {
       offset += PAGE;
     }
     startTransition(() => {
-      setAllPlayers(all.map(mapPlayerRow));
+      setPipelinePlayers(all.map(mapPlayerRow));
     });
   }, [selectedId, clubId]);
 
   useEffect(() => {
-    fetchPlayers();
-  }, [fetchPlayers]);
+    fetchPipelinePlayers();
+  }, [fetchPipelinePlayers]);
+
+  // Fetch available players (no recruitment_status) lazily when dialog opens
+  const fetchDialogPlayers = useCallback(async () => {
+    const supabase = createClient();
+    const PAGE = 1000;
+    const all: PlayerRow[] = [];
+    let offset = 0;
+    for (;;) {
+      let query = supabase.from('players').select('*').eq('club_id', clubId).is('recruitment_status', null);
+      if (selectedId) query = query.eq('age_group_id', selectedId);
+      const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
+      if (error || !data?.length) break;
+      all.push(...(data as PlayerRow[]));
+      if (data.length < PAGE) break;
+      offset += PAGE;
+    }
+    setDialogPlayers(all.map(mapPlayerRow));
+  }, [selectedId, clubId]);
+
+  // Lazy-load dialog players when dialog opens
+  useEffect(() => {
+    if (dialogOpen) fetchDialogPlayers();
+  }, [dialogOpen, fetchDialogPlayers]);
 
   // Fetch club members once for contact assignment dropdowns (via server action to avoid RLS issues)
   useEffect(() => {
@@ -85,14 +110,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */
 
-  useRealtimeTable('players', { onAny: () => fetchPlayers() });
-
-  /* ───────────── Split: in abordagens vs not ───────────── */
-
-  const pipelinePlayers = useMemo(
-    () => allPlayers.filter((p) => p.recruitmentStatus),
-    [allPlayers]
-  );
+  useRealtimeTable('players', { onAny: () => fetchPipelinePlayers() });
 
   /* ───────────── Group pipeline players by status ───────────── */
 
@@ -113,8 +131,8 @@ export function PipelineView({ clubId }: { clubId: string }) {
 
   /** Move between columns — optimistic, await server, revert on failure */
   async function handleStatusChange(playerId: number, newStatus: RecruitmentStatus) {
-    const prev = allPlayers;
-    setAllPlayers((cur) =>
+    const prev = pipelinePlayers;
+    setPipelinePlayers((cur) =>
       cur.map((p) => {
         if (p.id !== playerId) return p;
         const updated = { ...p, recruitmentStatus: newStatus };
@@ -140,14 +158,14 @@ export function PipelineView({ clubId }: { clubId: string }) {
     const result = await updateRecruitmentStatus(playerId, newStatus);
     if (!result.success) {
       console.error('handleStatusChange failed:', result.error);
-      setAllPlayers(prev);
+      setPipelinePlayers(prev);
     }
   }
 
   /** Change decision side within a_decidir — optimistic + server persist */
   async function handleDecisionSideChange(playerId: number, side: DecisionSide) {
-    const prev = allPlayers;
-    setAllPlayers((cur) =>
+    const prev = pipelinePlayers;
+    setPipelinePlayers((cur) =>
       cur.map((p) =>
         p.id === playerId ? { ...p, decisionSide: side } : p
       )
@@ -155,7 +173,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
     const result = await updateDecisionSide(playerId, side);
     if (!result.success) {
       console.error('handleDecisionSideChange failed:', result.error);
-      setAllPlayers(prev);
+      setPipelinePlayers(prev);
     }
   }
 
@@ -163,7 +181,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
   async function handleReorder(updates: { playerId: number; order: number }[]) {
     // Optimistic: update pipelineOrder in local state
     const orderMap = new Map(updates.map((u) => [u.playerId, u.order]));
-    setAllPlayers((cur) =>
+    setPipelinePlayers((cur) =>
       cur.map((p) => {
         const newOrder = orderMap.get(p.id);
         return newOrder !== undefined ? { ...p, pipelineOrder: newOrder } : p;
@@ -173,51 +191,54 @@ export function PipelineView({ clubId }: { clubId: string }) {
     const result = await reorderPipelineCards(updates);
     if (!result.success) {
       console.error('handleReorder failed:', result.error);
-      // Refetch to recover correct order
-      fetchPlayers();
+      fetchPipelinePlayers();
     }
   }
 
   /** Optimistic update for training/meeting/signing date edits from PipelineCard */
   function handleDateChange(playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) {
-    setAllPlayers((cur) =>
+    setPipelinePlayers((cur) =>
       cur.map((p) =>
         p.id === playerId ? { ...p, [field]: newDate } : p
       )
     );
   }
 
-  /** Add to abordagens — await server, revert on failure, NO refetch on success */
+  /** Add to abordagens — move from dialog list to pipeline list, revert on failure */
   async function handleAdd(playerId: number) {
-    const prev = allPlayers;
-    setAllPlayers((cur) =>
-      cur.map((p) =>
-        p.id === playerId ? { ...p, recruitmentStatus: 'por_tratar' as RecruitmentStatus } : p
-      )
-    );
+    const player = dialogPlayers.find((p) => p.id === playerId);
+    if (!player) return;
+    const prevPipeline = pipelinePlayers;
+    const prevDialog = dialogPlayers;
+    // Optimistic: move player to pipeline
+    setPipelinePlayers((cur) => [...cur, { ...player, recruitmentStatus: 'por_tratar' as RecruitmentStatus }]);
+    setDialogPlayers((cur) => cur.filter((p) => p.id !== playerId));
     const result = await updateRecruitmentStatus(playerId, 'por_tratar');
     if (!result.success) {
       console.error('handleAdd failed:', result.error);
-      setAllPlayers(prev);
+      setPipelinePlayers(prevPipeline);
+      setDialogPlayers(prevDialog);
     }
   }
 
-  /** Remove from abordagens — await server, revert on failure, NO refetch on success */
+  /** Remove from abordagens — move from pipeline list to dialog list, revert on failure */
   async function handleRemove(playerId: number) {
-    const prev = allPlayers;
-    setAllPlayers((cur) =>
-      cur.map((p) =>
-        p.id === playerId ? { ...p, recruitmentStatus: null } : p
-      )
-    );
+    const player = pipelinePlayers.find((p) => p.id === playerId);
+    if (!player) return;
+    const prevPipeline = pipelinePlayers;
+    const prevDialog = dialogPlayers;
+    // Optimistic: move player out of pipeline
+    setPipelinePlayers((cur) => cur.filter((p) => p.id !== playerId));
+    setDialogPlayers((cur) => [...cur, { ...player, recruitmentStatus: null }]);
     const result = await updateRecruitmentStatus(playerId, null);
     if (!result.success) {
       console.error('handleRemove failed:', result.error);
-      setAllPlayers(prev);
+      setPipelinePlayers(prevPipeline);
+      setDialogPlayers(prevDialog);
     }
   }
 
-  if (isPending && allPlayers.length === 0) {
+  if (isPending && pipelinePlayers.length === 0) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -262,7 +283,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
       <AddToPipelineDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        availablePlayers={allPlayers.filter((p) => !p.recruitmentStatus)}
+        availablePlayers={dialogPlayers}
         onAdd={(playerId) => {
           handleAdd(playerId);
           setDialogOpen(false);
