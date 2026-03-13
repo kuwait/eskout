@@ -20,31 +20,37 @@ const BADGE_TABLES = new Set(['observation_notes', 'scouting_reports', 'players'
  * Starts with server-rendered counts and refetches from Supabase
  * when a relevant mutation event arrives from another user.
  */
-export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): AlertCounts {
+export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, clubId: string | null): AlertCounts {
   const [counts, setCounts] = useState<AlertCounts>(initialCounts);
 
   const refetchCounts = useCallback(async () => {
+    if (!clubId) return;
     try {
       const supabase = createClient();
 
       // Fetch alert counts + per-user pending players (total by others minus user's dismissals)
+      // All queries scoped to club_id to prevent cross-club leaks
       // First fetch user's list IDs, then count items across all lists
       const [urgRes, impRes, pendingRes, playersRes, dismissedRes, tasksRes, listsRes] = await Promise.all([
         supabase
           .from('observation_notes')
           .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
           .eq('priority', 'urgente'),
         supabase
           .from('observation_notes')
           .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
           .eq('priority', 'importante'),
         supabase
           .from('scouting_reports')
           .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
           .eq('status', 'pendente'),
         supabase
           .from('players')
           .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
           .neq('created_by', userId),
         supabase
           .from('player_added_dismissals')
@@ -53,11 +59,13 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
         supabase
           .from('user_tasks')
           .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
           .eq('user_id', userId)
           .eq('completed', false),
         supabase
           .from('player_lists')
           .select('id')
+          .eq('club_id', clubId)
           .eq('user_id', userId),
       ]);
 
@@ -83,7 +91,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string): A
     } catch (err) {
       console.error('[Realtime] badge refetch failed:', err);
     }
-  }, [userId]);
+  }, [userId, clubId]);
 
   const handleEvent = useCallback((event: MutationEvent) => {
     if (BADGE_TABLES.has(event.table)) {

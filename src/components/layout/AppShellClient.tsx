@@ -124,7 +124,7 @@ function ShellContent({
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Live badge counts — updates via Realtime when other users make changes
-  const alertCounts = useRealtimeBadges(initialAlertCounts, userId);
+  const alertCounts = useRealtimeBadges(initialAlertCounts, userId, clubInfo?.id ?? null);
 
   return (
     <>
