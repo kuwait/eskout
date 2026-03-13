@@ -20,7 +20,8 @@ export async function upsertScoutEvaluation(
     return { success: false, error: 'Avaliação deve ser entre 1 e 5' };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -43,7 +44,8 @@ export async function upsertScoutEvaluation(
 export async function deleteScoutEvaluation(
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { error } = await supabase

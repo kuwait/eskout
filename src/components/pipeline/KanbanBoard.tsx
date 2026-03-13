@@ -66,11 +66,11 @@ function saveColumnOrder(order: RecruitmentStatus[]) {
 
 interface KanbanBoardProps {
   playersByStatus: Record<RecruitmentStatus, Player[]>;
-  onStatusChange: (playerId: number, newStatus: RecruitmentStatus) => void;
-  onRemove: (playerId: number) => void;
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onRemove?: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   /** Callback for reorder after drag-and-drop within/between columns */
-  onReorder: (updates: { playerId: number; order: number }[]) => void;
+  onReorder?: (updates: { playerId: number; order: number }[]) => void;
   /** Show birth year on cards (when viewing all age groups) */
   showBirthYear?: boolean;
   /** Open player profile popup */
@@ -351,7 +351,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
 
     // If card moved to a different column, notify parent
     if (originalContainer !== overContainer) {
-      onStatusChange(playerId, overContainer);
+      onStatusChange?.(playerId, overContainer);
     }
 
     // Determine target decision side when landing in a_decidir
@@ -379,7 +379,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
         return pid !== null ? { playerId: pid, order: i } : null;
       })
       .filter((u): u is { playerId: number; order: number } => u !== null);
-    onReorder(updates);
+    onReorder?.(updates);
 
     setActiveId(null);
     setClonedItems(null);

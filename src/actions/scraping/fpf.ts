@@ -130,7 +130,8 @@ export async function fetchFpfData(fpfLink: string) {
 
 /** Scrape FPF for a single player — returns scraped data for the client to decide what to update */
 export async function scrapePlayerFpf(playerId: number): Promise<FpfScrapeResult> {
-  const { clubId } = await getActiveClub();
+  const { clubId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, club: null, photoUrl: null, birthCountry: null, nationality: null, clubChanged: false };
   const supabase = await createClient();
 
   const { data: player } = await supabase

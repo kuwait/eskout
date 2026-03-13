@@ -36,7 +36,7 @@ interface StatusColumnProps {
   /** Open player profile popup */
   onPlayerClick?: (playerId: number) => void;
   /** Remove from abordagens (set status to null) */
-  onRemove: (playerId: number) => void;
+  onRemove?: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   /** Club-scoped profiles for contact assignment in em_contacto cards */
   clubMembers?: { id: string; fullName: string }[];
@@ -65,7 +65,7 @@ function SortablePipelineCard({
   dragId: string;
   showBirthYear?: boolean;
   onPlayerClick?: (playerId: number) => void;
-  onRemove: (playerId: number) => void;
+  onRemove?: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   clubMembers?: { id: string; fullName: string }[];
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
@@ -224,7 +224,7 @@ function DecisionSubSection({
   players: Player[];
   showBirthYear?: boolean;
   onPlayerClick?: (playerId: number) => void;
-  onRemove: (playerId: number) => void;
+  onRemove?: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
   clubMembers?: { id: string; fullName: string }[];
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;

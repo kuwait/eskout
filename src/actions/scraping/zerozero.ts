@@ -472,7 +472,8 @@ export async function fetchZeroZeroData(zzLink: string) {
 
 /** Scrape ZeroZero for a single player — returns scraped data for the client to decide */
 export async function scrapePlayerZeroZero(playerId: number): Promise<ZzScrapeResult> {
-  const { clubId } = await getActiveClub();
+  const { clubId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, currentClub: null, photoUrl: null, height: null, weight: null, nationality: null, birthCountry: null, position: null, foot: null, gamesSeason: null, goalsSeason: null, teamHistory: [], clubChanged: false };
   const supabase = await createClient();
 
   const { data: player } = await supabase
@@ -531,7 +532,8 @@ export async function scrapePlayerZeroZeroWithData(playerId: number, preData: Zz
   const EMPTY: ZzScrapeResult = { success: false, currentClub: null, photoUrl: null, height: null, weight: null, nationality: null, birthCountry: null, position: null, foot: null, gamesSeason: null, goalsSeason: null, teamHistory: [], clubChanged: false };
   if (!preData) return EMPTY;
 
-  const { clubId } = await getActiveClub();
+  const { clubId, isDemo } = await getActiveClub();
+  if (isDemo) return EMPTY;
   const supabase = await createClient();
   const { data: player } = await supabase.from('players').select('club').eq('id', playerId).eq('club_id', clubId).single();
 

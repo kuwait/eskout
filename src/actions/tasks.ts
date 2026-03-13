@@ -59,7 +59,8 @@ export async function createTask(
   title: string,
   opts?: { playerId?: number; dueDate?: string; targetUserId?: string }
 ): Promise<ActionResponse<{ id: number }>> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -100,7 +101,8 @@ export async function createTask(
  *  When uncompleting an auto-task, if a pending duplicate exists (same user+player+source),
  *  delete the duplicate first to avoid unique constraint violation. */
 export async function toggleTask(taskId: number): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   // Get current state (include source + player_id for dedup check)
@@ -162,7 +164,8 @@ export async function updateTask(
   taskId: number,
   updates: { title?: string; dueDate?: string | null; playerId?: number | null }
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   // Check ownership
@@ -209,7 +212,8 @@ export async function updateTask(
 
 /** Delete a task (only own manual tasks, or admin can delete any) */
 export async function deleteTask(taskId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   // Check ownership: user can only delete tasks they created, unless admin

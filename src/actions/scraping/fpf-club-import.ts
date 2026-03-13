@@ -153,7 +153,8 @@ export async function importFpfPlayer(
   player: FpfClubPlayer,
   clubName: string,
 ): Promise<ActionResponse<ImportPlayerResult>> {
-  const { clubId } = await getActiveClub();
+  const { clubId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const fpfLink = player.url;

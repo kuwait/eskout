@@ -32,7 +32,8 @@ export async function createTrainingFeedback(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { data: row, error } = await supabase
@@ -70,7 +71,8 @@ export async function updateTrainingFeedback(
     trainingDate?: string;
   },
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   // Only author or admin can update
@@ -116,7 +118,8 @@ export async function deleteTrainingFeedback(
   feedbackId: number,
   playerId: number,
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   // Admin can delete any; others can only delete their own

@@ -597,3 +597,33 @@ User-level visual customization. Accessible to all roles (including scouts). Sto
 - Each theme defines CSS custom properties for colors + font-family override in `globals.css`
 - `ThemePicker` component renders a grid of theme cards with color preview bars, description, font name, and active checkmark
 - Dark themes (Midnight, Carbon) include CSS overrides for hardcoded `bg-white`/`text-neutral-*` classes
+
+## 37. Demo Mode (`/demo`)
+
+Public demo mode for potential clients to explore the app without creating an account.
+
+**Entry point:** `/demo` landing page with "Entrar na Demo" button → `/api/demo` auto-login route.
+
+**Architecture:**
+- Database: `clubs.is_demo` boolean column (migration 062)
+- Demo user: `demo@eskout.com` with `editor` role on demo club
+- Auto-login: `/api/demo` route handler signs in via `signInWithPassword()`, sets club cookie, redirects to `/`
+- Server-side guard: `demoGuard()` in `club-context.ts` — called by all mutation server actions (~84 guard points across 19 files)
+- Client-side context: `DemoProvider` / `useIsDemo()` hook for UI components
+
+**Read-only enforcement:**
+- All mutation server actions return `{ success: false, error: 'Modo demonstração — apenas leitura' }` when `ctx.isDemo` is true
+- Export actions (read-only) remain accessible
+- Realtime and presence tracking are skipped in demo mode
+
+**UI:**
+- `DemoBanner` — sticky amber banner at top: "Modo Demonstração — apenas leitura"
+- Sidebar/MobileDrawer: "Sair da Demo" replaces "Sair" logout button
+- Middleware: `/demo` added to `PUBLIC_ROUTES`
+
+**Data:**
+- Seed script: `npx tsx scripts/seed_demo.ts`
+- Creates demo club "FC Atlético Demo" with 3 age groups (Sub-13/14/15), ~54 fictional players, squads, notes, calendar events
+- Idempotent: safe to re-run (cleans existing demo data first)
+
+**Files:** `supabase/migrations/062_demo_club.sql`, `scripts/seed_demo.ts`, `src/app/demo/page.tsx`, `src/app/api/demo/route.ts`, `src/lib/demo-context.tsx`, `src/components/layout/DemoBanner.tsx`, `src/lib/supabase/club-context.ts` (demoGuard)

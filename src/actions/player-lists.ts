@@ -307,7 +307,8 @@ export async function getListsItemCount(): Promise<number> {
 
 /** Create a new custom list */
 export async function createList(input: { name: string; emoji?: string }): Promise<ActionResponse<{ id: number }>> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const parsed = createListSchema.safeParse(input);
@@ -335,7 +336,8 @@ export async function createList(input: { name: string; emoji?: string }): Promi
 
 /** Rename a custom list (system lists cannot be renamed) */
 export async function renameList(input: { listId: number; name: string; emoji?: string }): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const parsed = renameListSchema.safeParse(input);
@@ -371,7 +373,8 @@ export async function renameList(input: { listId: number; name: string; emoji?: 
 
 /** Delete a custom list and all its items (system lists cannot be deleted) */
 export async function deleteList(listId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const supabase = await createClient();
@@ -406,7 +409,8 @@ export async function addPlayerToList(
   playerId: number,
   note?: string | null,
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const parsed = addToListSchema.safeParse({ listId, playerId, note });
@@ -429,7 +433,8 @@ export async function addPlayerToList(
 
 /** Remove a player from a specific list */
 export async function removePlayerFromList(listId: number, playerId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const supabase = await createClient();
@@ -451,7 +456,8 @@ export async function updatePlayerListMemberships(
   playerId: number,
   listIds: number[],
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const supabase = await createClient();
@@ -518,7 +524,8 @@ export async function updateListItemNote(
   playerId: number,
   note: string | null,
 ): Promise<ActionResponse> {
-  const { role } = await getActiveClub();
+  const { role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const supabase = await createClient();
@@ -539,7 +546,8 @@ export async function reorderListItems(
   listId: number,
   orderedPlayerIds: number[],
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout') return { success: false, error: 'Sem permissão' };
 
   const supabase = await createClient();
@@ -675,7 +683,8 @@ export async function addToObservationList(
   playerId: number,
   note?: string | null,
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
   const systemListId = await ensureSystemList(supabase, clubId, userId);
   return addPlayerToList(systemListId, playerId, note);
@@ -683,7 +692,8 @@ export async function addToObservationList(
 
 /** Remove player from the system "A Observar" list (bridge for existing code) */
 export async function removeFromObservationList(playerId: number): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
   const systemListId = await ensureSystemList(supabase, clubId, userId);
   return removePlayerFromList(systemListId, playerId);

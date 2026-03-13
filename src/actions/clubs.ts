@@ -136,6 +136,10 @@ export async function updateMyClubDetails(
   const clubId = cookieStore.get(CLUB_COOKIE)?.value;
   if (!clubId) return { success: false, error: 'Nenhum clube selecionado' };
 
+  // Demo mode guard
+  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', clubId).single();
+  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+
   // Verify user is admin of this club or superadmin
   const { data: membership } = await supabase
     .from('club_memberships')
@@ -185,6 +189,10 @@ export async function inviteUserToClub(
 ): Promise<ActionResponse> {
   const service = await createServiceClient();
   const supabase = await createClient();
+
+  // Demo mode guard
+  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', clubId).single();
+  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
 
   // Verify caller is club admin or superadmin
   const { data: { user } } = await supabase.auth.getUser();
@@ -300,6 +308,10 @@ export async function updateMembershipRole(
 
   if (!membership) return { success: false, error: 'Membro não encontrado' };
 
+  // Demo mode guard
+  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', membership.club_id).single();
+  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+
   // Prevent self-demotion
   if (membership.user_id === user.id) {
     return { success: false, error: 'Não podes alterar o teu próprio role' };
@@ -330,11 +342,15 @@ export async function removeMembership(
   // Fetch the membership
   const { data: membership } = await service
     .from('club_memberships')
-    .select('user_id')
+    .select('user_id, club_id')
     .eq('id', membershipId)
     .single();
 
   if (!membership) return { success: false, error: 'Membro não encontrado' };
+
+  // Demo mode guard
+  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', membership.club_id).single();
+  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
 
   // Prevent self-removal
   if (membership.user_id === user.id) {

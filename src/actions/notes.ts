@@ -23,7 +23,8 @@ export async function createObservationNote(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { data: note, error } = await supabase.from('observation_notes').insert({
@@ -51,7 +52,8 @@ export async function updateObservationNote(
   matchContext?: string,
   priority?: 'normal' | 'importante' | 'urgente'
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   // Only admins can edit notes
@@ -87,7 +89,8 @@ export async function dismissFlaggedNote(
   noteId: number,
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   if (role === 'scout' || role === 'recruiter') {
     return { success: false, error: 'Sem permissão para dispensar notas' };
   }
@@ -113,7 +116,8 @@ export async function deleteObservationNote(
   noteId: number,
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const isAdmin = role === 'admin';

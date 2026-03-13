@@ -5,7 +5,7 @@
 
 import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import type { UserRole } from '@/lib/types';
+import type { UserRole, ActionResponse } from '@/lib/types';
 
 export const CLUB_COOKIE = 'eskout-club-id';
 export const ROLE_OVERRIDE_COOKIE = 'eskout-role-override';
@@ -23,6 +23,7 @@ export interface ClubContext {
   };
   userId: string;
   isSuperadmin: boolean;
+  isDemo: boolean;
 }
 
 /**
@@ -45,7 +46,7 @@ export async function getActiveClub(): Promise<ClubContext> {
   // Fetch membership + club in one query
   const { data: membership, error } = await supabase
     .from('club_memberships')
-    .select('role, clubs(id, name, slug, logo_url, features, settings)')
+    .select('role, clubs(id, name, slug, logo_url, features, settings, is_demo)')
     .eq('user_id', user.id)
     .eq('club_id', clubId)
     .single();
@@ -64,7 +65,7 @@ export async function getActiveClub(): Promise<ClubContext> {
   const club = membership.clubs as unknown as {
     id: string; name: string; slug: string;
     logo_url: string | null; features: Record<string, boolean>;
-    settings: Record<string, unknown>;
+    settings: Record<string, unknown>; is_demo: boolean;
   };
 
   const isSuperadmin = profile?.is_superadmin ?? false;
@@ -89,6 +90,7 @@ export async function getActiveClub(): Promise<ClubContext> {
     },
     userId: user.id,
     isSuperadmin,
+    isDemo: club.is_demo ?? false,
   };
 }
 
@@ -156,4 +158,30 @@ export async function getUserClubs(): Promise<{
     clubs,
     isSuperadmin: profileRes.data?.is_superadmin ?? false,
   };
+}
+
+/**
+ * Guard for demo mode — returns an error response if the club is a demo club.
+ * Call at the top of every mutation server action.
+ * Returns null if not in demo mode (safe to proceed).
+ */
+export function demoGuard(ctx: ClubContext): ActionResponse | null {
+  if (ctx.isDemo) {
+    return { success: false, error: 'Modo demonstração — apenas leitura' };
+  }
+  return null;
+}
+
+/**
+ * Convenience wrapper: getActiveClub() + demoGuard() for mutation actions.
+ * Throws early if in demo mode (via the returned ActionResponse).
+ * Usage: const ctx = await getActiveClubOrDemoBlock();
+ *        if ('error' in ctx) return ctx; // blocked by demo guard
+ *        const { clubId, userId, role } = ctx;
+ */
+export async function getActiveClubOrDemoBlock(): Promise<ClubContext | ActionResponse> {
+  const ctx = await getActiveClub();
+  const blocked = demoGuard(ctx);
+  if (blocked) return blocked;
+  return ctx;
 }

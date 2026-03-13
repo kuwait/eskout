@@ -345,7 +345,8 @@ export async function applyScrapedData(
   },
   preZzProfile?: ZzParsedProfile | null,
 ): Promise<{ success: boolean }> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false };
   if (role === 'scout') {
     return { success: false };
   }

@@ -34,10 +34,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
+import { useIsDemo } from '@/lib/demo-context';
 import type { DecisionSide, DepartmentOpinion, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
 export function PipelineView() {
   const router = useRouter();
+  const isDemo = useIsDemo();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -229,13 +231,15 @@ export function PipelineView() {
 
   return (
     <div className="min-w-0 max-w-full">
-      {/* Title + Add button */}
+      {/* Title + Add button (hidden in demo) */}
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-xl font-bold lg:text-2xl">Abordagens</h1>
-        <Button size="sm" onClick={() => setDialogOpen(true)} aria-label="Adicionar jogador à pipeline">
-          <Plus className="mr-1 h-4 w-4" />
-          <span className="hidden sm:inline">Adicionar</span>
-        </Button>
+        {!isDemo && (
+          <Button size="sm" onClick={() => setDialogOpen(true)} aria-label="Adicionar jogador à pipeline">
+            <Plus className="mr-1 h-4 w-4" />
+            <span className="hidden sm:inline">Adicionar</span>
+          </Button>
+        )}
       </div>
 
       <AgeGroupSelector variant="navigator" value={selectedId} onChange={setSelectedId} ageGroups={ageGroups} />
@@ -245,17 +249,17 @@ export function PipelineView() {
         {pipelinePlayers.length} jogador{pipelinePlayers.length !== 1 ? 'es' : ''} em abordagens
       </p>
 
-      {/* Kanban — same component for all screen sizes */}
+      {/* Kanban — same component for all screen sizes (read-only in demo) */}
       <KanbanBoard
         playersByStatus={playersByStatus}
         showBirthYear={showBirthYear}
         clubMembers={clubMembers}
         onPlayerClick={handlePlayerClick}
-        onStatusChange={handleStatusChange}
-        onRemove={handleRemove}
-        onDateChange={handleDateChange}
-        onReorder={handleReorder}
-        onDecisionSideChange={handleDecisionSideChange}
+        onStatusChange={isDemo ? undefined : handleStatusChange}
+        onRemove={isDemo ? undefined : handleRemove}
+        onDateChange={isDemo ? undefined : handleDateChange}
+        onReorder={isDemo ? undefined : handleReorder}
+        onDecisionSideChange={isDemo ? undefined : handleDecisionSideChange}
       />
 
       {/* Add to abordagens dialog — shows ALL players, always adds as 'por_tratar' */}

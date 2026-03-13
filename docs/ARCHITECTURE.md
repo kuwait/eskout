@@ -267,7 +267,7 @@ sikout/
 │       ├── usePlayerProfilePopup.tsx  # Quick player preview popup
 │       └── useResizableColumns.ts    # Resizable table columns
 ├── scripts/                           # Python scrapers + TS import
-├── supabase/migrations/               # 001-061 SQL migrations
+├── supabase/migrations/               # 001-064 SQL migrations
 ├── e2e/                               # Playwright E2E tests
 ├── data/all_players.json
 └── docs/
@@ -1042,7 +1042,7 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 
 ## 13. Migrations
 
-61 SQL migrations in `supabase/migrations/` (001-061). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
+64 SQL migrations in `supabase/migrations/` (001-064). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
 
 | # | File | Description |
 |---|------|-------------|
@@ -1107,3 +1107,6 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 059 | `059_custom_squads.sql` | Custom squads: `squads` + `squad_players` tables with RLS |
 | 060 | `060_squad_sort_order.sql` | Add `sort_order` to squads for custom ordering |
 | 061 | `061_migrate_missing_shadow_squads.sql` | Migrate legacy shadow squad data to `squads`/`squad_players` tables |
+| 062 | `062_demo_club.sql` | Add `is_demo` boolean to clubs for demo mode |
+| 063 | `063_fix_age_groups_unique_constraint.sql` | Fix age_groups unique constraint to be club-scoped |
+| 064 | `064_drop_global_read_policies.sql` | Drop legacy global SELECT policies that bypassed club isolation |

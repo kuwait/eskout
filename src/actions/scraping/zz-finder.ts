@@ -279,7 +279,8 @@ export interface ZzLinkFinderResult {
 
 /** Find ZeroZero links for players that have FPF data but no ZeroZero link */
 export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFinderResult> {
-  const { clubId } = await getActiveClub();
+  const { clubId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, found: 0, skipped: 0, errors: 0, total: 0 };
   const supabase = await createClient();
 
   // Get players with FPF data + name + DOB but no ZeroZero link
@@ -339,7 +340,8 @@ export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFind
 
 /** Find ZeroZero link for a single player by ID */
 export async function findZeroZeroLinkForPlayer(playerId: number): Promise<{ success: boolean; url: string | null; error?: string }> {
-  const { clubId } = await getActiveClub();
+  const { clubId, isDemo } = await getActiveClub();
+  if (isDemo) return { success: false, url: null, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { data: player } = await supabase

@@ -23,6 +23,15 @@ export async function updateLastSeen(page?: string, device?: string): Promise<vo
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
+  // Skip presence tracking for demo users — no writes needed
+  const { data: membership } = await supabase
+    .from('club_memberships')
+    .select('clubs!inner(is_demo)')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+  if ((membership?.clubs as unknown as { is_demo: boolean })?.is_demo) return;
+
   const service = await createServiceClient();
   const now = new Date();
   const nowIso = now.toISOString();

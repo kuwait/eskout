@@ -25,6 +25,7 @@ export function MobileDrawer({
   userRole,
   clubInfo,
   isSuperadmin,
+  isDemo = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,6 +33,7 @@ export function MobileDrawer({
   userRole: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
+  isDemo?: boolean;
 }) {
   const pathname = usePathname();
   const isScout = userRole === 'scout';
@@ -296,12 +298,26 @@ export function MobileDrawer({
             <Palette className="h-5 w-5" />
             Preferências
           </Link>
-          <form action={logout}>
-            <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" type="submit">
+          {isDemo ? (
+            <Link
+              href="/demo"
+              onClick={() => {
+                close();
+                document.cookie = 'eskout-club-id=; path=/; max-age=0';
+              }}
+              className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
               <LogOut className="h-5 w-5" />
-              Sair
-            </Button>
-          </form>
+              Sair da Demo
+            </Link>
+          ) : (
+            <form action={logout}>
+              <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" type="submit">
+                <LogOut className="h-5 w-5" />
+                Sair
+              </Button>
+            </form>
+          )}
         </div>
       </aside>
     </>

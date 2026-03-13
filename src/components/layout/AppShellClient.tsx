@@ -15,11 +15,13 @@ import { useRealtimeBadges } from '@/hooks/useRealtimeBadges';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileDrawer } from '@/components/layout/MobileDrawer';
 import { RoleImpersonator } from '@/components/layout/RoleImpersonator';
+import { DemoBanner } from '@/components/layout/DemoBanner';
+import { DemoProvider } from '@/lib/demo-context';
 import { updateLastSeen } from '@/actions/presence';
 import type { AgeGroup } from '@/lib/types';
 import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
 
-const PUBLIC_ROUTES = ['/login'];
+const PUBLIC_ROUTES = ['/login', '/demo'];
 const NO_SHELL_ROUTES = ['/escolher-clube', '/master'];
 
 export function AppShellClient({
@@ -45,9 +47,12 @@ export function AppShellClient({
   const isPublic = PUBLIC_ROUTES.includes(pathname);
   const isNoShell = NO_SHELL_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
 
+  const isDemo = clubInfo?.isDemo ?? false;
+
   // Heartbeat: update presence every 60 seconds (page, device, last_seen_at)
+  // Skip in demo mode — demo user doesn't need presence tracking
   useEffect(() => {
-    if (isPublic || !userId) return;
+    if (isPublic || !userId || isDemo) return;
     const device = window.innerWidth < 768 ? 'mobile' : 'desktop';
     // Fire immediately on mount
     updateLastSeen(pathname, device);
@@ -56,15 +61,32 @@ export function AppShellClient({
       updateLastSeen(pathname, dev);
     }, 60_000);
     return () => clearInterval(interval);
-  }, [isPublic, userId, pathname]);
+  }, [isPublic, userId, pathname, isDemo]);
 
   // No shell on public routes or club picker
   if (isPublic || isNoShell) {
     return <>{children}</>;
   }
 
-  // Wrap with RealtimeProvider only when we have a club context
-  if (clubInfo?.id && userId) {
+  // Wrap with RealtimeProvider only when we have a club context (skip in demo — no realtime needed)
+  const shell = (
+    <AgeGroupProvider ageGroups={ageGroups}>
+      <DemoProvider value={isDemo}>
+        <ShellContent
+          alertCounts={alertCounts}
+          userRole={userRole}
+          userId={userId}
+          clubInfo={clubInfo}
+          isSuperadmin={isSuperadmin}
+          isDemo={isDemo}
+        >
+          {children}
+        </ShellContent>
+      </DemoProvider>
+    </AgeGroupProvider>
+  );
+
+  if (clubInfo?.id && userId && !isDemo) {
     return (
       <RealtimeProvider
         clubId={clubInfo.id}
@@ -72,35 +94,12 @@ export function AppShellClient({
         userName={userName}
         userRole={userRole}
       >
-        <AgeGroupProvider ageGroups={ageGroups}>
-          <ShellContent
-            alertCounts={alertCounts}
-            userRole={userRole}
-            userId={userId}
-            clubInfo={clubInfo}
-            isSuperadmin={isSuperadmin}
-          >
-            {children}
-          </ShellContent>
-        </AgeGroupProvider>
+        {shell}
       </RealtimeProvider>
     );
   }
 
-  // Fallback: no club selected yet — render without Realtime
-  return (
-    <AgeGroupProvider ageGroups={ageGroups}>
-      <ShellContent
-        alertCounts={alertCounts}
-        userRole={userRole}
-        userId={userId}
-        clubInfo={clubInfo}
-        isSuperadmin={isSuperadmin}
-      >
-        {children}
-      </ShellContent>
-    </AgeGroupProvider>
-  );
+  return shell;
 }
 
 /* ───────────── Inner Shell with Live Badges ───────────── */
@@ -112,6 +111,7 @@ function ShellContent({
   userId,
   clubInfo,
   isSuperadmin,
+  isDemo,
 }: {
   children: React.ReactNode;
   alertCounts: AlertCounts;
@@ -119,6 +119,7 @@ function ShellContent({
   userId: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
+  isDemo: boolean;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -127,7 +128,8 @@ function ShellContent({
 
   return (
     <>
-      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} />
+      {isDemo && <DemoBanner />}
+      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} isDemo={isDemo} />
 
       {/* Mobile header with hamburger */}
       <header className="sticky top-0 z-40 flex items-center border-b bg-card px-4 py-3 lg:hidden">
@@ -159,6 +161,7 @@ function ShellContent({
         userRole={userRole}
         clubInfo={clubInfo}
         isSuperadmin={isSuperadmin}
+        isDemo={isDemo}
       />
 
       {/* Main content area — overflow-x-clip prevents horizontal page scroll without breaking sticky positioning */}
