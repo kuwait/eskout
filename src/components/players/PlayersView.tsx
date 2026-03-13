@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -20,7 +20,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import type { DepartmentOpinion, Player, PlayerRow } from '@/lib/types';
+import type { Player, PlayerRow } from '@/lib/types';
 
 export interface PlayerFilterState {
   position: string;
@@ -102,7 +102,7 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     return () => clearTimeout(timer);
   }, [search]);
 
-  /* ───────────── Fetch all players (paginated past Supabase 1000-row limit) ───────────── */
+  /* ───────────── Fetch players with server-side structural filters ───────────── */
 
   /** Paginate through all rows to bypass the 1000-row Supabase limit */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,75 +121,95 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     })();
   }
 
-  function fetchPlayers() {
+  const fetchPlayers = useCallback(async () => {
+    setLoading(true);
     const supabase = createClient();
 
-    Promise.all([
-      fetchAll<PlayerRow>(supabase, (from, to) => supabase.from('players').select('*').eq('club_id', clubId).eq('pending_approval', false).order('name').range(from, to)),
+    // Build player query with structural filters applied server-side
+    function buildPlayerQuery(from: number, to: number) {
+      let q = supabase.from('players').select('*').eq('club_id', clubId).eq('pending_approval', false);
+
+      // Structural filters — applied server-side to reduce payload
+      if (filters.position) q = q.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
+      if (filters.club) q = q.eq('club', filters.club);
+      if (filters.nationality) q = q.eq('nationality', filters.nationality);
+      if (filters.opinion) q = q.contains('department_opinion', [filters.opinion]);
+      if (filters.foot) q = q.eq('foot', filters.foot);
+      if (filters.status) q = q.eq('recruitment_status', filters.status);
+      if (filters.shadowSquad === 'yes') q = q.eq('is_shadow_squad', true);
+      if (filters.shadowSquad === 'no') q = q.eq('is_shadow_squad', false);
+      if (filters.realSquad === 'yes') q = q.eq('is_real_squad', true);
+      if (filters.realSquad === 'no') q = q.eq('is_real_squad', false);
+      if (filters.birthYear) {
+        const yr = parseInt(filters.birthYear, 10);
+        q = q.gte('dob', `${yr}-01-01`).lte('dob', `${yr}-12-31`);
+      }
+      if (filters.dobFrom) q = q.gte('dob', filters.dobFrom);
+      if (filters.dobTo) q = q.lte('dob', filters.dobTo);
+
+      return q.order('name').range(from, to);
+    }
+
+    const [playersData, reportsData, evalsData, notesData] = await Promise.all([
+      fetchAll<PlayerRow>(supabase, buildPlayerQuery),
       fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scouting_reports').select('player_id, rating').eq('club_id', clubId).not('rating', 'is', null).range(from, to)),
       fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scout_evaluations').select('player_id, rating').eq('club_id', clubId).range(from, to)),
       fetchAll<{ player_id: number; content: string; created_at: string }>(supabase, (from, to) => supabase.from('observation_notes').select('player_id, content, created_at').eq('club_id', clubId).order('created_at', { ascending: false }).range(from, to)),
-    ]).then(([playersData, reportsData, evalsData, notesData]) => {
-      if (!playersData.length) {
-        setLoading(false);
-        return;
-      }
+    ]);
 
-      // Build map: playerId → all note contents (newest first, already sorted)
-      const notesMap = new Map<number, string[]>();
-      for (const n of notesData) {
-        const arr = notesMap.get(n.player_id) ?? [];
-        arr.push(n.content);
-        notesMap.set(n.player_id, arr);
-      }
+    // Build map: playerId → all note contents (newest first, already sorted)
+    const notesMap = new Map<number, string[]>();
+    for (const n of notesData) {
+      const arr = notesMap.get(n.player_id) ?? [];
+      arr.push(n.content);
+      notesMap.set(n.player_id, arr);
+    }
 
-      const mapped = playersData.map((row) => {
-        const player = mapPlayerRow(row);
-        player.observationNotePreviews = notesMap.get(row.id) ?? [];
-        return player;
-      });
-
-      // Build rating aggregates: { playerId → { sum, count } }
-      const agg = new Map<number, { sum: number; count: number }>();
-      const addRating = (playerId: number, rating: number) => {
-        const existing = agg.get(playerId) ?? { sum: 0, count: 0 };
-        existing.sum += rating;
-        existing.count += 1;
-        agg.set(playerId, existing);
-      };
-
-      for (const r of reportsData) addRating(r.player_id, r.rating);
-      for (const e of evalsData) addRating(e.player_id, e.rating);
-
-      // Merge into players
-      for (const p of mapped) {
-        const stats = agg.get(p.id);
-        if (stats) {
-          p.reportAvgRating = Math.round((stats.sum / stats.count) * 10) / 10;
-          p.reportRatingCount = stats.count;
-        }
-      }
-
-      setAllPlayers(mapped);
-      setLoading(false);
+    const mapped = playersData.map((row) => {
+      const player = mapPlayerRow(row);
+      player.observationNotePreviews = notesMap.get(row.id) ?? [];
+      return player;
     });
-  }
+
+    // Build rating aggregates: { playerId → { sum, count } }
+    const agg = new Map<number, { sum: number; count: number }>();
+    const addRating = (playerId: number, rating: number) => {
+      const existing = agg.get(playerId) ?? { sum: 0, count: 0 };
+      existing.sum += rating;
+      existing.count += 1;
+      agg.set(playerId, existing);
+    };
+
+    for (const r of reportsData) addRating(r.player_id, r.rating);
+    for (const e of evalsData) addRating(e.player_id, e.rating);
+
+    // Merge ratings into players
+    for (const p of mapped) {
+      const stats = agg.get(p.id);
+      if (stats) {
+        p.reportAvgRating = Math.round((stats.sum / stats.count) * 10) / 10;
+        p.reportRatingCount = stats.count;
+      }
+    }
+
+    setAllPlayers(mapped);
+    setLoading(false);
+  }, [clubId, filters.position, filters.club, filters.nationality, filters.opinion, filters.foot, filters.status, filters.shadowSquad, filters.realSquad, filters.birthYear, filters.dobFrom, filters.dobTo]);
 
   useEffect(() => {
     fetchPlayers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchPlayers]);
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */
 
   useRealtimeTable('players', { onAny: () => fetchPlayers() });
 
-  /* ───────────── Client-side filtering + search ───────────── */
+  /* ───────────── Client-side filtering (search + observationTier only) ───────────── */
 
   const filtered = useMemo(() => {
     let result = allPlayers;
 
-    // Multi-field search (accent-insensitive)
+    // Multi-field search (accent-insensitive) — client-side only
     if (debouncedSearch) {
       const words = normalize(debouncedSearch).split(/\s+/).filter(Boolean);
       if (words.length > 0) {
@@ -197,40 +217,13 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
       }
     }
 
-    // Dropdown filters
-    // Match primary, secondary, or tertiary position
-    if (filters.position) result = result.filter((p) =>
-      p.positionNormalized === filters.position ||
-      p.secondaryPosition === filters.position ||
-      p.tertiaryPosition === filters.position
-    );
-    if (filters.club) result = result.filter((p) => p.club === filters.club);
-    if (filters.nationality) result = result.filter((p) => p.nationality === filters.nationality);
-    if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion as DepartmentOpinion));
-    if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
-    if (filters.status) result = result.filter((p) => (p.recruitmentStatus ?? '') === filters.status);
-    if (filters.shadowSquad === 'yes') result = result.filter((p) => p.isShadowSquad);
-    if (filters.shadowSquad === 'no') result = result.filter((p) => !p.isShadowSquad);
-    if (filters.realSquad === 'yes') result = result.filter((p) => p.isRealSquad);
-    if (filters.realSquad === 'no') result = result.filter((p) => !p.isRealSquad);
-
-    // Observation tier filter
+    // Observation tier — computed from multiple fields, must be client-side
     if (filters.observationTier) {
       result = result.filter((p) => getObservationTier(p) === filters.observationTier);
     }
 
-    // Birth year filter
-    if (filters.birthYear) {
-      const yr = parseInt(filters.birthYear, 10);
-      result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
-    }
-
-    // Date range filter
-    if (filters.dobFrom) result = result.filter((p) => p.dob && p.dob >= filters.dobFrom);
-    if (filters.dobTo) result = result.filter((p) => p.dob && p.dob <= filters.dobTo);
-
     return result;
-  }, [allPlayers, debouncedSearch, filters]);
+  }, [allPlayers, debouncedSearch, filters.observationTier]);
 
   // Reset to first page when filters/search change
   useEffect(() => {
