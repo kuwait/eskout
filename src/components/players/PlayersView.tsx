@@ -56,7 +56,6 @@ const EMPTY_FILTERS: PlayerFilterState = {
 
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
-const SUPABASE_PAGE = 1000;
 
 /* ───────────── Accent-insensitive search helpers ───────────── */
 
@@ -87,13 +86,23 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
   const searchParams = useSearchParams();
   const initialClub = searchParams.get('clube') ?? '';
   const initialNationality = searchParams.get('nacionalidade') ?? '';
-  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  const [pageRows, setPageRows] = useState<Player[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState<PlayerFilterState>({ ...EMPTY_FILTERS, club: initialClub, nationality: initialNationality });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
+
+  // Search mode: when search is active we fetch the full pool and filter client-side
+  const [searchPool, setSearchPool] = useState<Player[]>([]);
+  const isSearchMode = debouncedSearch.length > 0 || filters.observationTier !== '';
+
+  // Dropdown options (fetched once)
+  const [clubs, setClubs] = useState<string[]>([]);
+  const [nationalities, setNationalities] = useState<string[]>([]);
+  const [birthYears, setBirthYears] = useState<number[]>([]);
 
   /* ───────────── Debounce search input ───────────── */
 
@@ -102,161 +111,171 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     return () => clearTimeout(timer);
   }, [search]);
 
-  /* ───────────── Fetch players with server-side structural filters ───────────── */
+  /* ───────────── Shared: build query with structural filters ───────────── */
 
-  /** Paginate through all rows to bypass the 1000-row Supabase limit */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function fetchAll<T>(supabase: ReturnType<typeof createClient>, buildQuery: (from: number, to: number) => PromiseLike<{ data: any; error: any }>): Promise<T[]> {
-    return (async () => {
-      const all: T[] = [];
-      let offset = 0;
-      for (;;) {
-        const { data, error } = await buildQuery(offset, offset + SUPABASE_PAGE - 1);
-        if (error || !data?.length) break;
-        all.push(...(data as T[]));
-        if (data.length < SUPABASE_PAGE) break;
-        offset += SUPABASE_PAGE;
-      }
-      return all;
-    })();
-  }
-
-  const fetchPlayers = useCallback(async () => {
-    setLoading(true);
-    const supabase = createClient();
-
-    // Build player query with structural filters applied server-side
-    function buildPlayerQuery(from: number, to: number) {
-      let q = supabase.from('players').select('*').eq('club_id', clubId).eq('pending_approval', false);
-
-      // Structural filters — applied server-side to reduce payload
-      if (filters.position) q = q.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
-      if (filters.club) q = q.eq('club', filters.club);
-      if (filters.nationality) q = q.eq('nationality', filters.nationality);
-      if (filters.opinion) q = q.contains('department_opinion', [filters.opinion]);
-      if (filters.foot) q = q.eq('foot', filters.foot);
-      if (filters.status) q = q.eq('recruitment_status', filters.status);
-      if (filters.shadowSquad === 'yes') q = q.eq('is_shadow_squad', true);
-      if (filters.shadowSquad === 'no') q = q.eq('is_shadow_squad', false);
-      if (filters.realSquad === 'yes') q = q.eq('is_real_squad', true);
-      if (filters.realSquad === 'no') q = q.eq('is_real_squad', false);
-      if (filters.birthYear) {
-        const yr = parseInt(filters.birthYear, 10);
-        q = q.gte('dob', `${yr}-01-01`).lte('dob', `${yr}-12-31`);
-      }
-      if (filters.dobFrom) q = q.gte('dob', filters.dobFrom);
-      if (filters.dobTo) q = q.lte('dob', filters.dobTo);
-
-      return q.order('name').range(from, to);
+  const applyStructuralFilters = useCallback((q: any) => {
+    if (filters.position) q = q.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
+    if (filters.club) q = q.eq('club', filters.club);
+    if (filters.nationality) q = q.eq('nationality', filters.nationality);
+    if (filters.opinion) q = q.contains('department_opinion', [filters.opinion]);
+    if (filters.foot) q = q.eq('foot', filters.foot);
+    if (filters.status) q = q.eq('recruitment_status', filters.status);
+    if (filters.shadowSquad === 'yes') q = q.eq('is_shadow_squad', true);
+    if (filters.shadowSquad === 'no') q = q.eq('is_shadow_squad', false);
+    if (filters.realSquad === 'yes') q = q.eq('is_real_squad', true);
+    if (filters.realSquad === 'no') q = q.eq('is_real_squad', false);
+    if (filters.birthYear) {
+      const yr = parseInt(filters.birthYear, 10);
+      q = q.gte('dob', `${yr}-01-01`).lte('dob', `${yr}-12-31`);
     }
+    if (filters.dobFrom) q = q.gte('dob', filters.dobFrom);
+    if (filters.dobTo) q = q.lte('dob', filters.dobTo);
+    return q;
+  }, [filters.position, filters.club, filters.nationality, filters.opinion, filters.foot, filters.status, filters.shadowSquad, filters.realSquad, filters.birthYear, filters.dobFrom, filters.dobTo]);
 
-    const [playersData, reportsData, evalsData, notesData] = await Promise.all([
-      fetchAll<PlayerRow>(supabase, buildPlayerQuery),
-      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scouting_reports').select('player_id, rating').eq('club_id', clubId).not('rating', 'is', null).range(from, to)),
-      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scout_evaluations').select('player_id, rating').eq('club_id', clubId).range(from, to)),
-      fetchAll<{ player_id: number; content: string; created_at: string }>(supabase, (from, to) => supabase.from('observation_notes').select('player_id, content, created_at').eq('club_id', clubId).order('created_at', { ascending: false }).range(from, to)),
+  /* ───────────── Enrich players with ratings + notes ───────────── */
+
+  const enrichPlayers = useCallback(async (rows: PlayerRow[]): Promise<Player[]> => {
+    if (rows.length === 0) return [];
+    const supabase = createClient();
+    const ids = rows.map((r) => r.id);
+
+    // Fetch ratings + notes only for these players
+    const [reportsRes, evalsRes, notesRes] = await Promise.all([
+      supabase.from('scouting_reports').select('player_id, rating').in('player_id', ids).not('rating', 'is', null),
+      supabase.from('scout_evaluations').select('player_id, rating').in('player_id', ids),
+      supabase.from('observation_notes').select('player_id, content, created_at').in('player_id', ids).order('created_at', { ascending: false }),
     ]);
 
-    // Build map: playerId → all note contents (newest first, already sorted)
     const notesMap = new Map<number, string[]>();
-    for (const n of notesData) {
+    for (const n of (notesRes.data ?? [])) {
       const arr = notesMap.get(n.player_id) ?? [];
       arr.push(n.content);
       notesMap.set(n.player_id, arr);
     }
 
-    const mapped = playersData.map((row) => {
+    const agg = new Map<number, { sum: number; count: number }>();
+    const addRating = (pid: number, r: number) => {
+      const e = agg.get(pid) ?? { sum: 0, count: 0 };
+      e.sum += r; e.count += 1;
+      agg.set(pid, e);
+    };
+    for (const r of (reportsRes.data ?? [])) addRating(r.player_id, r.rating);
+    for (const e of (evalsRes.data ?? [])) addRating(e.player_id, e.rating);
+
+    return rows.map((row) => {
       const player = mapPlayerRow(row);
       player.observationNotePreviews = notesMap.get(row.id) ?? [];
+      const stats = agg.get(row.id);
+      if (stats) {
+        player.reportAvgRating = Math.round((stats.sum / stats.count) * 10) / 10;
+        player.reportRatingCount = stats.count;
+      }
       return player;
     });
+  }, []);
 
-    // Build rating aggregates: { playerId → { sum, count } }
-    const agg = new Map<number, { sum: number; count: number }>();
-    const addRating = (playerId: number, rating: number) => {
-      const existing = agg.get(playerId) ?? { sum: 0, count: 0 };
-      existing.sum += rating;
-      existing.count += 1;
-      agg.set(playerId, existing);
-    };
+  /* ───────────── Mode 1: Server-side pagination (no search) ───────────── */
 
-    for (const r of reportsData) addRating(r.player_id, r.rating);
-    for (const e of evalsData) addRating(e.player_id, e.rating);
+  const fetchPage = useCallback(async () => {
+    if (isSearchMode) return;
+    setLoading(true);
+    const supabase = createClient();
 
-    // Merge ratings into players
-    for (const p of mapped) {
-      const stats = agg.get(p.id);
-      if (stats) {
-        p.reportAvgRating = Math.round((stats.sum / stats.count) * 10) / 10;
-        p.reportRatingCount = stats.count;
-      }
+    // Fetch one page + total count
+    let q = supabase.from('players').select('*', { count: 'exact' }).eq('club_id', clubId).eq('pending_approval', false);
+    q = applyStructuralFilters(q);
+
+    const from = page * PAGE_SIZE;
+    const { data, count, error } = await q.order('name').range(from, from + PAGE_SIZE - 1);
+
+    if (!error && data) {
+      const enriched = await enrichPlayers(data as PlayerRow[]);
+      setPageRows(enriched);
+      setTotalCount(count ?? 0);
     }
-
-    setAllPlayers(mapped);
     setLoading(false);
-  }, [clubId, filters.position, filters.club, filters.nationality, filters.opinion, filters.foot, filters.status, filters.shadowSquad, filters.realSquad, filters.birthYear, filters.dobFrom, filters.dobTo]);
+  }, [clubId, applyStructuralFilters, page, isSearchMode, enrichPlayers]);
 
-  useEffect(() => {
-    fetchPlayers();
-  }, [fetchPlayers]);
+  useEffect(() => { fetchPage(); }, [fetchPage]);
 
-  /* ───────────── Realtime: refetch when other users modify players ───────────── */
+  /* ───────────── Mode 2: Full pool fetch for search/observationTier ───────────── */
 
-  useRealtimeTable('players', { onAny: () => fetchPlayers() });
+  const fetchSearchPool = useCallback(async () => {
+    if (!isSearchMode) { setSearchPool([]); return; }
+    setLoading(true);
+    const supabase = createClient();
+    const PAGE = 1000;
+    const all: PlayerRow[] = [];
+    let offset = 0;
+    for (;;) {
+      let q = supabase.from('players').select('*').eq('club_id', clubId).eq('pending_approval', false);
+      q = applyStructuralFilters(q);
+      const { data, error } = await q.order('name').range(offset, offset + PAGE - 1);
+      if (error || !data?.length) break;
+      all.push(...(data as PlayerRow[]));
+      if (data.length < PAGE) break;
+      offset += PAGE;
+    }
+    const enriched = await enrichPlayers(all);
+    setSearchPool(enriched);
+    setLoading(false);
+  }, [clubId, applyStructuralFilters, isSearchMode, enrichPlayers]);
 
-  /* ───────────── Client-side filtering (search + observationTier only) ───────────── */
+  useEffect(() => { fetchSearchPool(); }, [fetchSearchPool]);
 
-  const filtered = useMemo(() => {
-    let result = allPlayers;
+  /* ───────────── Realtime ───────────── */
 
-    // Multi-field search (accent-insensitive) — client-side only
+  useRealtimeTable('players', { onAny: () => { if (isSearchMode) fetchSearchPool(); else fetchPage(); } });
+
+  /* ───────────── Client-side search + observationTier on the pool ───────────── */
+
+  const searchFiltered = useMemo(() => {
+    if (!isSearchMode) return [];
+    let result = searchPool;
     if (debouncedSearch) {
       const words = normalize(debouncedSearch).split(/\s+/).filter(Boolean);
-      if (words.length > 0) {
-        result = result.filter((p) => multiFieldMatch(p, words));
-      }
+      if (words.length > 0) result = result.filter((p) => multiFieldMatch(p, words));
     }
-
-    // Observation tier — computed from multiple fields, must be client-side
     if (filters.observationTier) {
       result = result.filter((p) => getObservationTier(p) === filters.observationTier);
     }
-
     return result;
-  }, [allPlayers, debouncedSearch, filters.observationTier]);
+  }, [isSearchMode, searchPool, debouncedSearch, filters.observationTier]);
+
+  /* ───────────── Unified view: pick source based on mode ───────────── */
+
+  const effectiveTotalCount = isSearchMode ? searchFiltered.length : totalCount;
+  const totalPages = Math.max(1, Math.ceil(effectiveTotalCount / PAGE_SIZE));
+  const pageSlice = isSearchMode
+    ? searchFiltered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+    : pageRows; // already one page from server
 
   // Reset to first page when filters/search change
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters]);
+
+  /* ───────────── Fetch dropdown options once ───────────── */
+
   useEffect(() => {
-    setPage(0);
-  }, [debouncedSearch, filters]);
-
-  // Unique clubs and nationalities for filter dropdowns
-  const clubs = useMemo(() => {
-    const set = new Set(allPlayers.map((p) => p.club).filter(Boolean));
-    return Array.from(set).sort();
-  }, [allPlayers]);
-
-  const nationalities = useMemo(() => {
-    const set = new Set(allPlayers.map((p) => p.nationality).filter(Boolean) as string[]);
-    return Array.from(set).sort();
-  }, [allPlayers]);
-
-  // Unique birth years for filter dropdown
-  const birthYears = useMemo(() => {
-    const set = new Set<number>();
-    for (const p of allPlayers) {
-      if (p.dob) {
-        const y = new Date(p.dob).getFullYear();
-        if (!isNaN(y)) set.add(y);
+    const supabase = createClient();
+    Promise.all([
+      supabase.from('players').select('club').eq('club_id', clubId).not('club', 'is', null),
+      supabase.from('players').select('nationality').eq('club_id', clubId).not('nationality', 'is', null),
+      supabase.from('players').select('dob').eq('club_id', clubId).not('dob', 'is', null),
+    ]).then(([clubsRes, natRes, dobRes]) => {
+      if (clubsRes.data) setClubs(Array.from(new Set(clubsRes.data.map((r) => r.club as string).filter(Boolean))).sort());
+      if (natRes.data) setNationalities(Array.from(new Set(natRes.data.map((r) => r.nationality as string).filter(Boolean))).sort());
+      if (dobRes.data) {
+        const yrs = new Set<number>();
+        for (const r of dobRes.data) { const y = new Date(r.dob as string).getFullYear(); if (!isNaN(y)) yrs.add(y); }
+        setBirthYears(Array.from(yrs).sort((a, b) => b - a));
       }
-    }
-    return Array.from(set).sort((a, b) => b - a);
-  }, [allPlayers]);
+    });
+  }, [clubId]);
 
   const hasFilters = Object.values(filters).some(Boolean);
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageSlice = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -360,7 +379,7 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
         <>
           {/* Results count */}
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{filtered.length} jogador{filtered.length !== 1 ? 'es' : ''}</span>
+            <span>{effectiveTotalCount} jogador{effectiveTotalCount !== 1 ? 'es' : ''}</span>
             {totalPages > 1 && (
               <span>Página {page + 1} de {totalPages}</span>
             )}
@@ -376,7 +395,7 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
             {pageSlice.map((player) => (
               <PlayerCard key={player.id} player={player} hideEvaluations={hideEvaluations} />
             ))}
-            {filtered.length === 0 && (
+            {effectiveTotalCount === 0 && (
               <p className="py-8 text-center text-muted-foreground">
                 Nenhum jogador encontrado.
               </p>
