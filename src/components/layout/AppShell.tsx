@@ -9,6 +9,14 @@ import { getActiveClubId, ROLE_OVERRIDE_COOKIE } from '@/lib/supabase/club-conte
 import { AppShellClient } from '@/components/layout/AppShellClient';
 import type { AgeGroup } from '@/lib/types';
 
+/** Lightweight list info for sidebar navigation */
+export interface SidebarList {
+  id: number;
+  name: string;
+  emoji: string;
+  isSystem: boolean;
+}
+
 export interface AlertCounts {
   urgente: number;
   importante: number;
@@ -35,6 +43,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   let userName = '';
   let clubInfo: ClubInfo | null = null;
   let isSuperadmin = false;
+  let sidebarLists: SidebarList[] = [];
 
   try {
     const supabase = await createClient();
@@ -50,7 +59,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
     if (clubId) {
       // Fetch profile, membership, club, age groups, alert counts, and task count — ALL in parallel
-      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes, taskCountRes, obsCountRes] = await Promise.all([
+      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes, taskCountRes, obsCountRes, sidebarListsRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('is_superadmin, full_name')
@@ -98,6 +107,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .select('id')
           .eq('club_id', clubId)
           .eq('user_id', user.id),
+        // Sidebar lists — lightweight query for nav sub-items
+        supabase
+          .from('player_lists')
+          .select('id, name, emoji, is_system')
+          .eq('club_id', clubId)
+          .eq('user_id', user.id)
+          .order('is_system', { ascending: false })
+          .order('name', { ascending: true }),
       ]);
 
       isSuperadmin = profileRes.data?.is_superadmin ?? false;
@@ -169,6 +186,16 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         pendingTasks: taskCountRes.count ?? 0,
         observationCount,
       };
+
+      // Map sidebar lists for nav sub-items
+      if (sidebarListsRes.data) {
+        sidebarLists = sidebarListsRes.data.map((row: { id: number; name: string; emoji: string; is_system: boolean }) => ({
+          id: row.id,
+          name: row.name,
+          emoji: row.emoji,
+          isSystem: row.is_system,
+        }));
+      }
     } else {
       // No club selected — still fetch profile for userName
       const { data: profile } = await supabase
@@ -192,6 +219,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       userName={userName}
       clubInfo={clubInfo}
       isSuperadmin={isSuperadmin}
+      sidebarLists={sidebarLists}
     >
       {children}
     </AppShellClient>

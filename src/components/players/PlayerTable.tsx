@@ -20,6 +20,7 @@ import { getPrimaryRating } from '@/lib/constants';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { PitchCanvas } from '@/components/common/MiniPitch';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { ListBookmarkDropdown } from '@/components/players/ListBookmarkDropdown';
 import type { Player, PositionCode } from '@/lib/types';
 import { ArrowUpDown } from 'lucide-react';
 
@@ -172,7 +173,7 @@ export function PlayerTable({ players, hideEvaluations = false }: PlayerTablePro
             return (
               <TableRow
                 key={player.id}
-                className="cursor-pointer hover:bg-neutral-50"
+                className="group/row cursor-pointer hover:bg-neutral-50"
                 onClick={() => router.push(`/jogadores/${player.id}`)}
                 onAuxClick={(e) => { if (e.button === 1) window.open(`/jogadores/${player.id}`, '_blank'); }}
               >
@@ -211,7 +212,7 @@ export function PlayerTable({ players, hideEvaluations = false }: PlayerTablePro
                         <User className="h-6 w-6" />
                       </span>
                     )}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 truncate font-medium text-neutral-900">
                         <ObservationBadge player={player} />
                         <span className="truncate">{player.name}</span>
@@ -219,6 +220,10 @@ export function PlayerTable({ players, hideEvaluations = false }: PlayerTablePro
                       {player.club && (
                         <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
                       )}
+                    </div>
+                    {/* Bookmark — add to list (lazy to avoid N+1 queries) */}
+                    <div className="shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                      <ListBookmarkDropdown playerId={player.id} compact lazy />
                     </div>
                   </div>
                 </TableCell>

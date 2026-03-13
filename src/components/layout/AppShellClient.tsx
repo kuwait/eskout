@@ -19,7 +19,7 @@ import { DemoBanner } from '@/components/layout/DemoBanner';
 import { DemoProvider } from '@/lib/demo-context';
 import { updateLastSeen } from '@/actions/presence';
 import type { AgeGroup } from '@/lib/types';
-import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
+import type { AlertCounts, ClubInfo, SidebarList } from '@/components/layout/AppShell';
 
 const PUBLIC_ROUTES = ['/login', '/demo'];
 const NO_SHELL_ROUTES = ['/escolher-clube', '/master'];
@@ -33,6 +33,7 @@ export function AppShellClient({
   userName,
   clubInfo,
   isSuperadmin,
+  sidebarLists = [],
 }: {
   children: React.ReactNode;
   ageGroups: AgeGroup[];
@@ -42,6 +43,7 @@ export function AppShellClient({
   userName: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
+  sidebarLists?: SidebarList[];
 }) {
   const pathname = usePathname();
   const isPublic = PUBLIC_ROUTES.includes(pathname);
@@ -79,6 +81,7 @@ export function AppShellClient({
           clubInfo={clubInfo}
           isSuperadmin={isSuperadmin}
           isDemo={isDemo}
+          sidebarLists={sidebarLists}
         >
           {children}
         </ShellContent>
@@ -112,6 +115,7 @@ function ShellContent({
   clubInfo,
   isSuperadmin,
   isDemo,
+  sidebarLists = [],
 }: {
   children: React.ReactNode;
   alertCounts: AlertCounts;
@@ -120,6 +124,7 @@ function ShellContent({
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
   isDemo: boolean;
+  sidebarLists?: SidebarList[];
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -129,7 +134,7 @@ function ShellContent({
   return (
     <>
       {isDemo && <DemoBanner />}
-      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} isDemo={isDemo} />
+      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} isDemo={isDemo} sidebarLists={sidebarLists} />
 
       {/* Mobile header with hamburger */}
       <header className="sticky top-0 z-40 flex items-center border-b bg-card px-4 py-3 lg:hidden">
@@ -162,6 +167,7 @@ function ShellContent({
         clubInfo={clubInfo}
         isSuperadmin={isSuperadmin}
         isDemo={isDemo}
+        sidebarLists={sidebarLists}
       />
 
       {/* Main content area — overflow-x-clip prevents horizontal page scroll without breaking sticky positioning */}

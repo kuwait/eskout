@@ -5,15 +5,16 @@
 
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid } from 'lucide-react';
+import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { filterNavItems, filterAdminItems } from '@/components/layout/nav-items';
-import type { AlertCounts, ClubInfo } from '@/components/layout/AppShell';
+import type { AlertCounts, ClubInfo, SidebarList } from '@/components/layout/AppShell';
 
 export function Sidebar({
   alertCounts,
@@ -21,14 +22,18 @@ export function Sidebar({
   clubInfo,
   isSuperadmin,
   isDemo = false,
+  sidebarLists = [],
 }: {
   alertCounts: AlertCounts;
   userRole: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
   isDemo?: boolean;
+  sidebarLists?: SidebarList[];
 }) {
   const pathname = usePathname();
+  /* Lists sub-items expanded by default when user is on a /listas page */
+  const [listsExpanded, setListsExpanded] = useState(true);
   const isScout = userRole === 'scout';
   const isRecruiter = userRole === 'recruiter';
   const features = clubInfo?.features ?? {};
@@ -109,20 +114,54 @@ export function Sidebar({
                     )}
                   </Link>
                 )}
-                {/* Sub-item: Listas — under Jogadores, admin/editor/recruiter */}
+                {/* Sub-item: Listas (collapsible) — under Jogadores, admin/editor/recruiter */}
                 {item.href === '/' && !isScout && (
-                  <Link
-                    href="/listas"
-                    className={cn(
-                      'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
-                      pathname.startsWith('/listas')
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                  <div className="mt-0.5">
+                    <div className="flex items-center">
+                      <Link
+                        href="/listas"
+                        className={cn(
+                          'flex flex-1 items-center gap-2.5 rounded-md py-1.5 pl-10 pr-1 text-[13px] font-medium transition-colors',
+                          pathname === '/listas'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                        )}
+                      >
+                        <List className="h-3.5 w-3.5" />
+                        Listas
+                      </Link>
+                      {sidebarLists.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setListsExpanded((v) => !v)}
+                          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                          aria-label={listsExpanded ? 'Recolher listas' : 'Expandir listas'}
+                        >
+                          <ChevronDown className={cn('h-3 w-3 transition-transform', !listsExpanded && '-rotate-90')} />
+                        </button>
+                      )}
+                    </div>
+                    {/* Individual list sub-items */}
+                    {listsExpanded && sidebarLists.length > 0 && (
+                      <div className="mt-0.5 space-y-0.5">
+                        {sidebarLists.map((list) => (
+                          <Link
+                            key={list.id}
+                            href={`/listas/${list.id}`}
+                            className={cn(
+                              'flex items-center gap-2 rounded-md py-1 pl-[3.25rem] pr-3 text-[12px] font-medium transition-colors',
+                              pathname === `/listas/${list.id}`
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground/50 hover:bg-accent hover:text-accent-foreground'
+                            )}
+                          >
+                            <span className="text-[11px] leading-none">{list.emoji}</span>
+                            <span className="truncate">{list.name}</span>
+                          </Link>
+                        ))}
+                      </div>
                     )}
-                  >
-                    <List className="h-3.5 w-3.5" />
-                    Listas
-                  </Link>
+                  </div>
                 )}
                 {/* Sub-item: Comparar — under Jogadores, admin/editor/recruiter */}
                 {item.href === '/' && !isScout && (

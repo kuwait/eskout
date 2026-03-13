@@ -614,6 +614,7 @@ export interface PlayerListItem {
   note: string | null;
   sortOrder: number;
   addedAt: string;
+  seenAt: string | null;
 }
 
 export interface PlayerListItemRow {
@@ -623,6 +624,7 @@ export interface PlayerListItemRow {
   note: string | null;
   sort_order: number;
   added_at: string;
+  seen_at: string | null;
   players?: {
     name: string;
     club: string | null;

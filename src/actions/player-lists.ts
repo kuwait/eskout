@@ -75,6 +75,7 @@ function mapListItem(row: PlayerListItemRow): PlayerListItem {
     note: row.note ?? null,
     sortOrder: row.sort_order,
     addedAt: row.added_at,
+    seenAt: row.seen_at ?? null,
   };
 }
 
@@ -198,7 +199,7 @@ export async function getListItems(listId: number): Promise<PlayerListItem[]> {
 
   const { data, error } = await supabase
     .from('player_list_items')
-    .select('id, list_id, player_id, note, sort_order, added_at, players(name, club, club_logo_url, position_normalized, dob, nationality, photo_url, zz_photo_url)')
+    .select('id, list_id, player_id, note, sort_order, added_at, seen_at, players(name, club, club_logo_url, position_normalized, dob, nationality, photo_url, zz_photo_url)')
     .eq('list_id', listId)
     .order('sort_order', { ascending: true })
     .order('added_at', { ascending: false });
@@ -529,6 +530,28 @@ export async function updateListItemNote(
     .eq('player_id', playerId);
 
   if (error) return { success: false, error: `Erro ao atualizar nota: ${error.message}` };
+
+  revalidatePath(REVALIDATE_PATH);
+  return { success: true };
+}
+
+/** Toggle seen status on a list item */
+export async function toggleListItemSeen(
+  listId: number,
+  playerId: number,
+  seen: boolean,
+): Promise<ActionResponse> {
+  const { role } = await getActiveClub();
+  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('player_list_items')
+    .update({ seen_at: seen ? new Date().toISOString() : null })
+    .eq('list_id', listId)
+    .eq('player_id', playerId);
+
+  if (error) return { success: false, error: `Erro ao atualizar: ${error.message}` };
 
   revalidatePath(REVALIDATE_PATH);
   return { success: true };

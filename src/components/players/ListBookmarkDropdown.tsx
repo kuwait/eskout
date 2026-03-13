@@ -22,7 +22,7 @@ import type { PlayerList } from '@/lib/types';
 
 /* ───────────── Component ───────────── */
 
-export function ListBookmarkDropdown({ playerId }: { playerId: number }) {
+export function ListBookmarkDropdown({ playerId, compact = false, lazy = false }: { playerId: number; compact?: boolean; lazy?: boolean }) {
   const [open, setOpen] = useState(false);
   const [lists, setLists] = useState<PlayerList[]>([]);
   const [memberListIds, setMemberListIds] = useState<Set<number>>(new Set());
@@ -56,10 +56,12 @@ export function ListBookmarkDropdown({ playerId }: { playerId: number }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on open change
   }, [open]);
 
-  /* Fetch memberships on mount to show filled/unfilled icon */
+  /* Fetch memberships on mount to show filled/unfilled icon (skip in lazy mode to avoid N+1 queries in tables) */
   useEffect(() => {
-    getPlayerListMemberships(playerId).then((ids) => setMemberListIds(new Set(ids)));
-  }, [playerId]);
+    if (!lazy) {
+      getPlayerListMemberships(playerId).then((ids) => setMemberListIds(new Set(ids)));
+    }
+  }, [playerId, lazy]);
 
   /* Toggle a list membership */
   async function handleToggle(listId: number) {
@@ -114,11 +116,14 @@ export function ListBookmarkDropdown({ playerId }: { playerId: number }) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm"
+          className={compact
+            ? 'flex items-center justify-center rounded p-1 text-muted-foreground/40 transition-colors hover:text-primary hover:bg-accent'
+            : 'flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm'
+          }
           title="Adicionar a lista"
         >
-          <Bookmark className={`h-3.5 w-3.5 ${isInAnyList ? 'fill-current text-primary' : ''}`} />
-          <span className="hidden sm:inline">Listas</span>
+          <Bookmark className={`${compact ? 'h-3.5 w-3.5' : 'h-3.5 w-3.5'} ${isInAnyList ? 'fill-current text-primary' : ''}`} />
+          {!compact && <span className="hidden sm:inline">Listas</span>}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="end">

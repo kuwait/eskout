@@ -3,11 +3,14 @@
 // Compact row with square rating badge, photo + name, club, DOB + position — tappable to open profile
 // RELEVANT FILES: src/components/players/PlayersView.tsx, src/components/common/ClubBadge.tsx, src/lib/constants.ts
 
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { User } from 'lucide-react';
 import { ClubBadge } from '@/components/common/ClubBadge';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
+import { ListBookmarkDropdown } from '@/components/players/ListBookmarkDropdown';
 import { getPrimaryRating } from '@/lib/constants';
 import type { Player } from '@/lib/types';
 
@@ -46,62 +49,67 @@ export function PlayerCard({ player, hideEvaluations = false }: PlayerCardProps)
   ].filter(Boolean);
 
   return (
-    <Link
-      href={`/jogadores/${player.id}`}
-      className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 transition-colors hover:bg-accent/50 active:bg-accent"
-    >
-      {/* Square rating badge — matches desktop EvalCell (hidden for recruiters) */}
-      {!hideEvaluations && <EvalBadge primary={primary} ratingInt={ratingInt} player={player} />}
+    <div className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 transition-colors hover:bg-accent/50 active:bg-accent">
+      {/* Navigable area — everything except bookmark */}
+      <Link href={`/jogadores/${player.id}`} className="flex items-center gap-2.5 min-w-0 flex-1">
+        {/* Square rating badge — matches desktop EvalCell (hidden for recruiters) */}
+        {!hideEvaluations && <EvalBadge primary={primary} ratingInt={ratingInt} player={player} />}
 
-      {/* Photo — same size and shape as rating badge */}
-      {photoUrl ? (
-        <Image
-          src={photoUrl}
-          alt=""
-          width={50}
-          height={50}
-          className="h-[50px] w-[50px] shrink-0 rounded-xl object-cover"
-          unoptimized
-        />
-      ) : (
-        <span className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-400">
-          <User className="h-5 w-5" />
-        </span>
-      )}
-
-      {/* Content — 3 lines */}
-      <div className="min-w-0 flex-1">
-        {/* Line 1: name + observation badge */}
-        <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-          <ObservationBadge player={player} />
-          <span className="truncate">{player.name}</span>
-        </p>
-
-        {/* Line 2: club */}
-        {player.club && (
-          <div className="mt-0.5">
-            <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
-          </div>
+        {/* Photo — same size and shape as rating badge */}
+        {photoUrl ? (
+          <Image
+            src={photoUrl}
+            alt=""
+            width={50}
+            height={50}
+            className="h-[50px] w-[50px] shrink-0 rounded-xl object-cover"
+            unoptimized
+          />
+        ) : (
+          <span className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-400">
+            <User className="h-5 w-5" />
+          </span>
         )}
 
-        {/* Line 3: DOB + position badges */}
-        <div className="mt-0.5 flex items-center gap-2">
-          {player.dob && (
-            <span className="text-xs text-muted-foreground">{formatDate(player.dob)}</span>
-          )}
-          {positions.length > 0 && (
-            <div className="flex items-center gap-1">
-              <span className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">{positions[0]}</span>
-              {positions.slice(1).map((pos, i) => (
-                <span key={pos} className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                  i === 0 ? 'bg-yellow-50 text-yellow-700' : 'bg-orange-50 text-orange-700'
-                }`}>{pos}</span>
-              ))}
+        {/* Content — 3 lines */}
+        <div className="min-w-0 flex-1">
+          {/* Line 1: name + observation badge */}
+          <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+            <ObservationBadge player={player} />
+            <span className="truncate">{player.name}</span>
+          </p>
+
+          {/* Line 2: club */}
+          {player.club && (
+            <div className="mt-0.5">
+              <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
             </div>
           )}
+
+          {/* Line 3: DOB + position badges */}
+          <div className="mt-0.5 flex items-center gap-2">
+            {player.dob && (
+              <span className="text-xs text-muted-foreground">{formatDate(player.dob)}</span>
+            )}
+            {positions.length > 0 && (
+              <div className="flex items-center gap-1">
+                <span className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">{positions[0]}</span>
+                {positions.slice(1).map((pos, i) => (
+                  <span key={pos} className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                    i === 0 ? 'bg-yellow-50 text-yellow-700' : 'bg-orange-50 text-orange-700'
+                  }`}>{pos}</span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+      </Link>
+
+      {/* Bookmark — add to list (outside Link to prevent navigation) */}
+      <div className="shrink-0">
+        <ListBookmarkDropdown playerId={player.id} compact lazy />
       </div>
-    </Link>
+    </div>
   );
 }
 

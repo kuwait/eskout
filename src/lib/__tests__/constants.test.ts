@@ -35,9 +35,9 @@ describe('birthYearToAgeGroup', () => {
     expect(birthYearToAgeGroup(endYear - 14)).toBe('Sub-14');
   });
 
-  it('maps Sub-6 boundary correctly', () => {
+  it('maps Sub-3 boundary correctly', () => {
     const endYear = getSeasonEndYear();
-    expect(birthYearToAgeGroup(endYear - 6)).toBe('Sub-6');
+    expect(birthYearToAgeGroup(endYear - 3)).toBe('Sub-3');
   });
 
   it('maps Sub-7 boundary correctly', () => {
@@ -57,17 +57,17 @@ describe('birthYearToAgeGroup', () => {
     expect(birthYearToAgeGroup(1990)).toBe('Sénior');
   });
 
-  it('returns null for future birth year (too young, below Sub-6)', () => {
+  it('returns null for future birth year (too young, below Sub-3)', () => {
     const endYear = getSeasonEndYear();
-    // Born in endYear - 5 → age = 5, below Sub-6
-    expect(birthYearToAgeGroup(endYear - 5)).toBeNull();
+    // Born in endYear - 2 → age = 2, below Sub-3
+    expect(birthYearToAgeGroup(endYear - 2)).toBeNull();
     // Born in endYear → age = 0
     expect(birthYearToAgeGroup(endYear)).toBeNull();
   });
 
-  it('covers all age groups from Sub-6 to Sub-19', () => {
+  it('covers all age groups from Sub-3 to Sub-19', () => {
     const endYear = getSeasonEndYear();
-    for (let age = 6; age <= 19; age++) {
+    for (let age = 3; age <= 19; age++) {
       expect(birthYearToAgeGroup(endYear - age)).toBe(`Sub-${age}`);
     }
   });
@@ -76,9 +76,9 @@ describe('birthYearToAgeGroup', () => {
 /* ───────────── getAgeGroups ───────────── */
 
 describe('getAgeGroups', () => {
-  it('returns 15 groups (Sénior + Sub-6 through Sub-19)', () => {
+  it('returns 18 groups (Sénior + Sub-3 through Sub-19)', () => {
     const groups = getAgeGroups();
-    expect(groups).toHaveLength(15);
+    expect(groups).toHaveLength(18);
   });
 
   it('starts with Sénior', () => {
@@ -86,9 +86,9 @@ describe('getAgeGroups', () => {
     expect(groups[0].name).toBe('Sénior');
   });
 
-  it('ends with Sub-6', () => {
+  it('ends with Sub-3', () => {
     const groups = getAgeGroups();
-    expect(groups[groups.length - 1].name).toBe('Sub-6');
+    expect(groups[groups.length - 1].name).toBe('Sub-3');
   });
 
   it('has unique generation years', () => {

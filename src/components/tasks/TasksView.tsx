@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, ChevronDown, ChevronsUpDown, ListTodo, Plus, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -34,6 +35,7 @@ interface TasksViewProps {
 }
 
 export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor', clubMembers = [], allPlayers = [] }: TasksViewProps) {
+  const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
 
   // Lookup map: playerId → photoUrl (for task row avatars)
@@ -105,6 +107,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
         if (result.success) {
           const refreshed = await getMyTasks(targetUserId ?? undefined);
           setTasks(refreshed);
+          router.refresh();
         }
       } finally {
         busyRef.current = false;
@@ -127,6 +130,8 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
         // Always refetch — server may have removed a duplicate auto-task
         const refreshed = await getMyTasks(targetUserId ?? undefined);
         setTasks(refreshed);
+        // Refresh layout so nav badge counts update immediately
+        router.refresh();
       } finally {
         busyRef.current = false;
       }
@@ -145,6 +150,8 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
           const refreshed = await getMyTasks(targetUserId ?? undefined);
           setTasks(refreshed);
         }
+        // Refresh layout so nav badge counts update immediately
+        router.refresh();
       } finally {
         busyRef.current = false;
       }

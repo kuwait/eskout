@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRealtimeAny } from '@/hooks/useRealtimeTable';
 import type { AlertCounts } from '@/components/layout/AppShell';
@@ -22,6 +22,11 @@ const BADGE_TABLES = new Set(['observation_notes', 'scouting_reports', 'players'
  */
 export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, clubId: string | null): AlertCounts {
   const [counts, setCounts] = useState<AlertCounts>(initialCounts);
+
+  /* Sync with server-rendered counts when they change (e.g. after router.refresh()) */
+  const initialKey = `${initialCounts.pendingTasks}-${initialCounts.pendingReports}-${initialCounts.pendingPlayers}-${initialCounts.urgente}-${initialCounts.importante}-${initialCounts.observationCount}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- stable key comparison
+  useEffect(() => { setCounts(initialCounts); }, [initialKey]);
 
   const refetchCounts = useCallback(async () => {
     if (!clubId) return;

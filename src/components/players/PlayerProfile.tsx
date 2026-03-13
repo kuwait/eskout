@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -109,6 +109,17 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [draft, setDraft] = useState(player);
   // After save, keep showing draft values until server refresh delivers fresh props
   const [savedDraft, setSavedDraft] = useState<typeof player | null>(null);
+  // Track last synced updatedAt to detect when server delivers fresh data
+  const [lastSyncedAt, setLastSyncedAt] = useState(player.updatedAt);
+
+  /* Render-time sync: when server delivers fresh player data (new updatedAt),
+     update draft and clear savedDraft. React recommended pattern — no useEffect needed.
+     Fixes both: (1) profile showing stale data after save, (2) edit form showing old values */
+  if (player.updatedAt !== lastSyncedAt) {
+    setLastSyncedAt(player.updatedAt);
+    setDraft(player);
+    setSavedDraft(null);
+  }
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPitchPopup, setShowPitchPopup] = useState(false);
@@ -130,11 +141,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
   // Club-scoped profiles for referral/contact assign dropdowns (passed from server)
   const profiles = clubMembers;
-
-  // Clear savedDraft when server delivers fresh props (after router.refresh())
-  useEffect(() => {
-    setSavedDraft(null);
-  }, [player]);
 
   // Hybrid rating from player (pre-computed: report ratings + scout evaluations)
   const hybridAvgRating = player.reportAvgRating;
