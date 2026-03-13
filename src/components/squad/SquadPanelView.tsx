@@ -107,6 +107,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     pageId: `squad-${squadType}`,
   });
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [viewMode, setViewModeState] = useState<ViewMode>(() => getStoredViewMode(squadType));
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -177,8 +178,11 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
   }, [allSquadPlayersMap, otherSquadPlayersMap]);
 
   useEffect(() => {
-    if (squadPlayerIds.size === 0) { setAllPlayers([]); return; }
-    fetchPlayersByIds(Array.from(squadPlayerIds)).then(setAllPlayers);
+    if (squadPlayerIds.size === 0) { setAllPlayers([]); setInitialLoading(false); return; }
+    fetchPlayersByIds(Array.from(squadPlayerIds)).then((p) => {
+      setAllPlayers(p);
+      setInitialLoading(false);
+    });
   }, [squadPlayerIds, fetchPlayersByIds]);
 
   /* ───────────── Fetch shadow age group IDs ───────────── */
@@ -694,6 +698,21 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     byPosition: compareLeftByPosition,
     squadName: visibleSquadSections[0]?.squad.name,
   };
+
+  /* ───────────── Loading skeleton ───────────── */
+
+  if (initialLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-10 w-48 animate-pulse rounded-lg bg-muted" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-32 animate-pulse rounded-xl bg-muted" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
