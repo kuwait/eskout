@@ -608,16 +608,13 @@ Public demo mode for potential clients to explore the app without creating an ac
 - Database: `clubs.is_demo` boolean column (migration 062)
 - Demo user: `demo@eskout.com` with `editor` role on demo club
 - Auto-login: `/api/demo` route handler signs in via `signInWithPassword()`, sets club cookie, redirects to `/`
-- Server-side guard: `demoGuard()` in `club-context.ts` — called by all mutation server actions (~84 guard points across 19 files)
-- Client-side context: `DemoProvider` / `useIsDemo()` hook for UI components
-
-**Read-only enforcement:**
-- All mutation server actions return `{ success: false, error: 'Modo demonstração — apenas leitura' }` when `ctx.isDemo` is true
-- Export actions (read-only) remain accessible
-- Realtime and presence tracking are skipped in demo mode
+- Client-side context: `DemoProvider` / `useIsDemo()` hook for banner display
+- Fully interactive: all features work (create, edit, delete, pipeline, squads, etc.)
+- Realtime and presence tracking skipped in demo mode (no analytics pollution)
+- Data is disposable: reset anytime with `scripts/seed_demo.ts`
 
 **UI:**
-- `DemoBanner` — sticky amber banner at top: "Modo Demonstração — apenas leitura"
+- `DemoBanner` — sticky amber banner at top: "Modo Demonstração"
 - Sidebar/MobileDrawer: "Sair da Demo" replaces "Sair" logout button
 - Middleware: `/demo` added to `PUBLIC_ROUTES`
 

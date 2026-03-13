@@ -58,7 +58,6 @@ export async function saveComparison(
   }
 
   const ctx = await getActiveClub();
-  if (ctx.isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -88,7 +87,6 @@ export async function saveComparison(
 /** Delete a saved comparison */
 export async function deleteComparison(comparisonId: number): Promise<ActionResponse> {
   const ctx = await getActiveClub();
-  if (ctx.isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { error } = await supabase

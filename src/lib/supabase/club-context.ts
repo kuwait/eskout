@@ -5,7 +5,7 @@
 
 import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import type { UserRole, ActionResponse } from '@/lib/types';
+import type { UserRole } from '@/lib/types';
 
 export const CLUB_COOKIE = 'eskout-club-id';
 export const ROLE_OVERRIDE_COOKIE = 'eskout-role-override';
@@ -160,28 +160,3 @@ export async function getUserClubs(): Promise<{
   };
 }
 
-/**
- * Guard for demo mode — returns an error response if the club is a demo club.
- * Call at the top of every mutation server action.
- * Returns null if not in demo mode (safe to proceed).
- */
-export function demoGuard(ctx: ClubContext): ActionResponse | null {
-  if (ctx.isDemo) {
-    return { success: false, error: 'Modo demonstração — apenas leitura' };
-  }
-  return null;
-}
-
-/**
- * Convenience wrapper: getActiveClub() + demoGuard() for mutation actions.
- * Throws early if in demo mode (via the returned ActionResponse).
- * Usage: const ctx = await getActiveClubOrDemoBlock();
- *        if ('error' in ctx) return ctx; // blocked by demo guard
- *        const { clubId, userId, role } = ctx;
- */
-export async function getActiveClubOrDemoBlock(): Promise<ClubContext | ActionResponse> {
-  const ctx = await getActiveClub();
-  const blocked = demoGuard(ctx);
-  if (blocked) return blocked;
-  return ctx;
-}

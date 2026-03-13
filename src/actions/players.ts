@@ -30,8 +30,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     return { success: false, error: `Ano de nascimento ${birthYear} não corresponde a nenhum escalão` };
   }
 
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   const supabase = await createClient();
 
   // Role-based approval: scouts need approval, recruiters/editors auto-approved but admin notified
@@ -156,8 +155,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
 }
 
 export async function deletePlayer(playerId: number): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
 
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem eliminar jogadores' };
@@ -188,8 +186,7 @@ export async function deletePlayer(playerId: number): Promise<ActionResponse> {
 
 /** Approve a scout-created pending player */
 export async function approvePlayer(playerId: number): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -216,8 +213,7 @@ export async function approvePlayer(playerId: number): Promise<ActionResponse> {
 
 /** Reject a scout-created pending player (deletes it) */
 export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -244,8 +240,7 @@ export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
 
 /** Dismiss a player from the current user's "Jogadores Adicionados" list (per-user) */
 export async function dismissPlayerReview(playerId: number): Promise<ActionResponse> {
-  const { clubId, role, userId, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, role, userId } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -264,8 +259,7 @@ export async function dismissPlayerReview(playerId: number): Promise<ActionRespo
 
 /** Dismiss all players from the current user's "Jogadores Adicionados" list */
 export async function dismissAllPlayerReviews(): Promise<ActionResponse> {
-  const { clubId, role, userId, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, role, userId } = await getActiveClub();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -342,8 +336,7 @@ export async function updatePlayer(
   playerId: number,
   updates: Record<string, unknown>
 ): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
 
   // Role check — scouts and recruiters cannot edit player profiles directly
   if (role === 'scout') {
@@ -462,8 +455,7 @@ export async function updatePlayer(
 
 /** Delete a single status_history entry — admin only */
 export async function deleteStatusHistoryEntry(entryId: number): Promise<ActionResponse> {
-  const { clubId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, role } = await getActiveClub();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem apagar histórico.' };
   }

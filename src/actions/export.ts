@@ -143,12 +143,9 @@ function parsePostgresArray(raw: unknown): string[] | null {
 
 // Auth check — admin/editor only, returns clubId for downstream queries
 async function checkExportAuth() {
-  const { clubId, role, isDemo } = await getActiveClub();
+  const { clubId, role } = await getActiveClub();
   const supabase = await createClient();
 
-  if (isDemo) {
-    return { error: 'Modo demonstração — apenas leitura' as const, supabase, clubId };
-  }
   if (role !== 'admin' && role !== 'editor') {
     return { error: 'Sem permissão' as const, supabase, clubId };
   }

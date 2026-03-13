@@ -136,9 +136,6 @@ export async function updateMyClubDetails(
   const clubId = cookieStore.get(CLUB_COOKIE)?.value;
   if (!clubId) return { success: false, error: 'Nenhum clube selecionado' };
 
-  // Demo mode guard
-  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', clubId).single();
-  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
 
   // Verify user is admin of this club or superadmin
   const { data: membership } = await supabase
@@ -190,9 +187,6 @@ export async function inviteUserToClub(
   const service = await createServiceClient();
   const supabase = await createClient();
 
-  // Demo mode guard
-  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', clubId).single();
-  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
 
   // Verify caller is club admin or superadmin
   const { data: { user } } = await supabase.auth.getUser();
@@ -308,9 +302,6 @@ export async function updateMembershipRole(
 
   if (!membership) return { success: false, error: 'Membro não encontrado' };
 
-  // Demo mode guard
-  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', membership.club_id).single();
-  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
 
   // Prevent self-demotion
   if (membership.user_id === user.id) {
@@ -348,9 +339,6 @@ export async function removeMembership(
 
   if (!membership) return { success: false, error: 'Membro não encontrado' };
 
-  // Demo mode guard
-  const { data: clubCheck } = await supabase.from('clubs').select('is_demo').eq('id', membership.club_id).single();
-  if (clubCheck?.is_demo) return { success: false, error: 'Modo demonstração — apenas leitura' };
 
   // Prevent self-removal
   if (membership.user_id === user.id) {

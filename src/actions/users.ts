@@ -105,8 +105,7 @@ export async function inviteUser(
   fullName: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, isDemo } = await requireAdmin();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId } = await requireAdmin();
     const service = await createServiceClient();
 
     // Invite via Supabase Admin API — sends magic link email
@@ -159,8 +158,7 @@ export async function updateUserRole(
   newRole: UserRole,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId: currentUserId, isDemo } = await requireAdmin();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId, userId: currentUserId } = await requireAdmin();
 
     // Prevent self-demotion
     if (userId === currentUserId) return { success: false, error: 'Não podes alterar o teu próprio role' };
@@ -189,8 +187,7 @@ export async function deleteUser(
   userId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId: currentUserId, isDemo } = await requireAdmin();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId, userId: currentUserId } = await requireAdmin();
 
     // Prevent self-deactivation
     if (userId === currentUserId) return { success: false, error: 'Não podes desativar a tua própria conta' };
@@ -233,8 +230,7 @@ export async function reactivateUser(
   userId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, isDemo } = await requireAdmin();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId } = await requireAdmin();
     const service = await createServiceClient();
 
     // Reactivate the club membership

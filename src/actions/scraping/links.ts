@@ -181,9 +181,6 @@ export async function autoScrapePlayer(
   zzLinkChanged: boolean,
   preZzProfile?: ZzParsedProfile | null,
 ): Promise<{ errors: string[] }> {
-  const { isDemo } = await getActiveClub();
-  if (isDemo) return { errors: [] };
-
   const errors: string[] = [];
 
   const fpfPromise = fpfLinkChanged ? scrapePlayerFpf(playerId) : Promise.resolve(null);

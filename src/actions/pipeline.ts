@@ -147,8 +147,7 @@ export async function updateRecruitmentStatus(
     }
   }
 
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar estado de recrutamento' };
   }
@@ -283,8 +282,7 @@ export async function reorderPipelineCards(
 ): Promise<ActionResponse> {
   if (updates.length === 0) return { success: true };
 
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -314,8 +312,7 @@ export async function updateTrainingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -378,8 +375,7 @@ export async function updateSigningDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -442,8 +438,7 @@ export async function updateMeetingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -509,8 +504,7 @@ export async function updateMeetingAttendees(
   playerId: number,
   attendeeIds: string[]
 ): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -570,8 +564,7 @@ export async function updateSigningAttendees(
   playerId: number,
   attendeeIds: string[]
 ): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -631,8 +624,7 @@ export async function updateTrainingEscalao(
   playerId: number,
   escalao: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -666,8 +658,7 @@ export async function updateDecisionSide(
     return { success: false, error: 'Lado de decisão inválido' };
   }
 
-  const { clubId, userId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+  const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }

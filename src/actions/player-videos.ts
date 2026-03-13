@@ -106,7 +106,6 @@ export async function addPlayerVideo(
   }
 
   const ctx = await getActiveClub();
-  if (ctx.isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   // Check limit
@@ -166,7 +165,6 @@ export async function addPlayerVideo(
 /** Delete a video */
 export async function deletePlayerVideo(videoId: number, playerId: number): Promise<ActionResponse> {
   const ctx = await getActiveClub();
-  if (ctx.isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
   const supabase = await createClient();
 
   const { error } = await supabase

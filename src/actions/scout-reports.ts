@@ -168,8 +168,7 @@ export async function submitScoutReport(
   input: ScoutReportInput,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId, isDemo } = await getActiveClub();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId, userId } = await getActiveClub();
     const supabase = await createClient();
 
     if (!input.playerName.trim()) return { success: false, error: 'Nome do jogador é obrigatório' };
@@ -337,8 +336,7 @@ export async function approveScoutReport(
   reportId: number,
 ): Promise<{ success: boolean; playerId?: number; error?: string }> {
   try {
-    const { clubId, userId, role, isDemo } = await getActiveClub();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId, userId, role } = await getActiveClub();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -461,8 +459,7 @@ export async function approveScoutReport(
 
 export async function rejectScoutReport(reportId: number): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId, role, isDemo } = await getActiveClub();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId, userId, role } = await getActiveClub();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -1070,8 +1067,7 @@ export async function toggleReportTag(
   tag: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId, role, isDemo } = await getActiveClub();
-    if (isDemo) return { success: false, error: 'Modo demonstração — apenas leitura' };
+    const { clubId, userId, role } = await getActiveClub();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {

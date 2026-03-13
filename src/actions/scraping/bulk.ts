@@ -30,8 +30,7 @@ export async function bulkScrapeExternalData(
   limit: number,
   sources: ('fpf' | 'zerozero')[]
 ): Promise<BulkUpdateProgress & { hasMore: boolean }> {
-  const { clubId, role, isDemo } = await getActiveClub();
-  if (isDemo) return { total: 0, processed: 0, fpfUpdated: 0, zzUpdated: 0, errors: 0, hasMore: false };
+  const { clubId, role } = await getActiveClub();
   if (role === 'scout' || role === 'recruiter') {
     return { total: 0, processed: 0, fpfUpdated: 0, zzUpdated: 0, errors: 0, hasMore: false };
   }

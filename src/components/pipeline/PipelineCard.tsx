@@ -23,7 +23,6 @@ import {
 } from '@/components/ui/dialog';
 import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
-import { useIsDemo } from '@/lib/demo-context';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
 
@@ -97,7 +96,6 @@ import { shortName } from '@/lib/utils';
 export { shortName } from '@/lib/utils';
 
 export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange }: PipelineCardProps) {
-  const isDemo = useIsDemo();
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
   // Short name on pipeline cards — full name truncated via CSS
@@ -243,9 +241,9 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           </a>
         )}
 
-        {/* Contact assignment — shown on "Em contacto" (read-only in demo) */}
+        {/* Contact assignment — shown on "Em contacto" */}
         {player.recruitmentStatus === 'em_contacto' && (
-          <ContactAssignButton player={player} clubMembers={clubMembers} readOnly={isDemo} />
+          <ContactAssignButton player={player} clubMembers={clubMembers} />
         )}
 
         {/* Vir treinar: responsible person + escalão */}
@@ -257,26 +255,26 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
                 <span className="truncate font-medium">{responsibleName}</span>
               </div>
             )}
-            <TrainingEscalaoButton player={player} readOnly={isDemo} />
+            <TrainingEscalaoButton player={player} />
           </div>
         )}
 
-        {/* Meeting attendees — shown on "Reunião marcada" (read-only in demo) */}
+        {/* Meeting attendees — shown on "Reunião marcada" */}
         {player.recruitmentStatus === 'reuniao_marcada' && (
-          <MeetingAttendeesButton player={player} clubMembers={clubMembers} readOnly={isDemo} />
+          <MeetingAttendeesButton player={player} clubMembers={clubMembers} />
         )}
 
-        {/* Signing attendees — shown on "Confirmado" for signing responsibility (read-only in demo) */}
+        {/* Signing attendees — shown on "Confirmado" for signing responsibility */}
         {player.recruitmentStatus === 'confirmado' && (
-          <SigningAttendeesButton player={player} clubMembers={clubMembers} readOnly={isDemo} />
+          <SigningAttendeesButton player={player} clubMembers={clubMembers} />
         )}
 
         {/* Scheduled date button — for "Vir treinar", "Reunião Marcada", "Confirmado" */}
         {statusConfig && (
           <button
             data-no-navigate
-            onClick={(e) => { e.stopPropagation(); if (!isDemo) setDialogOpen(true); }}
-            className={`mt-1.5 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${statusConfig.bgClass} ${isDemo ? 'cursor-default' : ''}`}
+            onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
+            className={`mt-1.5 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${statusConfig.bgClass}`}
           >
             <IconComponent className="h-3 w-3 shrink-0" />
             {currentDateValue
@@ -285,8 +283,8 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           </button>
         )}
 
-        {/* Corner menu with "Mover" + "Remover" — same on mobile and desktop, hidden in demo */}
-        {!isDemo && onStatusChange && player.recruitmentStatus && (
+        {/* Corner menu with "Mover" + "Remover" — same on mobile and desktop */}
+        {onStatusChange && player.recruitmentStatus && (
           <CardActionsMenu
             playerId={player.id}
             currentStatus={player.recruitmentStatus as RecruitmentStatus}
@@ -359,7 +357,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
 
 /* ───────────── Contact Assignment Button for Em Contacto cards ───────────── */
 
-function ContactAssignButton({ player, clubMembers, readOnly }: { player: Player; clubMembers: { id: string; fullName: string }[]; readOnly?: boolean }) {
+function ContactAssignButton({ player, clubMembers }: { player: Player; clubMembers: { id: string; fullName: string }[]}) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [isSaving, startSave] = useTransition();
@@ -387,13 +385,13 @@ function ContactAssignButton({ player, clubMembers, readOnly }: { player: Player
       <button
         data-no-navigate
         type="button"
-        onClick={(e) => { e.stopPropagation(); if (!readOnly) setPickerOpen(true); }}
+        onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
         disabled={isSaving}
         className={`mt-1.5 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${
           localName
             ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
             : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
-        } ${readOnly ? 'cursor-default' : ''}`}
+        }`}
       >
         <Phone className="h-3 w-3 shrink-0" />
         {localName ? (
@@ -401,7 +399,7 @@ function ContactAssignButton({ player, clubMembers, readOnly }: { player: Player
         ) : (
           <span className="truncate">Atribuir responsável</span>
         )}
-        {!readOnly && <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />}
+        <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />
       </button>
       <CommandDialog open={pickerOpen} onOpenChange={(v) => { setPickerOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
         <CommandInput
@@ -445,7 +443,7 @@ function ContactAssignButton({ player, clubMembers, readOnly }: { player: Player
 
 /* ───────────── Meeting Attendees Button for Reunião Marcada cards ───────────── */
 
-function MeetingAttendeesButton({ player, clubMembers, readOnly }: { player: Player; clubMembers: { id: string; fullName: string }[]; readOnly?: boolean }) {
+function MeetingAttendeesButton({ player, clubMembers }: { player: Player; clubMembers: { id: string; fullName: string }[]}) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [isSaving, startSave] = useTransition();
@@ -476,13 +474,13 @@ function MeetingAttendeesButton({ player, clubMembers, readOnly }: { player: Pla
       <button
         data-no-navigate
         type="button"
-        onClick={(e) => { e.stopPropagation(); if (!readOnly) setPickerOpen(true); }}
+        onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
         disabled={isSaving}
         className={`mt-1.5 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${
           attendeeNames.length > 0
             ? 'bg-orange-50 text-orange-700 hover:bg-orange-100'
             : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
-        } ${readOnly ? 'cursor-default' : ''}`}
+        }`}
       >
         <Users className="h-3 w-3 shrink-0" />
         {attendeeNames.length > 0 ? (
@@ -492,7 +490,7 @@ function MeetingAttendeesButton({ player, clubMembers, readOnly }: { player: Pla
         ) : (
           <span className="truncate">Participantes da reunião</span>
         )}
-        {!readOnly && <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />}
+        <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />
       </button>
       <CommandDialog open={pickerOpen} onOpenChange={(v) => { setPickerOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
         <CommandInput
@@ -528,7 +526,7 @@ function MeetingAttendeesButton({ player, clubMembers, readOnly }: { player: Pla
 
 /* ───────────── Signing Attendees Button for Confirmado cards ───────────── */
 
-function SigningAttendeesButton({ player, clubMembers, readOnly }: { player: Player; clubMembers: { id: string; fullName: string }[]; readOnly?: boolean }) {
+function SigningAttendeesButton({ player, clubMembers }: { player: Player; clubMembers: { id: string; fullName: string }[]}) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [isSaving, startSave] = useTransition();
@@ -558,13 +556,13 @@ function SigningAttendeesButton({ player, clubMembers, readOnly }: { player: Pla
       <button
         data-no-navigate
         type="button"
-        onClick={(e) => { e.stopPropagation(); if (!readOnly) setPickerOpen(true); }}
+        onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
         disabled={isSaving}
         className={`mt-1.5 flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${
           attendeeNames.length > 0
             ? 'bg-green-50 text-green-700 hover:bg-green-100'
             : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
-        } ${readOnly ? 'cursor-default' : ''}`}
+        }`}
       >
         <Users className="h-3 w-3 shrink-0" />
         {attendeeNames.length > 0 ? (
@@ -574,7 +572,7 @@ function SigningAttendeesButton({ player, clubMembers, readOnly }: { player: Pla
         ) : (
           <span className="truncate">Responsáveis da assinatura</span>
         )}
-        {!readOnly && <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />}
+        <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />
       </button>
       <CommandDialog open={pickerOpen} onOpenChange={(v) => { setPickerOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
         <CommandInput
@@ -610,7 +608,7 @@ function SigningAttendeesButton({ player, clubMembers, readOnly }: { player: Pla
 
 /* ───────────── Training Escalão Button for Vir Treinar cards ───────────── */
 
-function TrainingEscalaoButton({ player, readOnly }: { player: Player; readOnly?: boolean }) {
+function TrainingEscalaoButton({ player }: { player: Player}) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(player.trainingEscalao ?? '');
   const [isSaving, startSave] = useTransition();
@@ -651,12 +649,12 @@ function TrainingEscalaoButton({ player, readOnly }: { player: Player; readOnly?
     <button
       data-no-navigate
       type="button"
-      onClick={(e) => { e.stopPropagation(); if (!readOnly) setEditing(true); }}
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
       className={`flex w-full items-center gap-1.5 rounded px-2 py-1 text-xs ${
         player.trainingEscalao
           ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
           : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
-      } ${readOnly ? 'cursor-default' : ''}`}
+      }`}
     >
       <GraduationCap className="h-3 w-3 shrink-0" />
       <span className="truncate">{player.trainingEscalao || 'Definir escalão'}</span>
