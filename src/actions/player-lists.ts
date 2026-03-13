@@ -639,6 +639,110 @@ export async function getPickerPlayers(): Promise<PickerPlayer[]> {
   return allRows;
 }
 
+/* ───────────── Picker Search (server-side structural filters) ───────────── */
+
+/** Lightweight columns selected for picker queries */
+const PICKER_COLS = 'id, name, club, club_logo_url, position_normalized, secondary_position, tertiary_position, dob, foot, department_opinion, nationality' as const;
+
+/** Parse department_opinion from DB row (handles both JS array and Postgres string format) */
+function parseOpinions(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.startsWith('{')) {
+    return raw.slice(1, -1).split(',').map((s: string) => s.replace(/"/g, ''));
+  }
+  return [];
+}
+
+/** Map a raw picker row to PickerPlayer */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapPickerRow(row: any): PickerPlayer {
+  return {
+    id: row.id,
+    name: row.name,
+    club: row.club ?? '',
+    clubLogoUrl: row.club_logo_url ?? null,
+    positionNormalized: row.position_normalized ?? null,
+    secondaryPosition: row.secondary_position ?? null,
+    tertiaryPosition: row.tertiary_position ?? null,
+    dob: row.dob ?? null,
+    foot: row.foot ?? '',
+    departmentOpinion: parseOpinions(row.department_opinion),
+    nationality: row.nationality ?? null,
+  };
+}
+
+export interface PickerSearchFilters {
+  position?: string;
+  club?: string;
+  opinion?: string;
+  foot?: string;
+  /** Exclude players already selected (e.g. in squad, in list) */
+  excludeIds?: number[];
+}
+
+/**
+ * Search picker players with server-side structural filters.
+ * Text search is NOT done here — callers apply fuzzyMatch client-side.
+ * Returns all matching rows (paginated past Supabase 1000-row limit).
+ */
+export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Promise<PickerPlayer[]> {
+  const { clubId, role } = await getActiveClub();
+  if (role === 'scout') return [];
+
+  const supabase = await createClient();
+  const PAGE = 1000;
+  const all: PickerPlayer[] = [];
+  let offset = 0;
+
+  for (;;) {
+    let query = supabase
+      .from('players')
+      .select(PICKER_COLS)
+      .eq('club_id', clubId)
+      .eq('pending_approval', false);
+
+    // Structural filters
+    if (filters.position) {
+      query = query.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
+    }
+    if (filters.club) query = query.eq('club', filters.club);
+    if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
+    if (filters.foot) query = query.eq('foot', filters.foot);
+
+    const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
+    if (error || !data?.length) break;
+
+    for (const row of data) {
+      // Skip excluded IDs
+      if (filters.excludeIds?.includes(row.id)) continue;
+      all.push(mapPickerRow(row));
+    }
+
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  return all;
+}
+
+/**
+ * Get distinct club names for filter dropdowns.
+ */
+export async function getPickerClubs(): Promise<string[]> {
+  const { clubId, role } = await getActiveClub();
+  if (role === 'scout') return [];
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('players')
+    .select('club')
+    .eq('club_id', clubId)
+    .not('club', 'is', null);
+
+  if (!data) return [];
+  return Array.from(new Set(data.map((r) => r.club as string).filter(Boolean))).sort();
+}
+
 /* ───────────── Export ───────────── */
 
 /** Export a list as Excel (base64 string) */

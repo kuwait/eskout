@@ -1,12 +1,12 @@
 // src/components/squad/AddToSquadDialog.tsx
 // Dialog to search and add a player to real or shadow squad at a specific position
-// Full filters: name, club, position, opinion, foot
-// RELEVANT FILES: src/actions/squads.ts, src/components/squad/CampoView.tsx, src/lib/constants.ts
+// Fetches players lazily via searchPickerPlayers when opened; text search client-side with fuzzyMatch
+// RELEVANT FILES: src/actions/squads.ts, src/actions/player-lists.ts, src/components/squad/SquadPanelView.tsx, src/lib/constants.ts
 
 'use client';
 
 import { useState, useEffect, useTransition, useMemo } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import { fuzzyMatch } from '@/lib/utils';
 import {
   Dialog,
@@ -26,16 +26,14 @@ import {
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { POSITION_LABELS, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { addToShadowSquad, toggleRealSquad } from '@/actions/squads';
-import type { DepartmentOpinion, Player } from '@/lib/types';
+import { searchPickerPlayers, getPickerClubs } from '@/actions/player-lists';
+import type { DepartmentOpinion, PickerPlayer } from '@/lib/types';
 
 interface AddToSquadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   position: string;
   squadType: 'real' | 'shadow';
-  availablePlayers: Player[];
-  /** All players across all age groups for cross-escalão search */
-  allPlayers?: Player[];
   /** IDs of players already in the squad — excluded from results */
   excludeIds?: Set<number>;
   /** Pre-fill year filter (generation year of selected age group) */
@@ -43,7 +41,7 @@ interface AddToSquadDialogProps {
   /** Legacy: server action + refetch (used by CampoView) */
   onAdded?: () => void;
   /** Optimistic: parent handles add instantly (used by SquadPanelView) */
-  onAddPlayer?: (player: Player) => void;
+  onAddPlayer?: (player: PickerPlayer) => void;
 }
 
 interface Filters {
@@ -62,25 +60,16 @@ export function AddToSquadDialog({
   onOpenChange,
   position,
   squadType,
-  availablePlayers,
-  allPlayers,
   excludeIds,
   initialYear,
   onAdded,
   onAddPlayer,
 }: AddToSquadDialogProps) {
-  /* ───────────── Player pool (same logic as pipeline dialog) ───────────── */
+  /* ───────────── Lazy-loaded player pool ───────────── */
 
-  const searchablePlayers = useMemo(() => {
-    const base = (allPlayers && allPlayers.length > 0) ? allPlayers : availablePlayers;
-    // Exclude players currently in this squad (by ID set OR by squad flag)
-    return base.filter((p) => {
-      if (excludeIds?.has(p.id)) return false;
-      if (squadType === 'shadow' && p.isShadowSquad) return false;
-      if (squadType === 'real' && p.isRealSquad) return false;
-      return true;
-    });
-  }, [allPlayers, availablePlayers, squadType, excludeIds]);
+  const [pool, setPool] = useState<PickerPlayer[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [clubs, setClubs] = useState<string[]>([]);
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -106,36 +95,59 @@ export function AddToSquadDialog({
       });
       setDebouncedSearch('');
       setErrorMsg(null);
+    } else {
+      // Clean up when dialog closes
+      setPool([]);
     }
   }, [open, position, initialYear]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Fetch distinct clubs when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    getPickerClubs().then(setClubs);
+  }, [open]);
+
+  // Fetch players via server action when dialog opens or structural filters change
+  // Year is NOT a server-side filter — applied client-side (not in PickerSearchFilters)
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
+
+    const excludeArray = excludeIds ? Array.from(excludeIds) : [];
+    searchPickerPlayers({
+      position: filters.position || undefined,
+      club: filters.club || undefined,
+      opinion: filters.opinion || undefined,
+      foot: filters.foot || undefined,
+      excludeIds: excludeArray.length > 0 ? excludeArray : undefined,
+    }).then((results) => {
+      setPool(results);
+      setLoading(false);
+    });
+  }, [open, filters.position, filters.club, filters.opinion, filters.foot, excludeIds]);
 
   const posLabel = (POSITION_LABELS as Record<string, string>)[position] ?? position;
   const title = squadType === 'shadow'
     ? `Plantel Sombra — ${position} (${posLabel})`
     : `Plantel — ${position} (${posLabel})`;
 
-  const clubs = useMemo(() => {
-    const set = new Set(searchablePlayers.map((p) => p.club).filter(Boolean));
-    return Array.from(set).sort();
-  }, [searchablePlayers]);
-
-  /** Extract unique birth years from players for year filter */
+  /** Extract unique birth years from the pool for year filter */
   const years = useMemo(() => {
     const set = new Set<number>();
-    for (const p of searchablePlayers) {
+    for (const p of pool) {
       if (p.dob) {
         const y = new Date(p.dob).getFullYear();
         if (!isNaN(y)) set.add(y);
       }
     }
     return Array.from(set).sort((a, b) => b - a);
-  }, [searchablePlayers]);
+  }, [pool]);
 
-  /* ───────────── Filter + search (identical to pipeline dialog) ───────────── */
+  /* ───────────── Client-side text search + year filter ───────────── */
 
   const filtered = useMemo(() => {
-    let result = searchablePlayers;
+    let result = pool;
 
     if (debouncedSearch) {
       result = result.filter((p) => {
@@ -143,21 +155,12 @@ export function AddToSquadDialog({
         return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
       });
     }
-    // Match primary, secondary, or tertiary position
-    if (filters.position) result = result.filter((p) =>
-      p.positionNormalized === filters.position ||
-      p.secondaryPosition === filters.position ||
-      p.tertiaryPosition === filters.position
-    );
-    if (filters.club) result = result.filter((p) => p.club === filters.club);
-    if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion as DepartmentOpinion));
-    if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
     if (filters.year) {
       const yr = parseInt(filters.year, 10);
       result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
     }
     return result.slice(0, 50);
-  }, [searchablePlayers, debouncedSearch, filters]);
+  }, [pool, debouncedSearch, filters.year]);
 
   // Shadow squad: year is always locked, so don't count it as a clearable filter
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || (squadType === 'real' && filters.year);
@@ -166,7 +169,7 @@ export function AddToSquadDialog({
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleAdd(player: Player) {
+  function handleAdd(player: PickerPlayer) {
     setErrorMsg(null);
 
     // Optimistic path: parent handles state + persistence
@@ -303,14 +306,21 @@ export function AddToSquadDialog({
           )}
         </div>
 
-        {/* Results count */}
+        {/* Results count / loading */}
         <p className="text-xs text-muted-foreground">
-          {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+          {loading ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              A carregar jogadores...
+            </span>
+          ) : (
+            `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`
+          )}
         </p>
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
-          {filtered.length === 0 && (
+          {!loading && filtered.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
@@ -320,7 +330,7 @@ export function AddToSquadDialog({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <p className="truncate text-sm font-medium">{player.name}</p>
-                  <OpinionBadge opinion={player.departmentOpinion[0] ?? null} className="shrink-0" />
+                  <OpinionBadge opinion={(player.departmentOpinion[0] as DepartmentOpinion) ?? null} className="shrink-0" />
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {player.club}

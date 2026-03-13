@@ -6,7 +6,6 @@
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { redirect } from 'next/navigation';
 import { getPlayerById, getScoutEvaluations, getScoutingReports } from '@/lib/supabase/queries';
-import { getPickerPlayers } from '@/actions/player-lists';
 import { getSavedComparisons } from '@/actions/comparisons';
 import { ComparePageClient } from './ComparePageClient';
 import type { Player, ScoutEvaluation, ScoutingReport } from '@/lib/types';
@@ -34,11 +33,8 @@ export default async function ComparePage({
     .filter((n) => !isNaN(n))
     .slice(0, 3);
 
-  /* Fetch picker players + saved comparisons + all player bundles in parallel */
-  const [allPlayers, savedComparisons] = await Promise.all([
-    getPickerPlayers(),
-    getSavedComparisons(),
-  ]);
+  /* Fetch saved comparisons */
+  const savedComparisons = await getSavedComparisons();
   const bundles: CompareBundle[] = [];
   if (playerIds.length > 0) {
     const results = await Promise.all(
@@ -70,7 +66,6 @@ export default async function ComparePage({
   return (
     <ComparePageClient
       bundles={bundles}
-      allPlayers={allPlayers}
       savedComparisons={savedComparisons}
       userRole={ctx.role}
       hideScoutingData={ctx.role === 'recruiter'}

@@ -27,7 +27,7 @@ import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import type { Player, PlayerRow, Squad, SquadRow, SquadType } from '@/lib/types';
+import type { Player, PickerPlayer, PlayerRow, Squad, SquadRow, SquadType } from '@/lib/types';
 
 type ViewMode = 'campo' | 'lista' | 'comparar';
 type SquadPlayersMap = Map<number, { position: string; sortOrder: number }>;
@@ -369,12 +369,6 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     return ids;
   }, [dialogSquadPlayerMap, legacyByPosition]);
 
-  const dialogAvailablePlayers = useMemo(() => {
-    if (dialogSquadPlayerMap) return allPlayers.filter((p) => !dialogSquadPlayerMap.has(p.id));
-    if (squadType === 'real') return players.filter((p) => !p.isRealSquad);
-    return players.filter((p) => !p.isShadowSquad);
-  }, [allPlayers, players, squadType, dialogSquadPlayerMap]);
-
   // Visible squads with their byPosition (for custom squads)
   const visibleSquadSections = useMemo(() => {
     if (!hasCustomSquads) return [];
@@ -405,8 +399,12 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
 
   /* ───────────── Handlers ───────────── */
 
-  function handleAdd(player: Player, pos: string, squadId: number | null) {
+  function handleAdd(player: PickerPlayer, pos: string, squadId: number | null) {
     markMutation();
+    // Cast PickerPlayer to Player for optimistic allPlayers update — missing fields
+    // are unused in formation/list rendering. fetchAllPlayers() fills them on next sync.
+    const asPlayer = player as unknown as Player;
+
     if (squadId) {
       const squadMap = allSquadPlayersMap.get(squadId) ?? new Map();
       const maxOrder = Array.from(squadMap.values())
@@ -420,9 +418,10 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         next.set(squadId, updated);
         return next;
       });
-      setAllPlayers((prev) => prev.find((p) => p.id === player.id) ? prev : [...prev, player]);
+      setAllPlayers((prev) => prev.find((p) => p.id === player.id) ? prev : [...prev, asPlayer]);
       addPlayerToSquad(squadId, player.id, pos).then((res) => {
         if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchSquadPlayers(); fetchAllPlayers(); }
+        else { fetchAllPlayers(); }
       });
     } else if (squadType === 'shadow') {
       setAllPlayers((prev) => {
@@ -431,10 +430,11 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         const nextOrder = maxOrder + 1;
         const exists = prev.find((p) => p.id === player.id);
         if (exists) return prev.map((p) => p.id === player.id ? { ...p, isShadowSquad: true, shadowPosition: pos, shadowOrder: nextOrder } : p);
-        return [...prev, { ...player, isShadowSquad: true, shadowPosition: pos, shadowOrder: nextOrder }];
+        return [...prev, { ...asPlayer, isShadowSquad: true, shadowPosition: pos, shadowOrder: nextOrder }];
       });
       addToShadowSquad(player.id, pos).then((res) => {
         if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchAllPlayers(); }
+        else { fetchAllPlayers(); }
       });
     } else {
       const targetAgeGroupId = selectedId;
@@ -444,10 +444,11 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         const nextOrder = maxOrder + 1;
         const exists = prev.find((p) => p.id === player.id);
         if (exists) return prev.map((p) => p.id === player.id ? { ...p, isRealSquad: true, realSquadPosition: pos, ageGroupId: targetAgeGroupId!, realOrder: nextOrder } : p);
-        return [...prev, { ...player, isRealSquad: true, realSquadPosition: pos, ageGroupId: targetAgeGroupId!, realOrder: nextOrder }];
+        return [...prev, { ...asPlayer, isRealSquad: true, realSquadPosition: pos, ageGroupId: targetAgeGroupId!, realOrder: nextOrder }];
       });
       toggleRealSquad(player.id, true, pos, targetAgeGroupId ?? undefined).then((res) => {
         if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchAllPlayers(); }
+        else { fetchAllPlayers(); }
       });
     }
   }
@@ -806,8 +807,6 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         onOpenChange={setDialogOpen}
         position={dialogPosition}
         squadType={squadType}
-        availablePlayers={dialogAvailablePlayers}
-        allPlayers={allPlayers}
         excludeIds={dialogExcludeIds}
         initialYear={selectedAgeGroup ? String(selectedAgeGroup.generationYear) : undefined}
         onAddPlayer={(player) => { handleAdd(player, dialogPosition, dialogSquadId); setDialogOpen(false); }}

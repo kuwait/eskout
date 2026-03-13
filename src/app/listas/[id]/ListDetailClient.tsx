@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Plus, Search, X, Pencil, Trash2, Users, Download, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, Plus, Search, X, Pencil, Trash2, Users, Download, LayoutGrid, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { cn, fuzzyMatch } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,8 @@ import {
   updateListItemNote,
   toggleListItemSeen,
   exportListExcel,
+  searchPickerPlayers,
+  getPickerClubs,
 } from '@/actions/player-lists';
 import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { toast } from 'sonner';
@@ -61,12 +63,10 @@ const POS_DEFAULT = { bg: 'bg-neutral-100', text: 'text-neutral-700' };
 export function ListDetailClient({
   list,
   items,
-  allPlayers,
   canExport,
 }: {
   list: PlayerList;
   items: PlayerListItem[];
-  allPlayers: PickerPlayer[];
   canExport: boolean;
 }) {
   const router = useRouter();
@@ -350,7 +350,6 @@ export function ListDetailClient({
       <AddPlayerDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
-        allPlayers={allPlayers}
         existingIds={existingIds}
         onAdd={async (playerId) => {
           const result = await addPlayerToList(list.id, playerId);
@@ -530,7 +529,7 @@ function PlayerListRow(props: PlayerCardProps & { showClub?: boolean }) {
   );
 }
 
-/* ───────────── Add Player Dialog (same pattern as AddToSquadDialog) ───────────── */
+/* ───────────── Add Player Dialog (server-side filters + client-side fuzzy search) ───────────── */
 
 interface Filters {
   search: string;
@@ -538,95 +537,86 @@ interface Filters {
   club: string;
   opinion: string;
   foot: string;
-  year: string;
 }
 
-const EMPTY_FILTERS: Filters = { search: '', position: '', club: '', opinion: '', foot: '', year: '' };
+const EMPTY_FILTERS: Filters = { search: '', position: '', club: '', opinion: '', foot: '' };
+const PAGE_SIZE = 20;
 
 function AddPlayerDialog({
   open,
   onOpenChange,
-  allPlayers,
   existingIds,
   onAdd,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  allPlayers: PickerPlayer[];
   existingIds: Set<number>;
   onAdd: (playerId: number) => Promise<void>;
 }) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [adding, setAdding] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
+  // Server-fetched pool of players matching structural filters
+  const [pool, setPool] = useState<PickerPlayer[]>([]);
+  const [loading, setLoading] = useState(false);
+  // Distinct clubs for the filter dropdown
+  const [clubs, setClubs] = useState<string[]>([]);
 
-  /* Reset filters when dialog opens */
-  /* eslint-disable react-hooks/set-state-in-effect -- resets filter form when dialog opens */
-  useEffect(() => {
-    if (open) {
-      setFilters(EMPTY_FILTERS);
-      setDebouncedSearch('');
-    }
-  }, [open]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  /* Debounce search */
+  /* Debounce search input */
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  /* Exclude players already in this list */
-  const available = useMemo(
-    () => allPlayers.filter((p) => !existingIds.has(p.id)),
-    [allPlayers, existingIds],
-  );
+  /* Reset page when any filter changes */
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on filter change
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
 
-  /* Derive unique clubs and years for filters */
-  const clubs = useMemo(() => {
-    const set = new Set(available.map((p) => p.club).filter(Boolean));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt'));
-  }, [available]);
+  /* Reset state when dialog closes */
+  /* eslint-disable react-hooks/set-state-in-effect -- reset form when dialog closes */
+  useEffect(() => {
+    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); setPool([]); }
+  }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const years = useMemo(() => {
-    const set = new Set<number>();
-    for (const p of available) {
-      if (p.dob) {
-        const y = new Date(p.dob).getFullYear();
-        if (!isNaN(y)) set.add(y);
-      }
-    }
-    return Array.from(set).sort((a, b) => b - a);
-  }, [available]);
+  /* Fetch distinct clubs when dialog opens */
+  useEffect(() => {
+    if (!open) return;
+    getPickerClubs().then(setClubs);
+  }, [open]);
 
-  /* Filter + fuzzy search (same pattern as AddToSquadDialog) */
+  /* Fetch players from server when dialog opens or structural filters change */
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
+    const excludeIds = Array.from(existingIds);
+    searchPickerPlayers({
+      position: filters.position || undefined,
+      club: filters.club || undefined,
+      opinion: filters.opinion || undefined,
+      foot: filters.foot || undefined,
+      excludeIds: excludeIds.length > 0 ? excludeIds : undefined,
+    }).then((players) => {
+      setPool(players);
+      setLoading(false);
+    });
+  }, [open, existingIds, filters.position, filters.club, filters.opinion, filters.foot]);
+
+  /* Client-side fuzzy search on the server-fetched pool */
   const filtered = useMemo(() => {
-    let result = available;
+    if (!debouncedSearch) return pool;
+    return pool.filter((p) => {
+      const pLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
+      return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
+    });
+  }, [pool, debouncedSearch]);
 
-    if (debouncedSearch) {
-      result = result.filter((p) => {
-        const pLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
-        return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
-      });
-    }
-    if (filters.position) {
-      result = result.filter((p) =>
-        p.positionNormalized === filters.position ||
-        p.secondaryPosition === filters.position ||
-        p.tertiaryPosition === filters.position
-      );
-    }
-    if (filters.club) result = result.filter((p) => p.club === filters.club);
-    if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion));
-    if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
-    if (filters.year) {
-      const yr = parseInt(filters.year, 10);
-      result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
-    }
-    return result.slice(0, 50);
-  }, [available, debouncedSearch, filters]);
+  /* Client-side pagination */
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const pageResults = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -704,16 +694,6 @@ function AddPlayerDialog({
             </SelectContent>
           </Select>
 
-          <Select value={filters.year || 'all'} onValueChange={(v) => updateFilter('year', v === 'all' ? '' : v)}>
-            <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue placeholder="Ano" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Ano</SelectItem>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters(EMPTY_FILTERS)}>
               <X className="mr-1 h-3 w-3" />Limpar
@@ -721,19 +701,41 @@ function AddPlayerDialog({
           )}
         </div>
 
-        {/* Results count */}
-        <p className="text-xs text-muted-foreground">
-          {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
-        </p>
+        {/* Results count + pagination */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {loading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                A procurar…
+              </span>
+            ) : (
+              <>
+                {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+                {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+              </>
+            )}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
-          {filtered.length === 0 && (
+          {!loading && pageResults.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
           )}
-          {filtered.map((player) => (
+          {pageResults.map((player) => (
             <div
               key={player.id}
               className="flex items-center gap-2 rounded-md border p-2 transition-colors hover:bg-accent/50"

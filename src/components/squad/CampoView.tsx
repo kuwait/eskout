@@ -77,10 +77,6 @@ export function CampoView({ clubId }: { clubId: string }) {
     return map;
   }, [players]);
 
-  // Available: not already in the target squad
-  const availableForShadow = useMemo(() => players.filter((p) => !p.isShadowSquad), [players]);
-  const availableForReal = useMemo(() => players.filter((p) => !p.isRealSquad), [players]);
-
   /* ───────────── Handlers ───────────── */
 
   function handleOpenAddDialog(position: PositionCode, squadType: SquadType) {
@@ -174,7 +170,6 @@ export function CampoView({ clubId }: { clubId: string }) {
         onOpenChange={setDialogOpen}
         position={dialogPosition}
         squadType={dialogSquadType}
-        availablePlayers={dialogSquadType === 'shadow' ? availableForShadow : availableForReal}
         onAdded={fetchPlayers}
       />
     </>

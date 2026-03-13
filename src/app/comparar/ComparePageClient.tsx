@@ -26,6 +26,7 @@ import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { MiniPitch } from '@/components/common/MiniPitch';
 import { getNationalityFlag, getPositionLabel, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { saveComparison, deleteComparison } from '@/actions/comparisons';
+import { searchPickerPlayers, getPickerClubs } from '@/actions/player-lists';
 import { toast } from 'sonner';
 import type { CompareBundle } from './page';
 import type { DepartmentOpinion, PickerPlayer, Player, PositionCode, SavedComparison } from '@/lib/types';
@@ -63,12 +64,10 @@ function computeAge(dob: string | null): string {
 
 export function ComparePageClient({
   bundles,
-  allPlayers,
   savedComparisons: initialSaved,
   hideScoutingData,
 }: {
   bundles: CompareBundle[];
-  allPlayers: PickerPlayer[];
   savedComparisons: SavedComparison[];
   userRole: string;
   hideScoutingData: boolean;
@@ -306,7 +305,6 @@ export function ComparePageClient({
       <AddToCompareDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
-        allPlayers={allPlayers}
         existingIds={existingIds}
         onAdd={handleAddPlayer}
       />
@@ -405,7 +403,9 @@ function SaveComparisonDialog({
   );
 }
 
-/* ───────────── Add to Compare Dialog (same pattern as AddToSquadDialog) ───────────── */
+/* ───────────── Add to Compare Dialog (server-side filters + client-side fuzzy search) ───────────── */
+
+const PAGE_SIZE = 20;
 
 interface PickerFilters {
   search: string;
@@ -413,36 +413,29 @@ interface PickerFilters {
   club: string;
   opinion: string;
   foot: string;
-  year: string;
 }
 
-const EMPTY_PICKER_FILTERS: PickerFilters = { search: '', position: '', club: '', opinion: '', foot: '', year: '' };
+const EMPTY_PICKER_FILTERS: PickerFilters = { search: '', position: '', club: '', opinion: '', foot: '' };
 
 function AddToCompareDialog({
   open,
   onOpenChange,
-  allPlayers,
   existingIds,
   onAdd,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  allPlayers: PickerPlayer[];
   existingIds: Set<number>;
   onAdd: (playerId: number) => void;
 }) {
   const [filters, setFilters] = useState<PickerFilters>(EMPTY_PICKER_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  /* Reset filters when dialog opens */
-  /* eslint-disable react-hooks/set-state-in-effect -- resets filter form when dialog opens */
-  useEffect(() => {
-    if (open) {
-      setFilters(EMPTY_PICKER_FILTERS);
-      setDebouncedSearch('');
-    }
-  }, [open]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  const [page, setPage] = useState(0);
+  // Player pool fetched from server (structural filters applied server-side)
+  const [pool, setPool] = useState<PickerPlayer[]>([]);
+  const [loading, setLoading] = useState(false);
+  // Distinct clubs for filter dropdown
+  const [clubs, setClubs] = useState<string[]>([]);
 
   /* Debounce search */
   useEffect(() => {
@@ -450,54 +443,61 @@ function AddToCompareDialog({
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  /* Exclude players already in comparison */
-  const available = useMemo(
-    () => allPlayers.filter((p) => !existingIds.has(p.id)),
-    [allPlayers, existingIds],
+  /* Reset page when any filter changes */
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on filter change
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
+
+  /* Reset state when dialog closes */
+  /* eslint-disable react-hooks/set-state-in-effect -- reset form when dialog closes */
+  useEffect(() => {
+    if (!open) {
+      setFilters(EMPTY_PICKER_FILTERS);
+      setDebouncedSearch('');
+      setPage(0);
+      setPool([]);
+    }
+  }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* Fetch distinct clubs when dialog opens */
+  useEffect(() => {
+    if (!open) return;
+    getPickerClubs().then(setClubs);
+  }, [open]);
+
+  /* Fetch player pool from server when dialog opens or structural filters change */
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
+    const excludeIds = Array.from(existingIds);
+    searchPickerPlayers({
+      position: filters.position || undefined,
+      club: filters.club || undefined,
+      opinion: filters.opinion || undefined,
+      foot: filters.foot || undefined,
+      excludeIds: excludeIds.length > 0 ? excludeIds : undefined,
+    })
+      .then(setPool)
+      .finally(() => setLoading(false));
+  }, [open, filters.position, filters.club, filters.opinion, filters.foot, existingIds]);
+
+  /* Client-side fuzzy search on the server-fetched pool */
+  const filtered = useMemo(() => {
+    if (!debouncedSearch) return pool;
+    return pool.filter((p) => {
+      const pLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
+      return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
+    });
+  }, [pool, debouncedSearch]);
+
+  /* Client-side pagination */
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = useMemo(
+    () => filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [filtered, page],
   );
 
-  const clubs = useMemo(() => {
-    const set = new Set(available.map((p) => p.club).filter(Boolean));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt'));
-  }, [available]);
-
-  const years = useMemo(() => {
-    const set = new Set<number>();
-    for (const p of available) {
-      if (p.dob) {
-        const y = new Date(p.dob).getFullYear();
-        if (!isNaN(y)) set.add(y);
-      }
-    }
-    return Array.from(set).sort((a, b) => b - a);
-  }, [available]);
-
-  const filtered = useMemo(() => {
-    let result = available;
-    if (debouncedSearch) {
-      result = result.filter((p) => {
-        const pLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
-        return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
-      });
-    }
-    if (filters.position) {
-      result = result.filter((p) =>
-        p.positionNormalized === filters.position ||
-        p.secondaryPosition === filters.position ||
-        p.tertiaryPosition === filters.position
-      );
-    }
-    if (filters.club) result = result.filter((p) => p.club === filters.club);
-    if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion));
-    if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
-    if (filters.year) {
-      const yr = parseInt(filters.year, 10);
-      result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
-    }
-    return result.slice(0, 50);
-  }, [available, debouncedSearch, filters]);
-
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 
   function updateFilter(key: keyof PickerFilters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -569,16 +569,6 @@ function AddToCompareDialog({
             </SelectContent>
           </Select>
 
-          <Select value={filters.year || 'all'} onValueChange={(v) => updateFilter('year', v === 'all' ? '' : v)}>
-            <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue placeholder="Ano" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Ano</SelectItem>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters(EMPTY_PICKER_FILTERS)}>
               <X className="mr-1 h-3 w-3" />Limpar
@@ -586,19 +576,19 @@ function AddToCompareDialog({
           )}
         </div>
 
-        {/* Results count */}
+        {/* Results count + loading */}
         <p className="text-xs text-muted-foreground">
-          {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+          {loading ? 'A carregar...' : `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`}
         </p>
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
-          {filtered.length === 0 && (
+          {!loading && paginated.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
           )}
-          {filtered.map((player) => (
+          {paginated.map((player) => (
             <div
               key={player.id}
               className="flex items-center gap-2 rounded-md border p-2 transition-colors hover:bg-accent/50"
@@ -624,6 +614,21 @@ function AddToCompareDialog({
               </Button>
             </div>
           ))}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <Button variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="h-7 text-xs">
+                Anterior
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {page + 1} / {totalPages}
+              </span>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="h-7 text-xs">
+                Seguinte
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

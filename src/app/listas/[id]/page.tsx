@@ -5,7 +5,7 @@
 
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { redirect, notFound } from 'next/navigation';
-import { getListById, getListItems, getPickerPlayers } from '@/actions/player-lists';
+import { getListById, getListItems } from '@/actions/player-lists';
 import { ListDetailClient } from './ListDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -21,10 +21,9 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
   const listId = parseInt(id, 10);
   if (isNaN(listId)) notFound();
 
-  const [list, items, allPlayers] = await Promise.all([
+  const [list, items] = await Promise.all([
     getListById(listId),
     getListItems(listId),
-    getPickerPlayers(),
   ]);
 
   if (!list) notFound();
@@ -38,7 +37,6 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
     <ListDetailClient
       list={list}
       items={items}
-      allPlayers={allPlayers}
       canExport={ctx.role === 'admin' || ctx.role === 'editor'}
     />
   );
