@@ -699,15 +699,26 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     squadName: visibleSquadSections[0]?.squad.name,
   };
 
-  /* ───────────── Loading skeleton ───────────── */
+  /* ───────────── Loading skeleton — mimics formation layout ───────────── */
 
   if (initialLoading) {
+    // Position groups matching the real formation layout (top to bottom)
+    const skeletonRows = [['GR'], ['DC', 'DC'], ['DD', 'DE'], ['MDC', 'MC'], ['MOC'], ['ED', 'EE'], ['PL']];
     return (
-      <div className="space-y-4">
-        <div className="h-10 w-48 animate-pulse rounded-lg bg-muted" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-32 animate-pulse rounded-xl bg-muted" />
+      <div className="animate-pulse space-y-4">
+        {/* Header placeholder */}
+        <div className="h-10 w-48 rounded-lg bg-muted" />
+        {/* Formation skeleton */}
+        <div className="space-y-3">
+          {skeletonRows.map((row, i) => (
+            <div key={i} className="flex justify-center gap-3">
+              {row.map((pos, j) => (
+                <div key={j} className="flex h-20 w-28 flex-col items-center justify-center rounded-xl border border-muted bg-muted/50">
+                  <div className="mb-1.5 h-3 w-8 rounded bg-muted" />
+                  <div className="h-2.5 w-16 rounded bg-muted" />
+                </div>
+              ))}
+            </div>
           ))}
         </div>
       </div>
@@ -715,7 +726,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
   }
 
   return (
-    <div className="space-y-4">
+    <div className="animate-in fade-in duration-300 space-y-4">
       {/* Sticky header */}
       <div className="sticky top-0 z-20 -mx-4 border-b border-transparent bg-card px-4 pb-2 pt-1 shadow-[0_1px_3px_rgba(0,0,0,0.05)] lg:-mx-6 lg:px-6">
         <div className="flex items-center justify-between gap-2">
