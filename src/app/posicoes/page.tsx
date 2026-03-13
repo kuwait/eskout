@@ -4,12 +4,15 @@
 // RELEVANT FILES: src/components/positions/PositionsView.tsx, src/hooks/useAgeGroup.tsx, src/lib/constants.ts
 
 import { PositionsView } from '@/components/positions/PositionsView';
+import { getActiveClub } from '@/lib/supabase/club-context';
 
-export default function PosicoesPage() {
+export default async function PosicoesPage() {
+  const { clubId } = await getActiveClub();
+
   return (
     <div className="p-4 lg:p-6">
       <h1 className="mb-4 text-xl font-bold lg:text-2xl">Posições</h1>
-      <PositionsView />
+      <PositionsView clubId={clubId} />
     </div>
   );
 }

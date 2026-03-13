@@ -17,7 +17,7 @@ import { mapSquadRow } from '@/lib/supabase/mappers';
 import { toast } from 'sonner';
 import type { Squad, SquadRow, SquadType, AgeGroup } from '@/lib/types';
 
-export function SquadManagement() {
+export function SquadManagement({ clubId }: { clubId: string }) {
   const [squads, setSquads] = useState<Squad[]>([]);
   const [ageGroups, setAgeGroups] = useState<AgeGroup[]>([]);
   const [playerCounts, setPlayerCounts] = useState<Map<number, number>>(new Map());
@@ -43,8 +43,8 @@ export function SquadManagement() {
     const supabase = createClient();
 
     const [squadsRes, agRes, countsRes] = await Promise.all([
-      supabase.from('squads').select('*').order('name'),
-      supabase.from('age_groups').select('id, name, generation_year, season').order('generation_year', { ascending: false }),
+      supabase.from('squads').select('*').eq('club_id', clubId).order('name'),
+      supabase.from('age_groups').select('id, name, generation_year, season').eq('club_id', clubId).order('generation_year', { ascending: false }),
       supabase.from('squad_players').select('squad_id'),
     ]);
 
@@ -71,7 +71,7 @@ export function SquadManagement() {
     }
 
     setLoading(false);
-  }, []);
+  }, [clubId]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount, not a cascading render
   useEffect(() => { fetchData(); }, [fetchData]);

@@ -36,7 +36,7 @@ import {
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { DecisionSide, DepartmentOpinion, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
-export function PipelineView() {
+export function PipelineView({ clubId }: { clubId: string }) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -59,7 +59,7 @@ export function PipelineView() {
     const all: PlayerRow[] = [];
     let offset = 0;
     for (;;) {
-      let query = supabase.from('players').select('*');
+      let query = supabase.from('players').select('*').eq('club_id', clubId);
       if (selectedId) query = query.eq('age_group_id', selectedId);
       const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
       if (error || !data?.length) break;
@@ -70,7 +70,7 @@ export function PipelineView() {
     startTransition(() => {
       setAllPlayers(all.map(mapPlayerRow));
     });
-  }, [selectedId]);
+  }, [selectedId, clubId]);
 
   useEffect(() => {
     fetchPlayers();

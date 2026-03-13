@@ -4,11 +4,14 @@
 // RELEVANT FILES: src/components/pipeline/PipelineView.tsx, src/hooks/useAgeGroup.tsx, src/actions/pipeline.ts
 
 import { PipelineView } from '@/components/pipeline/PipelineView';
+import { getActiveClub } from '@/lib/supabase/club-context';
 
-export default function PipelinePage() {
+export default async function PipelinePage() {
+  const { clubId } = await getActiveClub();
+
   return (
     <div className="max-w-full p-4 lg:p-6">
-      <PipelineView />
+      <PipelineView clubId={clubId} />
     </div>
   );
 }

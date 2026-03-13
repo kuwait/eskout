@@ -303,6 +303,14 @@ All data is scoped to a club via `club_id` foreign keys. Users belong to clubs t
 | `setActiveClub()` | Sets the club cookie |
 | `getUserClubs()` | Lists all clubs the user belongs to (for club picker) |
 
+### Client-Side Club Isolation
+
+RLS policies use `user_club_ids()` which returns **all** clubs a user belongs to. This means client-side Supabase queries (in `'use client'` components) must **explicitly filter by `club_id`** — RLS alone is not sufficient for multi-club users.
+
+**Pattern**: Server pages pass `clubId` (from `getActiveClub()`) as a prop to client components, which add `.eq('club_id', clubId)` to every query.
+
+Components that follow this pattern: `PlayersView`, `PipelineView`, `SquadPanelView`, `SquadManagement`, `PositionsView`, `CampoView`.
+
 ### Club Features
 
 Each club has a `features` JSONB column to toggle capabilities:

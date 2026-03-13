@@ -15,7 +15,7 @@ import { PositionSection } from '@/components/positions/PositionSection';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { Player, PlayerRow, PositionCode } from '@/lib/types';
 
-export function PositionsView() {
+export function PositionsView({ clubId }: { clubId: string }) {
   const { selectedId } = useAgeGroup();
   const [players, setPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -26,6 +26,7 @@ export function PositionsView() {
     supabase
       .from('players')
       .select('*')
+      .eq('club_id', clubId)
       .eq('age_group_id', selectedId)
       .order('name')
       .then(({ data, error }) => {
@@ -35,7 +36,7 @@ export function PositionsView() {
           });
         }
       });
-  }, [selectedId]);
+  }, [selectedId, clubId]);
 
   useEffect(() => { fetchPlayers(); }, [fetchPlayers]);
 

@@ -4,12 +4,15 @@
 // RELEVANT FILES: src/components/squad/SquadPanelView.tsx, src/components/layout/Sidebar.tsx, src/app/campo/real/page.tsx
 
 import { SquadPanelView } from '@/components/squad/SquadPanelView';
+import { getActiveClub } from '@/lib/supabase/club-context';
 
-export default function PlantelSombraPage() {
+export default async function PlantelSombraPage() {
+  const { clubId } = await getActiveClub();
+
   return (
     <div className="p-4 lg:p-6">
       <h1 className="mb-4 text-xl font-bold lg:text-2xl">Planteis Sombra</h1>
-      <SquadPanelView squadType="shadow" />
+      <SquadPanelView squadType="shadow" clubId={clubId} />
     </div>
   );
 }

@@ -5,6 +5,7 @@
 
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getActiveClub } from '@/lib/supabase/club-context';
 import { SquadPanelView } from '@/components/squad/SquadPanelView';
 import type { SquadType } from '@/lib/types';
 
@@ -17,6 +18,7 @@ export default async function SquadByIdPage({ params }: PageProps) {
   const squadId = parseInt(rawId, 10);
   if (isNaN(squadId)) notFound();
 
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
   const { data: squad } = await supabase
     .from('squads')
@@ -35,6 +37,7 @@ export default async function SquadByIdPage({ params }: PageProps) {
       <SquadPanelView
         squadType={squadType}
         initialSquadId={squadId}
+        clubId={clubId}
       />
     </div>
   );

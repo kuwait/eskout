@@ -83,7 +83,7 @@ function multiFieldMatch(player: Player, words: string[]): boolean {
   );
 }
 
-export function PlayersView({ hideEvaluations = false }: { hideEvaluations?: boolean } = {}) {
+export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluations?: boolean; clubId: string }) {
   const searchParams = useSearchParams();
   const initialClub = searchParams.get('clube') ?? '';
   const initialNationality = searchParams.get('nacionalidade') ?? '';
@@ -125,10 +125,10 @@ export function PlayersView({ hideEvaluations = false }: { hideEvaluations?: boo
     const supabase = createClient();
 
     Promise.all([
-      fetchAll<PlayerRow>(supabase, (from, to) => supabase.from('players').select('*').eq('pending_approval', false).order('name').range(from, to)),
-      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scouting_reports').select('player_id, rating').not('rating', 'is', null).range(from, to)),
-      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scout_evaluations').select('player_id, rating').range(from, to)),
-      fetchAll<{ player_id: number; content: string; created_at: string }>(supabase, (from, to) => supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(from, to)),
+      fetchAll<PlayerRow>(supabase, (from, to) => supabase.from('players').select('*').eq('club_id', clubId).eq('pending_approval', false).order('name').range(from, to)),
+      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scouting_reports').select('player_id, rating').eq('club_id', clubId).not('rating', 'is', null).range(from, to)),
+      fetchAll<{ player_id: number; rating: number }>(supabase, (from, to) => supabase.from('scout_evaluations').select('player_id, rating').eq('club_id', clubId).range(from, to)),
+      fetchAll<{ player_id: number; content: string; created_at: string }>(supabase, (from, to) => supabase.from('observation_notes').select('player_id, content, created_at').eq('club_id', clubId).order('created_at', { ascending: false }).range(from, to)),
     ]).then(([playersData, reportsData, evalsData, notesData]) => {
       if (!playersData.length) {
         setLoading(false);

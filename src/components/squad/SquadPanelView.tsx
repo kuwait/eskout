@@ -97,9 +97,11 @@ interface SquadPanelViewProps {
   squadType: SquadType;
   /** If provided, directly load this squad — used by /campo/[squadId] */
   initialSquadId?: number;
+  /** Active club ID — used to scope all queries to the current club */
+  clubId: string;
 }
 
-export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProps) {
+export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanelViewProps) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({
     pageId: `squad-${squadType}`,
@@ -160,6 +162,7 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
       const { data, error } = await supabase
         .from('players')
         .select('*')
+        .eq('club_id', clubId)
         .order('name')
         .range(offset, offset + PAGE - 1);
       if (error || !data?.length) break;
@@ -168,7 +171,7 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
       offset += PAGE;
     }
     setAllPlayers(all.map(mapPlayerRow));
-  }, []);
+  }, [clubId]);
 
   useEffect(() => { fetchAllPlayers(); }, [fetchAllPlayers]);
 
@@ -181,12 +184,13 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
     const { data } = await supabase
       .from('squads')
       .select('age_group_id')
+      .eq('club_id', clubId)
       .eq('squad_type', 'shadow');
     if (data) {
       const ids = new Set(data.map((r) => r.age_group_id).filter((id): id is number => id != null));
       setShadowAgeGroupIds(ids);
     }
-  }, [squadType]);
+  }, [squadType, clubId]);
 
   useEffect(() => { fetchShadowAgeGroupIds(); }, [fetchShadowAgeGroupIds]);
 
@@ -199,7 +203,7 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
 
     // Special case: direct squad link via /campo/[squadId]
     if (initialSquadId && !selectedId) {
-      const { data } = await supabase.from('squads').select('*').eq('id', initialSquadId).single();
+      const { data } = await supabase.from('squads').select('*').eq('club_id', clubId).eq('id', initialSquadId).single();
       if (data) { setSquads([(data as SquadRow)].map(mapSquadRow)); return; }
     }
 
@@ -209,7 +213,7 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
       return;
     }
 
-    let query = supabase.from('squads').select('*').eq('squad_type', squadType).order('sort_order').order('name');
+    let query = supabase.from('squads').select('*').eq('club_id', clubId).eq('squad_type', squadType).order('sort_order').order('name');
 
     // Shadow: filter by age group
     if (squadType === 'shadow' && selectedId) {
@@ -228,7 +232,7 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
       if (!valid && mapped[0]) setSelectedSquadId(mapped[0].id);
       else if (!valid) setSelectedSquadId(null);
     }
-  }, [squadType, selectedId, selectedSquadId, initialSquadId]);
+  }, [squadType, selectedId, selectedSquadId, initialSquadId, clubId]);
 
   useEffect(() => { fetchSquads(); }, [fetchSquads]);
 
@@ -276,7 +280,7 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
     const otherType = squadType === 'real' ? 'shadow' : 'real';
 
     // Shadow squads: fetch ALL (not filtered by age group) so we can show "2011 - A" labels
-    const query = supabase.from('squads').select('*').eq('squad_type', otherType).order('sort_order').order('name');
+    const query = supabase.from('squads').select('*').eq('club_id', clubId).eq('squad_type', otherType).order('sort_order').order('name');
     const { data } = await query;
     const mapped = data ? (data as SquadRow[]).map(mapSquadRow) : [];
     setOtherSquads(mapped);
@@ -286,7 +290,7 @@ export function SquadPanelView({ squadType, initialSquadId }: SquadPanelViewProp
     if (!valid && mapped[0]) setCompareRightId(mapped[0].id);
     else if (!valid) setCompareRightId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- compareRightId excluded to avoid loop
-  }, [viewMode, squadType]);
+  }, [viewMode, squadType, clubId]);
 
   useEffect(() => { fetchOtherSquads(); }, [fetchOtherSquads]);
 

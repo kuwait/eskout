@@ -18,7 +18,7 @@ import type { Player, PlayerRow, PositionCode } from '@/lib/types';
 
 type SquadType = 'real' | 'shadow';
 
-export function CampoView() {
+export function CampoView({ clubId }: { clubId: string }) {
   const { selectedId } = useAgeGroup();
   const [players, setPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -36,6 +36,7 @@ export function CampoView() {
     supabase
       .from('players')
       .select('*')
+      .eq('club_id', clubId)
       .eq('age_group_id', selectedId)
       .order('name')
       .then(({ data, error }) => {
@@ -45,7 +46,7 @@ export function CampoView() {
           });
         }
       });
-  }, [selectedId]);
+  }, [selectedId, clubId]);
 
   useEffect(() => {
     fetchPlayers();

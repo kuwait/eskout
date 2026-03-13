@@ -24,7 +24,7 @@ export default async function HomePage() {
           </Link>
         </Button>
       </div>
-      <PlayersView hideEvaluations={hideEvaluations} />
+      <PlayersView hideEvaluations={hideEvaluations} clubId={ctx.clubId} />
     </div>
   );
 }
