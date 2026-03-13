@@ -10,14 +10,12 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
-import { fuzzyMatch } from '@/lib/utils';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { updateRecruitmentStatus, reorderPipelineCards, updateDecisionSide } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { StatusBadge } from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -34,13 +32,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import type { DecisionSide, DepartmentOpinion, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
+import type { DecisionSide, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
 export function PipelineView({ clubId }: { clubId: string }) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
   const [pipelinePlayers, setPipelinePlayers] = useState<Player[]>([]);
-  const [dialogPlayers, setDialogPlayers] = useState<Player[]>([]);
   const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clubMembers, setClubMembers] = useState<{ id: string; fullName: string }[]>([]);
@@ -77,29 +74,6 @@ export function PipelineView({ clubId }: { clubId: string }) {
   useEffect(() => {
     fetchPipelinePlayers();
   }, [fetchPipelinePlayers]);
-
-  // Fetch available players (no recruitment_status) lazily when dialog opens
-  const fetchDialogPlayers = useCallback(async () => {
-    const supabase = createClient();
-    const PAGE = 1000;
-    const all: PlayerRow[] = [];
-    let offset = 0;
-    for (;;) {
-      let query = supabase.from('players').select('*').eq('club_id', clubId).is('recruitment_status', null);
-      if (selectedId) query = query.eq('age_group_id', selectedId);
-      const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
-      if (error || !data?.length) break;
-      all.push(...(data as PlayerRow[]));
-      if (data.length < PAGE) break;
-      offset += PAGE;
-    }
-    setDialogPlayers(all.map(mapPlayerRow));
-  }, [selectedId, clubId]);
-
-  // Lazy-load dialog players when dialog opens
-  useEffect(() => {
-    if (dialogOpen) fetchDialogPlayers();
-  }, [dialogOpen, fetchDialogPlayers]);
 
   // Fetch club members once for contact assignment dropdowns (via server action to avoid RLS issues)
   useEffect(() => {
@@ -204,37 +178,25 @@ export function PipelineView({ clubId }: { clubId: string }) {
     );
   }
 
-  /** Add to abordagens — move from dialog list to pipeline list, revert on failure */
-  async function handleAdd(playerId: number) {
-    const player = dialogPlayers.find((p) => p.id === playerId);
-    if (!player) return;
+  /** Add to abordagens — optimistic insert into pipeline list, revert on failure */
+  async function handleAdd(player: Player) {
     const prevPipeline = pipelinePlayers;
-    const prevDialog = dialogPlayers;
-    // Optimistic: move player to pipeline
     setPipelinePlayers((cur) => [...cur, { ...player, recruitmentStatus: 'por_tratar' as RecruitmentStatus }]);
-    setDialogPlayers((cur) => cur.filter((p) => p.id !== playerId));
-    const result = await updateRecruitmentStatus(playerId, 'por_tratar');
+    const result = await updateRecruitmentStatus(player.id, 'por_tratar');
     if (!result.success) {
       console.error('handleAdd failed:', result.error);
       setPipelinePlayers(prevPipeline);
-      setDialogPlayers(prevDialog);
     }
   }
 
-  /** Remove from abordagens — move from pipeline list to dialog list, revert on failure */
+  /** Remove from abordagens — revert on failure */
   async function handleRemove(playerId: number) {
-    const player = pipelinePlayers.find((p) => p.id === playerId);
-    if (!player) return;
     const prevPipeline = pipelinePlayers;
-    const prevDialog = dialogPlayers;
-    // Optimistic: move player out of pipeline
     setPipelinePlayers((cur) => cur.filter((p) => p.id !== playerId));
-    setDialogPlayers((cur) => [...cur, { ...player, recruitmentStatus: null }]);
     const result = await updateRecruitmentStatus(playerId, null);
     if (!result.success) {
       console.error('handleRemove failed:', result.error);
       setPipelinePlayers(prevPipeline);
-      setDialogPlayers(prevDialog);
     }
   }
 
@@ -279,13 +241,14 @@ export function PipelineView({ clubId }: { clubId: string }) {
         onDecisionSideChange={handleDecisionSideChange}
       />
 
-      {/* Add to abordagens dialog — shows ALL players, always adds as 'por_tratar' */}
+      {/* Add to abordagens dialog — server-side search + pagination */}
       <AddToPipelineDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        availablePlayers={dialogPlayers}
-        onAdd={(playerId) => {
-          handleAdd(playerId);
+        clubId={clubId}
+        ageGroupId={selectedId}
+        onAdd={(player) => {
+          handleAdd(player);
           setDialogOpen(false);
         }}
       />
@@ -293,7 +256,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
   );
 }
 
-/* ───────────── Add to Pipeline Dialog (with full filters) ───────────── */
+/* ───────────── Add to Pipeline Dialog (server-side search + pagination) ───────────── */
 
 interface DialogFilters {
   search: string;
@@ -301,28 +264,33 @@ interface DialogFilters {
   club: string;
   opinion: string;
   foot: string;
-  year: string;
 }
 
-const EMPTY_FILTERS: DialogFilters = { search: '', position: '', club: '', opinion: '', foot: '', year: '' };
+const EMPTY_FILTERS: DialogFilters = { search: '', position: '', club: '', opinion: '', foot: '' };
 
-const PAGE_SIZE = 50;
+const DIALOG_PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE = 300;
 
 function AddToPipelineDialog({
   open,
   onOpenChange,
-  availablePlayers,
+  clubId,
+  ageGroupId,
   onAdd,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  availablePlayers: Player[];
-  onAdd: (playerId: number) => void;
+  clubId: string;
+  ageGroupId: number | null;
+  onAdd: (player: Player) => void;
 }) {
   const [filters, setFilters] = useState<DialogFilters>(EMPTY_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [results, setResults] = useState<Player[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [clubs, setClubs] = useState<string[]>([]);
 
   // Debounce search input
   useEffect(() => {
@@ -332,64 +300,82 @@ function AddToPipelineDialog({
 
   // Reset page when any filter changes
   /* eslint-disable react-hooks/set-state-in-effect -- resets pagination when filters change */
-  useEffect(() => { setPage(0); }, [debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, filters.year]);
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Reset filters when dialog closes
   /* eslint-disable react-hooks/set-state-in-effect -- resets form state when dialog closes */
   useEffect(() => {
-    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); }
+    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); setResults([]); setTotalCount(0); }
   }, [open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const clubs = useMemo(() => {
-    const set = new Set(availablePlayers.map((p) => p.club).filter(Boolean));
-    return Array.from(set).sort();
-  }, [availablePlayers]);
-
-  const years = useMemo(() => {
-    const set = new Set<number>();
-    for (const p of availablePlayers) {
-      if (p.dob) {
-        const y = new Date(p.dob).getFullYear();
-        if (!isNaN(y)) set.add(y);
-      }
-    }
-    return Array.from(set).sort((a, b) => b - a);
-  }, [availablePlayers]);
-
-  // Filter + search (accent-insensitive, multi-field: name, club, position code + label)
-  const allFiltered = useMemo(() => {
-    let result = availablePlayers;
-
-    if (debouncedSearch) {
-      result = result.filter((p) => {
-        const posLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
-        return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${posLabel}`, debouncedSearch);
+  // Fetch distinct clubs for the filter dropdown (once when dialog opens)
+  useEffect(() => {
+    if (!open) return;
+    const supabase = createClient();
+    supabase
+      .from('players')
+      .select('club')
+      .eq('club_id', clubId)
+      .is('recruitment_status', null)
+      .not('club', 'is', null)
+      .then(({ data }) => {
+        if (data) {
+          const unique = Array.from(new Set(data.map((r) => r.club as string).filter(Boolean))).sort();
+          setClubs(unique);
+        }
       });
+  }, [open, clubId]);
+
+  // Fetch players from Supabase with server-side filters + pagination
+  /* eslint-disable react-hooks/set-state-in-effect -- data fetch effect, loading/results state driven by query params */
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    const supabase = createClient();
+
+    let query = supabase
+      .from('players')
+      .select('*', { count: 'exact' })
+      .eq('club_id', clubId)
+      .is('recruitment_status', null)
+      .eq('pending_approval', false);
+
+    if (ageGroupId) query = query.eq('age_group_id', ageGroupId);
+
+    // Multi-field search: name, club, or position_normalized
+    if (debouncedSearch) {
+      const term = `%${debouncedSearch}%`;
+      query = query.or(`name.ilike.${term},club.ilike.${term},position_normalized.ilike.${term}`);
     }
-    // Match primary, secondary, or tertiary position
-    if (filters.position) result = result.filter((p) =>
-      p.positionNormalized === filters.position ||
-      p.secondaryPosition === filters.position ||
-      p.tertiaryPosition === filters.position
-    );
-    if (filters.club) result = result.filter((p) => p.club === filters.club);
-    if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion as DepartmentOpinion));
-    if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
-    if (filters.year) {
-      const yr = parseInt(filters.year, 10);
-      result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
+
+    // Filters applied server-side
+    if (filters.position) {
+      query = query.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
     }
+    if (filters.club) query = query.eq('club', filters.club);
+    if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
+    if (filters.foot) query = query.eq('foot', filters.foot);
 
-    return result;
-  }, [availablePlayers, debouncedSearch, filters]);
+    const from = page * DIALOG_PAGE_SIZE;
+    const to = from + DIALOG_PAGE_SIZE - 1;
 
-  // Pagination
-  const totalPages = Math.ceil(allFiltered.length / PAGE_SIZE);
-  const pageResults = allFiltered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    query
+      .order('name')
+      .range(from, to)
+      .then(({ data, count, error }) => {
+        if (!error && data) {
+          setResults((data as PlayerRow[]).map(mapPlayerRow));
+          setTotalCount(count ?? 0);
+        }
+        setLoading(false);
+      });
+  }, [open, clubId, ageGroupId, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, page]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
+  const totalPages = Math.ceil(totalCount / DIALOG_PAGE_SIZE);
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 
   function updateFilter(key: keyof DialogFilters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -469,18 +455,6 @@ function AddToPipelineDialog({
             </SelectContent>
           </Select>
 
-          <Select value={filters.year || 'all'} onValueChange={(v) => updateFilter('year', v === 'all' ? '' : v)}>
-            <SelectTrigger className="h-8 w-[100px] text-xs">
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Ano</SelectItem>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters(EMPTY_FILTERS)}>
               <X className="mr-1 h-3 w-3" />Limpar
@@ -491,8 +465,12 @@ function AddToPipelineDialog({
         {/* Results count + pagination info */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            {allFiltered.length} jogador{allFiltered.length !== 1 ? 'es' : ''}
-            {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+            {loading ? 'A procurar…' : (
+              <>
+                {totalCount} jogador{totalCount !== 1 ? 'es' : ''}
+                {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+              </>
+            )}
           </p>
           {totalPages > 1 && (
             <div className="flex items-center gap-1">
@@ -508,20 +486,17 @@ function AddToPipelineDialog({
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
-          {pageResults.length === 0 && (
+          {!loading && results.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
           )}
-          {pageResults.map((player) => (
+          {results.map((player) => (
             <div key={player.id} className="flex items-center gap-2 rounded-md border p-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <p className="truncate text-sm font-medium">{player.name}</p>
                   <OpinionBadge opinion={player.departmentOpinion[0] ?? null} className="shrink-0" />
-                  {player.recruitmentStatus && (
-                    <StatusBadge status={player.recruitmentStatus} />
-                  )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {player.club}
@@ -529,7 +504,7 @@ function AddToPipelineDialog({
                   {player.foot ? ` · ${player.foot}` : ''}
                 </p>
               </div>
-              <Button size="sm" variant="outline" className="shrink-0" onClick={() => onAdd(player.id)}>
+              <Button size="sm" variant="outline" className="shrink-0" onClick={() => onAdd(player)}>
                 Adicionar
               </Button>
             </div>
