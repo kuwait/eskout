@@ -15,6 +15,7 @@ import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { updateRecruitmentStatus, reorderPipelineCards, updateDecisionSide } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
+import { fuzzyMatch } from '@/lib/utils';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -287,8 +288,8 @@ function AddToPipelineDialog({
   const [filters, setFilters] = useState<DialogFilters>(EMPTY_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [results, setResults] = useState<Player[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  // All players matching structural filters (fetched from DB)
+  const [pool, setPool] = useState<Player[]>([]);
   const [loading, setLoading] = useState(false);
   const [clubs, setClubs] = useState<string[]>([]);
 
@@ -299,16 +300,12 @@ function AddToPipelineDialog({
   }, [filters.search]);
 
   // Reset page when any filter changes
-  /* eslint-disable react-hooks/set-state-in-effect -- resets pagination when filters change */
   useEffect(() => { setPage(0); }, [debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Reset filters when dialog closes
-  /* eslint-disable react-hooks/set-state-in-effect -- resets form state when dialog closes */
   useEffect(() => {
-    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); setResults([]); setTotalCount(0); }
+    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); setPool([]); }
   }, [open]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Fetch distinct clubs for the filter dropdown (once when dialog opens)
   useEffect(() => {
@@ -328,53 +325,59 @@ function AddToPipelineDialog({
       });
   }, [open, clubId]);
 
-  // Fetch players from Supabase with server-side filters + pagination
-  /* eslint-disable react-hooks/set-state-in-effect -- data fetch effect, loading/results state driven by query params */
+  // Fetch players with structural filters from DB (no text search — that's client-side)
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     const supabase = createClient();
+    const PAGE = 1000;
+    const all: PlayerRow[] = [];
 
-    let query = supabase
-      .from('players')
-      .select('*', { count: 'exact' })
-      .eq('club_id', clubId)
-      .is('recruitment_status', null)
-      .eq('pending_approval', false);
+    async function fetch() {
+      let offset = 0;
+      for (;;) {
+        let query = supabase
+          .from('players')
+          .select('*')
+          .eq('club_id', clubId)
+          .is('recruitment_status', null)
+          .eq('pending_approval', false);
 
-    if (ageGroupId) query = query.eq('age_group_id', ageGroupId);
+        if (ageGroupId) query = query.eq('age_group_id', ageGroupId);
 
-    // Multi-field search: name, club, or position_normalized
-    if (debouncedSearch) {
-      const term = `%${debouncedSearch}%`;
-      query = query.or(`name.ilike.${term},club.ilike.${term},position_normalized.ilike.${term}`);
-    }
-
-    // Filters applied server-side
-    if (filters.position) {
-      query = query.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
-    }
-    if (filters.club) query = query.eq('club', filters.club);
-    if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
-    if (filters.foot) query = query.eq('foot', filters.foot);
-
-    const from = page * DIALOG_PAGE_SIZE;
-    const to = from + DIALOG_PAGE_SIZE - 1;
-
-    query
-      .order('name')
-      .range(from, to)
-      .then(({ data, count, error }) => {
-        if (!error && data) {
-          setResults((data as PlayerRow[]).map(mapPlayerRow));
-          setTotalCount(count ?? 0);
+        // Structural filters applied server-side
+        if (filters.position) {
+          query = query.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
         }
-        setLoading(false);
-      });
-  }, [open, clubId, ageGroupId, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, page]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+        if (filters.club) query = query.eq('club', filters.club);
+        if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
+        if (filters.foot) query = query.eq('foot', filters.foot);
 
-  const totalPages = Math.ceil(totalCount / DIALOG_PAGE_SIZE);
+        const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
+        if (error || !data?.length) break;
+        all.push(...(data as PlayerRow[]));
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+      setPool(all.map(mapPlayerRow));
+      setLoading(false);
+    }
+
+    fetch();
+  }, [open, clubId, ageGroupId, filters.position, filters.club, filters.opinion, filters.foot]);
+
+  // Client-side fuzzy search on the pool (accent-insensitive, multi-word, multi-field)
+  const filtered = useMemo(() => {
+    if (!debouncedSearch) return pool;
+    return pool.filter((p) => {
+      const posLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
+      return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${posLabel}`, debouncedSearch);
+    });
+  }, [pool, debouncedSearch]);
+
+  // Client-side pagination
+  const totalPages = Math.ceil(filtered.length / DIALOG_PAGE_SIZE);
+  const pageResults = filtered.slice(page * DIALOG_PAGE_SIZE, (page + 1) * DIALOG_PAGE_SIZE);
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 
   function updateFilter(key: keyof DialogFilters, value: string) {
@@ -467,7 +470,7 @@ function AddToPipelineDialog({
           <p className="text-xs text-muted-foreground">
             {loading ? 'A procurar…' : (
               <>
-                {totalCount} jogador{totalCount !== 1 ? 'es' : ''}
+                {filtered.length} jogador{filtered.length !== 1 ? 'es' : ''}
                 {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
               </>
             )}
@@ -486,12 +489,12 @@ function AddToPipelineDialog({
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
-          {!loading && results.length === 0 && (
+          {!loading && pageResults.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
           )}
-          {results.map((player) => (
+          {pageResults.map((player) => (
             <div key={player.id} className="flex items-center gap-2 rounded-md border p-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
