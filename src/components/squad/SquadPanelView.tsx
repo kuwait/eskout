@@ -151,29 +151,35 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     router.push(`/jogadores/${playerId}`);
   }, [router]);
 
-  /* ───────────── Fetch all players ───────────── */
+  /* ───────────── Fetch players by IDs (only squad members, not all 6000) ───────────── */
 
-  const fetchAllPlayers = useCallback(async () => {
+  /** Fetch player rows for a set of IDs. Returns mapped Player[] */
+  const fetchPlayersByIds = useCallback(async (ids: number[]): Promise<Player[]> => {
+    if (ids.length === 0) return [];
     const supabase = createClient();
-    const PAGE = 1000;
-    const all: PlayerRow[] = [];
-    let offset = 0;
-    for (;;) {
-      const { data, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('club_id', clubId)
-        .order('name')
-        .range(offset, offset + PAGE - 1);
-      if (error || !data?.length) break;
-      all.push(...(data as PlayerRow[]));
-      if (data.length < PAGE) break;
-      offset += PAGE;
-    }
-    setAllPlayers(all.map(mapPlayerRow));
-  }, [clubId]);
+    // Supabase `.in()` supports up to ~1000 IDs; squad rosters are much smaller
+    const { data } = await supabase
+      .from('players')
+      .select('*')
+      .in('id', ids)
+      .order('name');
+    return data ? (data as PlayerRow[]).map(mapPlayerRow) : [];
+  }, []);
 
-  useEffect(() => { fetchAllPlayers(); }, [fetchAllPlayers]);
+  // Collect all player IDs from squad_players maps and fetch only those
+  const squadPlayerIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const pm of allSquadPlayersMap.values()) {
+      for (const pid of pm.keys()) ids.add(pid);
+    }
+    for (const pid of otherSquadPlayersMap.keys()) ids.add(pid);
+    return ids;
+  }, [allSquadPlayersMap, otherSquadPlayersMap]);
+
+  useEffect(() => {
+    if (squadPlayerIds.size === 0) { setAllPlayers([]); return; }
+    fetchPlayersByIds(Array.from(squadPlayerIds)).then(setAllPlayers);
+  }, [squadPlayerIds, fetchPlayersByIds]);
 
   /* ───────────── Fetch shadow age group IDs ───────────── */
   // Only for shadow: fetch which age groups have shadow squads, to filter AgeGroupSelector
@@ -329,10 +335,10 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
 
   const guardedFetch = useCallback(() => {
     if (Date.now() - mutationGuardRef.current < 3000) return;
-    fetchAllPlayers();
     fetchSquadPlayers();
     fetchOtherSquadPlayers();
-  }, [fetchAllPlayers, fetchSquadPlayers, fetchOtherSquadPlayers]);
+    // Player data re-fetched automatically via squadPlayerIds dependency
+  }, [fetchSquadPlayers, fetchOtherSquadPlayers]);
   useRealtimeTable('players', { onAny: guardedFetch });
   useRealtimeTable('squad_players', { onAny: guardedFetch });
   useRealtimeTable('squads', { onAny: () => { fetchSquads(); fetchShadowAgeGroupIds(); fetchOtherSquads(); } });
@@ -402,7 +408,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
   function handleAdd(player: PickerPlayer, pos: string, squadId: number | null) {
     markMutation();
     // Cast PickerPlayer to Player for optimistic allPlayers update — missing fields
-    // are unused in formation/list rendering. fetchAllPlayers() fills them on next sync.
+    // are unused in formation/list rendering. fetchSquadPlayers() fills them on next sync.
     const asPlayer = player as unknown as Player;
 
     if (squadId) {
@@ -420,8 +426,8 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
       });
       setAllPlayers((prev) => prev.find((p) => p.id === player.id) ? prev : [...prev, asPlayer]);
       addPlayerToSquad(squadId, player.id, pos).then((res) => {
-        if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchSquadPlayers(); fetchAllPlayers(); }
-        else { fetchAllPlayers(); }
+        if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchSquadPlayers(); fetchSquadPlayers(); }
+        else { fetchSquadPlayers(); }
       });
     } else if (squadType === 'shadow') {
       setAllPlayers((prev) => {
@@ -433,8 +439,8 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         return [...prev, { ...asPlayer, isShadowSquad: true, shadowPosition: pos, shadowOrder: nextOrder }];
       });
       addToShadowSquad(player.id, pos).then((res) => {
-        if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchAllPlayers(); }
-        else { fetchAllPlayers(); }
+        if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchSquadPlayers(); }
+        else { fetchSquadPlayers(); }
       });
     } else {
       const targetAgeGroupId = selectedId;
@@ -447,8 +453,8 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         return [...prev, { ...asPlayer, isRealSquad: true, realSquadPosition: pos, ageGroupId: targetAgeGroupId!, realOrder: nextOrder }];
       });
       toggleRealSquad(player.id, true, pos, targetAgeGroupId ?? undefined).then((res) => {
-        if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchAllPlayers(); }
-        else { fetchAllPlayers(); }
+        if (!res.success) { alert(`Erro ao adicionar: ${res.error}`); fetchSquadPlayers(); }
+        else { fetchSquadPlayers(); }
       });
     }
   }
@@ -464,7 +470,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         return next;
       });
       removePlayerFromSquad(squadId, playerId).then((res) => {
-        if (!res.success) { fetchSquadPlayers(); fetchAllPlayers(); }
+        if (!res.success) { fetchSquadPlayers(); fetchSquadPlayers(); }
       });
     } else if (squadType === 'shadow') {
       setAllPlayers((prev) => prev.map((p) => p.id === playerId ? { ...p, isShadowSquad: false, shadowPosition: null } : p));
@@ -545,7 +551,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         }));
         const reorderUpdates = targetList.map((p, i) => ({ playerId: p.id, order: i }));
         moveSquadPlayerPosition(playerId, dbPosition, insertAt, squadType).then((res) => {
-          if (!res.success) { fetchAllPlayers(); return; }
+          if (!res.success) { fetchSquadPlayers(); return; }
           bulkReorderSquad(reorderUpdates, squadType);
         });
       }
