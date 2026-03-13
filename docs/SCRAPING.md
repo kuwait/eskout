@@ -108,7 +108,8 @@ Server actions in `src/actions/scraping.ts` scrape FPF and ZeroZero directly fro
 
 ### FPF Parsing
 Extracts `var model = {...}` embedded JSON — fields: FullName, CurrentClub, Image, BirthDate, Nationality, PlaceOfBirth.
-- **Date formats:** `dd/MM/yyyy`, `yyyy-MM-dd`, Portuguese text (e.g. "27 de março de 2012")
+- **Date formats:** `dd/MM/yyyy`, `yyyy-MM-dd`, Portuguese text (e.g. "27 de março de 2012"), .NET JSON date (`/Date(1332806400000)/`), native Date fallback
+- **Portuguese month regex:** Uses `[a-záàâãéèêíìóòôõúùûç]+` (not `\w+`) because JS `\w` doesn't match accented characters like `ç`, `ã`
 - **Birth country fallback:** If no explicit birth country field, uses Nationality as fallback
 
 ### ZeroZero Parsing
@@ -158,7 +159,7 @@ Steps shown during refresh:
 
 ### FPF Club Import (In-App)
 
-Bulk import registered players from an FPF club page. Uses FPF's DNN/AngularJS internal APIs:
+Bulk import registered players from FPF club pages. Supports multi-club queues with batch processing and retry logic. Uses FPF's DNN/AngularJS internal APIs:
 
 | Endpoint | Method | DNN Headers | Purpose |
 |----------|--------|-------------|---------|
@@ -179,13 +180,30 @@ Bulk import registered players from an FPF club page. Uses FPF's DNN/AngularJS i
 | 3 | Sub-19 (Júnior) |
 | 2 | Sénior |
 
-**Cookie requirement:** Club player list endpoint requires session cookies — fetched by visiting the club detail page first.
+**Cookie requirement:** Club player list endpoint requires session cookies — fetched by visiting the club detail page first. Cookie fetch is wrapped in `withRetry` for resilience.
+
+**Batch processing:**
+- `importFpfPlayerBatch` processes up to 10 players per HTTP request with N concurrent workers (default 5)
+- Eliminates ~4s Next.js server action overhead per player (was the main bottleneck with individual calls)
+- Returns `BatchLogEntry[]` with per-player timing, action, and event type for real-time client display
+- Failed players get a second retry round within the batch (2s backoff between retries)
+
+**Retry logic (`withRetry`):**
+- Wraps FPF HTTP requests with exponential backoff: 3s → 6s → 12s + random jitter (0-2s)
+- 3 retry attempts before giving up
+- Applied to: escalão player list fetch (cookie + API call), individual player profile scrapes
+
+**FPF throttling behavior (observed):**
+- Single requests: ~5s response time
+- 5 concurrent: ~5-7s response time (no failures)
+- Higher concurrency: FPF soft-throttles (12-15s responses) but doesn't hard-block
+- ~2000 requests in a session: no blocks observed with 5 concurrent workers
 
 | Action | Purpose |
 |--------|---------|
 | `searchFpfClubs(searchText)` | Search clubs by name (autocomplete) |
-| `getFpfClubPlayers(clubId, classId)` | Fetch registered players for club + escalão |
-| `importFpfPlayer(player, clubName)` | Import/update single player (scrapes FPF profile) |
+| `getFpfClubPlayers(clubId, classId)` | Fetch registered players for club + escalão (with retry) |
+| `importFpfPlayerBatch(players, clubName, concurrency)` | Batch import/update players (with retry + log) |
 | `finishFpfImport()` | Revalidate pages after batch import |
 
 ### Merge Priority

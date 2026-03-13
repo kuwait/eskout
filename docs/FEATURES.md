@@ -548,13 +548,32 @@ Admin-only page showing players with data quality issues. Helps admins identify 
 
 ### FPF Club Import Tab (`?tab=importar`)
 
-Bulk import of a club's registered players directly from FPF data. Search a club by name, select which escalões to import, then import players 1-by-1 with individual FPF profile scraping.
+Bulk import of registered players from FPF club pages. Supports **multi-club queues** — add multiple clubs with different escalões each, then import everything at once with a real-time dashboard.
 
 **Flow:**
-1. Search club by name (FPF autocomplete API)
+1. Search club by name (FPF autocomplete API, debounced 400ms)
 2. Select escalões to import (all pre-selected by default, select all/deselect all toggle)
-3. Fetch registered players for each selected escalão (live progress: which escalão + running count)
-4. Import each player sequentially: scrape individual FPF profile, create or update in DB
+3. Add club to queue — repeat for multiple clubs
+4. Start import: Phase 1 fetches all escalões sequentially, Phase 2 imports players in batches
+
+**Multi-club queue:**
+- Add/remove clubs freely before starting import
+- Queue persisted to **localStorage** — survives page refreshes and HMR reloads
+- Cleared on "Nova importação" reset
+
+**Batch processing:**
+- Players imported in **batches of 10** per HTTP request (reduces Next.js server action overhead)
+- **5 concurrent workers** on the server within each batch (optimal balance: fast without triggering FPF blocks)
+- **Retry logic:** `withRetry` exponential backoff (3 retries, 3s/6s/12s + jitter) on failed FPF requests
+- Failed players in a batch get a second retry round with backoff
+
+**Real-time dashboard (during import):**
+- **Top stats row:** escalões progress, player progress (count + %), elapsed time, ETA, speed (s/player + players/s)
+- **Global progress bar** with breakdown: new / updated / unchanged / errors
+- **Per-club status rows:** icon (pending → fetching → importing → done), mini progress bar, counts
+- **Live log panel** (max-h-96, scrollable): timestamped entries with semantic colors (green=ok, amber=slow, red=fail, blue=escalão)
+- Auto-scroll only when user is near the bottom (no scroll hijacking)
+- Download full log as JSON with summary stats
 
 **Duplicate handling:**
 - Match by FPF link first, then by name + DOB
@@ -566,7 +585,9 @@ Bulk import of a club's registered players directly from FPF data. Search a club
 - `created_by: null`, `pending_approval: false`, `admin_reviewed: true`
 - Broadcast as system user
 
-**Rate limiting:** 2-3s between escalão fetches, 2-4s between individual player imports.
+**Rate limiting:** 2-3s between escalão fetches. Player imports batched (no inter-player delay within a batch).
+
+**Performance:** ~2000 players across 25 clubs/53 escalões runs in ~20-30 min depending on FPF response times.
 
 **Files:** `src/actions/scraping/fpf-club-import.ts`, `src/app/admin/dados/FpfClubImportTab.tsx`
 

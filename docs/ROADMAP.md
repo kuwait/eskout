@@ -159,6 +159,16 @@ Custom squad system replacing hardcoded real/shadow booleans. Clubs can create u
 - [x] Realtime: `squads` + `squad_players` in broadcast tables
 - [x] Legacy flags (`is_real_squad`, `is_shadow_squad`, `shadow_position`, `real_squad_position`) kept for backward compat
 
+### 5B-6. FPF Club Import Overhaul ✅ DONE
+- [x] Multi-club queue: add multiple clubs with different escalões, import all at once
+- [x] Queue persisted to localStorage (survives page refresh/HMR)
+- [x] Batch processing: 10 players per HTTP request, 5 concurrent server workers
+- [x] `withRetry` exponential backoff (3 retries, 3s base + jitter) for FPF resilience
+- [x] Real-time dashboard: per-club progress, ETA, speed stats, global progress bar
+- [x] Live log panel with semantic colors, auto-scroll near bottom, downloadable as JSON
+- [x] Fix Portuguese date parsing (`\w` → accented char class for month names like "março")
+- [x] Search error feedback in UI
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view
