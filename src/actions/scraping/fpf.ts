@@ -65,7 +65,8 @@ export async function fetchFpfData(fpfLink: string) {
           maio: '05', junho: '06', julho: '07', agosto: '08',
           setembro: '09', outubro: '10', novembro: '11', dezembro: '12',
         };
-        const ptMatch = rawDob.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
+        // \w doesn't match accented chars (ç, ã, etc.) — use character class instead
+        const ptMatch = rawDob.match(/(\d{1,2})\s+de\s+([a-záàâãéèêíìóòôõúùûç]+)\s+de\s+(\d{4})/i);
         if (ptMatch) {
           const mm = PT_MONTHS[ptMatch[2].toLowerCase()];
           if (mm) dob = `${ptMatch[3]}-${mm}-${ptMatch[1].padStart(2, '0')}`;

@@ -260,12 +260,12 @@ export function DataQualityClient({ players, totals }: Props) {
             {search ? 'Nenhum resultado.' : 'Todos os jogadores têm estes dados preenchidos.'}
           </p>
         )}
-        {filtered.map((player) => {
+        {filtered.map((player, idx) => {
           // Batch targets by ID from the frozen snapshot — immune to list shifts
           const isAutoTarget = batchActive && player.id === batchCurrentId;
           return (
             <PlayerRow
-              key={player.id}
+              key={`${player.id}-${idx}`}
               player={player}
               activeTab={activeTab?.value}
               onUpdated={markUpdated}

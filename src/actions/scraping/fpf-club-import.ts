@@ -8,11 +8,32 @@
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
-import { broadcastRowMutation } from '@/lib/realtime/broadcast';
+import { broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { revalidatePath } from 'next/cache';
 import { fetchFpfData } from './fpf';
 import { HEADERS, getFpfSeasonId } from './helpers';
 import type { ActionResponse } from '@/lib/types';
+
+/* ───────────── Retry Helper ───────────── */
+
+/** Retry an async function with exponential backoff. Returns null after all retries fail. */
+async function withRetry<T>(
+  fn: () => Promise<T | null>,
+  retries = 3,
+  baseDelay = 3000,
+): Promise<T | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const result = await fn();
+    if (result !== null) return result;
+    if (attempt < retries) {
+      // Exponential backoff: 3s, 6s, 12s + jitter — gives FPF time to unblock
+      const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 2000;
+      console.log(`[FPF Retry] Attempt ${attempt + 1} failed, waiting ${Math.round(delay / 1000)}s…`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  return null;
+}
 
 /* ───────────── FPF API Constants ───────────── */
 
@@ -107,39 +128,43 @@ export async function getFpfClubPlayers(
       clubId: String(clubId),
     });
 
-    // Need a session cookie from FPF — fetch club page first to get cookies
-    const pageRes = await fetch(`${FPF_BASE}/pt/Clubes/Detalhe-de-clube/Club/${clubId}`, {
-      headers: HEADERS,
-      next: { revalidate: 0 },
-    });
-    const cookies = pageRes.headers.getSetCookie?.() ?? [];
-    const cookieStr = cookies.map((c) => c.split(';')[0]).join('; ');
-
-    const res = await fetch(
-      `${FPF_BASE}/DesktopModules/MVC/ClubDetail/Default/GetClubPlayers?${params}`,
-      {
-        headers: {
-          ...HEADERS,
-          ...CLUB_DETAIL_HEADERS,
-          'Accept': 'application/json',
-          'Referer': `${FPF_BASE}/pt/Clubes/Detalhe-de-clube/Club/${clubId}`,
-          'X-Requested-With': 'XMLHttpRequest',
-          ...(cookieStr ? { Cookie: cookieStr } : {}),
-        },
+    // Retry the entire fetch (cookie + player list) — FPF may block intermittently
+    const players = await withRetry<FpfClubPlayer[]>(async () => {
+      // Need a session cookie from FPF — fetch club page first to get cookies
+      const pageRes = await fetch(`${FPF_BASE}/pt/Clubes/Detalhe-de-clube/Club/${clubId}`, {
+        headers: HEADERS,
         next: { revalidate: 0 },
-      },
-    );
+      });
+      const cookies = pageRes.headers.getSetCookie?.() ?? [];
+      const cookieStr = cookies.map((c) => c.split(';')[0]).join('; ');
 
-    if (!res.ok) return { success: false, error: `Erro FPF: ${res.status}` };
+      const res = await fetch(
+        `${FPF_BASE}/DesktopModules/MVC/ClubDetail/Default/GetClubPlayers?${params}`,
+        {
+          headers: {
+            ...HEADERS,
+            ...CLUB_DETAIL_HEADERS,
+            'Accept': 'application/json',
+            'Referer': `${FPF_BASE}/pt/Clubes/Detalhe-de-clube/Club/${clubId}`,
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(cookieStr ? { Cookie: cookieStr } : {}),
+          },
+          next: { revalidate: 0 },
+        },
+      );
 
-    const data = await res.json() as { Name: string; Birthdate: string; Url: string; PhotoUrl: string | null }[];
-    const players: FpfClubPlayer[] = data.map((p) => ({
-      name: p.Name,
-      birthdate: p.Birthdate ? p.Birthdate.slice(0, 10) : '', // "2011-01-28T00:00:00" → "2011-01-28"
-      url: p.Url.startsWith('http') ? p.Url : `${FPF_BASE}${p.Url}`,
-      photoUrl: p.PhotoUrl || null,
-    }));
+      if (!res.ok) return null; // Trigger retry on non-200
 
+      const data = await res.json() as { Name: string; Birthdate: string; Url: string; PhotoUrl: string | null }[];
+      return data.map((p) => ({
+        name: p.Name,
+        birthdate: p.Birthdate ? p.Birthdate.slice(0, 10) : '', // "2011-01-28T00:00:00" → "2011-01-28"
+        url: p.Url.startsWith('http') ? p.Url : `${FPF_BASE}${p.Url}`,
+        photoUrl: p.PhotoUrl || null,
+      }));
+    });
+
+    if (!players) return { success: false, error: 'FPF bloqueou após várias tentativas' };
     return { success: true, data: players };
   } catch (e) {
     return { success: false, error: `Erro ao buscar jogadores: ${e instanceof Error ? e.message : 'desconhecido'}` };
@@ -153,16 +178,16 @@ export async function importFpfPlayer(
   player: FpfClubPlayer,
   clubName: string,
 ): Promise<ActionResponse<ImportPlayerResult>> {
+  const t0 = Date.now();
   const { clubId } = await getActiveClub();
   const supabase = await createClient();
+  const tAuth = Date.now() - t0;
 
   const fpfLink = player.url;
-
-  // Scrape individual FPF profile for extra data (nationality, photo, club logo)
-  const fpfData = await fetchFpfData(fpfLink);
   const now = new Date().toISOString();
 
   // Check if player already exists — by FPF link first, then name+DOB
+  const tDbStart = Date.now();
   const { data: existing } = await supabase
     .from('players')
     .select('id, name, club, photo_url, zz_photo_url, fpf_link, nationality, birth_country')
@@ -179,6 +204,20 @@ export async function importFpfPlayer(
         .eq('club_id', clubId)
         .maybeSingle()).data
     : null);
+  const tDb = Date.now() - tDbStart;
+
+  // Skip FPF profile scrape for existing players that already have nationality + photo
+  // (saves ~1-3s per player — the biggest bottleneck)
+  const needsScrape = !matched || !matched.nationality || !matched.fpf_link;
+  const tScrapeStart = Date.now();
+  const fpfData = needsScrape ? await withRetry(() => fetchFpfData(fpfLink)) : null;
+  const tScrape = Date.now() - tScrapeStart;
+
+  // Timing breakdown — helps diagnose if bottleneck is us or FPF
+  const tTotal = Date.now() - t0;
+  if (tTotal > 5000) {
+    console.log(`[FPF Timing] ${player.name}: total=${tTotal}ms auth=${tAuth}ms db=${tDb}ms scrape=${tScrape}ms (${needsScrape ? 'scraped' : 'skipped'})`);
+  }
 
   if (matched) {
     const res = await updateExistingPlayer(supabase, matched, fpfLink, clubName, clubId, fpfData, now);
@@ -190,6 +229,74 @@ export async function importFpfPlayer(
   const res = await createNewPlayer(supabase, player, fpfLink, clubName, clubId, fpfData, now);
   if (!res.success) console.error('[FPF Import] Create failed:', player.name, res.error);
   return res;
+}
+
+/** Log entry returned per player so the client can show real-time progress */
+export interface BatchLogEntry {
+  player: string;
+  durationMs: number;
+  event: 'ok' | 'fail' | 'slow';
+  action?: string;   // created | updated | unchanged
+  detail?: string;    // reason or error
+}
+
+/** Import a batch of players concurrently (up to `concurrency` at a time).
+ *  Returns results + per-player log entries for client-side live log.
+ *  Failed players are retried up to 2 more times with backoff — no player should be lost. */
+export async function importFpfPlayerBatch(
+  players: FpfClubPlayer[],
+  clubName: string,
+  concurrency = 5,
+): Promise<{ results: ActionResponse<ImportPlayerResult>[]; log: BatchLogEntry[] }> {
+  const results: ActionResponse<ImportPlayerResult>[] = new Array(players.length);
+  const log: BatchLogEntry[] = [];
+  let cursor = 0;
+
+  async function processPlayer(player: FpfClubPlayer, idx: number) {
+    const t0 = Date.now();
+    results[idx] = await importFpfPlayer(player, clubName);
+    const ms = Date.now() - t0;
+    const res = results[idx];
+    const action = res.success ? res.data?.action : null;
+    const isSlow = ms > 8000;
+
+    log.push({
+      player: player.name,
+      durationMs: ms,
+      event: !res.success ? 'fail' : isSlow ? 'slow' : 'ok',
+      action: action ?? undefined,
+      detail: res.success ? res.data?.reason : res.error,
+    });
+  }
+
+  async function worker() {
+    while (cursor < players.length) {
+      const idx = cursor++;
+      await processPlayer(players[idx], idx);
+    }
+  }
+
+  // Launch N concurrent workers
+  const workers = Array.from({ length: Math.min(concurrency, players.length) }, () => worker());
+  await Promise.all(workers);
+
+  // Retry failed players (FPF may have blocked some) — up to 2 retry rounds with backoff
+  for (let retry = 0; retry < 2; retry++) {
+    const failedIndices = results
+      .map((r, i) => (!r.success ? i : -1))
+      .filter((i) => i >= 0);
+    if (failedIndices.length === 0) break;
+
+    const delay = 5000 * Math.pow(2, retry) + Math.random() * 3000;
+    console.log(`[FPF Batch] Retrying ${failedIndices.length} failed players (round ${retry + 1}), waiting ${Math.round(delay / 1000)}s…`);
+    await new Promise((r) => setTimeout(r, delay));
+
+    for (const idx of failedIndices) {
+      await processPlayer(players[idx], idx);
+    }
+  }
+
+  return { results, log };
 }
 
 /** Update an existing player with fresh FPF data */
@@ -247,7 +354,7 @@ async function updateExistingPlayer(
     return { success: false, error: `Erro ao atualizar: ${error.message}` };
   }
 
-  await broadcastRowMutation(clubId, 'players', 'UPDATE', 'system', existing.id);
+  // No per-player broadcast — bulk broadcast after import finishes (finishFpfImport)
 
   if (meaningfulKeys.length === 0) {
     return { success: true, data: { action: 'unchanged', playerId: existing.id, playerName: existing.name, reason: 'Sem alterações' } };
@@ -319,15 +426,17 @@ async function createNewPlayer(
     return { success: false, error: `Erro ao criar: ${error.message}` };
   }
 
-  await broadcastRowMutation(clubId, 'players', 'INSERT', 'system', newPlayer!.id);
+  // No per-player broadcast — bulk broadcast after import finishes (finishFpfImport)
 
   return { success: true, data: { action: 'created', playerId: newPlayer!.id, playerName: player.name } };
 }
 
-/** Revalidate pages after batch import completes */
+/** Revalidate pages + broadcast bulk mutation after batch import completes */
 export async function finishFpfImport(): Promise<void> {
+  const { clubId, userId } = await getActiveClub();
   revalidatePath('/jogadores');
   revalidatePath('/admin/dados');
   revalidatePath('/campo');
   revalidatePath('/pipeline');
+  await broadcastBulkMutation(clubId, 'players', userId);
 }
