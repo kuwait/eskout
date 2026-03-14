@@ -15,7 +15,7 @@ import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { Button } from '@/components/ui/button';
 import { TaskSection, TaskRow } from './TaskRow';
 import { TaskFormDialog } from './TaskFormDialog';
-import type { TaskPlayer } from './TaskFormDialog';
+
 import { FlaggedNotesSection } from './FlaggedNotesSection';
 import { getEffectiveDate, isDueDateOverdue } from './tasks-utils';
 import type { UserTask } from '@/lib/types';
@@ -30,22 +30,22 @@ interface TasksViewProps {
   userRole?: string;
   /** Club members for admin user picker */
   clubMembers?: { id: string; fullName: string }[];
-  /** Players for task player picker */
-  allPlayers?: TaskPlayer[];
+  /** Player photos for task row avatars (only players referenced in tasks) */
+  playerPhotos?: { id: number; photoUrl: string | null }[];
 }
 
-export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor', clubMembers = [], allPlayers = [] }: TasksViewProps) {
+export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor', clubMembers = [], playerPhotos = [] }: TasksViewProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
 
   // Lookup map: playerId → photoUrl (for task row avatars)
   const playerPhotoMap = useMemo(() => {
     const map = new Map<number, string>();
-    for (const p of allPlayers) {
+    for (const p of playerPhotos) {
       if (p.photoUrl) map.set(p.id, p.photoUrl);
     }
     return map;
-  }, [allPlayers]);
+  }, [playerPhotos]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [, startTransition] = useTransition();
@@ -93,7 +93,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
 
   /* ───────────── Handlers ───────────── */
 
-  function handleCreate(title: string, opts: { dueDate?: string | null; playerId?: number | null }) {
+  function handleCreate(title: string, opts: { dueDate?: string | null; playerId?: number | null; playerName?: string | null }) {
     setCreateDialogOpen(false);
 
     busyRef.current = true;
@@ -161,7 +161,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
   // Edit task state
   const [editingTask, setEditingTask] = useState<UserTask | null>(null);
 
-  function handleEdit(taskId: number, updates: { title?: string; dueDate?: string | null; playerId?: number | null }) {
+  function handleEdit(taskId: number, updates: { title?: string; dueDate?: string | null; playerId?: number | null; playerName?: string | null }) {
     // Optimistic update
     setTasks((cur) =>
       cur.map((t) => {
@@ -171,7 +171,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
         if (updates.dueDate !== undefined) updated.dueDate = updates.dueDate;
         if (updates.playerId !== undefined) {
           updated.playerId = updates.playerId;
-          updated.playerName = updates.playerId ? allPlayers.find((p) => p.id === updates.playerId)?.name ?? null : null;
+          updated.playerName = updates.playerName ?? null;
         }
         return updated;
       })
@@ -336,7 +336,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
         mode="create"
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        allPlayers={allPlayers}
+
         onSave={(title, opts) => handleCreate(title, opts)}
       />
 
@@ -346,7 +346,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
           mode="edit"
           open
           onOpenChange={(open) => { if (!open) setEditingTask(null); }}
-          allPlayers={allPlayers}
+  
           task={editingTask}
           onSave={(title, opts) => handleEdit(editingTask.id, { title, ...opts })}
         />

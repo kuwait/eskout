@@ -6,9 +6,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Search, User, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Search, User, X } from 'lucide-react';
 import { fuzzyMatch } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { searchPickerPlayers } from '@/actions/player-lists';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,17 +26,17 @@ export type TaskPlayer = { id: number; name: string; club: string; position: str
 function TaskPlayerPickerDialog({
   open,
   onOpenChange,
-  players,
   onSelect,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  players: TaskPlayer[];
-  onSelect: (playerId: number) => void;
+  onSelect: (playerId: number, playerName: string) => void;
 }) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [pool, setPool] = useState<TaskPlayer[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -43,25 +44,39 @@ function TaskPlayerPickerDialog({
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Reset page when search changes
-  /* eslint-disable react-hooks/set-state-in-effect -- resets pagination when search changes */
-  useEffect(() => { setPage(0); }, [debouncedSearch]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
   // Reset state when dialog closes
-  /* eslint-disable react-hooks/set-state-in-effect -- resets form state when dialog closes */
+  /* eslint-disable react-hooks/set-state-in-effect -- reset form when dialog closes */
   useEffect(() => {
-    if (!open) { setSearch(''); setDebouncedSearch(''); setPage(0); }
+    if (!open) { setSearch(''); setDebouncedSearch(''); setPage(0); setPool([]); }
   }, [open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Fuzzy filter on name, club, and position
+  // Fetch players from server when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
+    searchPickerPlayers().then((results) => {
+      setPool(results.map((p) => ({
+        id: p.id,
+        name: p.name,
+        club: p.club,
+        position: p.positionNormalized ?? '',
+      })));
+      setLoading(false);
+    });
+  }, [open]);
+
+  // Fuzzy filter on name, club, and position (client-side)
   const filtered = useMemo(() => {
-    if (!debouncedSearch) return players;
-    return players.filter((p) =>
+    if (!debouncedSearch) return pool;
+    return pool.filter((p) =>
       fuzzyMatch(`${p.name} ${p.club} ${p.position}`, debouncedSearch)
     );
-  }, [players, debouncedSearch]);
+  }, [pool, debouncedSearch]);
+
+  // Reset page when search changes
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on search change
+  useEffect(() => { setPage(0); }, [debouncedSearch]);
 
   const totalPages = Math.ceil(filtered.length / PICKER_PAGE_SIZE);
   const pageResults = filtered.slice(page * PICKER_PAGE_SIZE, (page + 1) * PICKER_PAGE_SIZE);
@@ -93,8 +108,12 @@ function TaskPlayerPickerDialog({
         {/* Results count + pagination */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            {filtered.length} jogador{filtered.length !== 1 ? 'es' : ''}
-            {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+            {loading ? <Loader2 className="inline h-3 w-3 animate-spin" /> : (
+              <>
+                {filtered.length} jogador{filtered.length !== 1 ? 'es' : ''}
+                {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+              </>
+            )}
           </p>
           {totalPages > 1 && (
             <div className="flex items-center gap-1">
@@ -110,7 +129,7 @@ function TaskPlayerPickerDialog({
 
         {/* Player list */}
         <div className="max-h-[50vh] space-y-1 overflow-y-auto">
-          {pageResults.length === 0 && (
+          {!loading && pageResults.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
@@ -119,7 +138,7 @@ function TaskPlayerPickerDialog({
             <button
               key={player.id}
               type="button"
-              onClick={() => onSelect(player.id)}
+              onClick={() => onSelect(player.id, player.name)}
               className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors hover:bg-muted/50"
             >
               <div className="min-w-0 flex-1">
@@ -143,16 +162,14 @@ export function TaskFormDialog({
   mode,
   open,
   onOpenChange,
-  allPlayers,
   task,
   onSave,
 }: {
   mode: 'create' | 'edit';
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  allPlayers: TaskPlayer[];
   task?: UserTask;
-  onSave: (title: string, opts: { dueDate?: string | null; playerId?: number | null }) => void;
+  onSave: (title: string, opts: { dueDate?: string | null; playerId?: number | null; playerName?: string | null }) => void;
 }) {
   const isCreate = mode === 'create';
 
@@ -162,21 +179,21 @@ export function TaskFormDialog({
   const [dueDate, setDueDate] = useState(existingDate);
   const [dueTime, setDueTime] = useState(existingTime);
   const [playerId, setPlayerId] = useState<number | null>(task?.playerId ?? null);
+  const [playerName, setPlayerName] = useState<string | null>(task?.playerName ?? null);
   const [playerPickerOpen, setPlayerPickerOpen] = useState(false);
-
-  const playerName = playerId ? allPlayers.find((p) => p.id === playerId)?.name ?? task?.playerName : null;
 
   // Reset form when opening the create dialog
   /* eslint-disable react-hooks/set-state-in-effect -- resets form state when dialog opens/closes */
   useEffect(() => {
     if (open && isCreate) {
-      setTitle(''); setDueDate(''); setDueTime(''); setPlayerId(null);
+      setTitle(''); setDueDate(''); setDueTime(''); setPlayerId(null); setPlayerName(null);
     }
     if (open && !isCreate && task) {
       setTitle(task.title);
       setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : '');
       setDueTime(task.dueDate?.includes('T') ? task.dueDate.slice(11, 16) : '');
       setPlayerId(task.playerId);
+      setPlayerName(task.playerName ?? null);
     }
   }, [open, isCreate, task]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -186,7 +203,7 @@ export function TaskFormDialog({
     const combinedDate = dueDate
       ? (dueTime ? `${dueDate}T${dueTime}` : dueDate)
       : null;
-    onSave(title.trim(), { dueDate: combinedDate, playerId });
+    onSave(title.trim(), { dueDate: combinedDate, playerId, playerName });
   }
 
   return (
@@ -253,7 +270,7 @@ export function TaskFormDialog({
                   {playerName ?? 'Nenhum'}
                 </button>
                 {playerId && (
-                  <button type="button" onClick={() => setPlayerId(null)} className="text-muted-foreground/50 hover:text-foreground">
+                  <button type="button" onClick={() => { setPlayerId(null); setPlayerName(null); }} className="text-muted-foreground/50 hover:text-foreground">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -273,8 +290,7 @@ export function TaskFormDialog({
       <TaskPlayerPickerDialog
         open={playerPickerOpen}
         onOpenChange={setPlayerPickerOpen}
-        players={allPlayers}
-        onSelect={(id) => { setPlayerId(id); setPlayerPickerOpen(false); }}
+        onSelect={(id, name) => { setPlayerId(id); setPlayerName(name); setPlayerPickerOpen(false); }}
       />
     </>
   );

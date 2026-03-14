@@ -311,6 +311,24 @@ RLS policies use `user_club_ids()` which returns **all** clubs a user belongs to
 
 Components that follow this pattern: `PlayersView`, `PipelineView`, `SquadPanelView`, `SquadManagement`, `PositionsView`, `CampoView`.
 
+### Data Fetching Strategy
+
+All player search/picker dialogs use a **lazy fetch** pattern to avoid loading all 6000 players upfront:
+
+- **Structural filters server-side**: position, club, opinion, foot applied via `searchPickerPlayers()` server action
+- **Text search client-side**: accent-insensitive multi-field `fuzzyMatch()` on the fetched pool
+- **Pagination client-side**: 20 results per page in dialogs
+
+Dialogs using this pattern: `AddToPipelineDialog`, `AddToSquadDialog`, `AddToCompareDialog`, `AddPlayerDialog` (lists), `TaskPlayerPickerDialog`, `PlayerPickerDialog` (calendar).
+
+**PlayersView** uses server-side pagination (50 rows/page with `count: 'exact'`). Switches to pool-based fuzzy search when text search is active.
+
+**SquadPanelView** fetches only squad member players (via `squad_players` IDs), not all 6000.
+
+### Loading States
+
+All routes use `PageSpinner` (`src/components/ui/page-spinner.tsx`) — Eskout logo with circular progress ring. Accepts optional `message` prop for pages with longer loads (e.g. data quality analysis). Every route has a `loading.tsx` file.
+
 ### Club Features
 
 Each club has a `features` JSONB column to toggle capabilities:

@@ -19,7 +19,7 @@ function pickValidUrl(...urls: (string | null | undefined)[]): string | null {
 }
 
 export default async function TarefasPage() {
-  const { clubId, role } = await getActiveClub();
+  const { role } = await getActiveClub();
   const supabase = await createClient();
 
   // Fetch tasks, flagged notes, and club members in parallel
@@ -29,29 +29,20 @@ export default async function TarefasPage() {
     getClubMembers(),
   ]);
 
-  // Fetch all players with paginated loop (Supabase default limit = 1000)
-  const PAGE = 1000;
-  const allPlayers: { id: number; name: string; club: string; position: string; photoUrl: string | null }[] = [];
-  let offset = 0;
-  for (;;) {
-    const { data, error } = await supabase
+  // Fetch photos only for players referenced in tasks (not all 6000)
+  const taskPlayerIds = tasks.map((t) => t.playerId).filter((id): id is number => id !== null);
+  let playerPhotos: { id: number; photoUrl: string | null }[] = [];
+  if (taskPlayerIds.length > 0) {
+    const { data } = await supabase
       .from('players')
-      .select('id, name, club, position_normalized, photo_url, zz_photo_url')
-      .eq('club_id', clubId)
-      .order('name')
-      .range(offset, offset + PAGE - 1);
-    if (error || !data?.length) break;
-    for (const p of data) {
-      allPlayers.push({
+      .select('id, photo_url, zz_photo_url')
+      .in('id', taskPlayerIds);
+    if (data) {
+      playerPhotos = data.map((p) => ({
         id: p.id as number,
-        name: p.name as string,
-        club: (p.club ?? '') as string,
-        position: (p.position_normalized ?? '') as string,
         photoUrl: pickValidUrl(p.photo_url, p.zz_photo_url),
-      });
+      }));
     }
-    if (data.length < PAGE) break;
-    offset += PAGE;
   }
 
   return (
@@ -61,7 +52,7 @@ export default async function TarefasPage() {
         flaggedNotes={flaggedNotes}
         userRole={role}
         clubMembers={clubMembers}
-        allPlayers={allPlayers}
+        playerPhotos={playerPhotos}
       />
     </div>
   );

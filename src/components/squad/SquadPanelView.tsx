@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow, mapSquadRow } from '@/lib/supabase/mappers';
 import { SQUAD_SLOT_CODES } from '@/lib/constants';
 import { LayoutGrid, List, Columns2 } from 'lucide-react';
+import { PageSpinner } from '@/components/ui/page-spinner';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { SquadSelector } from '@/components/squad/SquadSelector';
 import { FormationView, type DragEndInfo } from '@/components/squad/FormationView';
@@ -108,6 +109,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
   });
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [squadsLoaded, setSquadsLoaded] = useState(false);
 
   const [viewMode, setViewModeState] = useState<ViewMode>(() => getStoredViewMode(squadType));
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -178,12 +180,17 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
   }, [allSquadPlayersMap, otherSquadPlayersMap]);
 
   useEffect(() => {
-    if (squadPlayerIds.size === 0) { setAllPlayers([]); setInitialLoading(false); return; }
+    if (squadPlayerIds.size === 0) {
+      setAllPlayers([]);
+      // Only clear loading when squads have actually loaded (not on initial empty state)
+      if (squadsLoaded) setInitialLoading(false);
+      return;
+    }
     fetchPlayersByIds(Array.from(squadPlayerIds)).then((p) => {
       setAllPlayers(p);
       setInitialLoading(false);
     });
-  }, [squadPlayerIds, fetchPlayersByIds]);
+  }, [squadPlayerIds, fetchPlayersByIds, squadsLoaded]);
 
   /* ───────────── Fetch shadow age group IDs ───────────── */
   // Only for shadow: fetch which age groups have shadow squads, to filter AgeGroupSelector
@@ -214,12 +221,13 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     // Special case: direct squad link via /campo/[squadId]
     if (initialSquadId && !selectedId) {
       const { data } = await supabase.from('squads').select('*').eq('club_id', clubId).eq('id', initialSquadId).single();
-      if (data) { setSquads([(data as SquadRow)].map(mapSquadRow)); return; }
+      if (data) { setSquads([(data as SquadRow)].map(mapSquadRow)); setSquadsLoaded(true); return; }
     }
 
     // Shadow squads require an age group selection — don't fetch all
     if (squadType === 'shadow' && !selectedId) {
       setSquads([]);
+      setSquadsLoaded(true);
       return;
     }
 
@@ -231,10 +239,11 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     }
 
     const { data, error } = await query;
-    if (error || !data) { setSquads([]); return; }
+    if (error || !data) { setSquads([]); setSquadsLoaded(true); return; }
 
     const mapped = (data as SquadRow[]).map(mapSquadRow);
     setSquads(mapped);
+    setSquadsLoaded(true);
 
     // For real squads: auto-select first if current selection is not in list
     if (squadType === 'real') {
@@ -699,30 +708,10 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     squadName: visibleSquadSections[0]?.squad.name,
   };
 
-  /* ───────────── Loading skeleton — mimics formation layout ───────────── */
+  /* ───────────── Wait for data before rendering ───────────── */
 
   if (initialLoading) {
-    // Position groups matching the real formation layout (top to bottom)
-    const skeletonRows = [['GR'], ['DC', 'DC'], ['DD', 'DE'], ['MDC', 'MC'], ['MOC'], ['ED', 'EE'], ['PL']];
-    return (
-      <div className="animate-pulse space-y-4">
-        {/* Header placeholder */}
-        <div className="h-10 w-48 rounded-lg bg-muted" />
-        {/* Formation skeleton */}
-        <div className="space-y-3">
-          {skeletonRows.map((row, i) => (
-            <div key={i} className="flex justify-center gap-3">
-              {row.map((pos, j) => (
-                <div key={j} className="flex h-20 w-28 flex-col items-center justify-center rounded-xl border border-muted bg-muted/50">
-                  <div className="mb-1.5 h-3 w-8 rounded bg-muted" />
-                  <div className="h-2.5 w-16 rounded bg-muted" />
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   return (

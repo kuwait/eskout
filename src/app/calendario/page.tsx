@@ -3,7 +3,7 @@
 // Server component that fetches data and passes to client calendar view
 // RELEVANT FILES: src/components/calendar/CalendarView.tsx, src/lib/supabase/queries.ts, src/actions/calendar.ts
 
-import { getCalendarEvents, getAllProfiles, getAllPlayers } from '@/lib/supabase/queries';
+import { getCalendarEvents, getAllProfiles } from '@/lib/supabase/queries';
 import { CalendarView } from '@/components/calendar/CalendarView';
 import { getWeekRange } from '@/lib/utils/dates';
 
@@ -32,11 +32,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     month = params.month ? parseInt(params.month, 10) : now.getMonth() + 1;
   }
 
-  // Fetch events, profiles (for assignee dropdown), and all players (for picker) in parallel
-  const [events, profiles, allPlayers] = await Promise.all([
+  // Fetch events and profiles (for assignee dropdown) in parallel
+  const [events, profiles] = await Promise.all([
     getCalendarEvents(year, month),
     getAllProfiles(),
-    getAllPlayers(),
   ]);
 
   return (
@@ -44,7 +43,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <CalendarView
         events={events}
         profiles={profiles}
-        allPlayers={allPlayers}
         year={year}
         month={month}
         initialView={view}

@@ -10,7 +10,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, LayoutList, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import type { CalendarEvent, Player, Profile } from '@/lib/types';
+import type { CalendarEvent, Profile } from '@/lib/types';
 import { CalendarGrid } from '@/components/calendar/CalendarGrid';
 import { CalendarList } from '@/components/calendar/CalendarList';
 import { CalendarWeek } from '@/components/calendar/CalendarWeek';
@@ -35,7 +35,6 @@ type CalendarViewType = 'month' | 'week';
 interface CalendarViewProps {
   events: CalendarEvent[];
   profiles: Profile[];
-  allPlayers: Player[];
   year: number;
   month: number;
   initialView?: CalendarViewType;
@@ -43,7 +42,7 @@ interface CalendarViewProps {
   weekStart?: string;
 }
 
-export function CalendarView({ events, profiles, allPlayers, year, month, initialView = 'month', weekStart: initialWeekStart }: CalendarViewProps) {
+export function CalendarView({ events, profiles, year, month, initialView = 'month', weekStart: initialWeekStart }: CalendarViewProps) {
   const router = useRouter();
   const [isNavigating, startNavigation] = useTransition();
   const [view, setView] = useState<CalendarViewType>(initialView);
@@ -436,7 +435,6 @@ export function CalendarView({ events, profiles, allPlayers, year, month, initia
           event={editingEvent}
           prefillDate={prefillDate}
           profiles={profiles}
-          allPlayers={allPlayers}
           onClose={handleFormClose}
         />
       )}

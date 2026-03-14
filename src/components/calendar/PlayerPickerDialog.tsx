@@ -1,12 +1,12 @@
 // src/components/calendar/PlayerPickerDialog.tsx
-// Dialog to search and select a single player from the full database
-// Same filter pattern as AddToSquadDialog: name/club search, position, opinion, foot, year
-// RELEVANT FILES: src/components/squad/AddToSquadDialog.tsx, src/components/calendar/EventForm.tsx, src/lib/constants.ts
+// Dialog to search and select a single player — self-contained, fetches own data lazily
+// Structural filters server-side, fuzzy search client-side
+// RELEVANT FILES: src/components/calendar/EventForm.tsx, src/actions/player-lists.ts, src/lib/constants.ts
 
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Search, X, Check } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Search, X, Check, Loader2 } from 'lucide-react';
 import { fuzzyMatch } from '@/lib/utils';
 import {
   Dialog,
@@ -25,17 +25,17 @@ import {
 } from '@/components/ui/select';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
-import type { DepartmentOpinion, Player } from '@/lib/types';
+import { searchPickerPlayers, getPickerClubs } from '@/actions/player-lists';
+import type { PickerPlayer } from '@/lib/types';
 
 /* ───────────── Props ───────────── */
 
 interface PlayerPickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  allPlayers: Player[];
   /** Currently selected player ID (shows checkmark) */
   selectedId?: number;
-  onSelect: (player: Player) => void;
+  onSelect: (player: PickerPlayer) => void;
   /** Allow clearing the selection */
   onClear?: () => void;
 }
@@ -48,69 +48,76 @@ interface Filters {
   club: string;
   opinion: string;
   foot: string;
-  year: string;
 }
 
-const EMPTY_FILTERS: Filters = { search: '', position: '', club: '', opinion: '', foot: '', year: '' };
+const EMPTY_FILTERS: Filters = { search: '', position: '', club: '', opinion: '', foot: '' };
+
+const SEARCH_DEBOUNCE = 300;
 
 /* ───────────── Component ───────────── */
 
 export function PlayerPickerDialog({
   open,
   onOpenChange,
-  allPlayers,
   selectedId,
   onSelect,
   onClear,
 }: PlayerPickerDialogProps) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [pool, setPool] = useState<PickerPlayer[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [clubs, setClubs] = useState<string[]>([]);
 
-  // Derive unique club and year lists from player data
-  const clubs = useMemo(() => {
-    const set = new Set(allPlayers.map((p) => p.club).filter(Boolean));
-    return Array.from(set).sort();
-  }, [allPlayers]);
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), SEARCH_DEBOUNCE);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
-  const years = useMemo(() => {
-    const set = new Set<number>();
-    for (const p of allPlayers) {
-      if (p.dob) {
-        const y = new Date(p.dob).getFullYear();
-        if (!isNaN(y)) set.add(y);
-      }
-    }
-    return Array.from(set).sort((a, b) => b - a);
-  }, [allPlayers]);
+  // Reset state when dialog closes
+  /* eslint-disable react-hooks/set-state-in-effect -- reset form when dialog closes */
+  useEffect(() => {
+    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPool([]); }
+  }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Apply filters with 30-result limit
+  // Fetch clubs when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    getPickerClubs().then(setClubs);
+  }, [open]);
+
+  // Fetch players with structural filters
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
+    searchPickerPlayers({
+      position: filters.position || undefined,
+      club: filters.club || undefined,
+      opinion: filters.opinion || undefined,
+      foot: filters.foot || undefined,
+    }).then((results) => {
+      setPool(results);
+      setLoading(false);
+    });
+  }, [open, filters.position, filters.club, filters.opinion, filters.foot]);
+
+  // Client-side fuzzy search on pool
   const filtered = useMemo(() => {
-    let result = allPlayers;
-    if (filters.search) {
-      result = result.filter((p) => fuzzyMatch(`${p.name} ${p.club}`, filters.search));
-    }
-    // Match primary, secondary, or tertiary position
-    if (filters.position) result = result.filter((p) =>
-      p.positionNormalized === filters.position ||
-      p.secondaryPosition === filters.position ||
-      p.tertiaryPosition === filters.position
-    );
-    if (filters.club) result = result.filter((p) => p.club === filters.club);
-    if (filters.opinion) result = result.filter((p) => p.departmentOpinion.includes(filters.opinion as DepartmentOpinion));
-    if (filters.foot) result = result.filter((p) => p.foot === filters.foot);
-    if (filters.year) {
-      const yr = parseInt(filters.year, 10);
-      result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
-    }
-    return result.slice(0, 30);
-  }, [allPlayers, filters]);
+    if (!debouncedSearch) return pool.slice(0, 30);
+    return pool.filter((p) =>
+      fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized ?? ''}`, debouncedSearch)
+    ).slice(0, 30);
+  }, [pool, debouncedSearch]);
 
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || filters.year;
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSelect(player: Player) {
+  function handleSelect(player: PickerPlayer) {
     onSelect(player);
     setFilters(EMPTY_FILTERS);
     onOpenChange(false);
@@ -188,16 +195,6 @@ export function PlayerPickerDialog({
             </SelectContent>
           </Select>
 
-          <Select value={filters.year || 'all'} onValueChange={(v) => updateFilter('year', v === 'all' ? '' : v)}>
-            <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue placeholder="Ano" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Ano</SelectItem>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters(EMPTY_FILTERS)}>
               <X className="mr-1 h-3 w-3" />Limpar
@@ -207,8 +204,12 @@ export function PlayerPickerDialog({
 
         {/* Results count */}
         <p className="text-xs text-muted-foreground">
-          {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
-          {filtered.length === 30 && ' (limite)'}
+          {loading ? <Loader2 className="inline h-3 w-3 animate-spin" /> : (
+            <>
+              {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+              {filtered.length === 30 && ' (limite)'}
+            </>
+          )}
         </p>
 
         {/* Clear selection button */}
@@ -221,7 +222,7 @@ export function PlayerPickerDialog({
 
         {/* Player list */}
         <div className="max-h-[40vh] space-y-1 overflow-y-auto">
-          {filtered.length === 0 && (
+          {!loading && filtered.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               Nenhum jogador encontrado.
             </p>
@@ -246,7 +247,7 @@ export function PlayerPickerDialog({
                     {player.foot ? ` · ${player.foot}` : ''}
                   </p>
                 </div>
-                <OpinionBadge opinion={player.departmentOpinion} />
+                <OpinionBadge opinion={player.departmentOpinion as import('@/lib/types').DepartmentOpinion[]} />
               </button>
             );
           })}

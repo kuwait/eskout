@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { CalendarEvent, Player, Profile } from '@/lib/types';
+import type { CalendarEvent, Profile } from '@/lib/types';
 import { CALENDAR_EVENT_TYPES } from '@/lib/constants';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/actions/calendar';
 import { PlayerPickerDialog } from '@/components/calendar/PlayerPickerDialog';
@@ -53,13 +53,12 @@ interface EventFormProps {
   event: CalendarEvent | null; // null = creating new
   prefillDate: string | null;
   profiles: Profile[];
-  allPlayers: Player[];
   onClose: () => void;
 }
 
 /* ───────────── Component ───────────── */
 
-export function EventForm({ event, prefillDate, profiles, allPlayers, onClose }: EventFormProps) {
+export function EventForm({ event, prefillDate, profiles, onClose }: EventFormProps) {
   const router = useRouter();
   const isEditing = !!event;
   // Synthetic events (from pipeline dates) have negative IDs — saving them creates a new calendar event
@@ -75,9 +74,9 @@ export function EventForm({ event, prefillDate, profiles, allPlayers, onClose }:
   const [eventTime, setEventTime] = useState(event?.eventTime?.slice(0, 5) ?? '');
   const [location, setLocation] = useState(event?.location ?? '');
   const [notes, setNotes] = useState(event?.notes ?? '');
-  // Selected player
-  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(
-    event?.playerId ? allPlayers.find((p) => p.id === event.playerId) ?? null : null
+  // Selected player — lightweight shape for display (from picker or event data)
+  const [selectedPlayer, setSelectedPlayer] = useState<{ id: number; name: string; club?: string; positionNormalized?: string | null } | null>(
+    event?.playerId && event?.playerName ? { id: event.playerId, name: event.playerName } : null
   );
   // Assignee: either a user ID or free-text name
   const [assigneeMode, setAssigneeMode] = useState<'user' | 'text'>(
@@ -471,9 +470,8 @@ export function EventForm({ event, prefillDate, profiles, allPlayers, onClose }:
       <PlayerPickerDialog
         open={showPlayerPicker}
         onOpenChange={setShowPlayerPicker}
-        allPlayers={allPlayers}
         selectedId={selectedPlayer?.id}
-        onSelect={(player) => setSelectedPlayer(player)}
+        onSelect={(player) => setSelectedPlayer({ id: player.id, name: player.name, club: player.club, positionNormalized: player.positionNormalized })}
         onClear={playerRequired ? undefined : () => setSelectedPlayer(null)}
       />
     </>

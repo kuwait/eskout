@@ -39,7 +39,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
   const [pipelinePlayers, setPipelinePlayers] = useState<Player[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clubMembers, setClubMembers] = useState<{ id: string; fullName: string }[]>([]);
   // Show birth year on cards when viewing all age groups
@@ -199,16 +199,6 @@ export function PipelineView({ clubId }: { clubId: string }) {
       console.error('handleRemove failed:', result.error);
       setPipelinePlayers(prevPipeline);
     }
-  }
-
-  if (isPending && pipelinePlayers.length === 0) {
-    return (
-      <div className="space-y-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-20 animate-pulse rounded-lg bg-neutral-100" />
-        ))}
-      </div>
-    );
   }
 
   return (
