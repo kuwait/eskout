@@ -5,5 +5,5 @@
 import { PageSpinner } from '@/components/ui/page-spinner';
 
 export default function AdminRelatoriosLoading() {
-  return <PageSpinner />;
+  return <PageSpinner message="A carregar relatórios..." />;
 }

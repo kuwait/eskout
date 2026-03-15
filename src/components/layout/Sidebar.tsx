@@ -9,7 +9,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown } from 'lucide-react';
+import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ export function Sidebar({
   userRole,
   clubInfo,
   isSuperadmin,
+  canViewCompetitions = false,
   isDemo = false,
   sidebarLists = [],
 }: {
@@ -28,6 +29,7 @@ export function Sidebar({
   userRole: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
+  canViewCompetitions?: boolean;
   isDemo?: boolean;
   sidebarLists?: SidebarList[];
 }) {
@@ -240,6 +242,21 @@ export function Sidebar({
 
       {/* Bottom actions */}
       <div className="border-t px-3 py-3 space-y-1">
+        {/* Competitions link — superadmins and delegated users */}
+        {(isSuperadmin || canViewCompetitions) && (
+          <Link
+            href="/master/competicoes"
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              pathname.startsWith('/master/competicoes')
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )}
+          >
+            <Trophy className="h-4 w-4" />
+            Competições FPF
+          </Link>
+        )}
         {isSuperadmin && (
           <Link
             href="/master"

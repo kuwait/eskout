@@ -10,6 +10,7 @@ import {
   getPrimaryRating,
   getPositionLabel,
   getNationalityFlag,
+  getEscalaoBirthYearRange,
   CURRENT_SEASON,
   POSITION_CODES,
   SQUAD_SLOT_CODES,
@@ -270,5 +271,64 @@ describe('constant arrays', () => {
       expect(p.icon).toBeTruthy();
       expect(p.color).toBeTruthy();
     }
+  });
+});
+
+/* ───────────── getEscalaoBirthYearRange ───────────── */
+
+describe('getEscalaoBirthYearRange', () => {
+  // Season 2025/2026: ref year = 2026
+  const SEASON_START = 2025;
+
+  it('Sub-15 2025/26 → born 2011 (normal), 2012+ plays up', () => {
+    const range = getEscalaoBirthYearRange('Sub-15', SEASON_START);
+    expect(range).toEqual({ start: 2011, end: 2011 });
+  });
+
+  it('Sub-13 2025/26 → born 2013', () => {
+    const range = getEscalaoBirthYearRange('Sub-13', SEASON_START);
+    expect(range).toEqual({ start: 2013, end: 2013 });
+  });
+
+  it('Sub-11 2025/26 → born 2015', () => {
+    const range = getEscalaoBirthYearRange('Sub-11', SEASON_START);
+    expect(range).toEqual({ start: 2015, end: 2015 });
+  });
+
+  it('Sub-17 2025/26 → born 2009', () => {
+    const range = getEscalaoBirthYearRange('Sub-17', SEASON_START);
+    expect(range).toEqual({ start: 2009, end: 2009 });
+  });
+
+  it('Sub-19 2025/26 → born 2004-2007', () => {
+    const range = getEscalaoBirthYearRange('Sub-19', SEASON_START);
+    expect(range).toEqual({ start: 2004, end: 2007 });
+  });
+
+  it('Sub-7 2025/26 → born 2019', () => {
+    const range = getEscalaoBirthYearRange('Sub-7', SEASON_START);
+    expect(range).toEqual({ start: 2019, end: 2019 });
+  });
+
+  it('returns null for unknown escalão', () => {
+    expect(getEscalaoBirthYearRange('Sub-99', SEASON_START)).toBeNull();
+  });
+
+  it('works for different seasons (Sub-15 2024/25 → born 2010)', () => {
+    const range = getEscalaoBirthYearRange('Sub-15', 2024);
+    expect(range).toEqual({ start: 2010, end: 2010 });
+  });
+
+  it('playing up detection: 2012 born in Sub-15 2025/26 = +1 year above', () => {
+    const range = getEscalaoBirthYearRange('Sub-15', SEASON_START)!;
+    const birthYear = 2012;
+    expect(birthYear).toBeGreaterThan(range.end); // playing up
+    expect(birthYear - range.end).toBe(1); // +1 ano
+  });
+
+  it('playing up detection: 2011 born in Sub-15 2025/26 = normal (not playing up)', () => {
+    const range = getEscalaoBirthYearRange('Sub-15', SEASON_START)!;
+    const birthYear = 2011;
+    expect(birthYear).toBeLessThanOrEqual(range.end); // not playing up
   });
 });

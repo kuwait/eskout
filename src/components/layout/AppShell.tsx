@@ -43,6 +43,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   let userName = '';
   let clubInfo: ClubInfo | null = null;
   let isSuperadmin = false;
+  let canViewCompetitions = false;
   let sidebarLists: SidebarList[] = [];
 
   try {
@@ -62,7 +63,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes, taskCountRes, obsCountRes, sidebarListsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('is_superadmin, full_name')
+          .select('is_superadmin, full_name, can_view_competitions')
           .eq('id', user.id)
           .single(),
         supabase
@@ -118,6 +119,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       ]);
 
       isSuperadmin = profileRes.data?.is_superadmin ?? false;
+      canViewCompetitions = profileRes.data?.can_view_competitions ?? false;
       userName = profileRes.data?.full_name ?? user.email ?? '';
 
       if (membershipRes.data) {
@@ -219,6 +221,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       userName={userName}
       clubInfo={clubInfo}
       isSuperadmin={isSuperadmin}
+      canViewCompetitions={canViewCompetitions}
       sidebarLists={sidebarLists}
     >
       {children}

@@ -52,6 +52,21 @@ export const HEADERS = {
   'Accept-Encoding': 'gzip, deflate, br',
 };
 
+/* ───────────── HTML Entity Decoding ───────────── */
+
+/** Decode common HTML entities (&#NNN; numeric refs + named entities like &amp; &quot;) */
+export function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&#(\d+);/g, (_m, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_m, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
 /* ───────────── Country normalization ───────────── */
 
 /** Fix common country name misspellings from FPF/ZZ sources */

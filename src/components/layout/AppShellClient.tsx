@@ -33,6 +33,7 @@ export function AppShellClient({
   userName,
   clubInfo,
   isSuperadmin,
+  canViewCompetitions = false,
   sidebarLists = [],
 }: {
   children: React.ReactNode;
@@ -43,6 +44,7 @@ export function AppShellClient({
   userName: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
+  canViewCompetitions?: boolean;
   sidebarLists?: SidebarList[];
 }) {
   const pathname = usePathname();
@@ -80,6 +82,7 @@ export function AppShellClient({
           userId={userId}
           clubInfo={clubInfo}
           isSuperadmin={isSuperadmin}
+          canViewCompetitions={canViewCompetitions}
           isDemo={isDemo}
           sidebarLists={sidebarLists}
         >
@@ -114,6 +117,7 @@ function ShellContent({
   userId,
   clubInfo,
   isSuperadmin,
+  canViewCompetitions = false,
   isDemo,
   sidebarLists = [],
 }: {
@@ -123,6 +127,7 @@ function ShellContent({
   userId: string;
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
+  canViewCompetitions?: boolean;
   isDemo: boolean;
   sidebarLists?: SidebarList[];
 }) {
@@ -134,7 +139,7 @@ function ShellContent({
   return (
     <>
       {isDemo && <DemoBanner />}
-      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} isDemo={isDemo} sidebarLists={sidebarLists} />
+      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} canViewCompetitions={canViewCompetitions} isDemo={isDemo} sidebarLists={sidebarLists} />
 
       {/* Mobile header with hamburger */}
       <header className="sticky top-0 z-40 flex items-center border-b bg-card px-4 py-3 lg:hidden">
@@ -166,6 +171,7 @@ function ShellContent({
         userRole={userRole}
         clubInfo={clubInfo}
         isSuperadmin={isSuperadmin}
+        canViewCompetitions={canViewCompetitions}
         isDemo={isDemo}
         sidebarLists={sidebarLists}
       />

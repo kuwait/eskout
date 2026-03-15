@@ -9,7 +9,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, Users, Wifi, ArrowLeftRight, Palette, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, Wifi, Trophy, ArrowLeftRight, Palette, LogOut, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: '/master/clubes', label: 'Clubes', icon: Building2, exact: false },
   { href: '/master/utilizadores', label: 'Utilizadores', icon: Users, exact: false },
   { href: '/master/online', label: 'Online', icon: Wifi, exact: false },
+  { href: '/master/competicoes', label: 'Competições FPF', icon: Trophy, exact: false },
 ];
 
 /* ───────────── Shared nav content ───────────── */

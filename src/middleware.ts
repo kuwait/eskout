@@ -82,13 +82,18 @@ export async function middleware(request: NextRequest) {
   // ── Superadmin routes ──
   const isSuperadminRoute = SUPERADMIN_ROUTES.some((route) => pathname.startsWith(route));
   if (isSuperadminRoute) {
+    // /master/competicoes is accessible to superadmins AND users with can_view_competitions
+    const isCompetitionsRoute = pathname.startsWith('/master/competicoes');
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_superadmin')
+      .select('is_superadmin, can_view_competitions')
       .eq('id', user.id)
       .single();
 
-    if (!profile?.is_superadmin) {
+    const hasSuperadminAccess = profile?.is_superadmin;
+    const hasCompetitionAccess = isCompetitionsRoute && profile?.can_view_competitions;
+
+    if (!hasSuperadminAccess && !hasCompetitionAccess) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       return NextResponse.redirect(url);

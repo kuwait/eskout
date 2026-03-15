@@ -757,3 +757,188 @@ export interface PlayerJsonImport {
   reportLinks: { num: number; label: string; link: string }[];
   status: string;
 }
+
+/* ───────────── FPF Competition Scraping ───────────── */
+
+export type FpfCompetitionScrapeStatus = 'pending' | 'scraping' | 'partial' | 'complete' | 'error';
+
+export interface FpfCompetitionRow {
+  id: number;
+  fpf_competition_id: number;
+  fpf_season_id: number;
+  name: string;
+  association_name: string | null;
+  association_id: number | null;
+  class_id: number | null;
+  escalao: string | null;
+  season: string;
+  expected_birth_year_start: number | null;
+  expected_birth_year_end: number | null;
+  match_duration_minutes: number;
+  total_fixtures: number;
+  total_matches: number;
+  scraped_matches: number;
+  last_scraped_at: string | null;
+  scrape_status: FpfCompetitionScrapeStatus;
+  scrape_error: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface FpfCompetition {
+  id: number;
+  fpfCompetitionId: number;
+  fpfSeasonId: number;
+  name: string;
+  associationName: string | null;
+  associationId: number | null;
+  classId: number | null;
+  escalao: string | null;
+  season: string;
+  expectedBirthYearStart: number | null;
+  expectedBirthYearEnd: number | null;
+  matchDurationMinutes: number;
+  totalFixtures: number;
+  totalMatches: number;
+  scrapedMatches: number;
+  lastScrapedAt: string | null;
+  scrapeStatus: FpfCompetitionScrapeStatus;
+  scrapeError: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface FpfMatchRow {
+  id: number;
+  competition_id: number;
+  fpf_match_id: number;
+  fpf_fixture_id: number;
+  fixture_name: string | null;
+  phase_name: string | null;
+  series_name: string | null;
+  home_team: string;
+  away_team: string;
+  home_score: number | null;
+  away_score: number | null;
+  match_date: string | null;
+  match_time: string | null;
+  venue: string | null;
+  referee: string | null;
+  is_forfeit: boolean;
+  has_lineup_data: boolean;
+  scraped_at: string;
+}
+
+export interface FpfMatch {
+  id: number;
+  competitionId: number;
+  fpfMatchId: number;
+  fpfFixtureId: number;
+  fixtureName: string | null;
+  phaseName: string | null;
+  seriesName: string | null;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  matchDate: string | null;
+  matchTime: string | null;
+  venue: string | null;
+  referee: string | null;
+  isForfeit: boolean;
+  hasLineupData: boolean;
+  scrapedAt: string;
+}
+
+export type FpfMatchEventType = 'goal' | 'penalty_goal' | 'own_goal' | 'yellow_card' | 'red_card' | 'substitution_in' | 'substitution_out';
+
+export interface FpfMatchPlayerRow {
+  id: number;
+  match_id: number;
+  fpf_player_id: number | null;
+  player_name: string;
+  shirt_number: number | null;
+  team_name: string;
+  is_starter: boolean;
+  is_substitute: boolean;
+  subbed_in_minute: number | null;
+  subbed_out_minute: number | null;
+  minutes_played: number | null;
+  goals: number;
+  penalty_goals: number;
+  own_goals: number;
+  yellow_cards: number;
+  red_cards: number;
+  red_card_minute: number | null;
+  eskout_player_id: number | null;
+}
+
+export interface FpfMatchPlayer {
+  id: number;
+  matchId: number;
+  fpfPlayerId: number | null;
+  playerName: string;
+  shirtNumber: number | null;
+  teamName: string;
+  isStarter: boolean;
+  isSubstitute: boolean;
+  subbedInMinute: number | null;
+  subbedOutMinute: number | null;
+  minutesPlayed: number | null;
+  goals: number;
+  penaltyGoals: number;
+  ownGoals: number;
+  yellowCards: number;
+  redCards: number;
+  redCardMinute: number | null;
+  eskoutPlayerId: number | null;
+}
+
+export interface FpfMatchEventRow {
+  id: number;
+  match_id: number;
+  event_type: FpfMatchEventType;
+  minute: number | null;
+  player_name: string;
+  fpf_player_id: number | null;
+  team_name: string;
+  related_player_name: string | null;
+  related_fpf_player_id: number | null;
+  notes: string | null;
+}
+
+export interface FpfMatchEvent {
+  id: number;
+  matchId: number;
+  eventType: FpfMatchEventType;
+  minute: number | null;
+  playerName: string;
+  fpfPlayerId: number | null;
+  teamName: string;
+  relatedPlayerName: string | null;
+  relatedFpfPlayerId: number | null;
+  notes: string | null;
+}
+
+/** Aggregated player stats across a competition (computed, not stored) */
+export interface FpfPlayerStats {
+  fpfPlayerId: number | null;
+  playerName: string;
+  teamName: string;
+  gamesStarted: number;
+  gamesAsSub: number;
+  totalGames: number;
+  totalMinutes: number;
+  goals: number;
+  penaltyGoals: number;
+  ownGoals: number;
+  yellowCards: number;
+  redCards: number;
+  cleanSheets: number;
+  eskoutPlayerId: number | null;
+  /** "Playing Up" detection */
+  playerDob: string | null;
+  expectedEscalao: string | null;
+  actualEscalao: string | null;
+  yearsAbove: number | null;
+}

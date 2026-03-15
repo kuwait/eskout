@@ -570,3 +570,90 @@ export const CURRENT_SEASON = (() => {
   const startYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
   return `${startYear}/${startYear + 1}`;
 })();
+
+/* ───────────── FPF Competition Scraping ───────────── */
+
+export const FPF_RESULTS_BASE = 'https://resultados.fpf.pt';
+
+/** Season ID formula: 95 + (startYear - 2015). E.g. 2025/26 → 105 */
+export function getFpfResultsSeasonId(startYear: number): number {
+  return 95 + (startYear - 2015);
+}
+
+/** Current season ID for resultados.fpf.pt */
+export const FPF_CURRENT_SEASON_ID = (() => {
+  const now = new Date();
+  const startYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  return getFpfResultsSeasonId(startYear);
+})();
+
+/** FPF ClassId → escalão name mapping */
+export const FPF_CLASS_TO_ESCALAO: Record<number, string> = {
+  10: 'Sub-7',
+  9: 'Sub-9',
+  8: 'Sub-11',
+  6: 'Sub-13',
+  5: 'Sub-15',
+  4: 'Sub-17',
+  3: 'Sub-19',
+  2: 'Sénior',
+};
+
+/** Match duration in minutes by escalão (official FPF rules) */
+export const ESCALAO_MATCH_DURATION: Record<string, number> = {
+  'Sub-7': 40,
+  'Sub-9': 40,
+  'Sub-11': 50,
+  'Sub-13': 60,
+  'Sub-15': 70,
+  'Sub-17': 80,
+  'Sub-19': 90,
+  'Sénior': 90,
+};
+
+/** Expected birth year range per escalão for a given season start year.
+ *  Used for "Playing Up" detection — if player DOB is outside this range, they're playing above. */
+export function getEscalaoBirthYearRange(escalao: string, seasonStartYear: number): { start: number; end: number } | null {
+  // Sub-N → players born in (ref - N). E.g. Sub-15 2025/26 → ref 2026 → born 2011.
+  // "start" = the birth year for this escalão, "end" = same (single year).
+  // Players born AFTER "end" are "playing up" (younger, from a lower escalão).
+  // Sub-19 spans multiple years (2004-2007 for 2025/26).
+  const offsets: Record<string, [number, number]> = {
+    'Sub-7': [-7, -7],
+    'Sub-8': [-8, -8],
+    'Sub-9': [-9, -9],
+    'Sub-10': [-10, -10],
+    'Sub-11': [-11, -11],
+    'Sub-12': [-12, -12],
+    'Sub-13': [-13, -13],
+    'Sub-14': [-14, -14],
+    'Sub-15': [-15, -15],
+    'Sub-16': [-16, -16],
+    'Sub-17': [-17, -17],
+    'Sub-18': [-18, -18],
+    'Sub-19': [-22, -19],
+  };
+  const range = offsets[escalao];
+  if (!range) return null;
+  // Season start year + 1 = the reference year (e.g. 2025/26 → reference 2026)
+  const ref = seasonStartYear + 1;
+  return { start: ref + range[0], end: ref + range[1] };
+}
+
+/* ───────────── Available Seasons ───────────── */
+
+/** List available FPF seasons (computed — FPF has data from 2015/16 to current) */
+export function getAvailableSeasons(): { seasonId: number; label: string }[] {
+  const now = new Date();
+  const currentStartYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  const seasons: { seasonId: number; label: string }[] = [];
+
+  for (let startYear = currentStartYear; startYear >= 2015; startYear--) {
+    seasons.push({
+      seasonId: 95 + (startYear - 2015),
+      label: `${startYear}/${startYear + 1}`,
+    });
+  }
+
+  return seasons;
+}

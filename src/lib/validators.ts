@@ -231,3 +231,19 @@ export const addVideoSchema = z.object({
 });
 
 export type AddVideoData = z.infer<typeof addVideoSchema>;
+
+/* ───────────── FPF Competition Scraping ───────────── */
+
+export const addFpfCompetitionSchema = z.object({
+  fpfCompetitionId: z.number().int().positive(),
+  fpfSeasonId: z.number().int().positive(),
+  name: z.string().min(1, 'Nome obrigatório'),
+  associationName: z.string().nullable().optional(),
+  associationId: z.number().int().nullable().optional(),
+  classId: z.number().int().nullable().optional(),
+  escalao: z.string().nullable().optional(),
+  season: z.string().min(1, 'Época obrigatória'),
+  matchDurationMinutes: z.number().int().min(20).max(120).optional(),
+});
+
+export type AddFpfCompetitionData = z.infer<typeof addFpfCompetitionSchema>;

@@ -208,3 +208,61 @@ Bulk import registered players from FPF club pages. Supports multi-club queues w
 
 ### Merge Priority
 FPF for name/DOB/nationality/birthCountry, ZeroZero for position/foot/height/weight/photo/shirt number. Club: FPF priority, then ZZ.
+
+---
+
+## 6. FPF Competition Scraping (`src/actions/scraping/fpf-competitions/`)
+
+**Purpose:** Scrape FPF competition match sheets — lineups, goals, cards, substitutions, minutes. Detect "playing up" players and provide player linking to eskout DB.
+
+**Route:** `/master/competicoes` (superadmin only)
+
+### Architecture
+
+| File | Purpose |
+|------|---------|
+| `browse.ts` | Discover fixtures/matches from competition pages |
+| `fpf-data.ts` | Types for FPF API responses |
+| `scrape-match.ts` | Parse individual match sheet HTML (lineups, events) |
+| `scrape-competition.ts` | Orchestrate fixture scraping + DB insertion |
+| `link-players.ts` | Auto/manual link competition players to eskout DB |
+| `playing-up.ts` | Detect players competing above their age group |
+| `stats.ts` | Aggregated stats queries (scorers, minutes, cards) |
+| `stats-utils.ts` | Pure aggregation helpers (no server deps) |
+| `permissions.ts` | Access control helpers |
+
+### Match Sheet Parser (`scrape-match.ts`)
+
+Parses HTML from `resultados.fpf.pt/Match/GetMatchInformation?matchId=XXX`:
+
+- **Team names:** From `game-resume` section `<strong>` tags, OG meta title, or Club/Logo alt attributes
+- **Lineups:** From `lineup-team home-team` / `lineup-team away-team` divs, `<div class="player">` entries
+- **Goals:** From `info-goals` section (home=text-right, away=text-left columns)
+- **Substitutions:** From timeline `icon-substitution.png` + `<span class="in/out">` tags
+- **Cards:** From lineup section `icon-yellowcard`/`icon-redcard` CSS classes (no minute available)
+- **Player FPF IDs:** From `/Player/Logo/{id}` (logo ID, NOT profile ID — these are different systems)
+
+### Player Linking (`link-players.ts`)
+
+Three auto-link strategies (in order):
+1. **FPF player ID** — exact numeric match (most reliable, but Logo ID ≠ Profile ID)
+2. **Exact name + club match** — case-insensitive name AND `clubsMatch()` must pass. Duplicate names → manual.
+
+Manual linking via "Não Ligados" tab:
+- Suggestions filtered by same club first, cross-club fallback marked with "clube ≠"
+- Inline fuzzy search (multi-word across name + club)
+- FPF photo + eskout photo shown for visual comparison
+- FPF profile link for verification
+
+### Playing Up Detection (`playing-up.ts`)
+
+- Compares player DOB (from linked eskout player) to competition's `expected_birth_year_end`
+- `expected_birth_year = ref_year - escalão_number` (e.g. Sub-15 2025/26 → ref 2026 → born 2011)
+- Players born AFTER expected year → "playing up" (e.g. 2012 in Sub-15 = +1 year)
+- Only uses DOB from properly linked players (no fuzzy name guessing)
+
+### Future Matches
+
+- Unplayed matches saved as skeletons (teams + date, no lineup/events)
+- Re-scrape detects skeleton (`home_score IS NULL`) and replaces with full data when match is played
+- "Próximos" tab shows future matches, "Resultados" tab shows played matches
