@@ -21,12 +21,17 @@ export interface PlayerStatRow {
   yellowCards: number;
   redCards: number;
   eskoutPlayerId: number | null;
+  seriesName: string | null;
 }
 
 /* ───────────── Aggregate Helper ───────────── */
 
-/** Aggregate fpf_match_players rows into PlayerStatRow by fpf_player_id (or player_name as fallback) */
-export function aggregatePlayers(rows: FpfMatchPlayerRow[]): PlayerStatRow[] {
+/** Aggregate fpf_match_players rows into PlayerStatRow by fpf_player_id (or player_name as fallback).
+ *  Optional matchSeries map provides series_name per match_id for grouping. */
+export function aggregatePlayers(
+  rows: FpfMatchPlayerRow[],
+  matchSeries?: Map<number, string | null>,
+): PlayerStatRow[] {
   const map = new Map<string, PlayerStatRow>();
 
   for (const r of rows) {
@@ -63,6 +68,7 @@ export function aggregatePlayers(rows: FpfMatchPlayerRow[]): PlayerStatRow[] {
         yellowCards: r.yellow_cards,
         redCards: r.red_cards,
         eskoutPlayerId: r.eskout_player_id,
+        seriesName: matchSeries?.get(r.match_id) ?? null,
       });
     }
   }

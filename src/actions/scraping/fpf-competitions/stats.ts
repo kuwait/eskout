@@ -61,15 +61,17 @@ export interface MatchDetailRow {
 async function fetchAllMatchPlayers(
   supabase: Awaited<ReturnType<typeof createClient>>,
   competitionId: number,
-): Promise<FpfMatchPlayerRow[]> {
-  // First get all match IDs for this competition
+): Promise<{ rows: FpfMatchPlayerRow[]; matchSeries: Map<number, string | null> }> {
+  // Fetch match IDs + series_name for this competition
   const { data: matches } = await supabase
     .from('fpf_matches')
-    .select('id')
+    .select('id, series_name')
     .eq('competition_id', competitionId);
 
-  if (!matches?.length) return [];
+  if (!matches?.length) return { rows: [], matchSeries: new Map() };
   const matchIds = matches.map((m: { id: number }) => m.id);
+  const matchSeries = new Map<number, string | null>();
+  for (const m of matches) matchSeries.set(m.id, (m as { id: number; series_name: string | null }).series_name);
 
   // Fetch players in pages
   const PAGE = 1000;
@@ -86,7 +88,7 @@ async function fetchAllMatchPlayers(
     if (data.length < PAGE) break;
   }
 
-  return allRows;
+  return { rows: allRows, matchSeries };
 }
 
 /* ───────────── Top Scorers ───────────── */
@@ -98,8 +100,8 @@ export async function getTopScorers(
   const supabase = await requireCompetitionAccess();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  const rows = await fetchAllMatchPlayers(supabase, competitionId);
-  const stats = aggregatePlayers(rows)
+  const { rows, matchSeries } = await fetchAllMatchPlayers(supabase, competitionId);
+  const stats = aggregatePlayers(rows, matchSeries)
     .filter((s) => s.goals > 0)
     .sort((a, b) => b.goals - a.goals || a.totalMinutes - b.totalMinutes)
     .slice(0, limit);
@@ -116,8 +118,8 @@ export async function getMostMinutes(
   const supabase = await requireCompetitionAccess();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  const rows = await fetchAllMatchPlayers(supabase, competitionId);
-  const stats = aggregatePlayers(rows)
+  const { rows, matchSeries } = await fetchAllMatchPlayers(supabase, competitionId);
+  const stats = aggregatePlayers(rows, matchSeries)
     .filter((s) => s.totalMinutes > 0)
     .sort((a, b) => b.totalMinutes - a.totalMinutes)
     .slice(0, limit);
@@ -134,8 +136,8 @@ export async function getMostCards(
   const supabase = await requireCompetitionAccess();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  const rows = await fetchAllMatchPlayers(supabase, competitionId);
-  const stats = aggregatePlayers(rows)
+  const { rows, matchSeries } = await fetchAllMatchPlayers(supabase, competitionId);
+  const stats = aggregatePlayers(rows, matchSeries)
     .filter((s) => s.yellowCards > 0 || s.redCards > 0)
     .sort((a, b) => {
       // Sort by total disciplinary points: red=3, yellow=1
@@ -268,7 +270,7 @@ export async function searchPlayer(
 
   if (!query || query.trim().length < 2) return { success: true, data: [] };
 
-  const rows = await fetchAllMatchPlayers(supabase, competitionId);
+  const { rows, matchSeries } = await fetchAllMatchPlayers(supabase, competitionId);
 
   // Filter by name (case-insensitive partial match)
   const q = query.toLowerCase().trim();
