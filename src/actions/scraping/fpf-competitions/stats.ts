@@ -283,6 +283,31 @@ export async function searchPlayer(
   return { success: true, data: stats };
 }
 
+/* ───────────── Competition Teams ───────────── */
+
+/** Get unique team names from a competition's match data */
+export async function getCompetitionTeams(
+  competitionId: number,
+): Promise<ActionResponse<string[]>> {
+  const supabase = await requireCompetitionAccess();
+  if (!supabase) return { success: false, error: 'Acesso negado' };
+
+  const { data: matches } = await supabase
+    .from('fpf_matches')
+    .select('home_team, away_team')
+    .eq('competition_id', competitionId);
+
+  if (!matches?.length) return { success: true, data: [] };
+
+  const teams = new Set<string>();
+  for (const m of matches) {
+    if (m.home_team) teams.add(m.home_team);
+    if (m.away_team) teams.add(m.away_team);
+  }
+
+  return { success: true, data: [...teams].sort() };
+}
+
 /* ───────────── Competition Matches ───────────── */
 
 /** Get all matches for a competition (for results/upcoming games view) */

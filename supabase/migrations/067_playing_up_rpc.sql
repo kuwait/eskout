@@ -25,6 +25,7 @@ RETURNS TABLE (
   eskout_player_id INT,
   is_in_eskout BOOLEAN,
   eskout_club TEXT,
+  phase_name TEXT,
   series_name TEXT,
   fpf_link TEXT,
   zerozero_link TEXT
@@ -54,6 +55,7 @@ BEGIN
       mp.fpf_player_id,
       mp.player_name,
       mp.team_name,
+      m.phase_name,
       m.series_name,
       -- Pick the eskout_player_id that appears most (non-null)
       (ARRAY_AGG(mp.eskout_player_id ORDER BY mp.eskout_player_id NULLS LAST) FILTER (WHERE mp.eskout_player_id IS NOT NULL))[1] AS eskout_player_id,
@@ -69,7 +71,7 @@ BEGIN
     JOIN fpf_matches m ON m.id = mp.match_id
     WHERE m.competition_id = p_competition_id
       AND mp.fpf_player_id IS NOT NULL
-    GROUP BY mp.fpf_player_id, mp.player_name, mp.team_name, m.series_name
+    GROUP BY mp.fpf_player_id, mp.player_name, mp.team_name, m.phase_name, m.series_name
   ),
   -- Join with players table to get DOB (strategy 1: eskout_player_id, strategy 2: fpf_player_id)
   with_dob AS (
@@ -106,6 +108,7 @@ BEGIN
     wd.resolved_eskout_id AS eskout_player_id,
     (wd.resolved_eskout_id IS NOT NULL) AS is_in_eskout,
     wd.eskout_club,
+    wd.phase_name,
     wd.series_name,
     wd.fpf_link,
     wd.zerozero_link

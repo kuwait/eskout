@@ -50,6 +50,8 @@ export interface PlayingUpPlayer {
   isInEskout: boolean;
   /** Player's current club in eskout (may differ from competition team if they transferred) */
   eskoutClub: string | null;
+  /** Phase name within the competition (e.g. "1.ª Fase") */
+  phaseName: string | null;
   /** Series/group name within the competition (e.g. "SÉRIE 01") */
   seriesName: string | null;
   /** FPF profile link from eskout player record */
@@ -103,6 +105,7 @@ export async function getPlayingUpPlayers(
     eskoutPlayerId: r.eskout_player_id as number | null,
     isInEskout: r.is_in_eskout as boolean,
     eskoutClub: r.eskout_club as string | null,
+    phaseName: r.phase_name as string | null,
     seriesName: r.series_name as string | null,
     fpfLink: r.fpf_link as string | null,
     zerozeroLink: r.zerozero_link as string | null,

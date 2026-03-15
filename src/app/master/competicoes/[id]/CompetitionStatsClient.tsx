@@ -25,6 +25,7 @@ import {
 } from '@/actions/scraping/fpf-competitions/link-players';
 import { decodeHtmlEntities } from '@/actions/scraping/helpers';
 import type { ActionResponse, FpfCompetitionRow, FpfMatchRow } from '@/lib/types';
+import { ImportClubsButton } from './ImportClubsDialog';
 
 /* ───────────── Types ───────────── */
 
@@ -101,7 +102,10 @@ export function CompetitionStatsClient({ competition }: { competition: FpfCompet
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-bold lg:text-xl">{competition.name}</h1>
+          <div className="flex items-start justify-between gap-2">
+            <h1 className="text-lg font-bold lg:text-xl">{competition.name}</h1>
+            <ImportClubsButton competitionId={competition.id} escalao={competition.escalao} />
+          </div>
           <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
             <span>{competition.season}</span>
             {competition.association_name && <span>{competition.association_name}</span>}
@@ -229,38 +233,50 @@ function PlayingUpTab({ competitionId }: { competitionId: number }) {
     });
   }, []);
 
-  /* Group players by series → team, sorted by team size desc, players by minutes desc */
-  const seriesGroups = useMemo(() => {
+  /* Group players by phase → series → team */
+  const phaseGroups = useMemo(() => {
     if (!data?.length) return [];
-    // Group by series first
-    const bySeries = new Map<string, PlayingUpPlayer[]>();
+    // Group by phase first
+    const byPhase = new Map<string, PlayingUpPlayer[]>();
     for (const p of data) {
-      const series = p.seriesName || 'Geral';
-      if (!bySeries.has(series)) bySeries.set(series, []);
-      bySeries.get(series)!.push(p);
+      const phase = p.phaseName || 'Geral';
+      if (!byPhase.has(phase)) byPhase.set(phase, []);
+      byPhase.get(phase)!.push(p);
     }
-    // For each series, group by team
-    return [...bySeries.entries()]
+    // For each phase, group by series, then team
+    return [...byPhase.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([series, players]) => {
-        const byTeam = new Map<string, PlayingUpPlayer[]>();
-        for (const p of players) {
-          const team = p.teamName;
-          if (!byTeam.has(team)) byTeam.set(team, []);
-          byTeam.get(team)!.push(p);
+      .map(([phase, phasePlayers]) => {
+        const bySeries = new Map<string, PlayingUpPlayer[]>();
+        for (const p of phasePlayers) {
+          const series = p.seriesName || 'Geral';
+          if (!bySeries.has(series)) bySeries.set(series, []);
+          bySeries.get(series)!.push(p);
         }
-        const teams = [...byTeam.entries()]
-          .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-          .map(([team, tp]) => ({
-            team: decodeHtmlEntities(team),
-            rawTeam: team,
-            players: tp.sort((a, b) => b.totalMinutes - a.totalMinutes),
-          }));
-        return { series, teams, totalPlayers: players.length };
+        const seriesGroups = [...bySeries.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([series, seriesPlayers]) => {
+            const byTeam = new Map<string, PlayingUpPlayer[]>();
+            for (const p of seriesPlayers) {
+              const team = p.teamName;
+              if (!byTeam.has(team)) byTeam.set(team, []);
+              byTeam.get(team)!.push(p);
+            }
+            const teams = [...byTeam.entries()]
+              .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+              .map(([team, tp]) => ({
+                team: decodeHtmlEntities(team),
+                rawTeam: team,
+                players: tp.sort((a, b) => b.totalMinutes - a.totalMinutes),
+              }));
+            return { series, teams, totalPlayers: seriesPlayers.length };
+          });
+        return { phase, seriesGroups, totalPlayers: phasePlayers.length };
       });
   }, [data]);
 
-  const hasSeries = seriesGroups.length > 1;
+  const hasPhases = phaseGroups.length > 1;
+  const hasSeries = phaseGroups.some((pg) => pg.seriesGroups.length > 1 || (pg.seriesGroups.length === 1 && pg.seriesGroups[0].series !== 'Geral'));
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
   if (!data?.length) return <EmptyState message="Nenhum jogador a jogar acima do escalão detetado." />;
@@ -269,141 +285,160 @@ function PlayingUpTab({ competitionId }: { competitionId: number }) {
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground mb-3">
         {data.length} jogadores a jogar acima do seu escalão
-        {hasSeries && ` — ${seriesGroups.length} séries`}
+        {hasPhases && ` — ${phaseGroups.length} fases`}
       </p>
 
-      {seriesGroups.map(({ series, teams, totalPlayers }) => (
-        <div key={series} className="space-y-1">
-          {/* Series header (only if multiple series) — collapsible */}
-          {hasSeries && (
-            <button
-              type="button"
-              onClick={() => toggle(`series:${series}`)}
-              className="flex items-center gap-1.5 pt-3 pb-1 border-b border-purple-200 w-full text-left"
-            >
-              {expanded.has(`series:${series}`) ? <ChevronDown className="h-4 w-4 text-purple-500" /> : <ChevronRight className="h-4 w-4 text-purple-500" />}
-              <h2 className="text-sm font-bold text-purple-700">{series}</h2>
-              <span className="text-xs text-muted-foreground">{totalPlayers} jogadores em {teams.length} equipas</span>
-            </button>
-          )}
+      {phaseGroups.map(({ phase, seriesGroups, totalPlayers: phaseTotalPlayers }) => {
+        const phaseKey = `phase:${phase}`;
+        const phaseOpen = !hasPhases || expanded.has(phaseKey);
+        const showSeriesHeaders = seriesGroups.length > 1 || (seriesGroups.length === 1 && seriesGroups[0].series !== 'Geral');
 
-          {/* Desktop — single table with collapsible team group headers */}
-          {(!hasSeries || expanded.has(`series:${series}`)) && (
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 pr-3 font-medium">Jogador</th>
-                  <th className="pb-2 pr-3 font-medium text-center">Ano</th>
-                  <th className="pb-2 pr-3 font-medium text-center">Escalão Natural</th>
-                  <th className="pb-2 pr-3 font-medium text-center">+Anos</th>
-                  <th className="pb-2 pr-3 font-medium text-right">J</th>
-                  <th className="pb-2 pr-3 font-medium text-right">Min</th>
-                  <th className="pb-2 pr-3 font-medium text-right">G</th>
-                  <th className="pb-2 font-medium text-right">AM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map(({ team, rawTeam, players }) => {
-                  const teamKey = `team:${series}:${rawTeam}`;
-                  const isOpen = expanded.has(teamKey);
-                  return (
-                    <Fragment key={`group-${teamKey}`}>
-                      <tr
-                        className="cursor-pointer select-none hover:bg-muted/30"
-                        onClick={() => toggle(teamKey)}
-                      >
-                        <td colSpan={8} className="pt-4 pb-1.5">
-                          <span className="inline-flex items-center gap-1">
-                            {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                            <span className="text-sm font-semibold">{team}</span>
-                            <span className="text-xs text-muted-foreground">{players.length}</span>
-                          </span>
-                        </td>
-                      </tr>
-                      {isOpen && players.map((p, i) => (
-                        <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="py-1.5 pr-3">
-                            <span className="flex items-center gap-1">
-                              <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
-                              <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
-                            </span>
-                            <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
-                          </td>
-                          <td className="py-1.5 pr-3 text-center">{p.birthYear}</td>
-                          <td className="py-1.5 pr-3 text-center">{p.naturalEscalao ?? '?'}</td>
-                          <td className="py-1.5 pr-3 text-center">
-                            <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-                              +{p.yearsAbove}
-                            </span>
-                          </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums font-medium">{p.totalMinutes}&apos;</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{p.goals || ''}</td>
-                          <td className="py-1.5 text-right tabular-nums">{p.yellowCards || ''}</td>
-                        </tr>
-                      ))}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          )}
+        return (
+          <div key={phase} className="space-y-1">
+            {/* Phase header (only if multiple phases) */}
+            {hasPhases && (
+              <button
+                type="button"
+                onClick={() => toggle(phaseKey)}
+                className="flex items-center gap-1.5 pt-3 pb-1 border-b-2 border-foreground/20 w-full text-left"
+              >
+                {phaseOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <h2 className="text-sm font-bold">{phase}</h2>
+                <span className="text-xs text-muted-foreground">{phaseTotalPlayers} jogadores</span>
+              </button>
+            )}
 
-          {/* Mobile — grouped by team, collapsible */}
-          {(!hasSeries || expanded.has(`series:${series}`)) && (
-          <div className="space-y-3 sm:hidden">
-            {teams.map(({ team, rawTeam, players }) => {
-              const teamKey = `team:${series}:${rawTeam}`;
-              const isOpen = expanded.has(teamKey);
+            {phaseOpen && seriesGroups.map(({ series, teams, totalPlayers }) => {
+              const seriesKey = `series:${phase}:${series}`;
+              const seriesOpen = !showSeriesHeaders || expanded.has(seriesKey);
+
               return (
-                <div key={team}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(teamKey)}
-                    className="flex items-center gap-1.5 mb-1.5 w-full text-left"
-                  >
-                    {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                    <h3 className="text-sm font-semibold">{team}</h3>
-                    <span className="text-[11px] text-muted-foreground">{players.length}</span>
-                  </button>
-                  {isOpen && (
-                    <div className="space-y-2">
-                      {players.map((p, i) => (
-                        <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="rounded-lg border p-3 space-y-1">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="flex items-center gap-1">
-                                <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
-                                <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
-                              </span>
-                              <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
+                <div key={seriesKey} className="space-y-1">
+                  {/* Series header */}
+                  {showSeriesHeaders && (
+                    <button
+                      type="button"
+                      onClick={() => toggle(seriesKey)}
+                      className="flex items-center gap-1.5 pt-2 pb-1 border-b border-purple-200 w-full text-left ml-2"
+                    >
+                      {seriesOpen ? <ChevronDown className="h-3.5 w-3.5 text-purple-500" /> : <ChevronRight className="h-3.5 w-3.5 text-purple-500" />}
+                      <span className="text-sm font-bold text-purple-700">{series}</span>
+                      <span className="text-xs text-muted-foreground">{totalPlayers} jogadores em {teams.length} equipas</span>
+                    </button>
+                  )}
+
+                  {/* Desktop table */}
+                  {seriesOpen && (
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="pb-2 pr-3 font-medium">Jogador</th>
+                          <th className="pb-2 pr-3 font-medium text-center">Ano</th>
+                          <th className="pb-2 pr-3 font-medium text-center">Escalão Natural</th>
+                          <th className="pb-2 pr-3 font-medium text-center">+Anos</th>
+                          <th className="pb-2 pr-3 font-medium text-right">J</th>
+                          <th className="pb-2 pr-3 font-medium text-right">Min</th>
+                          <th className="pb-2 pr-3 font-medium text-right">G</th>
+                          <th className="pb-2 font-medium text-right">AM</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teams.map(({ team, rawTeam, players }) => {
+                          const teamKey = `team:${phase}:${series}:${rawTeam}`;
+                          const isOpen = expanded.has(teamKey);
+                          return (
+                            <Fragment key={`group-${teamKey}`}>
+                              <tr className="cursor-pointer select-none hover:bg-muted/30" onClick={() => toggle(teamKey)}>
+                                <td colSpan={8} className="pt-4 pb-1.5">
+                                  <span className="inline-flex items-center gap-1">
+                                    {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                                    <span className="text-sm font-semibold">{team}</span>
+                                    <span className="text-xs text-muted-foreground">{players.length}</span>
+                                  </span>
+                                </td>
+                              </tr>
+                              {isOpen && players.map((p, i) => (
+                                <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
+                                  <td className="py-1.5 pr-3">
+                                    <span className="flex items-center gap-1">
+                                      <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
+                                      <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
+                                    </span>
+                                    <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
+                                  </td>
+                                  <td className="py-1.5 pr-3 text-center">{p.birthYear}</td>
+                                  <td className="py-1.5 pr-3 text-center">{p.naturalEscalao ?? '?'}</td>
+                                  <td className="py-1.5 pr-3 text-center">
+                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">+{p.yearsAbove}</span>
+                                  </td>
+                                  <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
+                                  <td className="py-1.5 pr-3 text-right tabular-nums font-medium">{p.totalMinutes}&apos;</td>
+                                  <td className="py-1.5 pr-3 text-right tabular-nums">{p.goals || ''}</td>
+                                  <td className="py-1.5 text-right tabular-nums">{p.yellowCards || ''}</td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  )}
+
+                  {/* Mobile */}
+                  {seriesOpen && (
+                  <div className="space-y-3 sm:hidden">
+                    {teams.map(({ team, rawTeam, players }) => {
+                      const teamKey = `team:${phase}:${series}:${rawTeam}`;
+                      const isOpen = expanded.has(teamKey);
+                      return (
+                        <div key={team}>
+                          <button type="button" onClick={() => toggle(teamKey)} className="flex items-center gap-1.5 mb-1.5 w-full text-left">
+                            {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                            <h3 className="text-sm font-semibold">{team}</h3>
+                            <span className="text-[11px] text-muted-foreground">{players.length}</span>
+                          </button>
+                          {isOpen && (
+                            <div className="space-y-2">
+                              {players.map((p, i) => (
+                                <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="rounded-lg border p-3 space-y-1">
+                                  <div className="flex items-start justify-between">
+                                    <div>
+                                      <span className="flex items-center gap-1">
+                                        <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
+                                        <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
+                                      </span>
+                                      <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
+                                    </div>
+                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                                      +{p.yearsAbove} {p.yearsAbove > 1 ? 'anos' : 'ano'}
+                                    </span>
+                                  </div>
+                                  <div className="flex gap-4 text-[11px] text-muted-foreground">
+                                    <span>Nasc. {p.birthYear}</span>
+                                    <span>Natural: {p.naturalEscalao ?? '?'}</span>
+                                  </div>
+                                  <div className="flex gap-4 text-xs">
+                                    <span><strong>{p.totalGames}</strong> jogos</span>
+                                    <span><strong>{p.totalMinutes}&apos;</strong></span>
+                                    {p.goals > 0 && <span><strong>{p.goals}</strong> golos</span>}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-                              +{p.yearsAbove} {p.yearsAbove > 1 ? 'anos' : 'ano'}
-                            </span>
-                          </div>
-                          <div className="flex gap-4 text-[11px] text-muted-foreground">
-                            <span>Nasc. {p.birthYear}</span>
-                            <span>Natural: {p.naturalEscalao ?? '?'}</span>
-                          </div>
-                          <div className="flex gap-4 text-xs">
-                            <span><strong>{p.totalGames}</strong> jogos</span>
-                            <span><strong>{p.totalMinutes}&apos;</strong></span>
-                            {p.goals > 0 && <span><strong>{p.goals}</strong> golos</span>}
-                          </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })}
+                  </div>
                   )}
                 </div>
               );
             })}
           </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
