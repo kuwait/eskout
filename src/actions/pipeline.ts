@@ -11,6 +11,7 @@ import { getActiveClub } from '@/lib/supabase/club-context';
 import { recruitmentStatusChangeSchema, decisionSideSchema } from '@/lib/validators';
 import type { ActionResponse, DecisionSide, RecruitmentStatus } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
+import { notifyTaskAssigned } from '@/actions/notifications';
 
 /* ───────────── Auto-task helper ───────────── */
 
@@ -153,7 +154,7 @@ export async function updateRecruitmentStatus(
     }
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, club } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar estado de recrutamento' };
   }
@@ -162,10 +163,18 @@ export async function updateRecruitmentStatus(
   // Get current status and date fields for richer history context
   const { data: player } = await supabase
     .from('players')
-    .select('name, recruitment_status, training_date, meeting_date, signing_date, contact_assigned_to, meeting_attendees, signing_attendees')
+    .select('name, club, contact, recruitment_status, training_date, training_escalao, meeting_date, signing_date, contact_assigned_to, meeting_attendees, signing_attendees')
     .eq('id', playerId)
     .eq('club_id', clubId)
     .single();
+
+  // Fetch assigner name for email notifications
+  const { data: assignerProfile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .single();
+  const assignerName = assignerProfile?.full_name ?? 'Eskout';
 
   const oldStatus = player?.recruitment_status ?? null;
 
@@ -253,36 +262,61 @@ export async function updateRecruitmentStatus(
     }
   }
 
-  // Auto-create tasks for the new status
+  // Auto-create tasks for the new status + send email notifications
   const playerName = player?.name ?? `Jogador #${playerId}`;
+  const playerClub = player?.club ?? null;
+  const playerContact = player?.contact ?? null;
+
+  // Shared notification context builder
+  const notifyCtx = (targetUserId: string, taskTitle: string, taskSource: string, extra?: Partial<Parameters<typeof notifyTaskAssigned>[0]>) => {
+    // Fire-and-forget — don't await
+    notifyTaskAssigned({
+      clubId, clubName: club.name,
+      assignedByUserId: userId, assignedByName: assignerName,
+      targetUserId, taskTitle, taskSource,
+      playerName, playerClub, playerContact,
+      contactPurpose: null, dueDate: null, trainingEscalao: null,
+      ...extra,
+    });
+  };
+
   // Use the newly assigned person (from dialog) or fall back to existing assignment
   const effectiveAssignedTo = contactAssignedTo ?? player?.contact_assigned_to ?? null;
   if (newStatus === 'em_contacto' && effectiveAssignedTo) {
     // Resolve contact purpose label for task title
-    let purposeSuffix = '';
+    let purposeLabel = '';
     if (contactPurposeCustom) {
-      purposeSuffix = ` — ${contactPurposeCustom}`;
+      purposeLabel = contactPurposeCustom;
     } else if (contactPurposeId) {
       const { data: purposeRow } = await supabase
         .from('contact_purposes')
         .select('label')
         .eq('id', contactPurposeId)
         .single();
-      if (purposeRow?.label) purposeSuffix = ` — ${purposeRow.label}`;
+      if (purposeRow?.label) purposeLabel = purposeRow.label;
     }
-    await upsertAutoTask(supabase, clubId, effectiveAssignedTo, playerId, `📞 Contactar ${playerName}${purposeSuffix}`, 'pipeline_contact');
+    const purposeSuffix = purposeLabel ? ` — ${purposeLabel}` : '';
+    const taskTitle = `📞 Contactar ${playerName}${purposeSuffix}`;
+    await upsertAutoTask(supabase, clubId, effectiveAssignedTo, playerId, taskTitle, 'pipeline_contact');
+    notifyCtx(effectiveAssignedTo, taskTitle, 'pipeline_contact', { contactPurpose: purposeLabel || null });
   }
   if (newStatus === 'reuniao_marcada' && player?.meeting_attendees?.length) {
+    const taskTitle = `🤝 Reunião — ${playerName}`;
     for (const attendeeId of player.meeting_attendees) {
-      await upsertAutoTask(supabase, clubId, attendeeId, playerId, `🤝 Reunião — ${playerName}`, 'pipeline_meeting', player.meeting_date);
+      await upsertAutoTask(supabase, clubId, attendeeId, playerId, taskTitle, 'pipeline_meeting', player.meeting_date);
+      notifyCtx(attendeeId, taskTitle, 'pipeline_meeting', { dueDate: player.meeting_date });
     }
   }
   if (newStatus === 'vir_treinar' && player?.contact_assigned_to) {
-    await upsertAutoTask(supabase, clubId, player.contact_assigned_to, playerId, '⚽ Registar feedback do treino', 'pipeline_training', player.training_date);
+    const taskTitle = `⚽ Registar feedback do treino`;
+    await upsertAutoTask(supabase, clubId, player.contact_assigned_to, playerId, taskTitle, 'pipeline_training', player.training_date);
+    notifyCtx(player.contact_assigned_to, taskTitle, 'pipeline_training', { dueDate: player.training_date, trainingEscalao: player.training_escalao ?? null });
   }
   if (newStatus === 'confirmado' && player?.signing_attendees?.length) {
+    const taskTitle = `✍️ Assinatura — ${playerName}`;
     for (const attendeeId of player.signing_attendees) {
-      await upsertAutoTask(supabase, clubId, attendeeId, playerId, `✍️ Assinatura — ${playerName}`, 'pipeline_signing', player.signing_date);
+      await upsertAutoTask(supabase, clubId, attendeeId, playerId, taskTitle, 'pipeline_signing', player.signing_date);
+      notifyCtx(attendeeId, taskTitle, 'pipeline_signing', { dueDate: player.signing_date });
     }
   }
 

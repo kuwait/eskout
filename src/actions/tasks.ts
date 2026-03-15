@@ -11,6 +11,7 @@ import { getActiveClub } from '@/lib/supabase/club-context';
 import { mapUserTaskRow } from '@/lib/supabase/mappers';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 import type { ActionResponse, UserTask } from '@/lib/types';
+import { notifyTaskAssigned } from '@/actions/notifications';
 
 /* ───────────── Queries ───────────── */
 
@@ -92,6 +93,47 @@ export async function createTask(
 
   revalidatePath('/tarefas');
   await broadcastRowMutation(clubId, 'user_tasks', 'INSERT', userId, data.id);
+
+  // Send email notification when task is assigned to another user
+  if (targetUser !== userId) {
+    // Fetch assigner name and club name for email
+    const [{ data: assignerProfile }, { data: clubData }] = await Promise.all([
+      supabase.from('profiles').select('full_name').eq('id', userId).single(),
+      supabase.from('clubs').select('name').eq('id', clubId).single(),
+    ]);
+
+    // Fetch player name if task is linked to a player
+    let playerName: string | null = null;
+    let playerClub: string | null = null;
+    let playerContact: string | null = null;
+    if (opts?.playerId) {
+      const { data: playerData } = await supabase
+        .from('players')
+        .select('name, club, contact')
+        .eq('id', opts.playerId)
+        .single();
+      playerName = playerData?.name ?? null;
+      playerClub = playerData?.club ?? null;
+      playerContact = playerData?.contact ?? null;
+    }
+
+    // Fire-and-forget
+    notifyTaskAssigned({
+      clubId,
+      clubName: clubData?.name ?? 'Eskout',
+      assignedByUserId: userId,
+      assignedByName: assignerProfile?.full_name ?? 'Eskout',
+      targetUserId: targetUser,
+      taskTitle: title.trim(),
+      taskSource: 'manual',
+      playerName,
+      playerClub,
+      playerContact,
+      contactPurpose: null,
+      dueDate: opts?.dueDate ?? null,
+      trainingEscalao: null,
+    });
+  }
 
   return { success: true, data: { id: data.id } };
 }
