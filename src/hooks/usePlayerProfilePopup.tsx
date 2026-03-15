@@ -60,7 +60,7 @@ export function usePlayerProfilePopup(allPlayers: Player[]) {
 
     supabase
       .from('status_history')
-      .select('*, profiles:changed_by(full_name)')
+      .select('*, profiles:changed_by(full_name), contact_purposes(label)')
       .eq('player_id', state.playerId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -76,6 +76,9 @@ export function usePlayerProfilePopup(allPlayers: Player[]) {
             changedByName: (row.profiles as { full_name: string } | null)?.full_name ?? 'Sistema',
             notes: row.notes as string | null,
             createdAt: row.created_at as string,
+            contactPurposeId: (row.contact_purpose_id as string) ?? null,
+            contactPurposeCustom: (row.contact_purpose_custom as string) ?? null,
+            contactPurposeLabel: (row.contact_purposes as unknown as { label: string } | null)?.label ?? undefined,
           })),
         }));
       });

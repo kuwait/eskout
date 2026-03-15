@@ -669,7 +669,21 @@ CREATE TABLE status_history (
   old_value TEXT, new_value TEXT,
   changed_by UUID REFERENCES auth.users(id),
   notes TEXT,
+  contact_purpose_id UUID REFERENCES contact_purposes(id) ON DELETE SET NULL,
+  contact_purpose_custom TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
+-- TABLE: contact_purposes (per-club options for em_contacto purpose)
+-- ============================================
+CREATE TABLE contact_purposes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_archived BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- ============================================

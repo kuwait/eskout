@@ -306,6 +306,25 @@ export interface ScoutingReportRow {
   created_at: string;
 }
 
+/* ───────────── Contact Purposes ───────────── */
+
+export interface ContactPurpose {
+  id: string;
+  clubId: string;
+  label: string;
+  sortOrder: number;
+  isArchived: boolean;
+}
+
+export interface ContactPurposeRow {
+  id: string;
+  club_id: string;
+  label: string;
+  sort_order: number;
+  is_archived: boolean;
+  created_at: string;
+}
+
 /* ───────────── Status History ───────────── */
 
 export interface StatusHistoryEntry {
@@ -318,6 +337,12 @@ export interface StatusHistoryEntry {
   changedByName: string;
   notes: string | null;
   createdAt: string;
+  /** Contact purpose ID (structured option from contact_purposes table) */
+  contactPurposeId: string | null;
+  /** Free-text purpose when "Outro" was selected */
+  contactPurposeCustom: string | null;
+  /** Resolved label from contact_purposes join (not stored, computed) */
+  contactPurposeLabel?: string;
 }
 
 /* ───────────── Observation Notes ───────────── */

@@ -5,9 +5,11 @@
 
 import type {
   CalendarEventRow,
+  ContactPurpose,
   Player,
   PlayerRow,
   ScoutingReportRow,
+  StatusHistoryEntry,
   TrainingFeedbackRow,
   UserTaskRow,
 } from '@/lib/types';
@@ -286,6 +288,38 @@ export function makeUserTaskRow(overrides?: Partial<UserTaskRow>): UserTaskRow {
       meeting_attendees: ['user-111', 'user-222'],
       signing_attendees: ['user-333', 'user-444'],
     },
+    ...overrides,
+  };
+}
+
+/* ───────────── ContactPurpose (domain) ───────────── */
+
+export function makeContactPurpose(overrides?: Partial<ContactPurpose>): ContactPurpose {
+  return {
+    id: 'cp-uuid-001',
+    clubId: 'club-abc',
+    label: 'Vir Treinar',
+    sortOrder: 1,
+    isArchived: false,
+    ...overrides,
+  };
+}
+
+/* ───────────── StatusHistoryEntry (domain) ───────────── */
+
+export function makeStatusHistoryEntry(overrides?: Partial<StatusHistoryEntry>): StatusHistoryEntry {
+  return {
+    id: 1,
+    playerId: 42,
+    fieldChanged: 'recruitment_status',
+    oldValue: 'por_tratar',
+    newValue: 'em_contacto',
+    changedBy: 'user-abc',
+    changedByName: 'Carlos Lopes',
+    notes: null,
+    createdAt: '2026-03-15T10:00:00Z',
+    contactPurposeId: null,
+    contactPurposeCustom: null,
     ...overrides,
   };
 }

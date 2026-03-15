@@ -212,6 +212,17 @@ Both sub-sections are always visible with a dashed separator. DnD between sub-se
 
 Every status change logged.
 
+### Contact Purpose (Objetivo do Contacto)
+
+When moving a player to `em_contacto`, a confirmation dialog appears requiring the user to select a **contact purpose** — the reason for the call/interaction. Options are stored per club in the `contact_purposes` table and managed at `/admin/objetivos-contacto`.
+
+- **Required field** — must select a purpose before confirming the move
+- **Default options** (seeded per club): Vir Treinar, Nova reunião, Tirar dúvidas, Proposta / Assinar, Pedir informações, Conseguir resposta, Follow-up, Apresentar o clube, Conhecer o jogador / família, Negociar condições, Confirmar disponibilidade, Marcar treino, Pedir documentação, Renovar interesse, Agradecer, Confirmar presença
+- **"Outro"** — hardcoded escape option with free-text field (max 50 chars), always at the bottom, not editable by admin
+- **Stored on `status_history`** as `contact_purpose_id` (FK) + `contact_purpose_custom` (free text)
+- **Displayed on**: em_contacto pipeline cards (small badge), player profile timeline (tag next to status change), auto-task title
+- **Admin page** (`/admin/objetivos-contacto`): drag-to-reorder, inline edit, add new, delete with usage check (archive if used, hard delete if unused), restore archived
+
 **Auto-tasks:** Pipeline status changes automatically create and complete tasks for assigned users (see Section 28).
 
 ## 8. Position View

@@ -119,7 +119,9 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
 
   switch (fieldChanged) {
     /* ── Recruitment status ── */
-    case 'recruitment_status':
+    case 'recruitment_status': {
+      // Resolve contact purpose label for display
+      const purposeLabel = e.contactPurposeLabel ?? e.contactPurposeCustom ?? null;
       return {
         icon: <ArrowRightLeft className={IC} />,
         iconBg: 'bg-blue-50 text-blue-600',
@@ -133,10 +135,16 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
             <span className={`inline-block rounded-full px-2 py-px text-[11px] font-medium ${recruitBadgeClass(newValue)}`}>
               {recruitLabel(newValue)}
             </span>
+            {purposeLabel && (
+              <span className="inline-block rounded bg-blue-50 px-1.5 py-px text-[10px] font-medium text-blue-700">
+                {purposeLabel}
+              </span>
+            )}
             {notes && <span className="text-xs text-muted-foreground">— {notes}</span>}
           </div>
         ),
       };
+    }
 
     /* ── Shadow squad ── */
     case 'is_shadow_squad': {

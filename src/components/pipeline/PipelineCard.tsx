@@ -42,6 +42,8 @@ interface PipelineCardProps {
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
   /** Change decision side within a_decidir column */
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
+  /** Contact purpose label for em_contacto cards */
+  contactPurposeLabel?: string;
 }
 
 /** Format a date string to a compact Portuguese display */
@@ -95,7 +97,7 @@ import { shortName } from '@/lib/utils';
 // Re-export for consumers that imported from here
 export { shortName } from '@/lib/utils';
 
-export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange }: PipelineCardProps) {
+export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
   // Short name on pipeline cards — full name truncated via CSS
@@ -244,6 +246,13 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
         {/* Contact assignment — shown on "Em contacto" */}
         {player.recruitmentStatus === 'em_contacto' && (
           <ContactAssignButton player={player} clubMembers={clubMembers} />
+        )}
+
+        {/* Contact purpose — shown on "Em contacto" cards when available */}
+        {player.recruitmentStatus === 'em_contacto' && contactPurposeLabel && (
+          <div className="mt-1 line-clamp-2 rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+            {contactPurposeLabel}
+          </div>
         )}
 
         {/* Vir treinar: responsible person + escalão */}

@@ -141,6 +141,7 @@ describe('filterAdminItems', () => {
     expect(hrefs(items)).toContain('/exportar');
     expect(hrefs(items)).toContain('/admin/utilizadores');
     expect(hrefs(items)).toContain('/admin/dados');
+    expect(hrefs(items)).toContain('/admin/objetivos-contacto');
   });
 
   it('hides reports when scouting_reports disabled', () => {
@@ -151,5 +152,10 @@ describe('filterAdminItems', () => {
   it('hides export when export disabled', () => {
     const items = filterAdminItems({ export: false });
     expect(hrefs(items)).not.toContain('/exportar');
+  });
+
+  it('hides objetivos contacto when pipeline disabled', () => {
+    const items = filterAdminItems({ pipeline: false });
+    expect(hrefs(items)).not.toContain('/admin/objetivos-contacto');
   });
 });

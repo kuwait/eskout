@@ -127,7 +127,7 @@ export async function getStatusHistory(playerId: number): Promise<StatusHistoryE
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('status_history')
-    .select('*')
+    .select('*, contact_purposes(label)')
     .eq('player_id', playerId)
     .order('created_at', { ascending: false });
 
@@ -159,6 +159,10 @@ export async function getStatusHistory(playerId: number): Promise<StatusHistoryE
     changedByName: (row.changed_by && profileMap[row.changed_by]) || 'Sistema',
     notes: row.notes,
     createdAt: row.created_at,
+    contactPurposeId: row.contact_purpose_id ?? null,
+    contactPurposeCustom: row.contact_purpose_custom ?? null,
+    // Resolved label from join — contact_purposes is a single FK join (object, not array)
+    contactPurposeLabel: (row.contact_purposes as { label: string } | null)?.label ?? undefined,
   }));
 }
 

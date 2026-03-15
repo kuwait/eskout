@@ -137,7 +137,13 @@ async function syncCalendarEvent(
 export async function updateRecruitmentStatus(
   playerId: number,
   newStatus: RecruitmentStatus | null,
-  note?: string
+  note?: string,
+  /** Contact purpose ID when moving to em_contacto (from contact_purposes table) */
+  contactPurposeId?: string | null,
+  /** Free-text contact purpose when "Outro" is selected */
+  contactPurposeCustom?: string | null,
+  /** Assign contact responsibility when moving to em_contacto */
+  contactAssignedTo?: string | null,
 ): Promise<ActionResponse> {
   // Validate only when setting a status (null means removing from abordagens)
   if (newStatus) {
@@ -170,6 +176,10 @@ export async function updateRecruitmentStatus(
 
   // Auto-clear date fields and context fields when leaving their respective statuses
   const updatePayload: Record<string, unknown> = { recruitment_status: newStatus };
+  // Set contact_assigned_to when moving to em_contacto with an assigned person
+  if (newStatus === 'em_contacto' && contactAssignedTo !== undefined) {
+    updatePayload.contact_assigned_to = contactAssignedTo;
+  }
   // Auto-set decision_side when entering a_decidir, auto-clear when leaving
   if (newStatus === 'a_decidir') {
     updatePayload.decision_side = 'club';
@@ -210,7 +220,7 @@ export async function updateRecruitmentStatus(
     await syncCalendarEvent(supabase, clubId, userId, playerId, 'signing_date', null);
   }
 
-  // Log to status_history
+  // Log to status_history (include contact purpose when moving to em_contacto)
   await supabase.from('status_history').insert({
     club_id: clubId,
     player_id: playerId,
@@ -219,6 +229,8 @@ export async function updateRecruitmentStatus(
     new_value: newStatus,
     changed_by: userId,
     notes: note ?? null,
+    contact_purpose_id: newStatus === 'em_contacto' ? (contactPurposeId ?? null) : null,
+    contact_purpose_custom: newStatus === 'em_contacto' ? (contactPurposeCustom ?? null) : null,
   });
 
   // Auto-complete tasks from the old status
@@ -243,8 +255,22 @@ export async function updateRecruitmentStatus(
 
   // Auto-create tasks for the new status
   const playerName = player?.name ?? `Jogador #${playerId}`;
-  if (newStatus === 'em_contacto' && player?.contact_assigned_to) {
-    await upsertAutoTask(supabase, clubId, player.contact_assigned_to, playerId, `📞 Contactar ${playerName}`, 'pipeline_contact');
+  // Use the newly assigned person (from dialog) or fall back to existing assignment
+  const effectiveAssignedTo = contactAssignedTo ?? player?.contact_assigned_to ?? null;
+  if (newStatus === 'em_contacto' && effectiveAssignedTo) {
+    // Resolve contact purpose label for task title
+    let purposeSuffix = '';
+    if (contactPurposeCustom) {
+      purposeSuffix = ` — ${contactPurposeCustom}`;
+    } else if (contactPurposeId) {
+      const { data: purposeRow } = await supabase
+        .from('contact_purposes')
+        .select('label')
+        .eq('id', contactPurposeId)
+        .single();
+      if (purposeRow?.label) purposeSuffix = ` — ${purposeRow.label}`;
+    }
+    await upsertAutoTask(supabase, clubId, effectiveAssignedTo, playerId, `📞 Contactar ${playerName}${purposeSuffix}`, 'pipeline_contact');
   }
   if (newStatus === 'reuniao_marcada' && player?.meeting_attendees?.length) {
     for (const attendeeId of player.meeting_attendees) {

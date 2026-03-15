@@ -79,6 +79,8 @@ interface KanbanBoardProps {
   clubMembers?: { id: string; fullName: string }[];
   /** Change decision side within a_decidir column */
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
+  /** Map of playerId -> last contact purpose label for em_contacto cards */
+  contactPurposeMap?: Record<number, string>;
 }
 
 /* ───────────── Component ───────────── */
@@ -102,7 +104,7 @@ const MEASURING_CONFIG = {
   droppable: { strategy: MeasuringStrategy.Always as const },
 };
 
-export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [], onDecisionSideChange }: KanbanBoardProps) {
+export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [], onDecisionSideChange, contactPurposeMap = {} }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(DEFAULT_ORDER);
@@ -412,6 +414,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
             players={playersByStatus[status] ?? []}
             showBirthYear={showBirthYear}
             clubMembers={clubMembers}
+            contactPurposeMap={contactPurposeMap}
             onPlayerClick={onPlayerClick}
             onRemove={onRemove}
             onDateChange={onDateChange}
@@ -445,6 +448,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
                 players={displayByStatus[status] ?? []}
                 showBirthYear={showBirthYear}
                 clubMembers={clubMembers}
+                contactPurposeMap={contactPurposeMap}
                 onPlayerClick={onPlayerClick}
                 onRemove={onRemove}
                 onDateChange={onDateChange}

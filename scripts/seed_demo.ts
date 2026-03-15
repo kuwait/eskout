@@ -267,8 +267,14 @@ async function main() {
   await supabase.from('observation_notes').delete().eq('club_id', clubId);
   await supabase.from('status_history').delete().eq('club_id', clubId);
   await supabase.from('calendar_events').delete().eq('club_id', clubId);
+  await supabase.from('contact_purposes').delete().eq('club_id', clubId);
   await supabase.from('players').delete().eq('club_id', clubId);
   console.log('  Cleaned up');
+
+  // ── 6b. Seed contact purposes (uses SQL function) ──
+  console.log('\n6b. Seeding contact purposes...');
+  await supabase.rpc('seed_contact_purposes', { p_club_id: clubId });
+  console.log('  Done');
 
   // ── 7. Insert players per age group ──
   console.log('\n7. Inserting players...');

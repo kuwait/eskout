@@ -33,7 +33,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import type { DecisionSide, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
+import { StatusChangeDialog } from '@/components/pipeline/StatusChangeDialog';
+import type { ContactPurpose, DecisionSide, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
 export function PipelineView({ clubId }: { clubId: string }) {
   const router = useRouter();
@@ -42,6 +43,10 @@ export function PipelineView({ clubId }: { clubId: string }) {
   const [, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clubMembers, setClubMembers] = useState<{ id: string; fullName: string }[]>([]);
+  const [contactPurposes, setContactPurposes] = useState<ContactPurpose[]>([]);
+  // StatusChangeDialog state — shown when moving to em_contacto
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ playerId: number; playerName: string } | null>(null);
   // Show birth year on cards when viewing all age groups
   const showBirthYear = selectedId === null;
 
@@ -51,6 +56,9 @@ export function PipelineView({ clubId }: { clubId: string }) {
   }
 
   /* ───────────── Fetch ───────────── */
+
+  // Map of playerId -> last contact purpose label (for em_contacto cards)
+  const [contactPurposeMap, setContactPurposeMap] = useState<Record<number, string>>({});
 
   // Fetch only players with recruitment_status (in the pipeline) — fast, ~100-200 rows
   const fetchPipelinePlayers = useCallback(async () => {
@@ -67,8 +75,44 @@ export function PipelineView({ clubId }: { clubId: string }) {
       if (data.length < PAGE) break;
       offset += PAGE;
     }
+    const mapped = all.map(mapPlayerRow);
+
+    // Fetch latest contact purpose for em_contacto players
+    const emContactoIds = mapped
+      .filter((p) => p.recruitmentStatus === 'em_contacto')
+      .map((p) => p.id);
+
+    if (emContactoIds.length > 0) {
+      // Get latest status_history entry with contact purpose (structured or custom) for each em_contacto player
+      const { data: historyRows } = await supabase
+        .from('status_history')
+        .select('player_id, contact_purpose_id, contact_purpose_custom, contact_purposes(label)')
+        .in('player_id', emContactoIds)
+        .eq('field_changed', 'recruitment_status')
+        .eq('new_value', 'em_contacto')
+        .or('contact_purpose_id.not.is.null,contact_purpose_custom.not.is.null')
+        .order('created_at', { ascending: false });
+
+      // Build map: use first (most recent) entry per player
+      const purposeMap: Record<number, string> = {};
+      for (const row of historyRows ?? []) {
+        if (purposeMap[row.player_id]) continue; // already have the most recent
+        // contact_purposes is a FK join — Supabase returns object (not array)
+        const cpJoin = row.contact_purposes as unknown as { label: string } | null;
+        // Custom text takes precedence when contact_purpose_id is null (i.e., "Outro" was selected)
+        const label = row.contact_purpose_id
+          ? (cpJoin?.label ?? null)
+          : (row.contact_purpose_custom ?? null);
+        if (label) purposeMap[row.player_id] = label;
+      }
+
+      startTransition(() => { setContactPurposeMap(purposeMap); });
+    } else {
+      startTransition(() => { setContactPurposeMap({}); });
+    }
+
     startTransition(() => {
-      setPipelinePlayers(all.map(mapPlayerRow));
+      setPipelinePlayers(mapped);
     });
   }, [selectedId, clubId]);
 
@@ -80,6 +124,13 @@ export function PipelineView({ clubId }: { clubId: string }) {
   useEffect(() => {
     import('@/actions/users').then(({ getClubMembers }) =>
       getClubMembers().then((members) => setClubMembers(members))
+    );
+  }, []);
+
+  // Fetch contact purposes for the StatusChangeDialog
+  useEffect(() => {
+    import('@/actions/contact-purposes').then(({ getContactPurposes }) =>
+      getContactPurposes().then((purposes) => setContactPurposes(purposes))
     );
   }, []);
 
@@ -104,8 +155,28 @@ export function PipelineView({ clubId }: { clubId: string }) {
 
   /* ───────────── Handlers ───────────── */
 
-  /** Move between columns — optimistic, await server, revert on failure */
+  /** Move between columns — intercept em_contacto to show purpose dialog */
   async function handleStatusChange(playerId: number, newStatus: RecruitmentStatus) {
+    // Intercept: moving to em_contacto → show dialog first
+    if (newStatus === 'em_contacto') {
+      const player = pipelinePlayers.find((p) => p.id === playerId);
+      setPendingStatusChange({ playerId, playerName: player?.name ?? `Jogador #${playerId}` });
+      setStatusDialogOpen(true);
+      return;
+    }
+
+    await commitStatusChange(playerId, newStatus);
+  }
+
+  /** Actually perform the status change (called directly or after dialog confirmation) */
+  async function commitStatusChange(
+    playerId: number,
+    newStatus: RecruitmentStatus,
+    contactPurposeId?: string | null,
+    contactPurposeCustom?: string | null,
+    note?: string | null,
+    assignedTo?: string | null,
+  ) {
     const prev = pipelinePlayers;
     setPipelinePlayers((cur) =>
       cur.map((p) => {
@@ -127,14 +198,42 @@ export function PipelineView({ clubId }: { clubId: string }) {
         if (p.recruitmentStatus === 'confirmado' && newStatus !== 'confirmado') {
           updated.signingDate = null;
         }
+        // Optimistic update for contact assignment
+        if (assignedTo !== undefined) {
+          updated.contactAssignedTo = assignedTo;
+          updated.contactAssignedToName = assignedTo
+            ? clubMembers.find((m) => m.id === assignedTo)?.fullName ?? null
+            : null;
+        }
         return updated;
       })
     );
-    const result = await updateRecruitmentStatus(playerId, newStatus);
+    const result = await updateRecruitmentStatus(
+      playerId,
+      newStatus,
+      note ?? undefined,
+      contactPurposeId ?? undefined,
+      contactPurposeCustom ?? undefined,
+      assignedTo,
+    );
     if (!result.success) {
       console.error('handleStatusChange failed:', result.error);
       setPipelinePlayers(prev);
     }
+  }
+
+  /** Called when the StatusChangeDialog is confirmed */
+  function handleStatusDialogConfirm(purposeId: string | null, purposeCustom: string | null, note: string | null, assignedTo: string | null) {
+    if (!pendingStatusChange) return;
+
+    // Optimistic update of contact purpose label on the card
+    const label = purposeCustom ?? contactPurposes.find((cp) => cp.id === purposeId)?.label ?? null;
+    if (label) {
+      setContactPurposeMap((prev) => ({ ...prev, [pendingStatusChange.playerId]: label }));
+    }
+
+    commitStatusChange(pendingStatusChange.playerId, 'em_contacto', purposeId, purposeCustom, note, assignedTo);
+    setPendingStatusChange(null);
   }
 
   /** Change decision side within a_decidir — optimistic + server persist */
@@ -224,6 +323,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
         playersByStatus={playersByStatus}
         showBirthYear={showBirthYear}
         clubMembers={clubMembers}
+        contactPurposeMap={contactPurposeMap}
         onPlayerClick={handlePlayerClick}
         onStatusChange={handleStatusChange}
         onRemove={handleRemove}
@@ -242,6 +342,20 @@ export function PipelineView({ clubId }: { clubId: string }) {
           handleAdd(player);
           setDialogOpen(false);
         }}
+      />
+
+      {/* Contact purpose dialog — shown when moving to em_contacto */}
+      <StatusChangeDialog
+        open={statusDialogOpen}
+        onOpenChange={(v) => {
+          setStatusDialogOpen(v);
+          if (!v) setPendingStatusChange(null);
+        }}
+        playerName={pendingStatusChange?.playerName ?? ''}
+        contactPurposes={contactPurposes}
+        clubMembers={clubMembers}
+        currentAssignedTo={pendingStatusChange ? pipelinePlayers.find((p) => p.id === pendingStatusChange.playerId)?.contactAssignedTo : null}
+        onConfirm={handleStatusDialogConfirm}
       />
     </div>
   );

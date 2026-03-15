@@ -46,6 +46,8 @@ interface StatusColumnProps {
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
   /** Change decision side within a_decidir column */
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
+  /** Map of playerId -> last contact purpose label for em_contacto cards */
+  contactPurposeMap?: Record<number, string>;
 }
 
 /* ───────────── Sortable Card Wrapper ───────────── */
@@ -60,6 +62,7 @@ function SortablePipelineCard({
   clubMembers,
   onStatusChange,
   onDecisionSideChange,
+  contactPurposeLabel,
 }: {
   player: Player;
   dragId: string;
@@ -70,6 +73,7 @@ function SortablePipelineCard({
   clubMembers?: { id: string; fullName: string }[];
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
+  contactPurposeLabel?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
 
@@ -192,7 +196,7 @@ function SortablePipelineCard({
       onPointerCancel={handlePointerUp}
       onClick={handleClick}
     >
-      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} onPlayerClick={onPlayerClick} onStatusChange={onStatusChange} onDecisionSideChange={onDecisionSideChange} />
+      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} onPlayerClick={onPlayerClick} onStatusChange={onStatusChange} onDecisionSideChange={onDecisionSideChange} contactPurposeLabel={contactPurposeLabel} />
     </div>
   );
 }
@@ -294,7 +298,7 @@ function DecisionSubSection({
 }
 
 const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: React.CSSProperties }>(
-  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, onDecisionSideChange, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
+  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, onDecisionSideChange, contactPurposeMap = {}, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
     const config = RECRUITMENT_STATUSES.find((s) => s.value === status);
     const label = config?.labelPt ?? status;
     const light = config?.tailwindLight ?? { bg: 'bg-neutral-100', text: 'text-neutral-600', border: 'border-neutral-300', dot: 'bg-neutral-400' };
@@ -414,6 +418,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
                 onRemove={onRemove}
                 onDateChange={onDateChange}
                 onStatusChange={onStatusChange}
+                contactPurposeLabel={contactPurposeMap[player.id]}
               />
             ))}
           </div>
@@ -436,6 +441,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
                   onRemove={onRemove}
                   onDateChange={onDateChange}
                   onStatusChange={onStatusChange}
+                  contactPurposeLabel={contactPurposeMap[player.id]}
                 />
               ))}
             </div>
