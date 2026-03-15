@@ -5,9 +5,15 @@
 
 import { Resend } from 'resend';
 
-/* ───────────── Client ───────────── */
+/* ───────────── Client (lazy init — avoids crash when RESEND_API_KEY is not set) ───────────── */
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let _resend: Resend | null = null;
+
+function getResend(): Resend | null {
+  if (!process.env.RESEND_API_KEY) return null;
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+}
 
 /** Default sender — must be verified in Resend dashboard (or use onboarding@resend.dev for testing) */
 const FROM_EMAIL = process.env.EMAIL_FROM ?? 'Eskout <onboarding@resend.dev>';
@@ -50,7 +56,8 @@ export interface TaskEmailData {
  * Fire-and-forget — logs errors but never throws.
  */
 export async function sendTaskEmail(data: TaskEmailData): Promise<void> {
-  if (!process.env.RESEND_API_KEY) {
+  const resend = getResend();
+  if (!resend) {
     console.warn('[email] RESEND_API_KEY not set — skipping email');
     return;
   }
