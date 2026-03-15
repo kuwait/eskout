@@ -91,6 +91,14 @@ export async function linkMatchPlayersToEskout(
 
   const log: LinkLogEntry[] = [];
 
+  // Get competition info (escalão for age validation during name matching)
+  const { data: comp } = await supabase
+    .from('fpf_competitions')
+    .select('escalao, expected_birth_year_end')
+    .eq('id', competitionId)
+    .single();
+  const expectedBirthYearEnd = comp?.expected_birth_year_end as number | null;
+
   // Get all match IDs for this competition
   const { data: matches } = await supabase
     .from('fpf_matches')
@@ -154,12 +162,12 @@ export async function linkMatchPlayersToEskout(
   const staffNote = staffCount > 0 ? `, ${staffCount} staff ignorados` : '';
   log.push({ event: 'link_info', message: `🔍 ${realPlayers.size} jogadores não ligados${staffNote}` });
 
-  // Get all eskout players with their names, club, FPF IDs and FPF links for matching
-  const allPlayers: { id: number; name: string; club: string | null; fpf_player_id: string | null; fpf_link: string | null }[] = [];
+  // Get all eskout players with their names, club, DOB, FPF IDs and FPF links for matching
+  const allPlayers: { id: number; name: string; club: string | null; dob: string | null; fpf_player_id: string | null; fpf_link: string | null }[] = [];
   for (let offset = 0; ; offset += PAGE) {
     const { data } = await supabase
       .from('players')
-      .select('id, name, club, fpf_player_id, fpf_link')
+      .select('id, name, club, dob, fpf_player_id, fpf_link')
       .range(offset, offset + PAGE - 1);
 
     if (!data?.length) break;
@@ -169,13 +177,13 @@ export async function linkMatchPlayersToEskout(
 
   // Build lookup maps
   // nameToPlayers: stores ALL players per name (may have duplicates)
-  const nameToPlayers = new Map<string, { id: number; name: string; club: string | null }[]>();
+  const nameToPlayers = new Map<string, { id: number; name: string; club: string | null; dob: string | null }[]>();
   const fpfIdToPlayer = new Map<number, { id: number; name: string }>();
 
   for (const p of allPlayers) {
     const nameKey = p.name.toLowerCase().trim();
     const list = nameToPlayers.get(nameKey) ?? [];
-    list.push({ id: p.id, name: p.name, club: p.club });
+    list.push({ id: p.id, name: p.name, club: p.club, dob: p.dob });
     nameToPlayers.set(nameKey, list);
 
     if (p.fpf_player_id) {
@@ -210,14 +218,32 @@ export async function linkMatchPlayersToEskout(
     }
 
     // Strategy 2: exact name match (case-insensitive) — only if:
-    //   a) Exactly 1 player with that name in DB, AND
-    //   b) Their club matches the competition team name
-    // If multiple players share the name, or club doesn't match → "Não Ligados" for manual.
+    //   a) Their club matches the competition team name, AND
+    //   b) Their age is compatible with the competition escalão (if known), AND
+    //   c) Exactly 1 candidate remains after filtering
+    // If multiple players share the name, or club/age doesn't match → "Não Ligados" for manual.
     if (!match) {
       const candidates = nameToPlayers.get(player.name.toLowerCase().trim());
-      if (candidates?.length === 1 && candidates[0].club && clubsMatch(player.teamName, candidates[0].club)) {
-        match = candidates[0];
-        method = 'nome';
+      if (candidates) {
+        // Filter by club match
+        let filtered = candidates.filter((c) => c.club && clubsMatch(player.teamName, c.club));
+        // Filter by age compatibility: reject players whose DOB makes them too young for this competition
+        // Allow up to 2 years above (playing up by 1-2 years is real, +3 is almost certainly wrong link)
+        if (expectedBirthYearEnd && filtered.length > 1) {
+          const ageFiltered = filtered.filter((c) => {
+            if (!c.dob) return true; // no DOB = can't validate, keep as candidate
+            const birthYear = parseInt(c.dob.slice(0, 4), 10);
+            if (isNaN(birthYear)) return true;
+            // Reject if born more than 2 years after the expected youngest year
+            return birthYear <= expectedBirthYearEnd + 2;
+          });
+          // Only apply age filter if it narrows results (don't discard all candidates)
+          if (ageFiltered.length > 0) filtered = ageFiltered;
+        }
+        if (filtered.length === 1) {
+          match = filtered[0];
+          method = 'nome+idade';
+        }
       }
     }
 
