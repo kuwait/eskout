@@ -5,16 +5,16 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, TrendingUp, Clock, AlertTriangle, Shield, Search, X,
-  Loader2, Goal, CalendarDays, Unlink,
+  Loader2, Goal, CalendarDays, Unlink, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
-  getTopScorers, getMostMinutes, getMostCards, getTeamStats, searchPlayer,
+  getTopScorers, getMostMinutes, getMostCards, getTeamStats,
   getCompetitionMatches,
   type PlayerStatRow, type SeriesClassification,
 } from '@/actions/scraping/fpf-competitions/stats';
@@ -28,7 +28,7 @@ import type { ActionResponse, FpfCompetitionRow, FpfMatchRow } from '@/lib/types
 
 /* ───────────── Types ───────────── */
 
-type TabId = 'playing-up' | 'scorers' | 'minutes' | 'cards' | 'teams' | 'results' | 'upcoming' | 'search' | 'unlinked';
+type TabId = 'playing-up' | 'scorers' | 'minutes' | 'cards' | 'teams' | 'results' | 'unlinked';
 
 interface TabDef {
   id: TabId;
@@ -38,15 +38,13 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'unlinked', label: 'Não Ligados', shortLabel: 'N/Lig.', icon: <Unlink className="h-3.5 w-3.5" /> },
   { id: 'playing-up', label: 'Jogar Acima', shortLabel: 'Acima', icon: <TrendingUp className="h-3.5 w-3.5" /> },
   { id: 'scorers', label: 'Marcadores', shortLabel: 'Golos', icon: <Goal className="h-3.5 w-3.5" /> },
   { id: 'minutes', label: 'Minutos', shortLabel: 'Min', icon: <Clock className="h-3.5 w-3.5" /> },
   { id: 'cards', label: 'Cartões', shortLabel: 'Cartões', icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   { id: 'teams', label: 'Classificação', shortLabel: 'Class.', icon: <Shield className="h-3.5 w-3.5" /> },
   { id: 'results', label: 'Resultados', shortLabel: 'Result.', icon: <CalendarDays className="h-3.5 w-3.5" /> },
-  { id: 'upcoming', label: 'Próximos', shortLabel: 'Próx.', icon: <CalendarDays className="h-3.5 w-3.5" /> },
-  { id: 'search', label: 'Pesquisar', shortLabel: 'Pesq.', icon: <Search className="h-3.5 w-3.5" /> },
+  { id: 'unlinked', label: 'Links Pendentes', shortLabel: 'Links', icon: <Unlink className="h-3.5 w-3.5" /> },
 ];
 
 /* ───────────── Fetch Hook ───────────── */
@@ -77,11 +75,23 @@ function useServerAction<T>(fetcher: () => Promise<ActionResponse<T>>) {
 /* ───────────── Component ───────────── */
 
 export function CompetitionStatsClient({ competition }: { competition: FpfCompetitionRow }) {
-  const defaultTab: TabId = 'unlinked';
-  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+  const [activeTab, setActiveTab] = useState<TabId>(competition.escalao ? 'playing-up' : 'scorers');
+  // Hide "Links Pendentes" tab when there are 0 unlinked players (null = still loading)
+  const [unlinkedCount, setUnlinkedCount] = useState<number | null>(null);
 
-  // Filter tabs: hide playing-up if no escalao
-  const visibleTabs = competition.escalao ? TABS : TABS.filter((t) => t.id !== 'playing-up');
+  // Filter tabs: hide playing-up if no escalao, hide unlinked if count is 0
+  const visibleTabs = useMemo(() => {
+    let tabs = TABS;
+    if (!competition.escalao) tabs = tabs.filter((t) => t.id !== 'playing-up');
+    if (unlinkedCount === 0) tabs = tabs.filter((t) => t.id !== 'unlinked');
+    return tabs;
+  }, [competition.escalao, unlinkedCount]);
+
+  // Callback to update unlinked count — also switches tab away if count drops to 0
+  const handleUnlinkedCountChange = useCallback((count: number) => {
+    setUnlinkedCount(count);
+    if (count === 0) setActiveTab((prev) => prev === 'unlinked' ? (competition.escalao ? 'playing-up' : 'scorers') : prev);
+  }, [competition.escalao]);
 
   return (
     <div className="space-y-4">
@@ -131,9 +141,7 @@ export function CompetitionStatsClient({ competition }: { competition: FpfCompet
         {activeTab === 'cards' && <CardsTab competitionId={competition.id} />}
         {activeTab === 'teams' && <TeamStatsTab competitionId={competition.id} />}
         {activeTab === 'results' && <MatchesTab competitionId={competition.id} mode="results" />}
-        {activeTab === 'upcoming' && <MatchesTab competitionId={competition.id} mode="upcoming" />}
-        {activeTab === 'search' && <PlayerSearchTab competitionId={competition.id} />}
-        {activeTab === 'unlinked' && <UnlinkedPlayersTab competitionId={competition.id} />}
+        {activeTab === 'unlinked' && <UnlinkedPlayersTab competitionId={competition.id} onCountChange={handleUnlinkedCountChange} />}
       </div>
     </div>
   );
@@ -162,88 +170,240 @@ function ErrorState({ message }: { message: string }) {
   );
 }
 
+/* ───────────── External Links ───────────── */
+
+/** Small FPF/ZZ favicon links before player name — disabled (greyed out) when no link */
+function ExternalLinks({ fpfLink, zerozeroLink }: { fpfLink?: string | null; zerozeroLink?: string | null }) {
+  return (
+    <span className="inline-flex gap-0.5 shrink-0">
+      {fpfLink && (
+        <a href={fpfLink} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity" title="Perfil FPF" onClick={(e) => e.stopPropagation()}>
+          <img src="/icons/fpf.png" alt="FPF" className="h-3 w-3" />
+        </a>
+      )}
+      {zerozeroLink ? (
+        <a href={zerozeroLink} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity" title="Perfil ZeroZero" onClick={(e) => e.stopPropagation()}>
+          <img src="/icons/zerozero.png" alt="ZZ" className="h-3 w-3" />
+        </a>
+      ) : (
+        <span className="opacity-30" title="Sem perfil ZeroZero"><img src="/icons/zerozero-disabled.png" alt="" className="h-3 w-3" /></span>
+      )}
+    </span>
+  );
+}
+
+/* ───────────── Club Change Note ───────────── */
+
+/** Shows a small note when the player's current club differs from the competition team */
+function ClubChangeNote({ teamName, eskoutClub }: { teamName: string; eskoutClub: string | null | undefined }) {
+  if (!eskoutClub) return null;
+  // Normalize: strip suffixes ("B"/"C"), common words (FC, SC, SAD, Sport, Club, etc.), accents, punctuation
+  const normalize = (s: string) => s
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s*"[a-z]"\s*/g, ' ') // strip team letter suffixes like "B", "C"
+    .replace(/\b(fc|f\.c\.|sc|s\.c\.|cf|cd|ud|ad|gd|gdrc|ac|cs|us|sr|sl|sad|sport|sporting|club|clube|futebol|associacao|associa[cç][aã]o|uniao|uni[aã]o|grupo|desportivo|recreativo|academico|atletico)\b/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const a = normalize(teamName);
+  const b = normalize(eskoutClub);
+  if (!a || !b) return null;
+  if (a === b || a.includes(b) || b.includes(a)) return null;
+  return <p className="text-[10px] text-blue-500">atual: {eskoutClub}</p>;
+}
+
 /* ───────────── Playing Up Tab ───────────── */
 
 function PlayingUpTab({ competitionId }: { competitionId: number }) {
   const { data, error, loading } = useServerAction<PlayingUpPlayer[]>(
     useCallback(() => getPlayingUpPlayers(competitionId), [competitionId]),
   );
+  // Track expanded items (all start collapsed)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
 
+  /* Group players by series → team, sorted by team size desc, players by minutes desc */
+  const seriesGroups = useMemo(() => {
+    if (!data?.length) return [];
+    // Group by series first
+    const bySeries = new Map<string, PlayingUpPlayer[]>();
+    for (const p of data) {
+      const series = p.seriesName || 'Geral';
+      if (!bySeries.has(series)) bySeries.set(series, []);
+      bySeries.get(series)!.push(p);
+    }
+    // For each series, group by team
+    return [...bySeries.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([series, players]) => {
+        const byTeam = new Map<string, PlayingUpPlayer[]>();
+        for (const p of players) {
+          const team = p.teamName;
+          if (!byTeam.has(team)) byTeam.set(team, []);
+          byTeam.get(team)!.push(p);
+        }
+        const teams = [...byTeam.entries()]
+          .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+          .map(([team, tp]) => ({
+            team: decodeHtmlEntities(team),
+            rawTeam: team,
+            players: tp.sort((a, b) => b.totalMinutes - a.totalMinutes),
+          }));
+        return { series, teams, totalPlayers: players.length };
+      });
+  }, [data]);
+
+  const hasSeries = seriesGroups.length > 1;
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
   if (!data?.length) return <EmptyState message="Nenhum jogador a jogar acima do escalão detetado." />;
 
   return (
     <div className="space-y-1">
-      <p className="text-xs text-muted-foreground mb-2">{data.length} jogadores a jogar acima do seu escalão</p>
+      <p className="text-xs text-muted-foreground mb-3">
+        {data.length} jogadores a jogar acima do seu escalão
+        {hasSeries && ` — ${seriesGroups.length} séries`}
+      </p>
 
-      {/* Desktop table */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="pb-2 pr-3 font-medium">#</th>
-              <th className="pb-2 pr-3 font-medium">Jogador</th>
-              <th className="pb-2 pr-3 font-medium">Equipa</th>
-              <th className="pb-2 pr-3 font-medium text-center">Ano</th>
-              <th className="pb-2 pr-3 font-medium text-center">Escalão Natural</th>
-              <th className="pb-2 pr-3 font-medium text-center">+Anos</th>
-              <th className="pb-2 pr-3 font-medium text-right">J</th>
-              <th className="pb-2 pr-3 font-medium text-right">Min</th>
-              <th className="pb-2 pr-3 font-medium text-right">G</th>
-              <th className="pb-2 font-medium text-right">AM</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((p, i) => (
-              <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
-                <td className="py-1.5 pr-3 text-muted-foreground">{i + 1}</td>
-                <td className="py-1.5 pr-3">
-                  <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
-                </td>
-                <td className="py-1.5 pr-3 text-muted-foreground">{decodeHtmlEntities(p.teamName)}</td>
-                <td className="py-1.5 pr-3 text-center">{p.birthYear}</td>
-                <td className="py-1.5 pr-3 text-center">{p.naturalEscalao ?? '?'}</td>
-                <td className="py-1.5 pr-3 text-center">
-                  <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
-                    +{p.yearsAbove}
-                  </span>
-                </td>
-                <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
-                <td className="py-1.5 pr-3 text-right tabular-nums font-medium">{p.totalMinutes}&apos;</td>
-                <td className="py-1.5 pr-3 text-right tabular-nums">{p.goals || ''}</td>
-                <td className="py-1.5 text-right tabular-nums">{p.yellowCards || ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {seriesGroups.map(({ series, teams, totalPlayers }) => (
+        <div key={series} className="space-y-1">
+          {/* Series header (only if multiple series) — collapsible */}
+          {hasSeries && (
+            <button
+              type="button"
+              onClick={() => toggle(`series:${series}`)}
+              className="flex items-center gap-1.5 pt-3 pb-1 border-b border-purple-200 w-full text-left"
+            >
+              {expanded.has(`series:${series}`) ? <ChevronDown className="h-4 w-4 text-purple-500" /> : <ChevronRight className="h-4 w-4 text-purple-500" />}
+              <h2 className="text-sm font-bold text-purple-700">{series}</h2>
+              <span className="text-xs text-muted-foreground">{totalPlayers} jogadores em {teams.length} equipas</span>
+            </button>
+          )}
 
-      {/* Mobile cards */}
-      <div className="space-y-2 sm:hidden">
-        {data.map((p, i) => (
-          <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="rounded-lg border p-3 space-y-1">
-            <div className="flex items-start justify-between">
-              <div>
-                <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
-                <p className="text-[11px] text-muted-foreground">{decodeHtmlEntities(p.teamName)}</p>
-              </div>
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-                +{p.yearsAbove} {p.yearsAbove > 1 ? 'anos' : 'ano'}
-              </span>
-            </div>
-            <div className="flex gap-4 text-[11px] text-muted-foreground">
-              <span>Nasc. {p.birthYear}</span>
-              <span>Natural: {p.naturalEscalao ?? '?'}</span>
-            </div>
-            <div className="flex gap-4 text-xs">
-              <span><strong>{p.totalGames}</strong> jogos</span>
-              <span><strong>{p.totalMinutes}&apos;</strong></span>
-              {p.goals > 0 && <span><strong>{p.goals}</strong> golos</span>}
-            </div>
+          {/* Desktop — single table with collapsible team group headers */}
+          {(!hasSeries || expanded.has(`series:${series}`)) && (
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2 pr-3 font-medium">Jogador</th>
+                  <th className="pb-2 pr-3 font-medium text-center">Ano</th>
+                  <th className="pb-2 pr-3 font-medium text-center">Escalão Natural</th>
+                  <th className="pb-2 pr-3 font-medium text-center">+Anos</th>
+                  <th className="pb-2 pr-3 font-medium text-right">J</th>
+                  <th className="pb-2 pr-3 font-medium text-right">Min</th>
+                  <th className="pb-2 pr-3 font-medium text-right">G</th>
+                  <th className="pb-2 font-medium text-right">AM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teams.map(({ team, rawTeam, players }) => {
+                  const teamKey = `team:${series}:${rawTeam}`;
+                  const isOpen = expanded.has(teamKey);
+                  return (
+                    <Fragment key={`group-${teamKey}`}>
+                      <tr
+                        className="cursor-pointer select-none hover:bg-muted/30"
+                        onClick={() => toggle(teamKey)}
+                      >
+                        <td colSpan={8} className="pt-4 pb-1.5">
+                          <span className="inline-flex items-center gap-1">
+                            {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                            <span className="text-sm font-semibold">{team}</span>
+                            <span className="text-xs text-muted-foreground">{players.length}</span>
+                          </span>
+                        </td>
+                      </tr>
+                      {isOpen && players.map((p, i) => (
+                        <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="py-1.5 pr-3">
+                            <span className="flex items-center gap-1">
+                              <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
+                              <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
+                            </span>
+                            <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
+                          </td>
+                          <td className="py-1.5 pr-3 text-center">{p.birthYear}</td>
+                          <td className="py-1.5 pr-3 text-center">{p.naturalEscalao ?? '?'}</td>
+                          <td className="py-1.5 pr-3 text-center">
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                              +{p.yearsAbove}
+                            </span>
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums font-medium">{p.totalMinutes}&apos;</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{p.goals || ''}</td>
+                          <td className="py-1.5 text-right tabular-nums">{p.yellowCards || ''}</td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
+          )}
+
+          {/* Mobile — grouped by team, collapsible */}
+          {(!hasSeries || expanded.has(`series:${series}`)) && (
+          <div className="space-y-3 sm:hidden">
+            {teams.map(({ team, rawTeam, players }) => {
+              const teamKey = `team:${series}:${rawTeam}`;
+              const isOpen = expanded.has(teamKey);
+              return (
+                <div key={team}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(teamKey)}
+                    className="flex items-center gap-1.5 mb-1.5 w-full text-left"
+                  >
+                    {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <h3 className="text-sm font-semibold">{team}</h3>
+                    <span className="text-[11px] text-muted-foreground">{players.length}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="space-y-2">
+                      {players.map((p, i) => (
+                        <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="rounded-lg border p-3 space-y-1">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="flex items-center gap-1">
+                                <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
+                                <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
+                              </span>
+                              <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
+                            </div>
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                              +{p.yearsAbove} {p.yearsAbove > 1 ? 'anos' : 'ano'}
+                            </span>
+                          </div>
+                          <div className="flex gap-4 text-[11px] text-muted-foreground">
+                            <span>Nasc. {p.birthYear}</span>
+                            <span>Natural: {p.naturalEscalao ?? '?'}</span>
+                          </div>
+                          <div className="flex gap-4 text-xs">
+                            <span><strong>{p.totalGames}</strong> jogos</span>
+                            <span><strong>{p.totalMinutes}&apos;</strong></span>
+                            {p.goals > 0 && <span><strong>{p.goals}</strong> golos</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -293,80 +453,128 @@ function CardsTab({ competitionId }: { competitionId: number }) {
 /* ───────────── Player Stats Table (shared) ───────────── */
 
 function PlayerStatsTable({ data, highlight }: { data: PlayerStatRow[]; highlight: 'goals' | 'minutes' | 'cards' }) {
-  return (
-    <div>
-      {/* Desktop table */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="pb-2 pr-3 font-medium">#</th>
-              <th className="pb-2 pr-3 font-medium">Jogador</th>
-              <th className="pb-2 pr-3 font-medium">Equipa</th>
-              <th className="pb-2 pr-3 font-medium text-right">J</th>
-              <th className="pb-2 pr-3 font-medium text-right">T</th>
-              <th className="pb-2 pr-3 font-medium text-right">Min</th>
-              <th className="pb-2 pr-3 font-medium text-right">G</th>
-              <th className="pb-2 pr-3 font-medium text-right">GP</th>
-              <th className="pb-2 pr-3 font-medium text-right">AG</th>
-              <th className="pb-2 pr-3 font-medium text-right">AM</th>
-              <th className="pb-2 font-medium text-right">VM</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((p, i) => (
-              <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
-                <td className="py-1.5 pr-3 text-muted-foreground">{i + 1}</td>
-                <td className="py-1.5 pr-3">
-                  <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} />
-                </td>
-                <td className="py-1.5 pr-3 text-muted-foreground">{decodeHtmlEntities(p.teamName)}</td>
-                <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
-                <td className="py-1.5 pr-3 text-right tabular-nums">{p.gamesStarted}</td>
-                <td className={`py-1.5 pr-3 text-right tabular-nums ${highlight === 'minutes' ? 'font-bold' : ''}`}>
-                  {p.totalMinutes}&apos;
-                </td>
-                <td className={`py-1.5 pr-3 text-right tabular-nums ${highlight === 'goals' ? 'font-bold' : ''}`}>
-                  {p.goals || ''}
-                </td>
-                <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">{p.penaltyGoals || ''}</td>
-                <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">{p.ownGoals || ''}</td>
-                <td className={`py-1.5 pr-3 text-right tabular-nums ${highlight === 'cards' ? 'font-bold text-amber-600' : ''}`}>
-                  {p.yellowCards || ''}
-                </td>
-                <td className={`py-1.5 text-right tabular-nums ${highlight === 'cards' ? 'font-bold text-red-600' : ''}`}>
-                  {p.redCards || ''}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  const [expandedSeries, setExpandedSeries] = useState<Set<string>>(new Set());
+  const toggleSeries = useCallback((key: string) => {
+    setExpandedSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
 
-      {/* Mobile cards */}
-      <div className="space-y-1.5 sm:hidden">
-        {data.map((p, i) => (
-          <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="flex items-center gap-3 rounded-lg border px-3 py-2">
-            <span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
-            <div className="min-w-0 flex-1">
-              <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} />
-              <p className="text-[11px] text-muted-foreground truncate">{decodeHtmlEntities(p.teamName)}</p>
-            </div>
-            <div className="flex gap-3 text-xs tabular-nums">
-              {highlight === 'goals' && <span className="font-bold">{p.goals}G</span>}
-              {highlight === 'minutes' && <span className="font-bold">{p.totalMinutes}&apos;</span>}
-              {highlight === 'cards' && (
-                <span>
-                  {p.yellowCards > 0 && <span className="font-bold text-amber-600">{p.yellowCards}A</span>}
-                  {p.yellowCards > 0 && p.redCards > 0 && ' '}
-                  {p.redCards > 0 && <span className="font-bold text-red-600">{p.redCards}V</span>}
-                </span>
-              )}
-              <span className="text-muted-foreground">{p.totalGames}J</span>
-            </div>
+  // Group by series
+  const seriesGroups = useMemo(() => {
+    const bySeries = new Map<string, PlayerStatRow[]>();
+    for (const p of data) {
+      const series = p.seriesName || 'Geral';
+      if (!bySeries.has(series)) bySeries.set(series, []);
+      bySeries.get(series)!.push(p);
+    }
+    return [...bySeries.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([series, players]) => ({ series, players }));
+  }, [data]);
+
+  const hasSeries = seriesGroups.length > 1;
+
+  return (
+    <div className="space-y-2">
+      {seriesGroups.map(({ series, players }) => {
+        const isOpen = !hasSeries || expandedSeries.has(series);
+        return (
+          <div key={series}>
+            {/* Series header (only if multiple series) */}
+            {hasSeries && (
+              <button
+                type="button"
+                onClick={() => toggleSeries(series)}
+                className="flex items-center gap-1.5 pt-2 pb-1 border-b border-purple-200 w-full text-left"
+              >
+                {isOpen ? <ChevronDown className="h-4 w-4 text-purple-500" /> : <ChevronRight className="h-4 w-4 text-purple-500" />}
+                <span className="text-sm font-bold text-purple-700">{series}</span>
+                <span className="text-xs text-muted-foreground">{players.length} jogadores</span>
+              </button>
+            )}
+
+            {isOpen && (
+              <>
+                {/* Desktop table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="pb-2 pr-3 font-medium">#</th>
+                        <th className="pb-2 pr-3 font-medium">Jogador</th>
+                        <th className="pb-2 pr-3 font-medium">Equipa</th>
+                        <th className="pb-2 pr-3 font-medium text-right">J</th>
+                        <th className="pb-2 pr-3 font-medium text-right">T</th>
+                        <th className="pb-2 pr-3 font-medium text-right">Min</th>
+                        <th className="pb-2 pr-3 font-medium text-right">G</th>
+                        <th className="pb-2 pr-3 font-medium text-right">GP</th>
+                        <th className="pb-2 pr-3 font-medium text-right">AG</th>
+                        <th className="pb-2 pr-3 font-medium text-right">AM</th>
+                        <th className="pb-2 font-medium text-right">VM</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {players.map((p, i) => (
+                        <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="py-1.5 pr-3 text-muted-foreground">{i + 1}</td>
+                          <td className="py-1.5 pr-3">
+                            <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} />
+                          </td>
+                          <td className="py-1.5 pr-3 text-muted-foreground">{decodeHtmlEntities(p.teamName)}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums">{p.gamesStarted}</td>
+                          <td className={`py-1.5 pr-3 text-right tabular-nums ${highlight === 'minutes' ? 'font-bold' : ''}`}>
+                            {p.totalMinutes}&apos;
+                          </td>
+                          <td className={`py-1.5 pr-3 text-right tabular-nums ${highlight === 'goals' ? 'font-bold' : ''}`}>
+                            {p.goals || ''}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">{p.penaltyGoals || ''}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">{p.ownGoals || ''}</td>
+                          <td className={`py-1.5 pr-3 text-right tabular-nums ${highlight === 'cards' ? 'font-bold text-amber-600' : ''}`}>
+                            {p.yellowCards || ''}
+                          </td>
+                          <td className={`py-1.5 text-right tabular-nums ${highlight === 'cards' ? 'font-bold text-red-600' : ''}`}>
+                            {p.redCards || ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="space-y-1.5 sm:hidden">
+                  {players.map((p, i) => (
+                    <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="flex items-center gap-3 rounded-lg border px-3 py-2">
+                      <span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} />
+                        <p className="text-[11px] text-muted-foreground truncate">{decodeHtmlEntities(p.teamName)}</p>
+                      </div>
+                      <div className="flex gap-3 text-xs tabular-nums">
+                        {highlight === 'goals' && <span className="font-bold">{p.goals}G</span>}
+                        {highlight === 'minutes' && <span className="font-bold">{p.totalMinutes}&apos;</span>}
+                        {highlight === 'cards' && (
+                          <span>
+                            {p.yellowCards > 0 && <span className="font-bold text-amber-600">{p.yellowCards}A</span>}
+                            {p.yellowCards > 0 && p.redCards > 0 && ' '}
+                            {p.redCards > 0 && <span className="font-bold text-red-600">{p.redCards}V</span>}
+                          </span>
+                        )}
+                        <span className="text-muted-foreground">{p.totalGames}J</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-        ))}
-      </div>
+        );
+      })}
 
       {/* Legend */}
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
@@ -709,48 +917,6 @@ function MatchRow({ match, showScore, isEven }: { match: FpfMatchRow; showScore:
   );
 }
 
-/* ───────────── Player Search Tab ───────────── */
-
-function PlayerSearchTab({ competitionId }: { competitionId: number }) {
-  const [query, setQuery] = useState('');
-  const [data, setData] = useState<PlayerStatRow[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSearch = useCallback(async () => {
-    if (query.trim().length < 2) return;
-    setLoading(true);
-    setError(null);
-    const res = await searchPlayer(competitionId, query);
-    if (res.success) setData(res.data ?? []);
-    else setError(res.error ?? 'Erro');
-    setLoading(false);
-  }, [competitionId, query]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
-        <Input
-          placeholder="Nome do jogador&hellip;"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          className="max-w-sm text-sm"
-        />
-        <Button variant="outline" size="sm" onClick={handleSearch} disabled={loading || query.trim().length < 2}>
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-        </Button>
-      </div>
-
-      {error && <ErrorState message={error} />}
-
-      {data && data.length === 0 && <EmptyState message="Nenhum jogador encontrado." />}
-
-      {data && data.length > 0 && <PlayerStatsTable data={data} highlight="minutes" />}
-    </div>
-  );
-}
-
 /* ───────────── Suggestion List with Manual Search ───────────── */
 
 /** Shows auto-suggestions + inline manual search for linking competition players to eskout */
@@ -883,7 +1049,7 @@ function SuggestionList({
 
 /* ───────────── Unlinked Players Tab ───────────── */
 
-function UnlinkedPlayersTab({ competitionId }: { competitionId: number }) {
+function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: number; onCountChange?: (count: number) => void }) {
   const [players, setPlayers] = useState<UnlinkedWithSuggestions[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -900,14 +1066,16 @@ function UnlinkedPlayersTab({ competitionId }: { competitionId: number }) {
     getUnlinkedWithSuggestions(competitionId).then((res) => {
       if (cancelled) return;
       if (res.success) {
-        setPlayers(res.data ?? []);
+        const data = res.data ?? [];
+        setPlayers(data);
+        onCountChange?.(data.length);
       } else {
         setError(res.error ?? 'Erro');
       }
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [competitionId]);
+  }, [competitionId, onCountChange]);
 
   // Categorize players into 3 groups
   const categorized = useMemo(() => {

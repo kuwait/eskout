@@ -244,25 +244,29 @@ Parses HTML from `resultados.fpf.pt/Match/GetMatchInformation?matchId=XXX`:
 
 ### Player Linking (`link-players.ts`)
 
-Three auto-link strategies (in order):
+Auto-link strategies (in order):
 1. **FPF player ID** — exact numeric match (most reliable, but Logo ID ≠ Profile ID)
-2. **Exact name + club match** — case-insensitive name AND `clubsMatch()` must pass. Duplicate names → manual.
+2. **FPF link URL** — extract ID from `fpf_link` on eskout player
+3. **Exact name + club + age** — case-insensitive name, `clubsMatch()`, AND age validation vs competition escalão. Rejects candidates born +3 years after expected (almost certainly wrong link). Duplicate names after filtering → manual.
 
-Manual linking via "Não Ligados" tab:
+Manual linking via "Links Pendentes" tab (last tab):
 - Suggestions filtered by same club first, cross-club fallback marked with "clube ≠"
 - Inline fuzzy search (multi-word across name + club)
 - FPF photo + eskout photo shown for visual comparison
 - FPF profile link for verification
+- Tab hidden when 0 unlinked players remain
 
 ### Playing Up Detection (`playing-up.ts`)
 
-- Compares player DOB (from linked eskout player) to competition's `expected_birth_year_end`
-- `expected_birth_year = ref_year - escalão_number` (e.g. Sub-15 2025/26 → ref 2026 → born 2011)
-- Players born AFTER expected year → "playing up" (e.g. 2012 in Sub-15 = +1 year)
-- Only uses DOB from properly linked players (no fuzzy name guessing)
+- Uses a **PostgreSQL RPC** (`get_playing_up_players`) for performance — single SQL query replaces ~15 sequential HTTP requests
+- SQL function in `supabase/migrations/067_playing_up_rpc.sql`
+- Aggregates match_players + joins players table for DOB in one query
+- Two DOB strategies: (1) `eskout_player_id` direct link, (2) `fpf_player_id` string match
+- Players born AFTER `expected_birth_year_end` → "playing up" (e.g. 2012 in Sub-15 = +1 year)
+- Returns `series_name`, `fpf_link`, `zerozero_link`, `eskout_club` per player
+- UI groups by series (collapsible) → team (collapsible), shows FPF/ZZ favicon links, club change indicator
 
 ### Future Matches
 
 - Unplayed matches saved as skeletons (teams + date, no lineup/events)
 - Re-scrape detects skeleton (`home_score IS NULL`) and replaces with full data when match is played
-- "Próximos" tab shows future matches, "Resultados" tab shows played matches
