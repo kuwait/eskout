@@ -599,14 +599,21 @@ export const FPF_CLASS_TO_ESCALAO: Record<number, string> = {
   2: 'Sénior',
 };
 
-/** Match duration in minutes by escalão (official FPF rules) */
+/** Match duration in minutes by escalão (official FPF rules)
+ *  Sub-13 and below: 30+30=60 | Sub-14/15: 40+40=80 | Sub-16+: 45+45=90 */
 export const ESCALAO_MATCH_DURATION: Record<string, number> = {
   'Sub-7': 40,
+  'Sub-8': 40,
   'Sub-9': 40,
+  'Sub-10': 50,
   'Sub-11': 50,
+  'Sub-12': 60,
   'Sub-13': 60,
-  'Sub-15': 70,
-  'Sub-17': 80,
+  'Sub-14': 80,
+  'Sub-15': 80,
+  'Sub-16': 90,
+  'Sub-17': 90,
+  'Sub-18': 90,
   'Sub-19': 90,
   'Sénior': 90,
 };
