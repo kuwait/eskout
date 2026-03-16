@@ -370,7 +370,7 @@ export async function scrapeOneFixture(
     // Insert match players
     if (parsed.hasLineupData) {
       const playerRows = parsed.players
-        .filter((p) => p.isStarter || minutesMap.has(p.playerName))
+        .filter((p) => p.isStarter || minutesMap.has(p.playerName) || playerSubInMinute.has(p.playerName))
         .map((p) => ({
           match_id: matchDbId,
           fpf_player_id: p.fpfPlayerId,
@@ -716,7 +716,7 @@ export async function scrapeCompetitionBatch(
       // Insert match players (only those who participated: starters + subs who entered)
       if (parsed.hasLineupData) {
         const playerRows = parsed.players
-          .filter((p) => p.isStarter || minutesMap.has(p.playerName))
+          .filter((p) => p.isStarter || minutesMap.has(p.playerName) || playerSubInMinute.has(p.playerName))
           .map((p) => ({
             match_id: matchDbId,
             fpf_player_id: p.fpfPlayerId,

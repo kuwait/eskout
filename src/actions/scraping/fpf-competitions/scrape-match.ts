@@ -531,15 +531,19 @@ export function calculateMinutes(
       mins = Math.min(exitMinute, matchDuration);
     } else if (subbedInAt.has(player.playerName)) {
       // Sub who entered: plays from entry until subbed out, red card, or match end
+      // Use max(matchDuration, entryMinute) as upper bound to handle extra time entries
       const entryMinute = subbedInAt.get(player.playerName)!;
       const exitMinute = subbedOutAt.get(player.playerName)
         ?? redCardAt.get(player.playerName)
-        ?? matchDuration;
-      mins = Math.max(0, Math.min(exitMinute, matchDuration) - entryMinute);
+        ?? Math.max(matchDuration, entryMinute + 1);
+      mins = Math.max(0, exitMinute - entryMinute);
     }
-    // Subs who never entered get 0 minutes (not added)
+    // Subs who never entered get 0 minutes (not added to map)
+    // Subs who entered but got 0 from calculation (e.g. entered at/after matchDuration in extra time)
+    // still need to be in the map so they're not filtered out during insert
+    const entered = subbedInAt.has(player.playerName);
 
-    if (mins > 0 || player.isStarter) {
+    if (mins > 0 || player.isStarter || entered) {
       minutes.set(player.playerName, mins);
     }
   }
