@@ -496,13 +496,13 @@ export function PlayerForm() {
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="notes" className="text-xs">Observações</Label>
+          <Label htmlFor="notes" className="text-xs">Nota de Observação</Label>
           <Textarea
             id="notes"
             value={fields.notes}
             onChange={(e) => updateField('notes', e.target.value)}
             rows={2}
-            placeholder="Notas sobre o jogador..."
+            placeholder="Primeira nota sobre o jogador (opcional)..."
           />
         </div>
       </div>
