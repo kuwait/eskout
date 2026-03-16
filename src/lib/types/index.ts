@@ -362,6 +362,36 @@ export interface ObservationNote {
   createdAt: string;
 }
 
+/* ───────────── Quick Scout Reports ───────────── */
+
+export type QuickReportRecommendation = 'Assinar' | 'Acompanhar' | 'Sem interesse';
+
+export interface QuickScoutReport {
+  id: number;
+  clubId: string;
+  playerId: number;
+  authorId: string;
+  authorName: string;
+  ratingTecnica: number;
+  ratingTatica: number;
+  ratingFisico: number;
+  ratingMentalidade: number;
+  ratingPotencial: number;
+  ratingOverall: number;
+  recommendation: QuickReportRecommendation;
+  tagsTecnica: string[];
+  tagsTatica: string[];
+  tagsFisico: string[];
+  tagsMentalidade: string[];
+  tagsPotencial: string[];
+  competition: string | null;
+  opponent: string | null;
+  matchDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /* ───────────── Scout Evaluations ───────────── */
 
 export interface ScoutEvaluation {

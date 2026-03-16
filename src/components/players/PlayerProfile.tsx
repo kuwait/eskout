@@ -32,15 +32,18 @@ import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { ClubBadge } from '@/components/common/ClubBadge';
 import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
 import {
-  Dialog as PitchDialog,
-  DialogContent as PitchDialogContent,
-  DialogTitle as PitchDialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes, AddNoteButton } from '@/components/players/ObservationNotes';
 import { StatusHistory } from '@/components/players/StatusHistory';
 import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
+import { QuickReportCard } from '@/components/players/QuickReportCard';
+import { QuickReportForm } from '@/components/players/QuickReportForm';
 import { PlayerClubHistory } from '@/components/players/PlayerClubHistory';
 import { TrainingFeedbackList } from '@/components/players/TrainingFeedback';
 import { PlayerVideos } from '@/components/players/PlayerVideos';
@@ -79,6 +82,7 @@ import type {
   ObserverDecision,
   ScoutEvaluation,
   ScoutingReport,
+  QuickScoutReport,
   TrainingFeedback,
 } from '@/lib/types';
 
@@ -89,6 +93,7 @@ interface PlayerProfileProps {
   statusHistory?: StatusHistoryEntry[];
   scoutingReports?: ScoutingReport[];
   scoutEvaluations?: ScoutEvaluation[];
+  quickReports?: QuickScoutReport[];
   trainingFeedback?: TrainingFeedback[];
   playerVideos?: PlayerVideo[];
   currentUserId?: string | null;
@@ -102,7 +107,7 @@ interface PlayerProfileProps {
   playerSquads?: (SquadPlayer & { squad: Squad })[];
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [] }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [] }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -121,6 +126,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
     setSavedDraft(null);
   }
   const [showNoteForm, setShowNoteForm] = useState(false);
+  const [showQuickReportForm, setShowQuickReportForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPitchPopup, setShowPitchPopup] = useState(false);
   const [isDeleting, startDelete] = useTransition();
@@ -1010,7 +1016,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             {/* Observação — observer names + decision visible to recruiter, reports/evals hidden */}
             {!hideScoutingData && (() => {
               const observerNames = p.observer ? p.observer.split(',').map((n) => n.trim()).filter(Boolean) : [];
-              const hasObservation = observerNames.length > 0 || p.observerDecision || (!hideEvaluations && (scoutingReports.length > 0 || p.reportLabels.length > 0));
+              const hasObservation = observerNames.length > 0 || p.observerDecision || (!hideEvaluations && (scoutingReports.length > 0 || p.reportLabels.length > 0 || quickReports.length > 0)) || !hideEvaluations;
               if (!hasObservation) return null;
               return (
                 <Section title="Observação">
@@ -1035,7 +1041,52 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                     </div>
                   )}
 
-                  {/* Relatórios — hidden for recruiters (scouting intelligence) */}
+                  {/* Quick Reports — all roles can view and submit */}
+                  {!hideEvaluations && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                          Avaliações Rápidas {quickReports.length > 0 && `(${quickReports.length})`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickReportForm(v => !v)}
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          {showQuickReportForm ? 'Cancelar' : '+ Avaliar'}
+                        </button>
+                      </div>
+                      {/* Quick Report Form Dialog */}
+                      <Dialog open={showQuickReportForm} onOpenChange={setShowQuickReportForm}>
+                        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                          <DialogHeader>
+                            <DialogTitle>Avaliar {p.name.split(' ').slice(0, 2).join(' ')}</DialogTitle>
+                          </DialogHeader>
+                          <QuickReportForm
+                            playerId={p.id}
+                            playerName={p.name}
+                            isGoalkeeper={p.positionNormalized === 'GR'}
+                            onSuccess={() => { setShowQuickReportForm(false); router.refresh(); }}
+                            onCancel={() => setShowQuickReportForm(false)}
+                          />
+                        </DialogContent>
+                      </Dialog>
+                      {quickReports.length > 0 && (
+                        <div className="space-y-2">
+                          {quickReports.map(qr => (
+                            <QuickReportCard
+                              key={qr.id}
+                              report={qr}
+                              canDelete={currentUserId === qr.authorId || userRole === 'admin'}
+                              onDelete={() => router.refresh()}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Relatórios PDF — hidden for recruiters (scouting intelligence) */}
                   {!hideEvaluations && (scoutingReports.length > 0 || p.reportLabels.length > 0) && (
                     <div className="mt-3">
                       <ScoutingReports
@@ -1343,9 +1394,9 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
       {/* MiniPitch enlarged popup (mobile click-to-expand) */}
       {p.positionNormalized && (
-        <PitchDialog open={showPitchPopup} onOpenChange={setShowPitchPopup}>
-          <PitchDialogContent className="flex max-w-sm items-center justify-center border-0 bg-transparent p-2 shadow-none [&>button]:hidden">
-            <PitchDialogTitle className="sr-only">Posições no campo</PitchDialogTitle>
+        <Dialog open={showPitchPopup} onOpenChange={setShowPitchPopup}>
+          <DialogContent className="flex max-w-sm items-center justify-center border-0 bg-transparent p-2 shadow-none [&>button]:hidden">
+            <DialogTitle className="sr-only">Posições no campo</DialogTitle>
             <PitchCanvas
               primaryPosition={p.positionNormalized as PositionCode}
               secondaryPosition={p.secondaryPosition as PositionCode | null}
@@ -1353,8 +1404,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               size="lg"
               className="h-56 w-full max-w-[340px]"
             />
-          </PitchDialogContent>
-        </PitchDialog>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

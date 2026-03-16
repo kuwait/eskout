@@ -247,3 +247,29 @@ export const addFpfCompetitionSchema = z.object({
 });
 
 export type AddFpfCompetitionData = z.infer<typeof addFpfCompetitionSchema>;
+
+/* ───────────── Quick Scout Reports ───────────── */
+
+const QUICK_REPORT_RECOMMENDATIONS = ['Assinar', 'Acompanhar', 'Sem interesse'] as const;
+
+export const quickScoutReportSchema = z.object({
+  playerId: z.number().int().positive(),
+  ratingTecnica: z.number().int().min(1).max(5),
+  ratingTatica: z.number().int().min(1).max(5),
+  ratingFisico: z.number().int().min(1).max(5),
+  ratingMentalidade: z.number().int().min(1).max(5),
+  ratingPotencial: z.number().int().min(1).max(5),
+  ratingOverall: z.number().int().min(1).max(5),
+  recommendation: z.enum(QUICK_REPORT_RECOMMENDATIONS),
+  tagsTecnica: z.array(z.string()).default([]),
+  tagsTatica: z.array(z.string()).default([]),
+  tagsFisico: z.array(z.string()).default([]),
+  tagsMentalidade: z.array(z.string()).default([]),
+  tagsPotencial: z.array(z.string()).default([]),
+  competition: z.string().optional(),
+  opponent: z.string().optional(),
+  matchDate: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export type QuickScoutReportData = z.infer<typeof quickScoutReportSchema>;

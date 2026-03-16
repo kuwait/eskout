@@ -78,13 +78,14 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   if (isNaN(playerId)) notFound();
 
-  const [player, role, notes, statusHistory, scoutingReports, scoutEvaluations, trainingFeedback, clubProfiles, playerVideos, playerSquads] = await Promise.all([
+  const [player, role, notes, statusHistory, scoutingReports, scoutEvaluations, quickReports, trainingFeedback, clubProfiles, playerVideos, playerSquads] = await Promise.all([
     getPlayerById(playerId),
     getCurrentUserRole(),
     getObservationNotes(playerId),
     getStatusHistory(playerId),
     getScoutingReports(playerId),
     getScoutEvaluations(playerId),
+    import('@/actions/quick-scout-reports').then(m => m.getQuickReportsForPlayer(playerId)),
     getTrainingFeedback(playerId),
     getAllProfiles(),
     getPlayerVideos(playerId),
@@ -123,6 +124,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         statusHistory={statusHistory}
         scoutingReports={scoutingReports}
         scoutEvaluations={scoutEvaluations}
+        quickReports={quickReports}
         trainingFeedback={trainingFeedback}
         playerVideos={playerVideos}
         currentUserId={currentUser?.id ?? null}
