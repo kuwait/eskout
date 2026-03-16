@@ -463,6 +463,88 @@ export async function deleteList(listId: number): Promise<ActionResponse> {
   return { success: true };
 }
 
+/** Clear all items from a list (keeps the list itself) */
+export async function clearList(listId: number): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('player_list_items')
+    .delete()
+    .eq('list_id', listId);
+
+  if (error) return { success: false, error: `Erro ao limpar lista: ${error.message}` };
+
+  revalidatePath(REVALIDATE_PATH);
+  revalidatePath(`/listas/${listId}`);
+  await broadcastRowMutation(clubId, 'player_list_items', 'DELETE', userId, listId);
+  return { success: true };
+}
+
+/** Duplicate a list — creates a copy with all players and notes */
+export async function duplicateList(listId: number, newName?: string): Promise<ActionResponse<{ id: number }>> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+
+  const supabase = await createClient();
+
+  // Fetch original list
+  const { data: original } = await supabase
+    .from('player_lists')
+    .select('name, emoji')
+    .eq('id', listId)
+    .single();
+
+  if (!original) return { success: false, error: 'Lista não encontrada' };
+
+  // Create the copy
+  const { data: newList, error: createError } = await supabase
+    .from('player_lists')
+    .insert({
+      club_id: clubId,
+      user_id: userId,
+      name: newName ?? `${original.name} (cópia)`,
+      emoji: original.emoji,
+      is_system: false,
+    })
+    .select('id')
+    .single();
+
+  if (createError || !newList) return { success: false, error: `Erro ao criar cópia: ${createError?.message}` };
+
+  // Copy all items (paginated)
+  const PAGE = 1000;
+  let offset = 0;
+  for (;;) {
+    const { data: items } = await supabase
+      .from('player_list_items')
+      .select('player_id, note, sort_order')
+      .eq('list_id', listId)
+      .range(offset, offset + PAGE - 1);
+
+    if (!items?.length) break;
+
+    await supabase.from('player_list_items').insert(
+      items.map((item, i) => ({
+        list_id: newList.id,
+        player_id: item.player_id,
+        note: item.note,
+        sort_order: item.sort_order ?? offset + i,
+      }))
+    );
+
+    if (items.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  revalidatePath(REVALIDATE_PATH);
+  await broadcastRowMutation(clubId, 'player_lists', 'INSERT', userId, newList.id);
+
+  return { success: true, data: { id: newList.id } };
+}
+
 /** Add a player to a specific list */
 export async function addPlayerToList(
   listId: number,

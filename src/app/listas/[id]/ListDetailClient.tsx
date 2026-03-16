@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Plus, Search, X, Pencil, Trash2, Users, Download, LayoutGrid, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Search, X, Pencil, Trash2, Users, Download, LayoutGrid, ChevronLeft, ChevronRight, Loader2, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -85,6 +85,7 @@ export function ListDetailClient({
   const [noteText, setNoteText] = useState('');
   const [exporting, setExporting] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState(false);
   const [localShares, setLocalShares] = useState(shares);
   const [groupByClub, setGroupByClub] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -258,6 +259,37 @@ export function ListDetailClient({
             >
               <Download className="h-3.5 w-3.5" />
               Exportar
+            </button>
+          )}
+          {/* Clear all */}
+          {isOwner && items.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setClearConfirm(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:border-red-300 hover:bg-red-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Limpar</span>
+            </button>
+          )}
+          {/* Duplicate */}
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={async () => {
+                const { duplicateList } = await import('@/actions/player-lists');
+                const result = await duplicateList(list.id);
+                if (result.success && result.data) {
+                  toast.success('Lista duplicada');
+                  router.push(`/listas/${result.data.id}`);
+                } else {
+                  toast.error(result.error ?? 'Erro ao duplicar');
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-neutral-300 hover:text-neutral-600"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Duplicar</span>
             </button>
           )}
           {/* Share — owner only, not system lists */}
@@ -484,6 +516,37 @@ export function ListDetailClient({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Clear list confirmation */}
+      <AlertDialog open={clearConfirm} onOpenChange={setClearConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar lista?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vais remover todos os <strong>{items.length} jogadores</strong> da lista <strong>{list.name}</strong>. A lista fica vazia mas não é apagada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                const { clearList } = await import('@/actions/player-lists');
+                const result = await clearList(list.id);
+                if (result.success) {
+                  toast.success('Lista limpa');
+                  router.refresh();
+                } else {
+                  toast.error(result.error ?? 'Erro');
+                }
+                setClearConfirm(false);
+              }}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Limpar tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Remove confirmation */}
       <AlertDialog open={!!removeConfirm} onOpenChange={(open) => { if (!open) setRemoveConfirm(null); }}>
