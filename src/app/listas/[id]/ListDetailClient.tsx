@@ -64,10 +64,18 @@ export function ListDetailClient({
   list,
   items,
   canExport,
+  isOwner = true,
+  currentUserId = '',
+  clubMembers = [],
+  shares = [],
 }: {
   list: PlayerList;
   items: PlayerListItem[];
   canExport: boolean;
+  isOwner?: boolean;
+  currentUserId?: string;
+  clubMembers?: { id: string; fullName: string }[];
+  shares?: { id: number; userId: string; userName: string }[];
 }) {
   const router = useRouter();
   const [processing, setProcessing] = useState<number | null>(null);
@@ -76,6 +84,8 @@ export function ListDetailClient({
   const [editingNote, setEditingNote] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [localShares, setLocalShares] = useState(shares);
   const [groupByClub, setGroupByClub] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('eskout:list-group-by-club') === '1';
@@ -250,11 +260,50 @@ export function ListDetailClient({
               Exportar
             </button>
           )}
+          {/* Share — owner only, not system lists */}
+          {isOwner && !list.isSystem && (
+            <button
+              type="button"
+              onClick={() => setShareDialogOpen(true)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                localShares.length > 0
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-neutral-200 text-muted-foreground hover:border-neutral-300 hover:text-neutral-600',
+              )}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Partilhar</span>
+              {localShares.length > 0 && (
+                <span className="rounded-full bg-blue-200 px-1.5 py-px text-[10px] font-bold text-blue-800">
+                  {localShares.length}
+                </span>
+              )}
+            </button>
+          )}
           <Button size="sm" onClick={() => setAddDialogOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
             Adicionar
           </Button>
         </div>
+
+        {/* Shared list banner */}
+        {list.isSharedWithMe && list.ownerName && (
+          <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <span>Lista de <strong>{list.ownerName}</strong> · partilhada contigo</span>
+            <button
+              type="button"
+              onClick={async () => {
+                const { unshareList } = await import('@/actions/player-lists');
+                const result = await unshareList(list.id, currentUserId);
+                if (result.success) router.push('/listas');
+              }}
+              className="font-medium hover:text-blue-900"
+            >
+              Sair
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Empty state */}
@@ -361,6 +410,80 @@ export function ListDetailClient({
           }
         }}
       />
+
+      {/* Share dialog — owner only */}
+      {isOwner && !list.isSystem && (
+        <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Partilhar Lista
+              </DialogTitle>
+            </DialogHeader>
+
+            {/* Current shares */}
+            {localShares.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">Partilhada com</p>
+                {localShares.map((share) => (
+                  <div key={share.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                    <span className="text-sm font-medium">{share.userName}</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const { unshareList } = await import('@/actions/player-lists');
+                        const result = await unshareList(list.id, share.userId);
+                        if (result.success) {
+                          setLocalShares((prev) => prev.filter((s) => s.id !== share.id));
+                          toast.success('Partilha removida');
+                        } else {
+                          toast.error(result.error ?? 'Erro');
+                        }
+                      }}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add new share */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Adicionar pessoa</p>
+              <div className="space-y-1">
+                {clubMembers
+                  .filter((m) => m.id !== currentUserId && !localShares.some((s) => s.userId === m.id))
+                  .map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={async () => {
+                        const { shareList } = await import('@/actions/player-lists');
+                        const result = await shareList(list.id, member.id);
+                        if (result.success) {
+                          setLocalShares((prev) => [...prev, { id: Date.now(), userId: member.id, userName: member.fullName }]);
+                          toast.success(`Partilhada com ${member.fullName}`);
+                        } else {
+                          toast.error(result.error ?? 'Erro');
+                        }
+                      }}
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-neutral-50"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                      {member.fullName}
+                    </button>
+                  ))}
+                {clubMembers.filter((m) => m.id !== currentUserId && !localShares.some((s) => s.userId === m.id)).length === 0 && (
+                  <p className="py-2 text-center text-xs text-muted-foreground">Todos os membros já têm acesso</p>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Remove confirmation */}
       <AlertDialog open={!!removeConfirm} onOpenChange={(open) => { if (!open) setRemoveConfirm(null); }}>

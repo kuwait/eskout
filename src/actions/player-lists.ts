@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { createListSchema, renameListSchema, addToListSchema } from '@/lib/validators';
-import type { ActionResponse, PickerPlayer, PlayerList, PlayerListItem, PlayerListItemRow } from '@/lib/types';
+import type { ActionResponse, PickerPlayer, PlayerList, PlayerListItem, PlayerListItemRow, PlayerListShare } from '@/lib/types';
 
 /* ───────────── Constants ───────────── */
 
@@ -38,7 +38,7 @@ async function ensureSystemList(
 
   if (existing) return existing.id;
 
-  // Create it (lazy init)
+  // Create it (lazy init) — use upsert-like pattern to handle race conditions
   const { data: created, error } = await supabase
     .from('player_lists')
     .insert({
@@ -51,8 +51,19 @@ async function ensureSystemList(
     .select('id')
     .single();
 
-  if (error || !created) {
-    throw new Error(`Failed to create system list: ${error?.message}`);
+  if (error) {
+    // Duplicate — another request created it; re-fetch
+    if (error.code === '23505') {
+      const { data: retry } = await supabase
+        .from('player_lists')
+        .select('id')
+        .eq('club_id', clubId)
+        .eq('user_id', userId)
+        .eq('is_system', true)
+        .maybeSingle();
+      if (retry) return retry.id;
+    }
+    throw new Error(`Failed to create system list: ${error.message}`);
   }
 
   return created.id;
@@ -121,7 +132,7 @@ export async function getMyLists(): Promise<PlayerList[]> {
     }
   }
 
-  return lists.map((row) => {
+  const myLists: PlayerList[] = lists.map((row) => {
     const stats = statsMap.get(row.id);
     return {
       id: row.id,
@@ -136,6 +147,57 @@ export async function getMyLists(): Promise<PlayerList[]> {
       lastAddedAt: stats?.lastAddedAt ?? null,
     };
   });
+
+  // Also fetch lists shared with me
+  const { data: shares } = await supabase
+    .from('player_list_shares')
+    .select('list_id, player_lists(id, club_id, user_id, name, emoji, is_system, created_at, updated_at)')
+    .eq('user_id', userId);
+
+  if (shares?.length) {
+    const sharedListIds = shares.map(s => (s.player_lists as unknown as { id: number }).id).filter(Boolean);
+
+    // Fetch item stats for shared lists
+    const { data: sharedItemStats } = await supabase
+      .from('player_list_items')
+      .select('list_id, added_at')
+      .in('list_id', sharedListIds)
+      .order('added_at', { ascending: false });
+
+    const sharedStatsMap = new Map<number, { count: number; lastAddedAt: string | null }>();
+    for (const item of sharedItemStats ?? []) {
+      const existing = sharedStatsMap.get(item.list_id);
+      if (existing) existing.count++;
+      else sharedStatsMap.set(item.list_id, { count: 1, lastAddedAt: item.added_at });
+    }
+
+    // Resolve owner names
+    const ownerIds = [...new Set(shares.map(s => (s.player_lists as unknown as { user_id: string }).user_id))];
+    const { data: ownerProfiles } = await supabase.from('profiles').select('id, full_name').in('id', ownerIds);
+    const ownerNameMap = new Map((ownerProfiles ?? []).map(p => [p.id, p.full_name]));
+
+    for (const share of shares) {
+      const list = share.player_lists as unknown as { id: number; club_id: string; user_id: string; name: string; emoji: string; is_system: boolean; created_at: string; updated_at: string };
+      if (!list) continue;
+      const stats = sharedStatsMap.get(list.id);
+      myLists.push({
+        id: list.id,
+        clubId: list.club_id,
+        userId: list.user_id,
+        name: list.name,
+        emoji: list.emoji,
+        isSystem: list.is_system,
+        createdAt: list.created_at,
+        updatedAt: list.updated_at,
+        itemCount: stats?.count ?? 0,
+        lastAddedAt: stats?.lastAddedAt ?? null,
+        ownerName: ownerNameMap.get(list.user_id) ?? 'Desconhecido',
+        isSharedWithMe: true,
+      });
+    }
+  }
+
+  return myLists;
 }
 
 /** Get all lists in the club with owner info (admin-only) */
@@ -852,4 +914,106 @@ export async function isPlayerObserved(playerId: number): Promise<boolean> {
     .maybeSingle();
 
   return !!data;
+}
+
+/* ───────────── List Sharing ───────────── */
+
+/** Share a list with another club member */
+export async function shareList(listId: number, targetUserId: string): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+
+  if (targetUserId === userId) return { success: false, error: 'Não podes partilhar contigo próprio' };
+
+  const supabase = await createClient();
+
+  // Verify ownership
+  const { data: list } = await supabase
+    .from('player_lists')
+    .select('id, is_system')
+    .eq('id', listId)
+    .eq('user_id', userId)
+    .eq('club_id', clubId)
+    .single();
+
+  if (!list) return { success: false, error: 'Lista não encontrada' };
+  if (list.is_system) return { success: false, error: 'Listas de sistema não podem ser partilhadas' };
+
+  const { error } = await supabase
+    .from('player_list_shares')
+    .insert({ list_id: listId, user_id: targetUserId, shared_by: userId });
+
+  if (error) {
+    if (error.code === '23505') return { success: false, error: 'Lista já partilhada com este utilizador' };
+    return { success: false, error: `Erro ao partilhar: ${error.message}` };
+  }
+
+  revalidatePath('/listas');
+  revalidatePath(`/listas/${listId}`);
+  await broadcastRowMutation(clubId, 'player_list_shares' as never, 'INSERT', userId, listId);
+
+  return { success: true };
+}
+
+/** Remove a share — owner revokes or shared user leaves */
+export async function unshareList(listId: number, targetUserId: string): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+
+  const supabase = await createClient();
+
+  // Allow: owner revoking anyone, or user removing themselves
+  const isOwner = !!(await supabase
+    .from('player_lists')
+    .select('id')
+    .eq('id', listId)
+    .eq('user_id', userId)
+    .maybeSingle()).data;
+
+  if (!isOwner && targetUserId !== userId) {
+    return { success: false, error: 'Sem permissão para remover esta partilha' };
+  }
+
+  const { error } = await supabase
+    .from('player_list_shares')
+    .delete()
+    .eq('list_id', listId)
+    .eq('user_id', targetUserId);
+
+  if (error) return { success: false, error: `Erro ao remover partilha: ${error.message}` };
+
+  revalidatePath('/listas');
+  revalidatePath(`/listas/${listId}`);
+  await broadcastRowMutation(clubId, 'player_list_shares' as never, 'DELETE', userId, listId);
+
+  return { success: true };
+}
+
+/** Get all shares for a list (with user names) */
+export async function getListShares(listId: number): Promise<PlayerListShare[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('player_list_shares')
+    .select('id, list_id, user_id, shared_by, created_at')
+    .eq('list_id', listId);
+
+  if (error || !data) return [];
+
+  // Resolve user names
+  const userIds = [...new Set(data.map(s => s.user_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', userIds);
+  const nameMap = new Map((profiles ?? []).map(p => [p.id, p.full_name]));
+
+  return data.map(row => ({
+    id: row.id,
+    listId: row.list_id,
+    userId: row.user_id,
+    userName: nameMap.get(row.user_id) ?? 'Desconhecido',
+    sharedBy: row.shared_by,
+    createdAt: row.created_at,
+  }));
 }

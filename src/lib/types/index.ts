@@ -612,8 +612,21 @@ export interface PlayerList {
   itemCount: number;
   /** Most recent addition date (null if empty) */
   lastAddedAt: string | null;
-  /** Owner name — only present in admin "view all" */
+  /** Owner name — only present in admin "view all" or shared lists */
   ownerName?: string;
+  /** True if the current user is a shared collaborator (not the owner) */
+  isSharedWithMe?: boolean;
+  /** Users this list is shared with */
+  sharedWith?: PlayerListShare[];
+}
+
+export interface PlayerListShare {
+  id: number;
+  listId: number;
+  userId: string;
+  userName: string;
+  sharedBy: string;
+  createdAt: string;
 }
 
 export interface PlayerListRow {
