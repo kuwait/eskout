@@ -1,13 +1,12 @@
 // src/components/squad/AddToSquadDialog.tsx
 // Dialog to search and add a player to real or shadow squad at a specific position
-// Fetches players lazily via searchPickerPlayers when opened; text search client-side with fuzzyMatch
+// Fetches players lazily via searchPickerPlayers when opened; text search server-side via ilike
 // RELEVANT FILES: src/actions/squads.ts, src/actions/player-lists.ts, src/components/squad/SquadPanelView.tsx, src/lib/constants.ts
 
 'use client';
 
 import { useState, useEffect, useTransition, useMemo } from 'react';
 import { Search, X, Loader2 } from 'lucide-react';
-import { fuzzyMatch } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -108,14 +107,15 @@ export function AddToSquadDialog({
     getPickerClubs().then(setClubs);
   }, [open]);
 
-  // Fetch players via server action when dialog opens or structural filters change
-  // Year is NOT a server-side filter — applied client-side (not in PickerSearchFilters)
+  // Fetch players via server action when dialog opens or filters change
+  // When text search is active, search server-side (fast ilike) and relax position filter
   useEffect(() => {
     if (!open) return;
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
 
     const excludeArray = excludeIds ? Array.from(excludeIds) : [];
     searchPickerPlayers({
+      search: debouncedSearch || undefined,
       position: filters.position || undefined,
       club: filters.club || undefined,
       opinion: filters.opinion || undefined,
@@ -125,7 +125,7 @@ export function AddToSquadDialog({
       setPool(results);
       setLoading(false);
     });
-  }, [open, filters.position, filters.club, filters.opinion, filters.foot, excludeIds]);
+  }, [open, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, excludeIds]);
 
   const posLabel = (POSITION_LABELS as Record<string, string>)[position] ?? position;
   const title = squadType === 'shadow'
@@ -148,19 +148,13 @@ export function AddToSquadDialog({
 
   const filtered = useMemo(() => {
     let result = pool;
-
-    if (debouncedSearch) {
-      result = result.filter((p) => {
-        const pLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
-        return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
-      });
-    }
+    // Text search is now server-side — only year filter remains client-side
     if (filters.year) {
       const yr = parseInt(filters.year, 10);
       result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
     }
     return result.slice(0, 50);
-  }, [pool, debouncedSearch, filters.year]);
+  }, [pool, filters.year]);
 
   // Shadow squad: year is always locked, so don't count it as a clearable filter
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || (squadType === 'real' && filters.year);
@@ -298,6 +292,8 @@ export function AddToSquadDialog({
           {hasFilters && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setFilters({
               ...EMPTY_FILTERS,
+              // Preserve search text when clearing structural filters
+              search: filters.search,
               // Shadow squad: year is always locked to the generation — never cleared
               year: squadType === 'shadow' ? (initialYear ?? '') : '',
             })}>

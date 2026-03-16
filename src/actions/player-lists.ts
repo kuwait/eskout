@@ -676,6 +676,8 @@ export interface PickerSearchFilters {
   club?: string;
   opinion?: string;
   foot?: string;
+  /** Server-side text search (ilike on name + club) — when set, position filter is relaxed */
+  search?: string;
   /** Exclude players already selected (e.g. in squad, in list) */
   excludeIds?: number[];
 }
@@ -701,7 +703,15 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
       .eq('club_id', clubId)
       .eq('pending_approval', false);
 
-    // Structural filters
+    // Server-side text search — each word matches name OR club
+    if (filters.search) {
+      const words = filters.search.trim().split(/\s+/).filter(w => w.length >= 2);
+      for (const word of words) {
+        query = query.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
+      }
+    }
+
+    // Position filter — always applied (even during text search)
     if (filters.position) {
       query = query.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
     }
@@ -709,7 +719,9 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
     if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
     if (filters.foot) query = query.eq('foot', filters.foot);
 
-    const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
+    // When text searching, limit to 50 results (fast response)
+    const limit = filters.search ? 50 : PAGE;
+    const { data, error } = await query.order('name').range(offset, offset + limit - 1);
     if (error || !data?.length) break;
 
     for (const row of data) {
@@ -718,7 +730,9 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
       all.push(mapPickerRow(row));
     }
 
-    if (data.length < PAGE) break;
+    if (data.length < limit) break;
+    // When text searching, don't paginate further — 50 results is enough
+    if (filters.search) break;
     offset += PAGE;
   }
 
