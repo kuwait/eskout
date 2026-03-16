@@ -348,6 +348,34 @@ Automatically created when pipeline status changes trigger action items:
 
 The tasks page also displays flagged observation notes (important/urgent priority) in a separate section, replacing the standalone `/alertas` page as the primary entry point.
 
+### Email Notifications (Resend)
+
+When a task is assigned to another user (never self-assignment), an email notification is sent via **Resend** (`src/lib/email.ts`). Fire-and-forget — errors are logged but never block the action.
+
+**Email content includes:**
+- Task title (without contact purpose suffix — purpose shown separately)
+- Player: name, club, position, DOB (dd/MM/yyyy + age), foot, contact (clickable tel: link)
+- External profiles: FPF and ZeroZero links (if available)
+- Contact purpose (for pipeline_contact tasks)
+- Training escalão, meeting/signing date (when applicable)
+- "Ver Tarefas" button linking to `/tarefas`
+- Footer: "Podes desativar notificações por email em Preferências."
+
+**Granular preferences** (`/preferencias`):
+- Master toggle: "Todas as notificações" — disables/enables all at once
+- Per-type toggles (visible when master is on):
+  - 📞 Contacto atribuído (`pipeline_contact`)
+  - 🤝 Reunião marcada (`pipeline_meeting`)
+  - ⚽ Treino agendado (`pipeline_training`)
+  - ✍️ Assinatura marcada (`pipeline_signing`)
+- Manual task assignments always send email (no toggle — they're explicit)
+- Preferences stored in `user_notification_preferences` table (per user, per club)
+- Default: all enabled (opt-out model)
+
+**Environment variables:**
+- `RESEND_API_KEY` — server-only, from Resend dashboard
+- `EMAIL_FROM` — sender address (default: `onboarding@resend.dev`; production: `Eskout <noreply@eskout.com>`)
+
 ### UI
 
 - Badge count of pending tasks shown in nav

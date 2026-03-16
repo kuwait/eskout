@@ -199,6 +199,7 @@ npm run test:ci       # CI: --ci --forceExit --detectOpenHandles
 | Auth         | Supabase Auth                        | Email + password, role-based (admin/scout)                     |
 | Icons        | Lucide React                         | Consistent icon library                                        |
 | Hosting      | Vercel                               | Free tier, Next.js native                                      |
+| Email        | Resend                               | Task assignment notifications, 100/day free tier               |
 | Scraping     | Python (standalone scripts)          | Run locally, NOT in the browser                                |
 
 ---
@@ -318,6 +319,10 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...    # Server-only, for admin operations
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Email (Resend — server-only)
+RESEND_API_KEY=re_...
+EMAIL_FROM=Eskout <noreply@eskout.com>
 
 # Google Drive API (for report extraction script — server/local only)
 GOOGLE_SERVICE_ACCOUNT_KEY=/path/to/credentials.json

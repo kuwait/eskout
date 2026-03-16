@@ -832,6 +832,22 @@ CREATE TABLE squad_players (
   added_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(squad_id, player_id)
 );
+
+-- ============================================
+-- TABLE: user_notification_preferences (email opt-out per user per club)
+-- ============================================
+CREATE TABLE user_notification_preferences (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  email_all BOOLEAN NOT NULL DEFAULT true,
+  email_on_contact BOOLEAN NOT NULL DEFAULT true,
+  email_on_meeting BOOLEAN NOT NULL DEFAULT true,
+  email_on_training BOOLEAN NOT NULL DEFAULT true,
+  email_on_signing BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, club_id)
+);
 ```
 
 ---
