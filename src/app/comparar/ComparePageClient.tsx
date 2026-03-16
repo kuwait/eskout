@@ -466,8 +466,11 @@ function AddToCompareDialog({
   }, [open]);
 
   /* Fetch players with server-side text search + structural filters */
+  const hasAnyFilter = debouncedSearch || filters.position || filters.club || filters.opinion || filters.foot;
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear pool when no filter
+    if (!hasAnyFilter) { setPool([]); return; }
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
     const excludeArray = Array.from(existingIds);
     searchPickerPlayers({
@@ -480,7 +483,7 @@ function AddToCompareDialog({
     })
       .then(setPool)
       .finally(() => setLoading(false));
-  }, [open, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, existingIds]);
+  }, [open, hasAnyFilter, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, existingIds]);
 
   /* Server-side search — just use pool directly */
   const filtered = pool;

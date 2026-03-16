@@ -51,11 +51,13 @@ function TaskPlayerPickerDialog({
   }, [open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Fetch players with server-side text search
+  // Fetch players with server-side text search — only when there's a search term
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear pool when no search
+    if (!debouncedSearch) { setPool([]); return; }
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
-    searchPickerPlayers({ search: debouncedSearch || undefined }).then((results) => {
+    searchPickerPlayers({ search: debouncedSearch }).then((results) => {
       setPool(results.map((p) => ({
         id: p.id,
         name: p.name,

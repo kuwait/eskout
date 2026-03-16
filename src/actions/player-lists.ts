@@ -692,9 +692,9 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
   if (role === 'scout') return [];
 
   const supabase = await createClient();
-  const PAGE = 1000;
+
   const all: PickerPlayer[] = [];
-  let offset = 0;
+  const offset = 0;
 
   for (;;) {
     let query = supabase
@@ -703,10 +703,11 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
       .eq('club_id', clubId)
       .eq('pending_approval', false);
 
-    // Server-side text search — each word matches name OR club
+    // Server-side text search — use first + last word only (middle names over-filter with AND)
     if (filters.search) {
       const words = filters.search.trim().split(/\s+/).filter(w => w.length >= 2);
-      for (const word of words) {
+      const searchWords = words.length <= 2 ? words : [words[0], words[words.length - 1]];
+      for (const word of searchWords) {
         query = query.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
       }
     }
@@ -719,9 +720,9 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
     if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
     if (filters.foot) query = query.eq('foot', filters.foot);
 
-    // When text searching, limit to 50 results (fast response)
-    const limit = filters.search ? 50 : PAGE;
-    const { data, error } = await query.order('name').range(offset, offset + limit - 1);
+    // Always limit to 50 results — pickers don't need more than that
+    const PICKER_LIMIT = 50;
+    const { data, error } = await query.order('name').range(offset, offset + PICKER_LIMIT - 1);
     if (error || !data?.length) break;
 
     for (const row of data) {
@@ -730,10 +731,8 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
       all.push(mapPickerRow(row));
     }
 
-    if (data.length < limit) break;
-    // When text searching, don't paginate further — 50 results is enough
-    if (filters.search) break;
-    offset += PAGE;
+    // Never paginate beyond 50 results — it's a picker, not a list
+    break;
   }
 
   return all;

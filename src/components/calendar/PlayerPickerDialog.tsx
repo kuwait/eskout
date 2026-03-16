@@ -88,9 +88,13 @@ export function PlayerPickerDialog({
     getPickerClubs().then(setClubs);
   }, [open]);
 
-  // Fetch players with structural filters + server-side text search
+  // Fetch players with server-side text search + structural filters
+  // Only fetch when there's a search term or filter — don't load all players on open
+  const hasAnyFilter = debouncedSearch || filters.position || filters.club || filters.opinion || filters.foot;
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear pool when no filter
+    if (!hasAnyFilter) { setPool([]); return; }
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
     searchPickerPlayers({
       search: debouncedSearch || undefined,
@@ -102,7 +106,7 @@ export function PlayerPickerDialog({
       setPool(results);
       setLoading(false);
     });
-  }, [open, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
+  }, [open, hasAnyFilter, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
 
   // Server-side search — just slice
   const filtered = useMemo(() => pool.slice(0, 30), [pool]);

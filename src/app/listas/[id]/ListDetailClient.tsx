@@ -587,8 +587,12 @@ function AddPlayerDialog({
   }, [open]);
 
   /* Fetch players with server-side text search + structural filters */
+  /* Only fetch when there's a search term or structural filter — don't load all 15k+ on open */
+  const hasAnyFilter = debouncedSearch || filters.position || filters.club || filters.opinion || filters.foot;
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear pool when no filter
+    if (!hasAnyFilter) { setPool([]); return; }
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
     const excludeArray = Array.from(existingIds);
     searchPickerPlayers({
@@ -602,7 +606,7 @@ function AddPlayerDialog({
       setPool(players);
       setLoading(false);
     });
-  }, [open, debouncedSearch, existingIds, filters.position, filters.club, filters.opinion, filters.foot]);
+  }, [open, hasAnyFilter, debouncedSearch, existingIds, filters.position, filters.club, filters.opinion, filters.foot]);
 
   /* Server-side search — just use pool directly */
   const filtered = pool;
