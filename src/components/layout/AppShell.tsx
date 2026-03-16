@@ -153,14 +153,31 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       }
 
       // Per-user badge: count players added by others minus this user's dismissals
+      // Admin sees all new players; Editor only sees players added by editor/recruiter/scout (not admin)
       let pendingPlayersCount = 0;
       if (userRole === 'admin' || userRole === 'editor') {
-        const [playersRes, dismissedRes] = await Promise.all([
-          supabase
-            .from('players')
-            .select('id', { count: 'exact', head: true })
+        let playersQuery = supabase
+          .from('players')
+          .select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId)
+          .neq('created_by', userId);
+
+        // Editor: exclude players created by admins
+        if (userRole === 'editor') {
+          // Get admin user IDs for this club
+          const { data: adminMembers } = await supabase
+            .from('club_memberships')
+            .select('user_id')
             .eq('club_id', clubId)
-            .neq('created_by', userId),
+            .eq('role', 'admin');
+          const adminIds = (adminMembers ?? []).map(m => m.user_id);
+          for (const adminId of adminIds) {
+            playersQuery = playersQuery.neq('created_by', adminId);
+          }
+        }
+
+        const [playersRes, dismissedRes] = await Promise.all([
+          playersQuery,
           supabase
             .from('player_added_dismissals')
             .select('player_id', { count: 'exact', head: true })

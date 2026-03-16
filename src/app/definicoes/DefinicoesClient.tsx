@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { RefreshCw, Database, CheckCircle, AlertTriangle, Shield, Loader2 } from 'lucide-react';
+import { RefreshCw, Database, CheckCircle, AlertTriangle, Shield, Loader2, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { bulkScrapeExternalData, type BulkUpdateProgress } from '@/actions/scraping';
@@ -67,7 +67,6 @@ export function DefinicoesClient({
     let totalErrors = 0;
     let totalCount = 0;
 
-    // Process in batches
     let hasMore = true;
     while (hasMore) {
       try {
@@ -111,138 +110,150 @@ export function DefinicoesClient({
     : 0;
 
   return (
-    <div className="p-4 lg:p-6">
-      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Clube</h1>
+    <div className="space-y-4">
+      {/* ───────────── Club Identity ───────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="h-4 w-4" />
+            Identidade do Clube
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-4">
+            {/* Logo preview */}
+            <div className="flex shrink-0 flex-col items-center gap-1">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-neutral-200 bg-neutral-50">
+                {clubLogoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={clubLogoUrl} alt="Logo" className="h-full w-full object-contain p-1" />
+                ) : (
+                  <ImageIcon className="h-6 w-6 text-neutral-300" />
+                )}
+              </div>
+              <span className="text-[10px] text-muted-foreground">Logo</span>
+            </div>
 
-      <div className="mx-auto max-w-2xl space-y-4">
-        {/* ───────────── Club Identity ───────────── */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Shield className="h-4 w-4" />
-              Dados do Clube
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium" htmlFor="club-name">Nome</label>
-              <input
-                id="club-name"
-                type="text"
-                value={clubName}
-                onChange={(e) => setClubName(e.target.value)}
-                className="mt-1 w-full rounded-md border px-3 py-1.5 text-sm"
-                placeholder="Nome do clube"
-              />
+            <div className="flex-1 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="club-name">Nome do Clube</label>
+                <input
+                  id="club-name"
+                  type="text"
+                  value={clubName}
+                  onChange={(e) => setClubName(e.target.value)}
+                  className="mt-1 w-full rounded-md border px-3 py-1.5 text-sm"
+                  placeholder="Nome do clube"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="club-logo">URL do Logo</label>
+                <input
+                  id="club-logo"
+                  type="url"
+                  value={clubLogoUrl}
+                  onChange={(e) => setClubLogoUrl(e.target.value)}
+                  className="mt-1 w-full rounded-md border px-3 py-1.5 text-sm"
+                  placeholder="https://exemplo.com/logo.png"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium" htmlFor="club-logo">Logo (URL)</label>
-              <input
-                id="club-logo"
-                type="url"
-                value={clubLogoUrl}
-                onChange={(e) => setClubLogoUrl(e.target.value)}
-                className="mt-1 w-full rounded-md border px-3 py-1.5 text-sm"
-                placeholder="https://exemplo.com/logo.png"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">URL da imagem do logo (PNG, SVG, etc.)</p>
-            </div>
+          </div>
+          <div className="flex justify-end">
             <Button size="sm" onClick={handleSaveClub} disabled={savingClub}>
               {savingClub && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Guardar
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* ───────────── Bulk External Data Update ───────────── */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Database className="h-4 w-4" />
-              Atualizar dados externos
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Percorre todos os jogadores com links FPF e/ou ZeroZero e atualiza fotos, clube atual, estatísticas e histórico.
-            </p>
+      {/* ───────────── Bulk External Data Update ───────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Database className="h-4 w-4" />
+            Atualizar Dados Externos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Percorre todos os jogadores com links FPF e/ou ZeroZero e atualiza fotos, clube atual, estatísticas e histórico.
+          </p>
 
-            {/* Source selection */}
-            <div className="flex gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={sources.includes('fpf')}
-                  onChange={() => toggleSource('fpf')}
-                  disabled={isRunning}
-                  className="h-4 w-4 rounded border-neutral-300"
+          {/* Source selection */}
+          <div className="flex gap-3">
+            <label className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer hover:bg-neutral-50">
+              <input
+                type="checkbox"
+                checked={sources.includes('fpf')}
+                onChange={() => toggleSource('fpf')}
+                disabled={isRunning}
+                className="h-4 w-4 rounded border-neutral-300"
+              />
+              FPF
+            </label>
+            <label className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer hover:bg-neutral-50">
+              <input
+                type="checkbox"
+                checked={sources.includes('zerozero')}
+                onChange={() => toggleSource('zerozero')}
+                disabled={isRunning}
+                className="h-4 w-4 rounded border-neutral-300"
+              />
+              ZeroZero
+            </label>
+          </div>
+
+          {/* Progress bar */}
+          {progress && (
+            <div className="space-y-2">
+              <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
+                <div
+                  className="h-full rounded-full bg-neutral-900 transition-all duration-300"
+                  style={{ width: `${pct}%` }}
                 />
-                FPF (clube atual, foto)
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={sources.includes('zerozero')}
-                  onChange={() => toggleSource('zerozero')}
-                  disabled={isRunning}
-                  className="h-4 w-4 rounded border-neutral-300"
-                />
-                ZeroZero (stats, foto, histórico)
-              </label>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{progress.processed} / {progress.total} jogadores</span>
+                <span>{pct}%</span>
+              </div>
+              <div className="flex flex-wrap gap-3 text-xs">
+                {progress.fpfUpdated > 0 && (
+                  <span className="flex items-center gap-1 text-green-600">
+                    <CheckCircle className="h-3 w-3" /> {progress.fpfUpdated} FPF
+                  </span>
+                )}
+                {progress.zzUpdated > 0 && (
+                  <span className="flex items-center gap-1 text-green-600">
+                    <CheckCircle className="h-3 w-3" /> {progress.zzUpdated} ZeroZero
+                  </span>
+                )}
+                {progress.errors > 0 && (
+                  <span className="flex items-center gap-1 text-red-500">
+                    <AlertTriangle className="h-3 w-3" /> {progress.errors} erros
+                  </span>
+                )}
+              </div>
             </div>
+          )}
 
-            {/* Progress bar */}
-            {progress && (
-              <div className="space-y-2">
-                <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
-                  <div
-                    className="h-full rounded-full bg-neutral-900 transition-all duration-300"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{progress.processed} / {progress.total} jogadores</span>
-                  <span>{pct}%</span>
-                </div>
-                <div className="flex flex-wrap gap-3 text-xs">
-                  {progress.fpfUpdated > 0 && (
-                    <span className="flex items-center gap-1 text-green-600">
-                      <CheckCircle className="h-3 w-3" /> {progress.fpfUpdated} FPF
-                    </span>
-                  )}
-                  {progress.zzUpdated > 0 && (
-                    <span className="flex items-center gap-1 text-green-600">
-                      <CheckCircle className="h-3 w-3" /> {progress.zzUpdated} ZeroZero
-                    </span>
-                  )}
-                  {progress.errors > 0 && (
-                    <span className="flex items-center gap-1 text-red-500">
-                      <AlertTriangle className="h-3 w-3" /> {progress.errors} erros
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
+          {/* Finished message */}
+          {finished && (
+            <div className="rounded-md border border-green-200 bg-green-50 p-3">
+              <p className="text-sm font-medium text-green-800">Atualização concluída</p>
+              <p className="text-xs text-green-700">
+                FPF: {progress?.fpfUpdated ?? 0} · ZeroZero: {progress?.zzUpdated ?? 0} · Erros: {progress?.errors ?? 0}
+              </p>
+            </div>
+          )}
 
-            {/* Finished message */}
-            {finished && (
-              <div className="rounded-md border border-green-200 bg-green-50 p-3">
-                <p className="text-sm font-medium text-green-800">
-                  Atualização concluída
-                </p>
-                <p className="text-xs text-green-700">
-                  FPF: {progress?.fpfUpdated ?? 0} atualizados | ZeroZero: {progress?.zzUpdated ?? 0} atualizados | Erros: {progress?.errors ?? 0}
-                </p>
-              </div>
-            )}
-
-            <Button onClick={runBulkUpdate} disabled={isRunning}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${isRunning ? 'animate-spin' : ''}`} />
-              {isRunning ? 'A atualizar...' : 'Atualizar base de dados'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          <Button onClick={runBulkUpdate} disabled={isRunning}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRunning ? 'animate-spin' : ''}`} />
+            {isRunning ? 'A atualizar...' : 'Atualizar base de dados'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -136,26 +136,16 @@ describe('filterNavItems — feature toggles', () => {
 describe('filterAdminItems', () => {
   it('returns all items with no feature restrictions', () => {
     const items = filterAdminItems(ALL_FEATURES);
-    expect(hrefs(items)).toContain('/admin/relatorios');
     expect(hrefs(items)).toContain('/definicoes');
-    expect(hrefs(items)).toContain('/exportar');
     expect(hrefs(items)).toContain('/admin/utilizadores');
     expect(hrefs(items)).toContain('/admin/dados');
-    expect(hrefs(items)).toContain('/admin/objetivos-contacto');
   });
 
-  it('hides reports when scouting_reports disabled', () => {
-    const items = filterAdminItems({ scouting_reports: false });
+  it('does not contain items moved to sidebar subitems', () => {
+    const items = filterAdminItems(ALL_FEATURES);
+    // Relatórios, Exportar, Objetivos Contacto are now sidebar subitems, not standalone admin items
     expect(hrefs(items)).not.toContain('/admin/relatorios');
-  });
-
-  it('hides export when export disabled', () => {
-    const items = filterAdminItems({ export: false });
     expect(hrefs(items)).not.toContain('/exportar');
-  });
-
-  it('hides objetivos contacto when pipeline disabled', () => {
-    const items = filterAdminItems({ pipeline: false });
     expect(hrefs(items)).not.toContain('/admin/objetivos-contacto');
   });
 });

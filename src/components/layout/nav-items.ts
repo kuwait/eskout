@@ -44,12 +44,9 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const ADMIN_ITEMS: AdminItem[] = [
-  { href: '/admin/relatorios', label: 'Relatórios', icon: FileText, feature: 'scouting_reports' },
   { href: '/definicoes', label: 'Clube', icon: Shield, feature: null },
-  { href: '/exportar', label: 'Exportar', icon: FileText, feature: 'export' },
   { href: '/admin/utilizadores', label: 'Utilizadores', icon: FileText, feature: null },
-  { href: '/admin/objetivos-contacto', label: 'Objetivos Contacto', icon: Phone, feature: 'pipeline' },
-  { href: '/admin/dados', label: 'Qualidade Dados', icon: DatabaseZap, feature: null },
+  { href: '/admin/dados', label: 'Dados', icon: DatabaseZap, feature: null },
 ];
 
 /* ───────────── Filtering ───────────── */

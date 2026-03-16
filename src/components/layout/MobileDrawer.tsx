@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, X, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown, Trophy } from 'lucide-react';
+import { UserPlus, LogOut, Palette, X, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown, Trophy, FileText, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -250,9 +250,11 @@ export function MobileDrawer({
               <ul className="mt-2 space-y-1">
                 {visibleAdminItems.map((item) => {
                   const Icon = item.icon;
-                  // Exact match for /definicoes (Clube) to avoid highlighting when sub-page Plantéis is active
+                  // Exact match for /definicoes and /admin/dados to avoid highlighting when sub-pages are active
                   const isActive = item.href === '/definicoes'
                     ? pathname === '/definicoes'
+                    : item.href === '/admin/dados'
+                    ? pathname === '/admin/dados'
                     : pathname.startsWith(item.href);
                   return (
                     <li key={item.href}>
@@ -275,21 +277,89 @@ export function MobileDrawer({
                           </span>
                         )}
                       </Link>
-                      {/* Sub-item: Plantéis — under Clube */}
+                      {/* Sub-items under Clube */}
                       {item.href === '/definicoes' && (
-                        <Link
-                          href="/definicoes/planteis"
-                          onClick={close}
-                          className={cn(
-                            'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
-                            pathname.startsWith('/definicoes/planteis')
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                        <>
+                          <Link
+                            href="/definicoes/planteis"
+                            onClick={close}
+                            className={cn(
+                              'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
+                              pathname.startsWith('/definicoes/planteis')
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                            )}
+                          >
+                            <LayoutGrid className="h-4 w-4" />
+                            Plantéis
+                          </Link>
+                          {features.scouting_reports !== false && (
+                            <Link
+                              href="/admin/relatorios"
+                              onClick={close}
+                              className={cn(
+                                'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
+                                pathname.startsWith('/admin/relatorios')
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                              )}
+                            >
+                              <FileText className="h-4 w-4" />
+                              Relatórios
+                              {alertCounts.pendingReports > 0 && (
+                                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                                  {alertCounts.pendingReports}
+                                </span>
+                              )}
+                            </Link>
                           )}
-                        >
-                          <LayoutGrid className="h-4 w-4" />
-                          Plantéis
-                        </Link>
+                        </>
+                      )}
+                      {/* Sub-items under Dados */}
+                      {item.href === '/admin/dados' && (
+                        <>
+                          <Link
+                            href="/admin/dados/qualidade"
+                            onClick={close}
+                            className={cn(
+                              'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
+                              pathname.startsWith('/admin/dados/qualidade')
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                            )}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Qualidade
+                          </Link>
+                          <Link
+                            href="/admin/dados/importar"
+                            onClick={close}
+                            className={cn(
+                              'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
+                              pathname.startsWith('/admin/dados/importar')
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                            )}
+                          >
+                            <Building2 className="h-4 w-4" />
+                            Importar Clubes
+                          </Link>
+                          {features.export !== false && (
+                            <Link
+                              href="/exportar"
+                              onClick={close}
+                              className={cn(
+                                'mt-0.5 flex items-center gap-2.5 rounded-md py-2 pl-11 pr-3 text-[13px] font-medium transition-colors',
+                                pathname.startsWith('/exportar')
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                              )}
+                            >
+                              <Download className="h-4 w-4" />
+                              Exportar
+                            </Link>
+                          )}
+                        </>
                       )}
                     </li>
                   );

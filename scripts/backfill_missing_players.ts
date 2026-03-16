@@ -40,24 +40,50 @@ async function main() {
   const compDuration = new Map(comps.map(c => [c.id, c.match_duration_minutes]));
   const compIds = comps.map(c => c.id);
 
-  // 2. Get all matches with sub events at minute >= 70
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id, fpf_match_id, competition_id')
-    .in('competition_id', compIds);
+  // 2. Get all matches (paginated — Supabase default limit is 1000)
+  const allMatches: { id: number; fpf_match_id: number; competition_id: number }[] = [];
+  let offset = 0;
+  const PAGE = 1000;
+  for (;;) {
+    const { data } = await supabase
+      .from('fpf_matches')
+      .select('id, fpf_match_id, competition_id')
+      .in('competition_id', compIds)
+      .range(offset, offset + PAGE - 1);
+    if (!data?.length) break;
+    allMatches.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  const matches = allMatches;
 
-  if (!matches?.length) { console.log('No matches found'); return; }
+  if (!matches.length) { console.log('No matches found'); return; }
+  console.log(`Total Sub-15 matches: ${matches.length}`);
 
-  // 3. Find matches with substitutions at min >= 70
+  // 3. Find matches with substitutions at min >= 70 (paginated)
   const matchIds = matches.map(m => m.id);
-  const { data: events } = await supabase
-    .from('fpf_match_events')
-    .select('match_id')
-    .in('match_id', matchIds)
-    .eq('event_type', 'substitution_in')
-    .gte('minute', 70);
+  const allEvents: { match_id: number }[] = [];
 
-  const affectedMatchIds = [...new Set((events ?? []).map(e => e.match_id))];
+  // Query in chunks of 500 to avoid .in() limits
+  for (let i = 0; i < matchIds.length; i += 500) {
+    const chunk = matchIds.slice(i, i + 500);
+    let evOffset = 0;
+    for (;;) {
+      const { data } = await supabase
+        .from('fpf_match_events')
+        .select('match_id')
+        .in('match_id', chunk)
+        .eq('event_type', 'substitution_in')
+        .gte('minute', 70)
+        .range(evOffset, evOffset + PAGE - 1);
+      if (!data?.length) break;
+      allEvents.push(...data);
+      if (data.length < PAGE) break;
+      evOffset += PAGE;
+    }
+  }
+
+  const affectedMatchIds = [...new Set(allEvents.map(e => e.match_id))];
   console.log(`Found ${affectedMatchIds.length} matches with late subs to check\n`);
 
   const matchMap = new Map(matches.map(m => [m.id, m]));

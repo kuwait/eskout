@@ -9,7 +9,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown, Trophy } from 'lucide-react';
+import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown, Trophy, FileText, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -192,9 +192,11 @@ export function Sidebar({
           <ul className="mt-2 space-y-1">
             {visibleAdminItems.map((item) => {
               const Icon = item.icon;
-              // Exact match for /definicoes (Clube) to avoid highlighting when sub-page Plantéis is active
+              // Exact match for /definicoes and /admin/dados to avoid highlighting when sub-pages are active
               const isActive = item.href === '/definicoes'
                 ? pathname === '/definicoes'
+                : item.href === '/admin/dados'
+                ? pathname === '/admin/dados'
                 : pathname.startsWith(item.href);
               return (
                 <li key={item.href}>
@@ -216,20 +218,84 @@ export function Sidebar({
                       </span>
                     )}
                   </Link>
-                  {/* Sub-item: Plantéis — under Clube */}
+                  {/* Sub-items under Clube */}
                   {item.href === '/definicoes' && (
-                    <Link
-                      href="/definicoes/planteis"
-                      className={cn(
-                        'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
-                        pathname.startsWith('/definicoes/planteis')
-                          ? 'bg-neutral-900 text-white'
-                          : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                    <>
+                      <Link
+                        href="/definicoes/planteis"
+                        className={cn(
+                          'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                          pathname.startsWith('/definicoes/planteis')
+                            ? 'bg-neutral-900 text-white'
+                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                        )}
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5" />
+                        Plantéis
+                      </Link>
+                      {features.scouting_reports !== false && (
+                        <Link
+                          href="/admin/relatorios"
+                          className={cn(
+                            'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                            pathname.startsWith('/admin/relatorios')
+                              ? 'bg-neutral-900 text-white'
+                              : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                          )}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Relatórios
+                          {alertCounts.pendingReports > 0 && (
+                            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                              {alertCounts.pendingReports}
+                            </span>
+                          )}
+                        </Link>
                       )}
-                    >
-                      <LayoutGrid className="h-3.5 w-3.5" />
-                      Plantéis
-                    </Link>
+                    </>
+                  )}
+                  {/* Sub-items under Dados */}
+                  {item.href === '/admin/dados' && (
+                    <>
+                      <Link
+                        href="/admin/dados/qualidade"
+                        className={cn(
+                          'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                          pathname.startsWith('/admin/dados/qualidade')
+                            ? 'bg-neutral-900 text-white'
+                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                        )}
+                      >
+                        <ArrowLeftRight className="h-3.5 w-3.5" />
+                        Qualidade
+                      </Link>
+                      <Link
+                        href="/admin/dados/importar"
+                        className={cn(
+                          'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                          pathname.startsWith('/admin/dados/importar')
+                            ? 'bg-neutral-900 text-white'
+                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                        )}
+                      >
+                        <Building2 className="h-3.5 w-3.5" />
+                        Importar Clubes
+                      </Link>
+                      {features.export !== false && (
+                        <Link
+                          href="/exportar"
+                          className={cn(
+                            'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                            pathname.startsWith('/exportar')
+                              ? 'bg-neutral-900 text-white'
+                              : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                          )}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Exportar
+                        </Link>
+                      )}
+                    </>
                   )}
                 </li>
               );

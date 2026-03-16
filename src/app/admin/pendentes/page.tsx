@@ -72,8 +72,20 @@ export default async function PendentesPage() {
     fetchPlayerPages('manual'),
   ]);
 
+  // Editor: exclude players created by admins (editors only see notifications from equal/lower roles)
+  let filteredOthers = otherPlayers;
+  if (ctx.role === 'editor') {
+    const { data: adminMembers } = await supabase
+      .from('club_memberships')
+      .select('user_id')
+      .eq('club_id', ctx.clubId)
+      .eq('role', 'admin');
+    const adminIds = new Set((adminMembers ?? []).map(m => m.user_id));
+    filteredOthers = otherPlayers.filter((p) => !p.created_by || !adminIds.has(p.created_by));
+  }
+
   // Filter out dismissed players (only for notification lists, not full history)
-  const undismissed = otherPlayers.filter((p) => !dismissedIds.has(p.id));
+  const undismissed = filteredOthers.filter((p) => !dismissedIds.has(p.id));
 
   // Collect creator IDs and approver IDs for name resolution (from all club players)
   const userIds = new Set<string>();
