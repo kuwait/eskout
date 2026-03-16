@@ -8,7 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Plus, Search, X, Pencil, Trash2, Users, Download, LayoutGrid, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { cn, fuzzyMatch } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -586,31 +586,26 @@ function AddPlayerDialog({
     getPickerClubs().then(setClubs);
   }, [open]);
 
-  /* Fetch players from server when dialog opens or structural filters change */
+  /* Fetch players with server-side text search + structural filters */
   useEffect(() => {
     if (!open) return;
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
-    const excludeIds = Array.from(existingIds);
+    const excludeArray = Array.from(existingIds);
     searchPickerPlayers({
+      search: debouncedSearch || undefined,
       position: filters.position || undefined,
       club: filters.club || undefined,
       opinion: filters.opinion || undefined,
       foot: filters.foot || undefined,
-      excludeIds: excludeIds.length > 0 ? excludeIds : undefined,
+      excludeIds: excludeArray.length > 0 ? excludeArray : undefined,
     }).then((players) => {
       setPool(players);
       setLoading(false);
     });
-  }, [open, existingIds, filters.position, filters.club, filters.opinion, filters.foot]);
+  }, [open, debouncedSearch, existingIds, filters.position, filters.club, filters.opinion, filters.foot]);
 
-  /* Client-side fuzzy search on the server-fetched pool */
-  const filtered = useMemo(() => {
-    if (!debouncedSearch) return pool;
-    return pool.filter((p) => {
-      const pLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
-      return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${pLabel}`, debouncedSearch);
-    });
-  }, [pool, debouncedSearch]);
+  /* Server-side search — just use pool directly */
+  const filtered = pool;
 
   /* Client-side pagination */
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);

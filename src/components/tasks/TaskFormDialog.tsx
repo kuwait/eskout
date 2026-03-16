@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Search, User, X } from 'lucide-react';
-import { fuzzyMatch } from '@/lib/utils';
+
 import { cn } from '@/lib/utils';
 import { searchPickerPlayers } from '@/actions/player-lists';
 import { Button } from '@/components/ui/button';
@@ -51,11 +51,11 @@ function TaskPlayerPickerDialog({
   }, [open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Fetch players from server when dialog opens
+  // Fetch players with server-side text search
   useEffect(() => {
     if (!open) return;
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
-    searchPickerPlayers().then((results) => {
+    searchPickerPlayers({ search: debouncedSearch || undefined }).then((results) => {
       setPool(results.map((p) => ({
         id: p.id,
         name: p.name,
@@ -64,15 +64,10 @@ function TaskPlayerPickerDialog({
       })));
       setLoading(false);
     });
-  }, [open]);
+  }, [open, debouncedSearch]);
 
-  // Fuzzy filter on name, club, and position (client-side)
-  const filtered = useMemo(() => {
-    if (!debouncedSearch) return pool;
-    return pool.filter((p) =>
-      fuzzyMatch(`${p.name} ${p.club} ${p.position}`, debouncedSearch)
-    );
-  }, [pool, debouncedSearch]);
+  // Server-side search — no client filter needed
+  const filtered = pool;
 
   // Reset page when search changes
   // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on search change

@@ -15,7 +15,7 @@ import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { updateRecruitmentStatus, reorderPipelineCards, updateDecisionSide } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
-import { fuzzyMatch } from '@/lib/utils';
+
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -431,16 +431,18 @@ function AddToPipelineDialog({
       });
   }, [open, clubId]);
 
-  // Fetch players with structural filters from DB (no text search — that's client-side)
+  // Fetch players with server-side text search + structural filters
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     const supabase = createClient();
-    const PAGE = 1000;
-    const all: PlayerRow[] = [];
 
     async function fetch() {
+      // When text searching, limit to 50 results for speed
+      const limit = debouncedSearch ? 50 : 1000;
+      const all: PlayerRow[] = [];
       let offset = 0;
+
       for (;;) {
         let query = supabase
           .from('players')
@@ -451,7 +453,15 @@ function AddToPipelineDialog({
 
         if (ageGroupId) query = query.eq('age_group_id', ageGroupId);
 
-        // Structural filters applied server-side
+        // Server-side text search — each word matches name OR club
+        if (debouncedSearch) {
+          const words = debouncedSearch.trim().split(/\s+/).filter((w: string) => w.length >= 2);
+          for (const word of words) {
+            query = query.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
+          }
+        }
+
+        // Structural filters
         if (filters.position) {
           query = query.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
         }
@@ -459,27 +469,22 @@ function AddToPipelineDialog({
         if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
         if (filters.foot) query = query.eq('foot', filters.foot);
 
-        const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
+        const { data, error } = await query.order('name').range(offset, offset + limit - 1);
         if (error || !data?.length) break;
         all.push(...(data as PlayerRow[]));
-        if (data.length < PAGE) break;
-        offset += PAGE;
+        if (data.length < limit) break;
+        if (debouncedSearch) break; // Don't paginate during text search
+        offset += limit;
       }
       setPool(all.map(mapPlayerRow));
       setLoading(false);
     }
 
     fetch();
-  }, [open, clubId, ageGroupId, filters.position, filters.club, filters.opinion, filters.foot]);
+  }, [open, clubId, ageGroupId, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
 
-  // Client-side fuzzy search on the pool (accent-insensitive, multi-word, multi-field)
-  const filtered = useMemo(() => {
-    if (!debouncedSearch) return pool;
-    return pool.filter((p) => {
-      const posLabel = POSITIONS.find((pos) => pos.code === p.positionNormalized)?.labelPt ?? '';
-      return fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized} ${posLabel}`, debouncedSearch);
-    });
-  }, [pool, debouncedSearch]);
+  // Server-side search — just use pool directly
+  const filtered = pool;
 
   // Client-side pagination
   const totalPages = Math.ceil(filtered.length / DIALOG_PAGE_SIZE);

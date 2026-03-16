@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Search, X, Check, Loader2 } from 'lucide-react';
-import { fuzzyMatch } from '@/lib/utils';
+
 import {
   Dialog,
   DialogContent,
@@ -88,11 +88,12 @@ export function PlayerPickerDialog({
     getPickerClubs().then(setClubs);
   }, [open]);
 
-  // Fetch players with structural filters
+  // Fetch players with structural filters + server-side text search
   useEffect(() => {
     if (!open) return;
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
     searchPickerPlayers({
+      search: debouncedSearch || undefined,
       position: filters.position || undefined,
       club: filters.club || undefined,
       opinion: filters.opinion || undefined,
@@ -101,15 +102,10 @@ export function PlayerPickerDialog({
       setPool(results);
       setLoading(false);
     });
-  }, [open, filters.position, filters.club, filters.opinion, filters.foot]);
+  }, [open, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
 
-  // Client-side fuzzy search on pool
-  const filtered = useMemo(() => {
-    if (!debouncedSearch) return pool.slice(0, 30);
-    return pool.filter((p) =>
-      fuzzyMatch(`${p.name} ${p.club} ${p.positionNormalized ?? ''}`, debouncedSearch)
-    ).slice(0, 30);
-  }, [pool, debouncedSearch]);
+  // Server-side search — just slice
+  const filtered = useMemo(() => pool.slice(0, 30), [pool]);
 
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 
