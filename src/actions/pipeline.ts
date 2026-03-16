@@ -194,6 +194,7 @@ export async function updateRecruitmentStatus(
     updatePayload.decision_side = 'club';
   } else if (oldStatus === 'a_decidir') {
     updatePayload.decision_side = null;
+    updatePayload.decision_date = null;
   }
   if (oldStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
     updatePayload.training_date = null;
@@ -732,6 +733,55 @@ export async function updateTrainingEscalao(
   }
 
   revalidatePath('/pipeline');
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+
+  return { success: true };
+}
+
+/* ───────────── Decision Date ───────────── */
+
+/** Update the decision date for a player in 'a_decidir' status */
+export async function updateDecisionDate(
+  playerId: number,
+  dateTime: string | null
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
+  const supabase = await createClient();
+
+  // Get old value for history
+  const { data: player } = await supabase
+    .from('players')
+    .select('decision_date')
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+    .single();
+
+  const { error } = await supabase
+    .from('players')
+    .update({ decision_date: dateTime })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar data de decisão: ${error.message}` };
+  }
+
+  // Log to status_history
+  await supabase.from('status_history').insert({
+    club_id: clubId,
+    player_id: playerId,
+    field_changed: 'decision_date',
+    old_value: player?.decision_date ?? null,
+    new_value: dateTime,
+    changed_by: userId,
+  });
+
+  revalidatePath('/pipeline');
+  revalidatePath(`/jogadores/${playerId}`);
+
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
 
   return { success: true };

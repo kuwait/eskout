@@ -120,6 +120,7 @@ export function mapPlayerRow(row: PlayerRow): Player {
     zzLastChecked: row.zz_last_checked,
     recruitmentStatus: mapRecruitmentStatus(row.recruitment_status),
     decisionSide: (row.decision_side as Player['decisionSide']) ?? null,
+    decisionDate: row.decision_date ?? null,
     trainingDate: row.training_date,
     meetingDate: row.meeting_date ?? null,
     signingDate: row.signing_date ?? null,

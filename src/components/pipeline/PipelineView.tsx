@@ -187,6 +187,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
           updated.decisionSide = 'club';
         } else if (p.recruitmentStatus === 'a_decidir') {
           updated.decisionSide = null;
+          updated.decisionDate = null;
         }
         // Clear date fields when leaving their respective statuses (mirrors server logic)
         if (p.recruitmentStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
@@ -270,7 +271,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
   }
 
   /** Optimistic update for training/meeting/signing date edits from PipelineCard */
-  function handleDateChange(playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) {
+  function handleDateChange(playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate' | 'decisionDate', newDate: string | null) {
     setPipelinePlayers((cur) =>
       cur.map((p) =>
         p.id === playerId ? { ...p, [field]: newDate } : p

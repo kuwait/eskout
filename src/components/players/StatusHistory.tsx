@@ -298,6 +298,21 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
           : <span className="text-sm text-muted-foreground">Assinatura desmarcada</span>,
       };
 
+    /* ── Decision date ── */
+    case 'decision_date':
+      return {
+        icon: <Calendar className={IC} />,
+        iconBg: 'bg-indigo-50 text-indigo-600',
+        accent: 'border-l-indigo-400',
+        content: newValue
+          ? (
+            <span className="text-sm">
+              Prazo de decisão: <span className="font-medium">{fmtDateTime(newValue)}</span>
+            </span>
+          )
+          : <span className="text-sm text-muted-foreground">Prazo de decisão removido</span>,
+      };
+
     /* ── Club ── */
     case 'club':
       return {

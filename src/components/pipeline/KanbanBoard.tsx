@@ -68,7 +68,7 @@ interface KanbanBoardProps {
   playersByStatus: Record<RecruitmentStatus, Player[]>;
   onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
   onRemove?: (playerId: number) => void;
-  onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
+  onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate' | 'decisionDate', newDate: string | null) => void;
   /** Callback for reorder after drag-and-drop within/between columns */
   onReorder?: (updates: { playerId: number; order: number }[]) => void;
   /** Show birth year on cards (when viewing all age groups) */

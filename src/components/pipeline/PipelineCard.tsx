@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao } from '@/actions/pipeline';
+import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateDecisionDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
@@ -35,7 +35,7 @@ interface PipelineCardProps {
   /** Remove from abordagens callback */
   onRemove?: (playerId: number) => void;
   /** Notify parent of training/meeting date change for optimistic update */
-  onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
+  onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate' | 'decisionDate', newDate: string | null) => void;
   /** Club-scoped profiles for contact assignment */
   clubMembers?: { id: string; fullName: string }[];
   /** Mobile: dropdown to move card between columns (replaces drag-and-drop) */
@@ -83,6 +83,15 @@ const DATE_STATUS_CONFIG = {
     bgClass: 'bg-orange-50 text-orange-700 hover:bg-orange-100',
     iconClass: 'text-orange-500',
     serverAction: updateMeetingDate,
+  },
+  a_decidir: {
+    field: 'decisionDate' as const,
+    icon: Calendar,
+    dialogTitle: 'Data da Decisão',
+    placeholder: 'Definir prazo de decisão',
+    bgClass: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
+    iconClass: 'text-indigo-500',
+    serverAction: updateDecisionDate,
   },
   confirmado: {
     field: 'signingDate' as const,

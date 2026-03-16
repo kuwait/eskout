@@ -23,7 +23,7 @@ interface StatusListProps {
   onPlayerClick?: (playerId: number) => void;
   onStatusChange: (playerId: number, newStatus: RecruitmentStatus) => void;
   onRemove: (playerId: number) => void;
-  onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate', newDate: string | null) => void;
+  onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate' | 'decisionDate', newDate: string | null) => void;
 }
 
 export function StatusList({ playersByStatus, showBirthYear, onPlayerClick, onStatusChange, onRemove, onDateChange }: StatusListProps) {

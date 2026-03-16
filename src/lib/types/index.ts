@@ -89,6 +89,7 @@ export interface Player {
   zzLastChecked: string | null;
   recruitmentStatus: RecruitmentStatus | null;
   decisionSide: DecisionSide | null;
+  decisionDate: string | null;
   trainingDate: string | null;
   meetingDate: string | null;
   signingDate: string | null;
@@ -175,6 +176,7 @@ export interface PlayerRow {
   zz_last_checked: string | null;
   recruitment_status: string;
   decision_side: string | null;
+  decision_date: string | null;
   training_date: string | null;
   meeting_date: string | null;
   signing_date: string | null;
