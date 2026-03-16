@@ -703,10 +703,17 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
       .eq('club_id', clubId)
       .eq('pending_approval', false);
 
-    // Server-side text search — use first + last word only (middle names over-filter with AND)
+    // Server-side text search — use up to 3 words (first, last, and one middle if present)
+    // With 4+ words, skip the most common middle names to avoid over-filtering
     if (filters.search) {
       const words = filters.search.trim().split(/\s+/).filter(w => w.length >= 2);
-      const searchWords = words.length <= 2 ? words : [words[0], words[words.length - 1]];
+      let searchWords: string[];
+      if (words.length <= 3) {
+        searchWords = words;
+      } else {
+        // Use first, second-to-last, and last (skip common middle names like "de", "da", "dos")
+        searchWords = [words[0], words[words.length - 2], words[words.length - 1]];
+      }
       for (const word of searchWords) {
         query = query.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
       }

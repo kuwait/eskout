@@ -198,51 +198,57 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     setLoading(false);
   }, [clubId, applyStructuralFilters, page, isSearchMode, enrichPlayers]);
 
-  useEffect(() => { fetchPage(); }, [fetchPage]);
+  useEffect(() => { fetchPage(); }, [fetchPage]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
 
-  /* ───────────── Mode 2: Full pool fetch for search/observationTier ───────────── */
+  /* ───────────── Mode 2: Server-side search for text queries ───────────── */
 
   const fetchSearchPool = useCallback(async () => {
     if (!isSearchMode) { setSearchPool([]); return; }
     setLoading(true);
     const supabase = createClient();
-    const PAGE = 1000;
-    const all: PlayerRow[] = [];
-    let offset = 0;
-    for (;;) {
-      let q = supabase.from('players').select('*').eq('club_id', clubId).eq('pending_approval', false);
-      q = applyStructuralFilters(q);
-      const { data, error } = await q.order('name').range(offset, offset + PAGE - 1);
-      if (error || !data?.length) break;
-      all.push(...(data as PlayerRow[]));
-      if (data.length < PAGE) break;
-      offset += PAGE;
+
+    let q = supabase.from('players').select('*', { count: 'exact' }).eq('club_id', clubId).eq('pending_approval', false);
+    q = applyStructuralFilters(q);
+
+    // Server-side text search — up to 3 words
+    if (debouncedSearch) {
+      const words = debouncedSearch.trim().split(/\s+/).filter((w: string) => w.length >= 2);
+      let searchWords: string[];
+      if (words.length <= 3) {
+        searchWords = words;
+      } else {
+        searchWords = [words[0], words[words.length - 2], words[words.length - 1]];
+      }
+      for (const word of searchWords) {
+        q = q.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
+      }
     }
-    const enriched = await enrichPlayers(all);
+
+    // Observation tier filter stays client-side (computed field)
+    const { data, count, error } = await q.order('name').range(0, 199);
+    if (error || !data) { setSearchPool([]); setLoading(false); return; }
+
+    const enriched = await enrichPlayers(data as PlayerRow[]);
     setSearchPool(enriched);
     setLoading(false);
-  }, [clubId, applyStructuralFilters, isSearchMode, enrichPlayers]);
+  }, [clubId, applyStructuralFilters, isSearchMode, debouncedSearch, enrichPlayers]);
 
-  useEffect(() => { fetchSearchPool(); }, [fetchSearchPool]);
+  useEffect(() => { fetchSearchPool(); }, [fetchSearchPool]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
 
   /* ───────────── Realtime ───────────── */
 
   useRealtimeTable('players', { onAny: () => { if (isSearchMode) fetchSearchPool(); else fetchPage(); } });
 
-  /* ───────────── Client-side search + observationTier on the pool ───────────── */
+  /* ───────────── Client-side observationTier filter on search results ───────────── */
 
   const searchFiltered = useMemo(() => {
     if (!isSearchMode) return [];
     let result = searchPool;
-    if (debouncedSearch) {
-      const words = normalize(debouncedSearch).split(/\s+/).filter(Boolean);
-      if (words.length > 0) result = result.filter((p) => multiFieldMatch(p, words));
-    }
     if (filters.observationTier) {
       result = result.filter((p) => getObservationTier(p) === filters.observationTier);
     }
     return result;
-  }, [isSearchMode, searchPool, debouncedSearch, filters.observationTier]);
+  }, [isSearchMode, searchPool, filters.observationTier]);
 
   /* ───────────── Unified view: pick source based on mode ───────────── */
 
@@ -253,7 +259,7 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     : pageRows; // already one page from server
 
   // Reset to first page when filters/search change
-  useEffect(() => { setPage(0); }, [debouncedSearch, filters]);
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters]); // eslint-disable-line react-hooks/set-state-in-effect -- reset page on filter change
 
   /* ───────────── Fetch dropdown options once ───────────── */
 
