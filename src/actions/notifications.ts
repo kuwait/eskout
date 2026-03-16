@@ -24,7 +24,13 @@ export interface TaskNotificationContext {
   /** Player context (null for manual tasks without player) */
   playerName: string | null;
   playerClub: string | null;
+  playerPhotoUrl: string | null;
   playerContact: string | null;
+  playerPosition: string | null;
+  playerDob: string | null;
+  playerFoot: string | null;
+  playerFpfLink: string | null;
+  playerZzLink: string | null;
   /** Contact purpose label (only for pipeline_contact) */
   contactPurpose: string | null;
   /** Due date ISO string */
@@ -47,21 +53,33 @@ export interface TaskNotificationContext {
  */
 export async function notifyTaskAssigned(ctx: TaskNotificationContext): Promise<void> {
   try {
-    // Skip self-assignment
+    // Skip self-assignment — no email when assigning to yourself
     if (ctx.assignedByUserId === ctx.targetUserId) return;
 
     const serviceClient = await createServiceClient();
 
-    // Check notification preferences (default: enabled)
+    // Check notification preferences (default: all enabled)
     const { data: prefs } = await serviceClient
       .from('user_notification_preferences')
-      .select('email_on_task_assigned')
+      .select('email_all, email_on_contact, email_on_meeting, email_on_training, email_on_signing')
       .eq('user_id', ctx.targetUserId)
       .eq('club_id', ctx.clubId)
       .maybeSingle();
 
-    // If preference row exists and email is disabled, skip
-    if (prefs && prefs.email_on_task_assigned === false) return;
+    if (prefs) {
+      // Master toggle — disables all
+      if (prefs.email_all === false) return;
+
+      // Granular toggles per task source
+      const sourceToField: Record<string, boolean | null> = {
+        pipeline_contact: prefs.email_on_contact,
+        pipeline_meeting: prefs.email_on_meeting,
+        pipeline_training: prefs.email_on_training,
+        pipeline_signing: prefs.email_on_signing,
+      };
+      const fieldValue = sourceToField[ctx.taskSource];
+      if (fieldValue === false) return;
+    }
 
     // Fetch target user's email and name from auth + profiles
     const { data: authData } = await serviceClient.auth.admin.getUserById(ctx.targetUserId);
@@ -102,7 +120,13 @@ export async function notifyTaskAssigned(ctx: TaskNotificationContext): Promise<
       taskSource: ctx.taskSource,
       playerName: ctx.playerName,
       playerClub: ctx.playerClub,
+      playerPhotoUrl: ctx.playerPhotoUrl,
       playerContact: ctx.playerContact,
+      playerPosition: ctx.playerPosition,
+      playerDob: ctx.playerDob,
+      playerFoot: ctx.playerFoot,
+      playerFpfLink: ctx.playerFpfLink,
+      playerZzLink: ctx.playerZzLink,
       contactPurpose: ctx.contactPurpose,
       dueDate: formattedDate,
       trainingEscalao: ctx.trainingEscalao,

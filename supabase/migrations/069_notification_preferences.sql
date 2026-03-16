@@ -1,12 +1,16 @@
 -- Migration 069: User notification preferences
 -- Per-user, per-club email notification settings
--- Default: email_on_task_assigned = true (opt-out model)
+-- Granular toggles per task type + master toggle (opt-out model, all on by default)
 
 CREATE TABLE user_notification_preferences (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
-  email_on_task_assigned BOOLEAN NOT NULL DEFAULT true,
+  email_all BOOLEAN NOT NULL DEFAULT true,
+  email_on_contact BOOLEAN NOT NULL DEFAULT true,
+  email_on_meeting BOOLEAN NOT NULL DEFAULT true,
+  email_on_training BOOLEAN NOT NULL DEFAULT true,
+  email_on_signing BOOLEAN NOT NULL DEFAULT true,
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id, club_id)
 );

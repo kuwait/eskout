@@ -35,8 +35,20 @@ export interface TaskEmailData {
   playerName: string | null;
   /** Player club */
   playerClub: string | null;
+  /** Player photo URL */
+  playerPhotoUrl: string | null;
   /** Player contact number */
   playerContact: string | null;
+  /** Player position (e.g. "DC", "MC") */
+  playerPosition: string | null;
+  /** Player date of birth (e.g. "2012-03-15") */
+  playerDob: string | null;
+  /** Player preferred foot (e.g. "Dir", "Esq", "Amb") */
+  playerFoot: string | null;
+  /** FPF profile link */
+  playerFpfLink: string | null;
+  /** ZeroZero profile link */
+  playerZzLink: string | null;
   /** Contact purpose (only for pipeline_contact tasks) */
   contactPurpose: string | null;
   /** Due date (formatted string) */
@@ -80,7 +92,7 @@ export async function sendTaskEmail(data: TaskEmailData): Promise<void> {
 
 /* ───────────── HTML Template ───────────── */
 
-function buildTaskEmailHtml(data: TaskEmailData): string {
+export function buildTaskEmailHtml(data: TaskEmailData): string {
   const details = buildDetailsSection(data);
 
   return `
@@ -106,7 +118,7 @@ function buildTaskEmailHtml(data: TaskEmailData): string {
       <!-- Task card -->
       <div style="background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;padding:16px;margin-bottom:20px">
         <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:#1a1a1a">
-          ${escapeHtml(data.taskTitle)}
+          ${escapeHtml(stripPurposeSuffix(data.taskTitle))}
         </p>
         ${details}
       </div>
@@ -138,8 +150,29 @@ function buildDetailsSection(data: TaskEmailData): string {
   if (data.playerClub) {
     rows.push(detailRow('Clube', data.playerClub));
   }
+  if (data.playerPosition) {
+    rows.push(detailRow('Posição', data.playerPosition));
+  }
+  if (data.playerDob) {
+    // Format DOB to dd/MM/yyyy + age
+    const dobDate = new Date(data.playerDob);
+    const age = Math.floor((Date.now() - dobDate.getTime()) / 31557600000);
+    const dobFormatted = dobDate.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    rows.push(detailRow('Nascimento', `${dobFormatted} (${age} anos)`));
+  }
+  if (data.playerFoot) {
+    const footMap: Record<string, string> = { Dir: 'Direito', Esq: 'Esquerdo', Amb: 'Ambidestro' };
+    rows.push(detailRow('Pé', footMap[data.playerFoot] ?? data.playerFoot));
+  }
   if (data.playerContact) {
     rows.push(detailRow('Contacto', `<a href="tel:${escapeHtml(data.playerContact)}" style="color:#3b82f6;text-decoration:none">${escapeHtml(data.playerContact)}</a>`));
+  }
+  // External profile links (text only)
+  const links: string[] = [];
+  if (data.playerFpfLink) links.push(`<a href="${escapeHtml(data.playerFpfLink)}" style="color:#3b82f6;text-decoration:none">FPF</a>`);
+  if (data.playerZzLink) links.push(`<a href="${escapeHtml(data.playerZzLink)}" style="color:#3b82f6;text-decoration:none">ZeroZero</a>`);
+  if (links.length > 0) {
+    rows.push(detailRow('Perfis', links.join(' &nbsp;·&nbsp; ')));
   }
   if (data.contactPurpose) {
     rows.push(detailRow('Objetivo', data.contactPurpose));
@@ -171,6 +204,12 @@ function escapeHtml(str: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/** Strip contact purpose suffix from task title (e.g. "Contactar João — Vir Treinar" → "Contactar João") */
+function stripPurposeSuffix(str: string): string {
+  const idx = str.indexOf(' — ');
+  return idx > 0 ? str.slice(0, idx) : str;
 }
 
 /** Strip emoji prefix from task title for email subject */

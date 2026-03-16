@@ -1,15 +1,15 @@
 // src/app/preferencias/page.tsx
-// User preferences page — theme picker + email notification toggle
+// User preferences page — theme picker + email notification toggles
 // Each user can customize their experience independently
 // RELEVANT FILES: src/lib/theme.tsx, src/components/settings/ThemePicker.tsx, src/actions/notification-preferences.ts
 
 import { Mail, Palette } from 'lucide-react';
 import { ThemePicker } from '@/components/settings/ThemePicker';
-import { EmailNotificationToggle } from '@/components/settings/EmailNotificationToggle';
-import { getEmailNotificationsEnabled } from '@/actions/notification-preferences';
+import { EmailNotificationToggles } from '@/components/settings/EmailNotificationToggle';
+import { getNotificationPreferences } from '@/actions/notification-preferences';
 
 export default async function PreferenciasPage() {
-  const emailEnabled = await getEmailNotificationsEnabled();
+  const prefs = await getNotificationPreferences();
 
   return (
     <div className="p-4 lg:p-6">
@@ -35,9 +35,9 @@ export default async function PreferenciasPage() {
             <p className="text-sm font-semibold">Notificações por Email</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Receber email quando te é atribuída uma nova tarefa (contacto, reunião, treino, etc.).
+            Receber email quando te é atribuída uma nova tarefa.
           </p>
-          <EmailNotificationToggle initialEnabled={emailEnabled} />
+          <EmailNotificationToggles initialPrefs={prefs} />
         </div>
       </div>
     </div>

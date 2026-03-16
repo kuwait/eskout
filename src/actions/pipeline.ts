@@ -163,7 +163,7 @@ export async function updateRecruitmentStatus(
   // Get current status and date fields for richer history context
   const { data: player } = await supabase
     .from('players')
-    .select('name, club, contact, recruitment_status, training_date, training_escalao, meeting_date, signing_date, contact_assigned_to, meeting_attendees, signing_attendees')
+    .select('name, club, contact, position_normalized, dob, foot, fpf_link, zerozero_link, photo_url, zz_photo_url, recruitment_status, training_date, training_escalao, meeting_date, signing_date, contact_assigned_to, meeting_attendees, signing_attendees')
     .eq('id', playerId)
     .eq('club_id', clubId)
     .single();
@@ -268,13 +268,21 @@ export async function updateRecruitmentStatus(
   const playerContact = player?.contact ?? null;
 
   // Shared notification context builder
+  const playerPosition = player?.position_normalized ?? null;
+  const playerDob = player?.dob ?? null;
+  const playerFoot = player?.foot ?? null;
+  const playerFpfLink = player?.fpf_link ?? null;
+  const playerZzLink = player?.zerozero_link ?? null;
+  const playerPhotoUrl = player?.photo_url ?? player?.zz_photo_url ?? null;
+
   const notifyCtx = (targetUserId: string, taskTitle: string, taskSource: string, extra?: Partial<Parameters<typeof notifyTaskAssigned>[0]>) => {
     // Fire-and-forget — don't await
     notifyTaskAssigned({
       clubId, clubName: club.name,
       assignedByUserId: userId, assignedByName: assignerName,
       targetUserId, taskTitle, taskSource,
-      playerName, playerClub, playerContact,
+      playerName, playerClub, playerPhotoUrl, playerContact,
+      playerPosition, playerDob, playerFoot, playerFpfLink, playerZzLink,
       contactPurpose: null, dueDate: null, trainingEscalao: null,
       ...extra,
     });
@@ -564,7 +572,7 @@ export async function updateMeetingAttendees(
   playerId: number,
   attendeeIds: string[]
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role, club } = await getActiveClub();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -572,7 +580,7 @@ export async function updateMeetingAttendees(
 
   const { data: player } = await supabase
     .from('players')
-    .select('name, meeting_attendees, meeting_date')
+    .select('name, club, contact, position_normalized, dob, foot, fpf_link, zerozero_link, photo_url, zz_photo_url, meeting_attendees, meeting_date')
     .eq('id', playerId)
     .eq('club_id', clubId)
     .single();
@@ -587,12 +595,35 @@ export async function updateMeetingAttendees(
     return { success: false, error: `Erro ao atualizar participantes: ${error.message}` };
   }
 
-  // Create auto-tasks for new attendees
+  // Fetch assigner name for notifications
+  const { data: assignerProfile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .single();
+  const assignerName = assignerProfile?.full_name ?? 'Eskout';
+
+  // Create auto-tasks + send email for new attendees
   const playerName = player?.name ?? `Jogador #${playerId}`;
   const oldAttendees = new Set((player?.meeting_attendees ?? []) as string[]);
   for (const id of attendeeIds) {
     if (!oldAttendees.has(id)) {
-      await upsertAutoTask(supabase, clubId, id, playerId, `🤝 Reunião — ${playerName}`, 'pipeline_meeting', player?.meeting_date);
+      const taskTitle = `🤝 Reunião — ${playerName}`;
+      await upsertAutoTask(supabase, clubId, id, playerId, taskTitle, 'pipeline_meeting', player?.meeting_date);
+      notifyTaskAssigned({
+        clubId, clubName: club.name,
+        assignedByUserId: userId, assignedByName: assignerName,
+        targetUserId: id, taskTitle, taskSource: 'pipeline_meeting',
+        playerName, playerClub: player?.club ?? null,
+        playerPhotoUrl: player?.photo_url ?? player?.zz_photo_url ?? null,
+        playerContact: player?.contact ?? null,
+        playerPosition: player?.position_normalized ?? null,
+        playerDob: player?.dob ?? null,
+        playerFoot: player?.foot ?? null,
+        playerFpfLink: player?.fpf_link ?? null,
+        playerZzLink: player?.zerozero_link ?? null,
+        contactPurpose: null, dueDate: player?.meeting_date ?? null, trainingEscalao: null,
+      });
     }
   }
   // Auto-complete tasks for removed attendees

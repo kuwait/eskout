@@ -106,15 +106,27 @@ export async function createTask(
     let playerName: string | null = null;
     let playerClub: string | null = null;
     let playerContact: string | null = null;
+    let playerPosition: string | null = null;
+    let playerDob: string | null = null;
+    let playerFoot: string | null = null;
+    let playerFpfLink: string | null = null;
+    let playerZzLink: string | null = null;
+    let playerPhotoUrl: string | null = null;
     if (opts?.playerId) {
       const { data: playerData } = await supabase
         .from('players')
-        .select('name, club, contact')
+        .select('name, club, contact, position_normalized, dob, foot, fpf_link, zerozero_link, photo_url, zz_photo_url')
         .eq('id', opts.playerId)
         .single();
       playerName = playerData?.name ?? null;
       playerClub = playerData?.club ?? null;
       playerContact = playerData?.contact ?? null;
+      playerPosition = playerData?.position_normalized ?? null;
+      playerDob = playerData?.dob ?? null;
+      playerFoot = playerData?.foot ?? null;
+      playerFpfLink = playerData?.fpf_link ?? null;
+      playerZzLink = playerData?.zerozero_link ?? null;
+      playerPhotoUrl = playerData?.photo_url ?? playerData?.zz_photo_url ?? null;
     }
 
     // Fire-and-forget
@@ -128,7 +140,13 @@ export async function createTask(
       taskSource: 'manual',
       playerName,
       playerClub,
+      playerPhotoUrl,
       playerContact,
+      playerPosition,
+      playerDob,
+      playerFoot,
+      playerFpfLink,
+      playerZzLink,
       contactPurpose: null,
       dueDate: opts?.dueDate ?? null,
       trainingEscalao: null,
