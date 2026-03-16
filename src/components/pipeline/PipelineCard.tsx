@@ -44,6 +44,8 @@ interface PipelineCardProps {
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
   /** Contact purpose label for em_contacto cards */
   contactPurposeLabel?: string;
+  /** Available contact purpose options for editing */
+  contactPurposes?: { id: string; label: string }[];
 }
 
 /** Format a date string to a compact Portuguese display */
@@ -97,7 +99,7 @@ import { shortName } from '@/lib/utils';
 // Re-export for consumers that imported from here
 export { shortName } from '@/lib/utils';
 
-export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel }: PipelineCardProps) {
+export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel, contactPurposes = [] }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
   // Short name on pipeline cards — full name truncated via CSS
@@ -172,11 +174,11 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
   return (
     <>
       <div
-        className="group relative select-none rounded-md border bg-white p-2.5 pr-6 shadow-sm transition-shadow hover:shadow-md"
+        className="group relative select-none rounded-md border bg-white p-2.5 shadow-sm transition-shadow hover:shadow-md"
       >
         <div
           data-player-link
-          className="block w-full cursor-pointer text-left"
+          className="block w-full cursor-pointer pr-4 text-left"
           onClick={() => onPlayerClick?.(player.id)}
           role={onPlayerClick ? 'button' : undefined}
           tabIndex={onPlayerClick ? 0 : undefined}
@@ -248,11 +250,13 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           <ContactAssignButton player={player} clubMembers={clubMembers} />
         )}
 
-        {/* Contact purpose — shown on "Em contacto" cards when available */}
-        {player.recruitmentStatus === 'em_contacto' && contactPurposeLabel && (
-          <div className="mt-1 line-clamp-2 rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-            {contactPurposeLabel}
-          </div>
+        {/* Contact purpose — shown on "Em contacto" cards, clickable to edit */}
+        {player.recruitmentStatus === 'em_contacto' && (
+          <ContactPurposeButton
+            playerId={player.id}
+            currentLabel={contactPurposeLabel}
+            contactPurposes={contactPurposes}
+          />
         )}
 
         {/* Vir treinar: responsible person + escalão */}
@@ -831,6 +835,107 @@ function CardActionsMenu({
           )}
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+/* ───────────── Contact Purpose Button for Em Contacto cards ───────────── */
+
+function ContactPurposeButton({
+  playerId,
+  currentLabel,
+  contactPurposes,
+}: {
+  playerId: number;
+  currentLabel?: string;
+  contactPurposes: { id: string; label: string }[];
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [localLabel, setLocalLabel] = useState(currentLabel ?? '');
+  const [isSaving, startSave] = useTransition();
+
+  useEffect(() => { setLocalLabel(currentLabel ?? ''); }, [currentLabel]);
+
+  const filtered = contactPurposes.filter((p) =>
+    !search || p.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function handleSelect(purposeId: string, label: string) {
+    setLocalLabel(label);
+    setPickerOpen(false);
+    setSearch('');
+    startSave(async () => {
+      const { updateContactPurpose } = await import('@/actions/pipeline');
+      await updateContactPurpose(playerId, purposeId, null);
+    });
+  }
+
+  function handleCustom() {
+    // Close picker — the "Outro" option would need a text input
+    // For simplicity, just use the search text as custom purpose
+    const customText = search.trim();
+    if (!customText) return;
+    setLocalLabel(customText);
+    setPickerOpen(false);
+    setSearch('');
+    startSave(async () => {
+      const { updateContactPurpose } = await import('@/actions/pipeline');
+      await updateContactPurpose(playerId, null, customText);
+    });
+  }
+
+  return (
+    <>
+      <button
+        data-no-navigate
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
+        disabled={isSaving}
+        className={`mt-1 flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-[10px] ${
+          localLabel
+            ? 'bg-blue-50 font-medium text-blue-700 hover:bg-blue-100'
+            : 'bg-neutral-50 text-muted-foreground hover:bg-neutral-100'
+        }`}
+      >
+        <span className="line-clamp-2 text-left">{localLabel || 'Objetivo do contacto…'}</span>
+        <ChevronsUpDown className="ml-auto h-2.5 w-2.5 shrink-0 opacity-50" />
+      </button>
+      <CommandDialog open={pickerOpen} onOpenChange={(v) => { setPickerOpen(v); if (!v) setSearch(''); }} className="top-[10%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%]" showCloseButton={false}>
+        <CommandInput
+          placeholder="Pesquisar objetivo…"
+          value={search}
+          onValueChange={setSearch}
+          onClear={() => setSearch('')}
+        />
+        <CommandList>
+          <CommandEmpty>
+            {search.trim() ? (
+              <button
+                type="button"
+                onClick={handleCustom}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-neutral-50"
+              >
+                Usar &quot;{search.trim()}&quot; como objetivo
+              </button>
+            ) : (
+              'Sem resultados'
+            )}
+          </CommandEmpty>
+          <CommandGroup heading="Objetivos">
+            {filtered.map((p) => (
+              <CommandItem
+                key={p.id}
+                value={p.label}
+                onSelect={() => handleSelect(p.id, p.label)}
+              >
+                {p.label}
+                {p.label === localLabel && <Check className="ml-auto h-4 w-4 text-blue-500" />}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </>
   );
 }

@@ -324,6 +324,7 @@ export function PipelineView({ clubId }: { clubId: string }) {
         showBirthYear={showBirthYear}
         clubMembers={clubMembers}
         contactPurposeMap={contactPurposeMap}
+        contactPurposes={contactPurposes}
         onPlayerClick={handlePlayerClick}
         onStatusChange={handleStatusChange}
         onRemove={handleRemove}

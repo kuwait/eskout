@@ -6,7 +6,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { recruitmentStatusChangeSchema, decisionSideSchema } from '@/lib/validators';
 import type { ActionResponse, DecisionSide, RecruitmentStatus } from '@/lib/types';
@@ -794,6 +794,67 @@ export async function updateDecisionSide(
   revalidatePath(`/jogadores/${playerId}`);
 
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+
+  return { success: true };
+}
+
+/* ───────────── Contact Purpose (update on existing em_contacto cards) ───────────── */
+
+/** Set or update the contact purpose for a player already in em_contacto.
+ *  Updates the most recent em_contacto status_history entry, or creates one if none exists. */
+export async function updateContactPurpose(
+  playerId: number,
+  contactPurposeId: string | null,
+  contactPurposeCustom: string | null,
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
+  const supabase = await createClient();
+
+  // Find the most recent em_contacto status_history entry for this player
+  const { data: existing } = await supabase
+    .from('status_history')
+    .select('id')
+    .eq('club_id', clubId)
+    .eq('player_id', playerId)
+    .eq('field_changed', 'recruitment_status')
+    .eq('new_value', 'em_contacto')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    // Use service client to bypass RLS "No updates" policy on status_history
+    const serviceClient = await createServiceClient();
+    const { error } = await serviceClient
+      .from('status_history')
+      .update({
+        contact_purpose_id: contactPurposeId,
+        contact_purpose_custom: contactPurposeCustom,
+      })
+      .eq('id', existing.id);
+
+    if (error) {
+      return { success: false, error: `Erro ao atualizar objetivo: ${error.message}` };
+    }
+  } else {
+    // No em_contacto entry exists — create one
+    await supabase.from('status_history').insert({
+      club_id: clubId,
+      player_id: playerId,
+      field_changed: 'recruitment_status',
+      old_value: null,
+      new_value: 'em_contacto',
+      changed_by: userId,
+      contact_purpose_id: contactPurposeId,
+      contact_purpose_custom: contactPurposeCustom,
+    });
+  }
+
+  revalidatePath('/pipeline');
+  revalidatePath(`/jogadores/${playerId}`);
 
   return { success: true };
 }
