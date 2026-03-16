@@ -267,7 +267,7 @@ sikout/
 │       ├── usePlayerProfilePopup.tsx  # Quick player preview popup
 │       └── useResizableColumns.ts    # Resizable table columns
 ├── scripts/                           # Python scrapers + TS import
-├── supabase/migrations/               # 001-064 SQL migrations
+├── supabase/migrations/               # 001-072 SQL migrations
 ├── e2e/                               # Playwright E2E tests
 ├── data/all_players.json
 └── docs/
@@ -324,6 +324,8 @@ Dialogs using this pattern: `AddToPipelineDialog`, `AddToSquadDialog`, `AddToCom
 **PlayersView** uses server-side pagination (50 rows/page with `count: 'exact'`). Switches to pool-based fuzzy search when text search is active.
 
 **SquadPanelView** fetches only squad member players (via `squad_players` IDs), not all 6000.
+
+**List detail search** uses server-side `ilike` search (via `searchListPlayers` server action) instead of fetching all club players and running client-side `fuzzyMatch()`. This avoids loading thousands of players into the browser for a simple name search.
 
 ### Loading States
 
@@ -434,7 +436,7 @@ Client (RealtimeProvider) → event bus → useRealtimeTable callbacks → page 
 
 ### Tables with Realtime
 
-`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`, `saved_comparisons`, `player_videos`, `squads`, `squad_players`
+`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`, `player_list_shares`, `saved_comparisons`, `player_videos`, `squads`, `squad_players`
 
 ---
 
@@ -597,6 +599,7 @@ CREATE TABLE players (
     )),
   decision_side TEXT DEFAULT NULL
     CHECK (decision_side IN ('club', 'player')),  -- A Decidir sub-section (migration 058)
+  decision_date TIMESTAMPTZ,                       -- Deadline for A Decidir answer (migration 071)
   recruitment_notes TEXT,
   contact_assigned_to UUID REFERENCES profiles(id),
   training_date DATE,
@@ -848,6 +851,17 @@ CREATE TABLE user_notification_preferences (
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id, club_id)
 );
+
+-- ============================================
+-- TABLE: player_list_shares (shared lists between users)
+-- ============================================
+CREATE TABLE player_list_shares (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  list_id BIGINT NOT NULL REFERENCES player_lists(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  shared_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
 ---
@@ -890,6 +904,10 @@ CREATE INDEX idx_training_feedback_date ON training_feedback(training_date DESC)
 
 -- Dismissals
 CREATE INDEX idx_player_dismissals_user ON player_added_dismissals(user_id);
+
+-- Player list shares
+CREATE UNIQUE INDEX idx_list_shares_unique ON player_list_shares(list_id, user_id);
+CREATE INDEX idx_list_shares_user ON player_list_shares(user_id);
 
 -- Squads
 CREATE INDEX idx_squads_club ON squads(club_id);
@@ -1098,7 +1116,7 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 
 ## 13. Migrations
 
-64 SQL migrations in `supabase/migrations/` (001-064). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
+72 SQL migrations in `supabase/migrations/` (001-072). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
 
 | # | File | Description |
 |---|------|-------------|
@@ -1166,3 +1184,11 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 062 | `062_demo_club.sql` | Add `is_demo` boolean to clubs for demo mode |
 | 063 | `063_fix_age_groups_unique_constraint.sql` | Fix age_groups unique constraint to be club-scoped |
 | 064 | `064_drop_global_read_policies.sql` | Drop legacy global SELECT policies that bypassed club isolation |
+| 065 | `065_fpf_competitions.sql` | FPF competition scraping tables |
+| 066 | `066_fpf_competition_partial_status.sql` | Partial status for FPF competition imports |
+| 067 | `067_playing_up_rpc.sql` | Playing-up detection SQL RPC |
+| 068 | `068_contact_purposes.sql` | Contact purposes table + status_history FK for em_contacto purpose |
+| 069 | `069_notification_preferences.sql` | User notification preferences table for email opt-out |
+| 070 | `070_migrate_notes_to_observations.sql` | Migrate players.notes to observation_notes table |
+| 071 | `071_decision_date.sql` | Add `decision_date` column to players (A Decidir deadline) |
+| 072 | `072_player_list_shares.sql` | Shared player lists: `player_list_shares` table + extended RLS |

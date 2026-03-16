@@ -191,6 +191,8 @@ The `a_decidir` column is split into two always-visible sub-sections via a `deci
 
 Both sub-sections are always visible with a dashed separator. DnD between sub-sections changes `decision_side`, not the status. The field is cleared automatically when leaving `a_decidir`. See migration 058.
 
+**Decision Date (`decision_date`):** Cards in `a_decidir` can have an optional deadline — the date by which the club or player should give an answer. Displayed on the pipeline card. Cleared automatically when leaving `a_decidir`. See migration 071.
+
 ### Department Opinions
 
 | Opinion | Color | Hex |
@@ -496,9 +498,25 @@ Generic multi-list system for personal player bookmarks. Evolved from the origin
 
 **Admin view:** Admin sees a "Todas" panel on the lists page showing all users' lists across the club, grouped by owner name.
 
+**Shared lists (migration 072):**
+- List owners can share their lists with other club members via a share dialog
+- Shared users can view and edit list items (add/remove players, edit notes) but cannot rename or delete the list
+- `player_list_shares` table tracks sharing relationships (`list_id`, `user_id`, `shared_by`)
+- Shared lists appear in the user's lists page with a "Partilhada" badge and owner name
+- Owner can revoke access; shared user can leave
+- RLS on `player_list_shares` and extended `player_list_items` policies for shared user access
+
+**Duplicate & clear:**
+- Duplicate a list: creates a copy with all items (new name: "Cópia de [name]")
+- Clear a list: removes all items but keeps the list itself
+
+**Search performance:**
+- List detail player search uses server-side `ilike` search (via `searchListPlayers` server action) instead of client-side `fuzzyMatch()` on the full pool
+- Avoids fetching all club players upfront — searches only when the user types
+
 **Export:** Admin and editor can export a list as Excel (`.xlsx`). Columns: Nome, Clube, Posição, Data Nasc., Nacionalidade, Nota, Adicionado.
 
-**Realtime:** `player_lists` and `player_list_items` in broadcast tables. List detail auto-refreshes on changes.
+**Realtime:** `player_lists`, `player_list_items`, and `player_list_shares` in broadcast tables. List detail auto-refreshes on changes.
 
 **Backward compatibility:** `/a-observar` redirects to `/listas`. Bridge functions (`addToObservationList`, `removeFromObservationList`, `isPlayerObserved`) delegate to the new system list.
 

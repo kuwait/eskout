@@ -372,6 +372,9 @@ Full SQL schema is in `docs/SOP.md` Section 5.4. Key tables:
 | **scouting_reports** | Extracted data from PDF observation reports           |
 | **status_history**   | Change log (who changed what, when)                  |
 | **observation_notes**| Scout field notes                                    |
+| **player_list_shares**| Shared list access grants between users             |
+
+72 SQL migrations (001-072) in `supabase/migrations/`. Key recent: 068 (contact purposes), 069 (notification prefs), 071 (decision date), 072 (shared lists).
 
 ### Row Level Security
 
