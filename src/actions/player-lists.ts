@@ -155,8 +155,11 @@ export async function getMyLists(): Promise<PlayerList[]> {
     .eq('user_id', userId);
 
   if (shares?.length) {
-    const sharedListIds = shares.map(s => (s.player_lists as unknown as { id: number }).id).filter(Boolean);
+    // Filter out shares where RLS blocked the joined player_lists (returns null for non-owner non-admin)
+    const validShares = shares.filter(s => s.player_lists != null);
+    const sharedListIds = validShares.map(s => (s.player_lists as unknown as { id: number }).id).filter(Boolean);
 
+    if (sharedListIds.length > 0) {
     // Fetch item stats for shared lists
     const { data: sharedItemStats } = await supabase
       .from('player_list_items')
@@ -172,11 +175,11 @@ export async function getMyLists(): Promise<PlayerList[]> {
     }
 
     // Resolve owner names
-    const ownerIds = [...new Set(shares.map(s => (s.player_lists as unknown as { user_id: string }).user_id))];
+    const ownerIds = [...new Set(validShares.map(s => (s.player_lists as unknown as { user_id: string }).user_id))];
     const { data: ownerProfiles } = await supabase.from('profiles').select('id, full_name').in('id', ownerIds);
     const ownerNameMap = new Map((ownerProfiles ?? []).map(p => [p.id, p.full_name]));
 
-    for (const share of shares) {
+    for (const share of validShares) {
       const list = share.player_lists as unknown as { id: number; club_id: string; user_id: string; name: string; emoji: string; is_system: boolean; created_at: string; updated_at: string };
       if (!list) continue;
       const stats = sharedStatsMap.get(list.id);
@@ -195,6 +198,7 @@ export async function getMyLists(): Promise<PlayerList[]> {
         isSharedWithMe: true,
       });
     }
+    } // end sharedListIds.length > 0
   }
 
   return myLists;
