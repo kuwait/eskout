@@ -247,6 +247,7 @@ export interface UserTaskRow {
 export interface ScoutingReport {
   id: number;
   playerId: number;
+  authorId: string | null;
   gdriveFileId: string;
   gdriveLink: string;
   reportNumber: number;

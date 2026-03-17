@@ -679,10 +679,13 @@ export async function fetchAllPlayers(): Promise<Player[]> {
   let evalsQ = supabase.from('scout_evaluations').select('player_id, rating').range(0, MAX);
   if (clubId) evalsQ = evalsQ.eq('club_id', clubId);
 
+  let quickReportsQ = supabase.from('quick_scout_reports').select('player_id, rating_overall').range(0, MAX);
+  if (clubId) quickReportsQ = quickReportsQ.eq('club_id', clubId);
+
   let notesQ = supabase.from('observation_notes').select('player_id, content, created_at').order('created_at', { ascending: false }).range(0, MAX);
   if (clubId) notesQ = notesQ.eq('club_id', clubId);
 
-  const [playersRes, reportsRes, evalsRes, notesRes] = await Promise.all([playersQ, reportsQ, evalsQ, notesQ]);
+  const [playersRes, reportsRes, evalsRes, quickReportsRes, notesRes] = await Promise.all([playersQ, reportsQ, evalsQ, quickReportsQ, notesQ]);
 
   // Build note previews map
   const notesMap = new Map<number, string[]>();
@@ -714,6 +717,9 @@ export async function fetchAllPlayers(): Promise<Player[]> {
   }
   if (evalsRes.data) {
     for (const e of evalsRes.data) addRating(e.player_id, e.rating);
+  }
+  if (quickReportsRes.data) {
+    for (const qr of quickReportsRes.data) addRating(qr.player_id, qr.rating_overall);
   }
 
   for (const p of players) {

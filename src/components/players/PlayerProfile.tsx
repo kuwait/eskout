@@ -37,6 +37,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes, AddNoteButton } from '@/components/players/ObservationNotes';
 import { StatusHistory } from '@/components/players/StatusHistory';
@@ -44,6 +49,7 @@ import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
 import { QuickReportCard } from '@/components/players/QuickReportCard';
 import { QuickReportForm } from '@/components/players/QuickReportForm';
+import { ManualReportForm } from '@/components/players/ManualReportForm';
 import { PlayerClubHistory } from '@/components/players/PlayerClubHistory';
 import { TrainingFeedbackList } from '@/components/players/TrainingFeedback';
 import { PlayerVideos } from '@/components/players/PlayerVideos';
@@ -127,6 +133,11 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   }
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [showQuickReportForm, setShowQuickReportForm] = useState(false);
+  const [quickReportDirty, setQuickReportDirty] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [showManualReportForm, setShowManualReportForm] = useState(false);
+  const [manualReportDirty, setManualReportDirty] = useState(false);
+  const [showDiscardManualConfirm, setShowDiscardManualConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPitchPopup, setShowPitchPopup] = useState(false);
   const [isDeleting, startDelete] = useTransition();
@@ -601,20 +612,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               <OpinionBadge opinion={p.departmentOpinion} variant="compact" />
             </div>
           )}
-          {/* My rating — mobile only, fills remaining header height defined by left column */}
-          {!editing && !hideEvaluations && (
-            <div className="min-h-0 flex-1 overflow-hidden xl:hidden">
-              <ScoutEvaluations
-                playerId={p.id}
-                evaluations={scoutEvaluations}
-                currentUserId={currentUserId}
-                reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
-                part="personal"
-                className="flex h-full w-full items-center justify-center"
-                compact
-              />
-            </div>
-          )}
+          {/* Rating removed — Quick Reports replace "A tua avaliação" */}
         </div>
 
         {/* ───────────── Mini pitch + Rating widget (right side, desktop) ───────────── */}
@@ -627,18 +625,21 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             />
           </div>
         )}
-        {/* Desktop rating widget — tall card matching MiniPitch height (hidden for recruiter) */}
-        {!editing && !isRecruiter && (hybridAvgRating !== null || p.observerEval) && (() => {
-          const primaryValue = hybridAvgRating ?? (p.observerEval ? parseRating(p.observerEval).rating : 0);
-          const primaryInt = Math.round(primaryValue);
-          const c = RATING_COLOR_MAP[primaryInt] ?? RATING_DEFAULT;
-          const isAvg = hybridAvgRating !== null;
-          const displayValue = isAvg ? hybridAvgRating.toFixed(1) : String(primaryValue);
-          const label = isAvg ? `${hybridRatingCount} aval.` : (p.observerEval ? parseRating(p.observerEval).ratingText : '');
+        {/* Desktop rating widget — aggregated from all evaluation sources (hidden for recruiter) */}
+        {!editing && !isRecruiter && (() => {
+          const pdfReports = scoutingReports.filter(r => (r.extractionStatus === 'success' || r.extractionStatus === 'partial') && r.rating !== null);
+          const allHeaderRatings = [
+            ...quickReports.map(qr => qr.ratingOverall),
+            ...pdfReports.map(r => r.rating!),
+          ];
+          if (allHeaderRatings.length === 0) return null;
+          const avg = allHeaderRatings.reduce((a, b) => a + b, 0) / allHeaderRatings.length;
+          const colorKey = Math.ceil(avg) || 1;
+          const c = RATING_COLOR_MAP[colorKey] ?? RATING_DEFAULT;
           return (
             <div className={`hidden shrink-0 self-center xl:flex h-24 w-20 flex-col items-center justify-center rounded-2xl ${c.bg} border ${c.border}`}>
-              <span className={`text-3xl font-black leading-none ${c.num}`}>{displayValue}</span>
-              {label && <span className={`mt-1 text-[10px] font-semibold ${c.num} opacity-70`}>{label}</span>}
+              <span className={`text-3xl font-black leading-none ${c.num}`}>{avg.toFixed(1)}</span>
+              <span className={`mt-1 text-[10px] font-semibold ${c.num} opacity-70`}>{allHeaderRatings.length} {allHeaderRatings.length === 1 ? 'aval.' : 'avals.'}</span>
             </div>
           );
         })()}
@@ -901,16 +902,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
         /* ───────────── View mode: two columns on lg ───────────── */
         /* Mobile order: Avaliação → Info Básica → Observação → Notas → Recrutamento → Histórico */
         <>
-        {/* Aggregate rating bar — mobile only, above the grid (hidden for recruiter/scout) */}
-        {!hideEvaluations && <div className="xl:hidden">
-          <ScoutEvaluations
-            playerId={p.id}
-            evaluations={scoutEvaluations}
-            currentUserId={currentUserId}
-            reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
-            part="team"
-          />
-        </div>}
+        {/* Aggregate rating bar removed — Quick Reports replace ScoutEvaluations */}
 
         <div className="mt-3 flex flex-col gap-3 lg:mt-0 lg:grid lg:grid-cols-2">
           {/* ── Col Left (desktop): Info, Observação, Notas ── */}
@@ -1013,52 +1005,46 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               />
             </Section>
 
-            {/* Observação — observer names + decision visible to recruiter, reports/evals hidden */}
+            {/* Observação — unified evaluation section */}
             {!hideScoutingData && (() => {
-              const observerNames = p.observer ? p.observer.split(',').map((n) => n.trim()).filter(Boolean) : [];
-              const hasObservation = observerNames.length > 0 || p.observerDecision || (!hideEvaluations && (scoutingReports.length > 0 || p.reportLabels.length > 0 || quickReports.length > 0)) || !hideEvaluations;
+              const extractedReports = scoutingReports.filter(r => r.extractionStatus === 'success' || r.extractionStatus === 'partial');
+              const totalReports = extractedReports.length || p.reportLabels.length;
+              const hasObservation = !hideEvaluations; // always show for "+ Avaliar"
               if (!hasObservation) return null;
-              return (
-                <Section title="Observação">
-                  {(observerNames.length > 0 || p.observerDecision) && (
-                    <div className="flex flex-col gap-2.5">
-                      {/* Decision badge — prominent colored pill */}
-                      {p.observerDecision && <DecisionBadge decision={p.observerDecision} />}
-                      {/* Observers */}
-                      {observerNames.length > 0 && (
-                        <div>
-                          <p className="mb-1.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">{observerNames.length > 1 ? 'Observadores' : 'Observador'}</p>
-                          <div className="space-y-1">
-                            {observerNames.map((name, i) => (
-                              <div key={i} className="flex items-center gap-2 rounded-lg bg-neutral-50/80 px-2.5 py-1.5">
-                                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[9px] font-bold text-neutral-600">{name.charAt(0).toUpperCase()}</div>
-                                <span className="truncate text-xs font-medium" style={{ fontSize: 'clamp(0.65rem, 3vw, 0.875rem)' }}>{name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
-                  {/* Quick Reports — all roles can view and submit */}
+              // Aggregate rating from all sources
+              const allRatings: number[] = [
+                ...quickReports.map(qr => qr.ratingOverall),
+                ...extractedReports.filter(r => r.rating !== null).map(r => r.rating!),
+              ];
+              const avgRating = allRatings.length > 0 ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length : null;
+
+              return (
+                <Section
+                  title="Observação"
+                  action={
+                    avgRating !== null ? (
+                      <span className="text-xs text-muted-foreground">
+                        <span className="font-bold text-neutral-700">{avgRating.toFixed(1)}</span> · {allRatings.length} {allRatings.length === 1 ? 'aval.' : 'avals.'}
+                      </span>
+                    ) : undefined
+                  }
+                >
                   {!hideEvaluations && (
-                    <div className="mt-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-                          Avaliações Rápidas {quickReports.length > 0 && `(${quickReports.length})`}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setShowQuickReportForm(v => !v)}
-                          className="text-xs font-medium text-primary hover:underline"
-                        >
-                          {showQuickReportForm ? 'Cancelar' : '+ Avaliar'}
-                        </button>
-                      </div>
-                      {/* Quick Report Form Dialog */}
-                      <Dialog open={showQuickReportForm} onOpenChange={setShowQuickReportForm}>
-                        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                    <div className="space-y-4">
+                      {/* Quick Report Form Dialog — blocks dismiss when dirty */}
+                      <Dialog
+                        open={showQuickReportForm}
+                        onOpenChange={(open) => {
+                          if (!open && quickReportDirty) {
+                            setShowDiscardConfirm(true);
+                          } else {
+                            setShowQuickReportForm(open);
+                            if (!open) setQuickReportDirty(false);
+                          }
+                        }}
+                      >
+                        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" onInteractOutside={(e) => { if (quickReportDirty) e.preventDefault(); }}>
                           <DialogHeader>
                             <DialogTitle>Avaliar {p.name.split(' ').slice(0, 2).join(' ')}</DialogTitle>
                           </DialogHeader>
@@ -1066,34 +1052,126 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                             playerId={p.id}
                             playerName={p.name}
                             isGoalkeeper={p.positionNormalized === 'GR'}
-                            onSuccess={() => { setShowQuickReportForm(false); router.refresh(); }}
-                            onCancel={() => setShowQuickReportForm(false)}
+                            onSuccess={() => { setShowQuickReportForm(false); setQuickReportDirty(false); router.refresh(); }}
+                            onCancel={() => {
+                              if (quickReportDirty) { setShowDiscardConfirm(true); }
+                              else { setShowQuickReportForm(false); }
+                            }}
+                            onDirtyChange={setQuickReportDirty}
                           />
                         </DialogContent>
                       </Dialog>
-                      {quickReports.length > 0 && (
-                        <div className="space-y-2">
-                          {quickReports.map(qr => (
-                            <QuickReportCard
-                              key={qr.id}
-                              report={qr}
-                              canDelete={currentUserId === qr.authorId || userRole === 'admin'}
-                              onDelete={() => router.refresh()}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      {/* Discard confirmation */}
+                      <AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Descartar avaliação?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tens dados preenchidos que serão perdidos.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Continuar a editar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => { setShowQuickReportForm(false); setQuickReportDirty(false); }}
+                              className="bg-red-600 text-white hover:bg-red-700"
+                            >
+                              Descartar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
 
-                  {/* Relatórios PDF — hidden for recruiters (scouting intelligence) */}
-                  {!hideEvaluations && (scoutingReports.length > 0 || p.reportLabels.length > 0) && (
-                    <div className="mt-3">
-                      <ScoutingReports
-                        reports={scoutingReports}
-                        reportLabels={p.reportLabels}
-                        reportLinks={p.reportLinks}
-                      />
+                      {/* All evaluations in a single list */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Avaliações Rápidas ({quickReports.length})
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setShowQuickReportForm(true)}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              + Avaliar
+                            </button>
+                          </div>
+                          <div className="space-y-1.5">
+                            {quickReports.map(qr => (
+                              <QuickReportCard
+                                key={`qr-${qr.id}`}
+                                report={qr}
+                                canDelete={currentUserId === qr.authorId || userRole === 'admin'}
+                                onDelete={() => router.refresh()}
+                              />
+                            ))}
+                          </div>
+                          <ScoutingReports
+                            reports={scoutingReports}
+                            reportLabels={p.reportLabels}
+                            reportLinks={p.reportLinks}
+                            currentUserId={currentUserId}
+                            userRole={userRole}
+                            onDelete={() => router.refresh()}
+                            action={
+                              <button
+                                type="button"
+                                onClick={() => setShowManualReportForm(true)}
+                                className="text-xs font-medium text-primary hover:underline"
+                              >
+                                + Relatório
+                              </button>
+                            }
+                          />
+                          {/* Manual Report Form Dialog */}
+                          <Dialog
+                            open={showManualReportForm}
+                            onOpenChange={(open) => {
+                              if (!open && manualReportDirty) {
+                                setShowDiscardManualConfirm(true);
+                              } else {
+                                setShowManualReportForm(open);
+                                if (!open) setManualReportDirty(false);
+                              }
+                            }}
+                          >
+                            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" onInteractOutside={(e) => { if (manualReportDirty) e.preventDefault(); }}>
+                              <DialogHeader>
+                                <DialogTitle>Relatório — {p.name.split(' ').slice(0, 2).join(' ')}</DialogTitle>
+                              </DialogHeader>
+                              <ManualReportForm
+                                playerId={p.id}
+                                playerName={p.name}
+                                onSuccess={() => { setShowManualReportForm(false); setManualReportDirty(false); router.refresh(); }}
+                                onCancel={() => {
+                                  if (manualReportDirty) { setShowDiscardManualConfirm(true); }
+                                  else { setShowManualReportForm(false); }
+                                }}
+                                onDirtyChange={setManualReportDirty}
+                              />
+                            </DialogContent>
+                          </Dialog>
+                          {/* Discard manual report confirmation */}
+                          <AlertDialog open={showDiscardManualConfirm} onOpenChange={setShowDiscardManualConfirm}>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Descartar relatório?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tens dados preenchidos que serão perdidos.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Continuar a editar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => { setShowManualReportForm(false); setManualReportDirty(false); }}
+                                  className="bg-red-600 text-white hover:bg-red-700"
+                                >
+                                  Descartar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                     </div>
                   )}
                 </Section>
@@ -1118,15 +1196,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
           {/* Right column: Avaliação (desktop), Recrutamento, Histórico */}
           <div className="order-2 space-y-3 lg:order-none">
-            {/* Scout evaluations — desktop only (hidden for recruiter/scout) */}
-            {!hideEvaluations && <div className="hidden xl:block">
-              <ScoutEvaluations
-                playerId={p.id}
-                evaluations={scoutEvaluations}
-                currentUserId={currentUserId}
-                reportRatings={scoutingReports.filter((r) => r.rating !== null).map((r) => ({ rating: r.rating!, scoutName: r.scoutName }))}
-              />
-            </div>}
+            {/* Scout evaluations removed — Quick Reports replace ScoutEvaluations */}
 
             {/* Percurso — desktop only (mobile version in left column) */}
             {(p.zzTeamHistory || p.zzCurrentClub || p.zzCurrentTeam) && (

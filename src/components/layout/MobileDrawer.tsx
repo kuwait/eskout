@@ -41,6 +41,11 @@ export function MobileDrawer({
 }) {
   const pathname = usePathname();
   const [listsExpanded, setListsExpanded] = useState(true);
+  const [sharedListsExpanded, setSharedListsExpanded] = useState(true);
+
+  const ownLists = sidebarLists.filter(l => !l.isSharedWithMe);
+  const sharedLists = sidebarLists.filter(l => l.isSharedWithMe);
+
   const isScout = userRole === 'scout';
   const isRecruiter = userRole === 'recruiter';
   const features = clubInfo?.features ?? {};
@@ -188,7 +193,7 @@ export function MobileDrawer({
                           <List className="h-4 w-4" />
                           Listas
                         </Link>
-                        {sidebarLists.length > 0 && (
+                        {ownLists.length > 0 && (
                           <button
                             type="button"
                             onClick={() => setListsExpanded((v) => !v)}
@@ -199,10 +204,10 @@ export function MobileDrawer({
                           </button>
                         )}
                       </div>
-                      {/* Individual list sub-items */}
-                      {listsExpanded && sidebarLists.length > 0 && (
+                      {/* Own list sub-items */}
+                      {listsExpanded && ownLists.length > 0 && (
                         <div className="mt-0.5 space-y-0.5">
-                          {sidebarLists.map((list) => (
+                          {ownLists.map((list) => (
                             <Link
                               key={list.id}
                               href={`/listas/${list.id}`}
@@ -219,6 +224,42 @@ export function MobileDrawer({
                             </Link>
                           ))}
                         </div>
+                      )}
+                      {/* Shared lists — collapsible group */}
+                      {sharedLists.length > 0 && (
+                        <>
+                          <div className="flex items-center mt-1">
+                            <span className="pl-11 text-[11px] font-medium text-muted-foreground/40 uppercase tracking-wider flex-1">Partilhadas</span>
+                            <button
+                              type="button"
+                              onClick={() => setSharedListsExpanded((v) => !v)}
+                              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                              aria-label={sharedListsExpanded ? 'Recolher partilhadas' : 'Expandir partilhadas'}
+                            >
+                              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', !sharedListsExpanded && '-rotate-90')} />
+                            </button>
+                          </div>
+                          {sharedListsExpanded && (
+                            <div className="mt-0.5 space-y-0.5">
+                              {sharedLists.map((list) => (
+                                <Link
+                                  key={list.id}
+                                  href={`/listas/${list.id}`}
+                                  onClick={close}
+                                  className={cn(
+                                    'flex items-center gap-2 rounded-md py-1.5 pl-[3.75rem] pr-3 text-[12px] font-medium transition-colors',
+                                    pathname === `/listas/${list.id}`
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'text-muted-foreground/50 hover:bg-accent hover:text-accent-foreground'
+                                  )}
+                                >
+                                  <span className="text-[12px] leading-none">{list.emoji}</span>
+                                  <span className="truncate">{list.name}</span>
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

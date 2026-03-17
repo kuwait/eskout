@@ -4,7 +4,7 @@
 // RELEVANT FILES: src/app/layout.tsx, src/components/layout/Sidebar.tsx, src/lib/supabase/club-context.ts
 
 import { cookies } from 'next/headers';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getActiveClubId, ROLE_OVERRIDE_COOKIE } from '@/lib/supabase/club-context';
 import { AppShellClient } from '@/components/layout/AppShellClient';
 import type { AgeGroup } from '@/lib/types';
@@ -15,6 +15,7 @@ export interface SidebarList {
   name: string;
   emoji: string;
   isSystem: boolean;
+  isSharedWithMe?: boolean;
 }
 
 export interface AlertCounts {
@@ -206,7 +207,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         observationCount,
       };
 
-      // Map sidebar lists for nav sub-items
+      // Map sidebar lists for nav sub-items (own lists)
       if (sidebarListsRes.data) {
         sidebarLists = sidebarListsRes.data.map((row: { id: number; name: string; emoji: string; is_system: boolean }) => ({
           id: row.id,
@@ -214,6 +215,33 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           emoji: row.emoji,
           isSystem: row.is_system,
         }));
+      }
+
+      // Also fetch shared lists — service client to bypass player_lists RLS
+      const { data: sharedListIds } = await supabase
+        .from('player_list_shares')
+        .select('list_id')
+        .eq('user_id', user.id);
+
+      if (sharedListIds?.length) {
+        const service = await createServiceClient();
+        const { data: sharedLists } = await service
+          .from('player_lists')
+          .select('id, name, emoji, is_system')
+          .in('id', sharedListIds.map(s => s.list_id))
+          .order('name', { ascending: true });
+
+        if (sharedLists?.length) {
+          for (const row of sharedLists) {
+            sidebarLists.push({
+              id: row.id,
+              name: row.name,
+              emoji: row.emoji,
+              isSystem: row.is_system,
+              isSharedWithMe: true,
+            });
+          }
+        }
       }
     } else {
       // No club selected — still fetch profile for userName

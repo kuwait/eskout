@@ -232,6 +232,90 @@ export async function submitScoutReport(
   }
 }
 
+/* ───────────── Manual Report (from player profile) ───────────── */
+
+export interface ManualReportInput {
+  playerId: number;
+  competition?: string;
+  match?: string;
+  matchDate?: string;
+  matchResult?: string;
+  physicalProfile?: string;
+  strengths?: string;
+  weaknesses?: string;
+  rating: number;
+  decision: string;
+  analysis?: string;
+  contactInfo?: string;
+}
+
+/** Submit a manual scouting report for an existing player (from profile page) */
+export async function submitManualReport(
+  input: ManualReportInput,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { clubId, userId } = await getActiveClub();
+    const supabase = await createClient();
+
+    // Get author name
+    const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).single();
+
+    const { data: inserted, error } = await supabase
+      .from('scouting_reports')
+      .insert({
+        author_id: userId,
+        club_id: clubId,
+        player_id: input.playerId,
+        status: 'aprovado',
+        extraction_status: 'success',
+        competition: input.competition?.trim() || null,
+        match: input.match?.trim() || null,
+        match_date: input.matchDate || null,
+        match_result: input.matchResult?.trim() || null,
+        physical_profile: input.physicalProfile?.trim() || null,
+        strengths: input.strengths?.trim() || null,
+        weaknesses: input.weaknesses?.trim() || null,
+        rating: input.rating,
+        decision: input.decision.trim(),
+        analysis: input.analysis?.trim() || null,
+        contact_info: input.contactInfo?.trim() || null,
+        scout_name: profile?.full_name || null,
+      })
+      .select('id')
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    // Sync contact to player — only if provided and player has no contact or different
+    const contactTrimmed = input.contactInfo?.trim();
+    if (contactTrimmed) {
+      const { data: player } = await supabase
+        .from('players')
+        .select('contact')
+        .eq('id', input.playerId)
+        .single();
+
+      if (player) {
+        const existing = player.contact?.trim() || '';
+        if (!existing) {
+          // No contact yet — set it
+          await supabase.from('players').update({ contact: contactTrimmed }).eq('id', input.playerId);
+        } else if (existing !== contactTrimmed && !existing.includes(contactTrimmed)) {
+          // Different contact — append separated by " / "
+          await supabase.from('players').update({ contact: `${existing} / ${contactTrimmed}` }).eq('id', input.playerId);
+        }
+        // If same — do nothing
+      }
+    }
+
+    revalidatePath(`/jogadores/${input.playerId}`);
+    await broadcastRowMutation(clubId, 'scouting_reports', 'INSERT', userId, inserted!.id);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
+  }
+}
+
 /* ───────────── List My Reports (Scout) ───────────── */
 
 export async function listMyScoutReports(): Promise<{ success: boolean; reports: ScoutReportRow[]; error?: string }> {
@@ -477,6 +561,38 @@ export async function rejectScoutReport(reportId: number): Promise<{ success: bo
     revalidatePath('/admin/relatorios');
     revalidatePath('/meus-relatorios');
     await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
+  }
+}
+
+/* ───────────── Delete Report ───────────── */
+
+/** Delete a scouting report — author can delete own, admin can delete any */
+export async function deleteScoutingReport(reportId: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { clubId, userId, role } = await getActiveClub();
+    const supabase = await createClient();
+
+    // Verify ownership or admin
+    const { data: report } = await supabase
+      .from('scouting_reports')
+      .select('id, author_id, player_id')
+      .eq('id', reportId)
+      .eq('club_id', clubId)
+      .single();
+
+    if (!report) return { success: false, error: 'Relatório não encontrado' };
+    if (report.author_id !== userId && role !== 'admin') {
+      return { success: false, error: 'Sem permissão' };
+    }
+
+    const { error } = await supabase.from('scouting_reports').delete().eq('id', reportId);
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath(`/jogadores/${report.player_id}`);
+    await broadcastRowMutation(clubId, 'scouting_reports', 'DELETE', userId, reportId);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };

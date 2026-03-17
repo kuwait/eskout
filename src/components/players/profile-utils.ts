@@ -5,12 +5,13 @@
 
 /* ───────────── Rating color map (shared by header widgets) ───────────── */
 
+/* Unified 1-5 color scale: 1=red, 2=orange, 3=sky, 4=teal, 5=green */
 export const RATING_COLOR_MAP: Record<number, { dot: string; num: string; bg: string; border: string; ring: string }> = {
-  1: { dot: 'bg-red-500', num: 'text-red-600', bg: 'bg-red-50/80', border: 'border-red-200', ring: 'border-red-400' },
-  2: { dot: 'bg-orange-400', num: 'text-orange-600', bg: 'bg-orange-50/80', border: 'border-orange-200', ring: 'border-orange-400' },
-  3: { dot: 'bg-blue-400', num: 'text-blue-600', bg: 'bg-blue-50/80', border: 'border-blue-200', ring: 'border-blue-400' },
-  4: { dot: 'bg-emerald-400', num: 'text-emerald-600', bg: 'bg-emerald-50/80', border: 'border-emerald-200', ring: 'border-emerald-400' },
-  5: { dot: 'bg-emerald-600', num: 'text-emerald-700', bg: 'bg-emerald-50/80', border: 'border-emerald-200', ring: 'border-emerald-500' },
+  1: { dot: 'bg-red-500', num: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', ring: 'border-red-400' },
+  2: { dot: 'bg-orange-400', num: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', ring: 'border-orange-400' },
+  3: { dot: 'bg-sky-500', num: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-200', ring: 'border-sky-400' },
+  4: { dot: 'bg-teal-500', num: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-200', ring: 'border-teal-400' },
+  5: { dot: 'bg-green-500', num: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200', ring: 'border-green-400' },
 };
 export const RATING_DEFAULT = { dot: 'bg-neutral-300', num: 'text-neutral-500', bg: 'bg-neutral-50', border: 'border-neutral-200', ring: 'border-neutral-300' };
 

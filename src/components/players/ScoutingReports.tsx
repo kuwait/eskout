@@ -6,26 +6,33 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, X, ExternalLink } from 'lucide-react';
+import { ChevronDown, FileText, ExternalLink, Trash2, Phone } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import type { ScoutingReport } from '@/lib/types';
 
 /* ───────────── Rating Colors ───────────── */
 
+/* Unified 1-5 color scale: 1=red, 2=yellow, 3=blue, 4=dark green, 5=green */
 const RATING_COLORS: Record<number, { bg: string; text: string; border: string }> = {
   1: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
   2: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-  3: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  4: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  5: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-300' },
+  3: { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' },
+  4: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
+  5: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
 };
 const RATING_DEFAULT = { bg: 'bg-neutral-50', text: 'text-neutral-500', border: 'border-neutral-200' };
 
 const RATING_DOT_COLORS: Record<number, string> = {
   1: 'bg-red-500',
   2: 'bg-orange-400',
-  3: 'bg-blue-400',
-  4: 'bg-emerald-400',
-  5: 'bg-emerald-600',
+  3: 'bg-sky-500',
+  4: 'bg-teal-500',
+  5: 'bg-green-500',
 };
 
 /** Decision color mapping */
@@ -38,179 +45,142 @@ const DECISION_STYLES: Record<string, { bg: string; text: string }> = {
 };
 const DECISION_DEFAULT = { bg: 'bg-neutral-100', text: 'text-neutral-600' };
 
-/* ───────────── Report Card (compact, in list) ───────────── */
+/* ───────────── Expandable Report Card ───────────── */
 
-function ReportCard({ report, onClick }: { report: ScoutingReport; onClick: () => void }) {
-  const rc = report.rating ? (RATING_COLORS[report.rating] ?? RATING_DEFAULT) : RATING_DEFAULT;
+function ReportCard({ report, canDelete, onDelete }: { report: ScoutingReport; canDelete?: boolean; onDelete?: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const ratingKey = Math.ceil(report.rating ?? 0) || 1;
+  const rc = RATING_COLORS[ratingKey] ?? RATING_DEFAULT;
   const dc = report.decision ? (DECISION_STYLES[report.decision] ?? DECISION_DEFAULT) : null;
-  const dotColor = report.rating ? (RATING_DOT_COLORS[report.rating] ?? 'bg-neutral-300') : 'bg-neutral-300';
+  const dotColor = RATING_DOT_COLORS[ratingKey] ?? 'bg-neutral-300';
+  const textColorDark = dotColor.replace('bg-', 'text-').replace('-500', '-700').replace('-400', '-600');
+
+  const hasContent = report.physicalProfile || report.strengths || report.weaknesses || report.analysis;
 
   return (
-    <button
-      onClick={onClick}
-      className={`group flex w-full items-start gap-3 rounded-lg border ${rc.border} ${rc.bg} px-3 py-2.5 text-left transition-all hover:shadow-sm hover:ring-1 hover:ring-blue-200`}
-    >
-      {/* Rating circle */}
-      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${dotColor}`}>
-        {report.rating ?? '?'}
-      </div>
-
-      {/* Info */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium text-neutral-900">
-            {report.match || report.teamReport || report.pdfFilename || `Relatório ${report.reportNumber}`}
-          </p>
-          {dc && (
-            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${dc.bg} ${dc.text}`}>
-              {report.decision}
-            </span>
-          )}
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-          {report.matchDate && (
-            <span>{formatDate(report.matchDate)}</span>
-          )}
-          {report.competition && (
-            <span>{report.competition}</span>
-          )}
-          {report.scoutName && (
-            <span>{report.scoutName}</span>
-          )}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-/* ───────────── Report Detail Dialog ───────────── */
-
-function ReportDialog({ report, onClose }: { report: ScoutingReport; onClose: () => void }) {
-  const rc = report.rating ? (RATING_COLORS[report.rating] ?? RATING_DEFAULT) : RATING_DEFAULT;
-  const dc = report.decision ? (DECISION_STYLES[report.decision] ?? DECISION_DEFAULT) : null;
-  const dotColor = report.rating ? (RATING_DOT_COLORS[report.rating] ?? 'bg-neutral-300') : 'bg-neutral-300';
-
-  const hasPlayerData = report.playerNameReport || report.teamReport || report.positionReport;
-  const hasMatchData = report.competition || report.match || report.matchDate;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        className="relative max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+    <div className={`rounded-lg border ${rc.border} overflow-hidden`}>
+      {/* Header — colored background, click to expand */}
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-all ${rc.bg} hover:shadow-sm`}
       >
-        {/* Header — rating hero + close */}
-        <div className={`sticky top-0 z-10 rounded-t-2xl ${rc.bg} border-b ${rc.border}`}>
-          <button onClick={onClose} className="absolute right-3 top-3 rounded-full bg-white/80 p-1.5 hover:bg-white">
-            <X className="h-4 w-4" />
-          </button>
-          <div className="flex items-center gap-4 px-5 py-4">
-            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl font-bold text-white shadow-md ${dotColor}`}>
-              {report.rating ?? '?'}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={`text-lg font-bold ${rc.text}`}>{report.rating}/5</span>
-                {dc && (
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${dc.bg} ${dc.text}`}>
-                    {report.decision}
-                  </span>
-                )}
-              </div>
-              {report.analysis && (
-                <p className="mt-0.5 text-sm text-neutral-600">{report.analysis}</p>
-              )}
-              {report.scoutName && (
-                <p className="mt-0.5 text-xs text-muted-foreground">por {report.scoutName}</p>
-              )}
-            </div>
+        {/* Rating circle */}
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${dotColor}`}>
+          {report.rating != null ? (Number.isInteger(report.rating) ? report.rating : report.rating.toFixed(1)) : '?'}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-medium text-neutral-900">
+              {report.match || report.teamReport || report.pdfFilename || `Relatório ${report.reportNumber}`}
+            </p>
+            {dc && (
+              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${dc.bg} ${dc.text}`}>
+                {report.decision}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            {report.matchDate && <span>{formatDate(report.matchDate)}</span>}
+            {report.competition && <span>{report.competition}</span>}
+            {report.scoutName && <span>{report.scoutName}</span>}
           </div>
         </div>
 
-        <div className="space-y-3 p-4">
-          {/* Match context — compact row */}
-          {hasMatchData && (
-            <div className="space-y-1.5 text-sm">
-              {report.match && (
-                <p className="font-semibold text-neutral-900">{report.match}</p>
-              )}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                {report.competition && <span>{report.competition}</span>}
-                {report.competition && (report.ageGroup || report.matchDate || report.matchResult) && <span>·</span>}
-                {report.ageGroup && <span>{report.ageGroup}</span>}
-                {report.ageGroup && (report.matchDate || report.matchResult) && <span>·</span>}
-                {report.matchDate && <span>{formatDate(report.matchDate)}</span>}
-                {report.matchDate && report.matchResult && <span>·</span>}
-                {report.matchResult && <span className="font-medium text-neutral-700">{report.matchResult}</span>}
+        {hasContent && (
+          <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        )}
+      </button>
+
+      {/* Expanded details */}
+      {expanded && hasContent && (
+        <div className="border-t bg-white px-4 pt-4 pb-3 flex flex-col gap-3">
+          {/* Match result — centered scoreboard */}
+          {report.matchResult && (() => {
+            const parts = report.matchResult.split('-').map(s => s.trim());
+            const teams = report.match ? report.match.split(/\s+vs\s+/i) : [];
+            return (
+              <div className="flex items-center justify-center gap-4 rounded-lg bg-neutral-50 py-3 px-4">
+                <span className="flex-1 truncate text-right text-xs font-medium text-neutral-600">{teams[0] || ''}</span>
+                <span className="text-lg font-black tabular-nums text-neutral-900">{parts[0] ?? '?'} <span className="text-neutral-300 font-normal">:</span> {parts[1] ?? '?'}</span>
+                <span className="flex-1 truncate text-left text-xs font-medium text-neutral-600">{teams[1] || ''}</span>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
-          {/* Player data — compact pills */}
-          {hasPlayerData && (
-            <div className="flex flex-wrap gap-1.5">
-              {report.teamReport && (
-                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{report.teamReport}</span>
+          {/* Strengths & Weaknesses — side by side on desktop, stacked on mobile */}
+          {(report.strengths || report.weaknesses) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {report.strengths && (
+                <div className="rounded-lg border border-emerald-200/60 bg-emerald-50/30 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1">Pontos Fortes</p>
+                  <p className="text-[13px] whitespace-pre-line text-neutral-700 leading-relaxed">{report.strengths}</p>
+                </div>
               )}
-              {report.positionReport && (
-                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">{report.positionReport}</span>
-              )}
-              {report.shirtNumberReport && (
-                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600">#{report.shirtNumberReport}</span>
-              )}
-              {report.footReport && (
-                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600">Pé {report.footReport}</span>
-              )}
-              {report.birthYearReport && (
-                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600">{report.birthYearReport}</span>
+              {report.weaknesses && (
+                <div className="rounded-lg border border-rose-200/60 bg-rose-50/30 px-3 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 mb-1">Pontos Fracos</p>
+                  <p className="text-[13px] whitespace-pre-line text-neutral-700 leading-relaxed">{report.weaknesses}</p>
+                </div>
               )}
             </div>
-          )}
-
-          {/* Divider */}
-          {(hasMatchData || hasPlayerData) && (report.physicalProfile || report.strengths || report.weaknesses) && (
-            <hr className="border-neutral-100" />
           )}
 
           {/* Physical profile */}
           {report.physicalProfile && (
-            <AssessmentBlock title="Perfil Físico" content={report.physicalProfile} />
-          )}
-
-          {/* Strengths */}
-          {report.strengths && (
-            <AssessmentBlock title="Pontos Fortes" content={report.strengths} variant="positive" />
-          )}
-
-          {/* Weaknesses */}
-          {report.weaknesses && (
-            <AssessmentBlock title="Pontos Fracos" content={report.weaknesses} variant="negative" />
-          )}
-
-          {/* Contact */}
-          {report.contactInfo && (
-            <div className="text-xs text-muted-foreground">
-              <span className="font-medium">Contacto:</span> {report.contactInfo}
+            <div className="rounded-lg border border-sky-200/60 bg-sky-50/30 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-500 mb-1">Perfil Físico</p>
+              <p className="text-[13px] whitespace-pre-line text-neutral-700 leading-relaxed">{report.physicalProfile}</p>
             </div>
           )}
 
-          {/* Footer — PDF link */}
-          {report.gdriveLink && (
-            <div className="border-t pt-3">
-              <a
-                href={report.gdriveLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Ver PDF original
-                <ExternalLink className="h-3 w-3" />
-              </a>
+          {/* Analysis */}
+          {report.analysis && (
+            <div className="rounded-lg border border-violet-200/60 bg-violet-50/30 px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-500 mb-1">Análise</p>
+              <p className="text-[13px] whitespace-pre-line text-neutral-700 leading-relaxed">{report.analysis}</p>
+            </div>
+          )}
+
+          {/* Footer — contact + PDF + delete, all in one row */}
+          {(report.contactInfo || report.gdriveLink || canDelete) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {report.contactInfo && (
+                <a
+                  href={`tel:${report.contactInfo.replace(/\s/g, '')}`}
+                  className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  {report.contactInfo}
+                </a>
+              )}
+              {report.gdriveLink && (
+                <a
+                  href={report.gdriveLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-200 transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Ver PDF
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete?.()}
+                  className="ml-auto p-1 text-neutral-300 hover:text-red-400 transition-colors"
+                  aria-label="Eliminar relatório"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -235,10 +205,18 @@ interface ScoutingReportsProps {
   /** Fallback: old-style report labels + links (shown when no extracted reports exist) */
   reportLabels?: string[];
   reportLinks?: string[];
+  /** Optional action element rendered next to the title */
+  action?: React.ReactNode;
+  /** Current user ID — for delete permission */
+  currentUserId?: string | null;
+  /** Current user role — admin can delete any */
+  userRole?: string;
+  /** Callback after delete */
+  onDelete?: () => void;
 }
 
-export function ScoutingReports({ reports, reportLabels = [], reportLinks = [] }: ScoutingReportsProps) {
-  const [selectedReport, setSelectedReport] = useState<ScoutingReport | null>(null);
+export function ScoutingReports({ reports, reportLabels = [], reportLinks = [], action, currentUserId, userRole, onDelete }: ScoutingReportsProps) {
+  const [deleteTarget, setDeleteTarget] = useState<ScoutingReport | null>(null);
 
   // Filter to successfully extracted reports
   const extractedReports = reports.filter((r) => r.extractionStatus === 'success' || r.extractionStatus === 'partial');
@@ -249,19 +227,28 @@ export function ScoutingReports({ reports, reportLabels = [], reportLinks = [] }
   return (
     <>
       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">
-          Relatórios ({extractedReports.length || reportLabels.length})
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-muted-foreground">
+            Relatórios de Observação ({extractedReports.length || reportLabels.length})
+          </p>
+          {action}
+        </div>
 
         {extractedReports.length > 0 ? (
           <div className="space-y-1.5">
-            {extractedReports.map((report) => (
-              <ReportCard
-                key={report.id}
-                report={report}
-                onClick={() => setSelectedReport(report)}
-              />
-            ))}
+            {extractedReports.map((report) => {
+              const canDelete = !!(currentUserId && (
+                report.authorId === currentUserId || userRole === 'admin'
+              ));
+              return (
+                <ReportCard
+                  key={report.id}
+                  report={report}
+                  canDelete={canDelete}
+                  onDelete={() => setDeleteTarget(report)}
+                />
+              );
+            })}
           </div>
         ) : (
           /* Fallback: old-style links */
@@ -296,10 +283,37 @@ export function ScoutingReports({ reports, reportLabels = [], reportLinks = [] }
         )}
       </div>
 
-      {/* Report detail dialog */}
-      {selectedReport && (
-        <ReportDialog report={selectedReport} onClose={() => setSelectedReport(null)} />
-      )}
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar relatório?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este relatório será eliminado permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!deleteTarget) return;
+                const { deleteScoutingReport } = await import('@/actions/scout-reports');
+                const result = await deleteScoutingReport(deleteTarget.id);
+                setDeleteTarget(null);
+                if (result.success) {
+                  toast.success('Relatório eliminado');
+                  onDelete?.();
+                } else {
+                  toast.error(result.error ?? 'Erro ao eliminar');
+                }
+              }}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

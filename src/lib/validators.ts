@@ -259,7 +259,7 @@ export const quickScoutReportSchema = z.object({
   ratingFisico: z.number().int().min(1).max(5),
   ratingMentalidade: z.number().int().min(1).max(5),
   ratingPotencial: z.number().int().min(1).max(5),
-  ratingOverall: z.number().int().min(1).max(5),
+  ratingOverall: z.number().min(0.5).max(5).refine(v => v % 0.5 === 0, 'Deve ser múltiplo de 0.5'),
   recommendation: z.enum(QUICK_REPORT_RECOMMENDATIONS),
   tagsTecnica: z.array(z.string()).default([]),
   tagsTatica: z.array(z.string()).default([]),

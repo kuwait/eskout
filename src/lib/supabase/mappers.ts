@@ -157,6 +157,7 @@ export function mapScoutingReportRow(row: ScoutingReportRow): ScoutingReport {
   return {
     id: row.id,
     playerId: row.player_id,
+    authorId: (row as unknown as { author_id?: string }).author_id ?? null,
     gdriveFileId: row.gdrive_file_id,
     gdriveLink: row.gdrive_link ?? '',
     reportNumber: row.report_number ?? 0,

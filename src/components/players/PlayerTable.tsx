@@ -34,12 +34,13 @@ interface PlayerTableProps {
 
 /* ───────────── Rating Colors (card-style badge, same palette as PlayerProfile) ───────────── */
 
+/* Unified 1-5 color scale: 1=red, 2=orange, 3=sky, 4=teal, 5=green */
 const RATING_COLORS: Record<number, { num: string; bg: string; border: string }> = {
-  1: { num: 'text-red-600', bg: 'bg-red-50/80', border: 'border-red-200' },
-  2: { num: 'text-orange-600', bg: 'bg-orange-50/80', border: 'border-orange-200' },
-  3: { num: 'text-blue-600', bg: 'bg-blue-50/80', border: 'border-blue-200' },
-  4: { num: 'text-emerald-600', bg: 'bg-emerald-50/80', border: 'border-emerald-200' },
-  5: { num: 'text-emerald-700', bg: 'bg-emerald-50/80', border: 'border-emerald-200' },
+  1: { num: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+  2: { num: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
+  3: { num: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-200' },
+  4: { num: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-200' },
+  5: { num: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200' },
 };
 const RATING_DEFAULT = { num: 'text-neutral-400', bg: 'bg-neutral-50', border: 'border-neutral-200' };
 
@@ -299,7 +300,7 @@ function EvalCell({ player }: { player: Player }) {
   const primary = getPrimaryRating(player);
   if (!primary) return <span className="text-xs text-neutral-300">—</span>;
 
-  const ratingInt = Math.round(primary.value);
+  const ratingInt = Math.ceil(primary.value) || 1;
   const c = RATING_COLORS[ratingInt] ?? RATING_DEFAULT;
 
   // Display value: decimal for averages, integer for manual
