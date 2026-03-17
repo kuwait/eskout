@@ -51,7 +51,7 @@ function formatDate(iso: string): string {
 }
 
 /** Determine tag sentiment — checks predefined tags, then custom prefixes (⊕/⊖) */
-function getTagSentiment(tagLabel: string, dimensionKey: string): 'positive' | 'negative' {
+export function getTagSentiment(tagLabel: string, dimensionKey: string): 'positive' | 'negative' {
   // Custom tags use ⊕/⊖ prefix
   if (tagLabel.startsWith('⊖')) return 'negative';
   if (tagLabel.startsWith('⊕')) return 'positive';
@@ -65,7 +65,7 @@ function getTagSentiment(tagLabel: string, dimensionKey: string): 'positive' | '
 }
 
 /** Strip sentiment prefix from custom tags for display */
-function displayTag(tagLabel: string): string {
+export function displayTag(tagLabel: string): string {
   return tagLabel.replace(/^[⊕⊖]\s*/, '');
 }
 

@@ -18,6 +18,7 @@ import {
   trainingFeedbackSchema,
   saveComparisonSchema,
   addVideoSchema,
+  quickScoutReportSchema,
 } from '@/lib/validators';
 
 /* ───────────── loginSchema ───────────── */
@@ -450,6 +451,103 @@ describe('addVideoSchema', () => {
 
   it('rejects note over 100 characters', () => {
     const result = addVideoSchema.safeParse({ playerId: 1, url: 'https://youtu.be/dQw4w9WgXcQ', note: 'A'.repeat(101) });
+    expect(result.success).toBe(false);
+  });
+});
+
+/* ───────────── quickScoutReportSchema ───────────── */
+
+describe('quickScoutReportSchema', () => {
+  const validReport = {
+    playerId: 1,
+    ratingTecnica: 4,
+    ratingTatica: 3,
+    ratingFisico: 5,
+    ratingMentalidade: 2,
+    ratingPotencial: 4,
+    ratingOverall: 3.5,
+    recommendation: 'Acompanhar' as const,
+  };
+
+  it('accepts valid report with half-star overall', () => {
+    const result = quickScoutReportSchema.safeParse(validReport);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts ratingOverall at minimum 0.5', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 0.5 });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts ratingOverall at maximum 5', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 5 });
+    expect(result.success).toBe(true);
+  });
+
+  it.each([0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])('accepts ratingOverall %s', (v) => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: v });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects ratingOverall of 0', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects ratingOverall of 5.5', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 5.5 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects ratingOverall not a 0.5 multiple (0.3)', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 0.3 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects ratingOverall not a 0.5 multiple (2.7)', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 2.7 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects dimension rating of 0', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingTecnica: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects dimension rating of 6', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingTecnica: 6 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects non-integer dimension rating', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingTecnica: 3.5 });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts all valid recommendations', () => {
+    for (const rec of ['Assinar', 'Acompanhar', 'Sem interesse']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, recommendation: rec });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid recommendation', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, recommendation: 'Rever' });
+    expect(result.success).toBe(false);
+  });
+
+  it('defaults tag arrays to empty when omitted', () => {
+    const result = quickScoutReportSchema.safeParse(validReport);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.tagsTecnica).toEqual([]);
+      expect(result.data.tagsFisico).toEqual([]);
+    }
+  });
+
+  it('rejects missing playerId', () => {
+    const { playerId, ...rest } = validReport;
+    const result = quickScoutReportSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 });
