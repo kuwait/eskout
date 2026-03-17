@@ -261,14 +261,15 @@ export async function getAllLists(): Promise<PlayerList[]> {
   });
 }
 
-/** Get items in a specific list (with joined player data) */
+/** Get items in a specific list (with joined player data) — service client for shared list support */
 export async function getListItems(listId: number): Promise<PlayerListItem[]> {
   const { role } = await getActiveClub();
   if (role === 'scout') return [];
 
-  const supabase = await createClient();
+  // Service client to bypass player_list_items RLS for shared lists
+  const service = await createServiceClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await service
     .from('player_list_items')
     .select('id, list_id, player_id, note, sort_order, added_at, seen_at, players(name, club, club_logo_url, position_normalized, dob, nationality, photo_url, zz_photo_url)')
     .eq('list_id', listId)
@@ -279,14 +280,16 @@ export async function getListItems(listId: number): Promise<PlayerListItem[]> {
   return (data as unknown as PlayerListItemRow[]).map(mapListItem);
 }
 
-/** Get list metadata by id */
+/** Get list metadata by id — uses service client to support shared lists (RLS blocks non-owner reads) */
 export async function getListById(listId: number): Promise<PlayerList | null> {
-  const { role } = await getActiveClub();
+  const { userId, role } = await getActiveClub();
   if (role === 'scout') return null;
 
-  const supabase = await createClient();
+  // Use service client — player_lists RLS only allows owner/admin reads,
+  // but shared users also need access. Access is verified in the page via shares check.
+  const service = await createServiceClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await service
     .from('player_lists')
     .select('id, club_id, user_id, name, emoji, is_system, created_at, updated_at')
     .eq('id', listId)
@@ -294,14 +297,14 @@ export async function getListById(listId: number): Promise<PlayerList | null> {
 
   if (error || !data) return null;
 
-  // Get item count
-  const { count } = await supabase
+  // Get item count — use service client (player_list_items RLS may block for shared users without migration 072)
+  const { count } = await service
     .from('player_list_items')
     .select('*', { count: 'exact', head: true })
     .eq('list_id', listId);
 
   // Get last added
-  const { data: lastItem } = await supabase
+  const { data: lastItem } = await service
     .from('player_list_items')
     .select('added_at')
     .eq('list_id', listId)
