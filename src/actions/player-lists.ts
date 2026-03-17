@@ -6,7 +6,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { createListSchema, renameListSchema, addToListSchema } from '@/lib/validators';
@@ -148,57 +148,62 @@ export async function getMyLists(): Promise<PlayerList[]> {
     };
   });
 
-  // Also fetch lists shared with me
+  // Also fetch lists shared with me — use service client to bypass player_lists RLS
+  // (adding a SELECT policy on player_lists that subqueries player_list_shares causes infinite recursion)
   const { data: shares } = await supabase
     .from('player_list_shares')
-    .select('list_id, player_lists(id, club_id, user_id, name, emoji, is_system, created_at, updated_at)')
+    .select('list_id')
     .eq('user_id', userId);
 
-  if (shares?.length) {
-    // Filter out shares where RLS blocked the joined player_lists (returns null for non-owner non-admin)
-    const validShares = shares.filter(s => s.player_lists != null);
-    const sharedListIds = validShares.map(s => (s.player_lists as unknown as { id: number }).id).filter(Boolean);
+  const sharedListIds = (shares ?? []).map(s => s.list_id).filter(Boolean);
 
-    if (sharedListIds.length > 0) {
-    // Fetch item stats for shared lists
-    const { data: sharedItemStats } = await supabase
-      .from('player_list_items')
-      .select('list_id, added_at')
-      .in('list_id', sharedListIds)
-      .order('added_at', { ascending: false });
+  if (sharedListIds.length > 0) {
+    // Service client bypasses player_lists RLS — we already verified access via player_list_shares
+    const service = await createServiceClient();
 
-    const sharedStatsMap = new Map<number, { count: number; lastAddedAt: string | null }>();
-    for (const item of sharedItemStats ?? []) {
-      const existing = sharedStatsMap.get(item.list_id);
-      if (existing) existing.count++;
-      else sharedStatsMap.set(item.list_id, { count: 1, lastAddedAt: item.added_at });
+    const { data: sharedLists } = await service
+      .from('player_lists')
+      .select('id, club_id, user_id, name, emoji, is_system, created_at, updated_at')
+      .in('id', sharedListIds);
+
+    if (sharedLists?.length) {
+      // Fetch item stats for shared lists
+      const { data: sharedItemStats } = await supabase
+        .from('player_list_items')
+        .select('list_id, added_at')
+        .in('list_id', sharedListIds)
+        .order('added_at', { ascending: false });
+
+      const sharedStatsMap = new Map<number, { count: number; lastAddedAt: string | null }>();
+      for (const item of sharedItemStats ?? []) {
+        const existing = sharedStatsMap.get(item.list_id);
+        if (existing) existing.count++;
+        else sharedStatsMap.set(item.list_id, { count: 1, lastAddedAt: item.added_at });
+      }
+
+      // Resolve owner names
+      const ownerIds = [...new Set(sharedLists.map(l => l.user_id))];
+      const { data: ownerProfiles } = await service.from('profiles').select('id, full_name').in('id', ownerIds);
+      const ownerNameMap = new Map((ownerProfiles ?? []).map(p => [p.id, p.full_name]));
+
+      for (const list of sharedLists) {
+        const stats = sharedStatsMap.get(list.id);
+        myLists.push({
+          id: list.id,
+          clubId: list.club_id,
+          userId: list.user_id,
+          name: list.name,
+          emoji: list.emoji,
+          isSystem: list.is_system,
+          createdAt: list.created_at,
+          updatedAt: list.updated_at,
+          itemCount: stats?.count ?? 0,
+          lastAddedAt: stats?.lastAddedAt ?? null,
+          ownerName: ownerNameMap.get(list.user_id) ?? 'Desconhecido',
+          isSharedWithMe: true,
+        });
+      }
     }
-
-    // Resolve owner names
-    const ownerIds = [...new Set(validShares.map(s => (s.player_lists as unknown as { user_id: string }).user_id))];
-    const { data: ownerProfiles } = await supabase.from('profiles').select('id, full_name').in('id', ownerIds);
-    const ownerNameMap = new Map((ownerProfiles ?? []).map(p => [p.id, p.full_name]));
-
-    for (const share of validShares) {
-      const list = share.player_lists as unknown as { id: number; club_id: string; user_id: string; name: string; emoji: string; is_system: boolean; created_at: string; updated_at: string };
-      if (!list) continue;
-      const stats = sharedStatsMap.get(list.id);
-      myLists.push({
-        id: list.id,
-        clubId: list.club_id,
-        userId: list.user_id,
-        name: list.name,
-        emoji: list.emoji,
-        isSystem: list.is_system,
-        createdAt: list.created_at,
-        updatedAt: list.updated_at,
-        itemCount: stats?.count ?? 0,
-        lastAddedAt: stats?.lastAddedAt ?? null,
-        ownerName: ownerNameMap.get(list.user_id) ?? 'Desconhecido',
-        isSharedWithMe: true,
-      });
-    }
-    } // end sharedListIds.length > 0
   }
 
   return myLists;
