@@ -12,7 +12,7 @@ import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
-import { RECRUITMENT_STATUSES, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
+import { RECRUITMENT_STATUSES, RECRUITMENT_LABEL_MAP, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { updateRecruitmentStatus, reorderPipelineCards, updateDecisionSide } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
 
@@ -398,6 +398,7 @@ function AddToPipelineDialog({
   const [page, setPage] = useState(0);
   // All players matching structural filters (fetched from DB)
   const [pool, setPool] = useState<Player[]>([]);
+  const [alreadyInPipeline, setAlreadyInPipeline] = useState<Player[]>([]);
   const [loading, setLoading] = useState(false);
   const [clubs, setClubs] = useState<string[]>([]);
 
@@ -412,7 +413,7 @@ function AddToPipelineDialog({
 
   // Reset filters when dialog closes
   useEffect(() => {
-    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); setPool([]); }
+    if (!open) { setFilters(EMPTY_FILTERS); setDebouncedSearch(''); setPage(0); setPool([]); setAlreadyInPipeline([]); }
   }, [open]);
 
   // Fetch distinct clubs for the filter dropdown (once when dialog opens)
@@ -479,6 +480,30 @@ function AddToPipelineDialog({
         offset += limit;
       }
       setPool(all.map(mapPlayerRow));
+
+      // When text searching, also check if there are matches already in the pipeline
+      if (debouncedSearch) {
+        const words = debouncedSearch.trim().split(/\s+/).filter((w: string) => w.length >= 2);
+        if (words.length > 0) {
+          let pipelineQuery = supabase
+            .from('players')
+            .select('*')
+            .eq('club_id', clubId)
+            .not('recruitment_status', 'is', null)
+            .eq('pending_approval', false);
+          if (ageGroupId) pipelineQuery = pipelineQuery.eq('age_group_id', ageGroupId);
+          for (const word of words) {
+            pipelineQuery = pipelineQuery.or(`name.ilike.%${word}%`);
+          }
+          const { data: pipelineData } = await pipelineQuery.order('name').limit(10);
+          setAlreadyInPipeline((pipelineData ?? []).map(mapPlayerRow));
+        } else {
+          setAlreadyInPipeline([]);
+        }
+      } else {
+        setAlreadyInPipeline([]);
+      }
+
       setLoading(false);
     }
 
@@ -625,6 +650,30 @@ function AddToPipelineDialog({
               </Button>
             </div>
           ))}
+          {/* Players already in pipeline — shown when searching */}
+          {!loading && alreadyInPipeline.length > 0 && (
+            <>
+              <div className="border-t pt-2 mt-2">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Já nas abordagens</p>
+              </div>
+              {alreadyInPipeline.map((player) => (
+                <div key={player.id} className="flex items-center gap-2 rounded-md border border-dashed border-neutral-200 bg-neutral-50/50 p-2 opacity-70">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-sm font-medium">{player.name}</p>
+                      <span className="shrink-0 rounded-full bg-blue-100 px-2 py-px text-[10px] font-medium text-blue-600">
+                        {RECRUITMENT_LABEL_MAP[player.recruitmentStatus as keyof typeof RECRUITMENT_LABEL_MAP] ?? player.recruitmentStatus}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {player.club}
+                      {player.positionNormalized ? ` · ${player.positionNormalized}` : ''}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
