@@ -289,6 +289,34 @@ export async function getUserActivityTimeline(
     });
   }
 
+  // Resolve contact_assigned_to UUIDs to names
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidsToResolve = new Set<string>();
+  for (const item of items) {
+    if (!item.detail) continue;
+    // Find UUIDs in detail strings (from contact_assigned_to field)
+    const matches = item.detail.match(uuidPattern);
+    if (matches) uuidsToResolve.add(item.detail.includes('→') ? '' : ''); // collect from raw
+    // Check each part of "old → new" for UUIDs
+    for (const part of item.detail.split('→').map((s) => s.trim())) {
+      if (uuidPattern.test(part)) uuidsToResolve.add(part);
+    }
+  }
+  if (uuidsToResolve.size > 0) {
+    const { data: profiles } = await service
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', [...uuidsToResolve]);
+    const nameMap = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? p.id]));
+    // Replace UUIDs with names in detail strings
+    for (const item of items) {
+      if (!item.detail) continue;
+      for (const [uuid, name] of nameMap) {
+        item.detail = item.detail.replaceAll(uuid, name);
+      }
+    }
+  }
+
   // Sort all by date descending, take top N
   items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -313,6 +341,7 @@ const FIELD_LABELS: Record<string, string> = {
   decision_date: 'Prazo Decisão',
   decision_side: 'Lado da Decisão',
   contact_assigned_to: 'Responsável',
+  training_escalao: 'Escalão Treino',
 };
 
 const PRESENCE_LABELS: Record<string, string> = {

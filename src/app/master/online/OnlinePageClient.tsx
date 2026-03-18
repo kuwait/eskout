@@ -10,6 +10,7 @@ import { Wifi, Clock, TrendingUp, Monitor, Smartphone, Search, Activity, X, GitB
 import { createClient } from '@/lib/supabase/client';
 import { getUserActivityTimeline, type ActivityTimelineItem } from '@/actions/master-activity';
 import { BOOLEAN_FIELDS, formatFieldValue } from '@/lib/utils/activity-labels';
+import { normalize } from '@/lib/utils';
 
 /* ───────────── Types ───────────── */
 
@@ -106,9 +107,11 @@ const FIELD_LABELS: Record<string, string> = {
   is_shadow_squad: 'Plantel Sombra',
   is_real_squad: 'Plantel',
   shadow_position: 'Posição Sombra',
+  real_squad_position: 'Posição Real',
   position_normalized: 'Posição',
   club: 'Clube',
   observer_decision: 'Decisão',
+  training_escalao: 'Escalão Treino',
   training_date: 'Data Treino',
   meeting_date: 'Data Reunião',
   signing_date: 'Data Assinatura',
@@ -290,11 +293,14 @@ export function OnlinePageClient({
 
   // Filter by search
   const filtered = search
-    ? currentList.filter((u) =>
-        u.fullName.toLowerCase().includes(search.toLowerCase()) ||
-        u.clubs.some((c) => c.clubName.toLowerCase().includes(search.toLowerCase())) ||
-        u.page.toLowerCase().includes(search.toLowerCase())
-      )
+    ? (() => {
+        const q = normalize(search);
+        return currentList.filter((u) =>
+          normalize(u.fullName).includes(q) ||
+          u.clubs.some((c) => normalize(c.clubName).includes(q)) ||
+          normalize(u.page).includes(q)
+        );
+      })()
     : currentList;
 
   // Breakdowns from current online users

@@ -183,18 +183,46 @@ export default async function OnlinePage() {
     heatmap[day][hour]++;
   }
 
-  // Activity feed
-  const activityFeed = (activityRes.data ?? []).map((a) => ({
-    id: a.id,
-    playerName: (a.players as unknown as { name: string } | null)?.name ?? '?',
-    playerId: a.player_id,
-    userName: (a.profiles as unknown as { full_name: string } | null)?.full_name ?? '?',
-    field: a.field_changed,
-    oldValue: a.old_value,
-    newValue: a.new_value,
-    notes: a.notes,
-    createdAt: a.created_at,
-  }));
+  // Activity feed — resolve contact_assigned_to UUIDs to names
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const contactUuids = new Set<string>();
+  for (const a of activityRes.data ?? []) {
+    if (a.field_changed === 'contact_assigned_to') {
+      if (a.old_value && uuidPattern.test(a.old_value)) contactUuids.add(a.old_value);
+      if (a.new_value && uuidPattern.test(a.new_value)) contactUuids.add(a.new_value);
+    }
+  }
+  const contactNameMap = new Map<string, string>();
+  if (contactUuids.size > 0) {
+    const { data: contactProfiles } = await service
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', [...contactUuids]);
+    for (const p of contactProfiles ?? []) {
+      contactNameMap.set(p.id, p.full_name ?? p.id);
+    }
+  }
+
+  const activityFeed = (activityRes.data ?? []).map((a) => {
+    let oldValue = a.old_value;
+    let newValue = a.new_value;
+    // Replace UUIDs with names for contact_assigned_to
+    if (a.field_changed === 'contact_assigned_to') {
+      if (oldValue && contactNameMap.has(oldValue)) oldValue = contactNameMap.get(oldValue)!;
+      if (newValue && contactNameMap.has(newValue)) newValue = contactNameMap.get(newValue)!;
+    }
+    return {
+      id: a.id,
+      playerName: (a.players as unknown as { name: string } | null)?.name ?? '?',
+      playerId: a.player_id,
+      userName: (a.profiles as unknown as { full_name: string } | null)?.full_name ?? '?',
+      field: a.field_changed,
+      oldValue,
+      newValue,
+      notes: a.notes,
+      createdAt: a.created_at,
+    };
+  });
 
   // IDs to exclude from client-side polling (test-only users + users with no club)
   const { data: allProfiles } = await service.from('profiles').select('id');

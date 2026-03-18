@@ -3,7 +3,8 @@
 // Shared between master-activity server action and OnlinePageClient
 // RELEVANT FILES: src/actions/master-activity.ts, src/app/master/online/OnlinePageClient.tsx, src/components/players/StatusHistory.tsx
 
-import { RECRUITMENT_LABEL_MAP } from '@/lib/constants';
+import { RECRUITMENT_LABEL_MAP, POSITION_LABELS } from '@/lib/constants';
+import type { PositionCode } from '@/lib/types';
 
 /* ───────────── Field Classification ───────────── */
 
@@ -12,6 +13,15 @@ export const DATE_FIELDS = new Set(['training_date', 'meeting_date', 'signing_da
 
 /** Fields whose values are booleans stored as strings */
 export const BOOLEAN_FIELDS = new Set(['is_shadow_squad', 'is_real_squad']);
+
+/** Fields whose values are position codes (DC, MC, ED, etc.) */
+const POSITION_FIELDS = new Set(['shadow_position', 'real_squad_position', 'position_normalized']);
+
+/** DC sub-slot labels for squad positions */
+const SLOT_LABELS: Record<string, string> = {
+  DC_E: 'Defesa Central (E)',
+  DC_D: 'Defesa Central (D)',
+};
 
 /* ───────────── Formatters ───────────── */
 
@@ -59,6 +69,11 @@ export function formatFieldValue(field: string, value: string | null): string {
   if (field === 'decision_side') {
     if (value === 'club') return 'Clube';
     if (value === 'player') return 'Jogador';
+  }
+
+  // Position codes → Portuguese label
+  if (POSITION_FIELDS.has(field)) {
+    return POSITION_LABELS[value as PositionCode] ?? SLOT_LABELS[value] ?? value;
   }
 
   return value;

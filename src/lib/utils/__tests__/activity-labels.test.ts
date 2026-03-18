@@ -147,9 +147,21 @@ describe('formatFieldValue', () => {
     expect(formatFieldValue('decision_side', 'player')).toBe('Jogador');
   });
 
+  it('formats position codes to Portuguese labels', () => {
+    expect(formatFieldValue('shadow_position', 'DC')).toBe('Defesa Central');
+    expect(formatFieldValue('real_squad_position', 'ED')).toBe('Extremo Direito');
+    expect(formatFieldValue('position_normalized', 'GR')).toBe('Guarda-Redes');
+    expect(formatFieldValue('shadow_position', 'PL')).toBe('Ponta de Lança');
+  });
+
+  it('formats DC sub-slots', () => {
+    expect(formatFieldValue('real_squad_position', 'DC_E')).toBe('Defesa Central (E)');
+    expect(formatFieldValue('real_squad_position', 'DC_D')).toBe('Defesa Central (D)');
+  });
+
   it('returns raw value for unhandled fields', () => {
     expect(formatFieldValue('club', 'FC Porto')).toBe('FC Porto');
-    expect(formatFieldValue('position_normalized', 'DC')).toBe('DC');
+    expect(formatFieldValue('observer_decision', 'Assinar')).toBe('Assinar');
   });
 });
 
