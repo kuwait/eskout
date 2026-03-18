@@ -75,7 +75,7 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     .eq('name', ageGroupName)
     .eq('season', CURRENT_SEASON)
     .eq('club_id', clubId)
-    .single();
+    .maybeSingle();
 
   if (!ageGroup) {
     const { data: newAg, error: agError } = await supabase
@@ -126,6 +126,10 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
     .single();
 
   if (error) {
+    // Handle race condition: duplicate detected by DB constraint after check passed
+    if (error.code === '23505') {
+      return { success: false, error: 'Jogador duplicado — já foi criado por outro utilizador.' };
+    }
     return { success: false, error: `Erro ao criar jogador: ${error.message}` };
   }
 

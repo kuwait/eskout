@@ -130,8 +130,10 @@ export function PipelineView({ clubId }: { clubId: string }) {
   // Fetch contact purposes for the StatusChangeDialog
   useEffect(() => {
     import('@/actions/contact-purposes').then(({ getContactPurposes }) =>
-      getContactPurposes().then((purposes) => setContactPurposes(purposes))
-    );
+      getContactPurposes()
+        .then((purposes) => setContactPurposes(purposes))
+        .catch(() => setContactPurposes([]))
+    ).catch(() => setContactPurposes([]));
   }, []);
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */

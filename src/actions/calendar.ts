@@ -101,7 +101,7 @@ export async function createCalendarEvent(formData: {
   }
 
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir calendário' };
   }
 
@@ -175,7 +175,7 @@ export async function updateCalendarEvent(
   }
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir calendário' };
   }
   const supabase = await createClient();
@@ -241,7 +241,7 @@ export async function updateCalendarEvent(
 
 export async function deleteCalendarEvent(eventId: number): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout' || role === 'recruiter') {
+  if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir calendário' };
   }
   const supabase = await createClient();

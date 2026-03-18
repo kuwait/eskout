@@ -172,7 +172,7 @@ export function AgeGroupSelector({
 
   /* ───────────── Dropdown variant (default) ───────────── */
 
-  const displayValue = selectedId?.toString() ?? (showAll ? 'all' : 'all');
+  const displayValue = selectedId?.toString() ?? (showAll ? 'all' : ageGroups[0]?.id.toString() ?? '');
 
   return (
     <Select

@@ -183,7 +183,7 @@ export async function deleteSquad(squadId: number): Promise<ActionResponse> {
 export async function reorderSquads(
   updates: { id: number; sortOrder: number }[]
 ): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem reordenar plantéis' };
   }
@@ -201,6 +201,8 @@ export async function reorderSquads(
     if (error) {
       return { success: false, error: `Erro ao reordenar: ${error.message}` };
     }
+
+    await broadcastRowMutation(clubId, 'squads', 'UPDATE', userId, id);
   }
 
   revalidatePath('/campo');

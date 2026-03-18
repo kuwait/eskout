@@ -202,11 +202,11 @@ export async function updateRecruitmentStatus(
   }
   if (oldStatus === 'reuniao_marcada' && newStatus !== 'reuniao_marcada') {
     updatePayload.meeting_date = null;
-    updatePayload.meeting_attendees = '{}';
+    updatePayload.meeting_attendees = [];
   }
   if (oldStatus === 'confirmado' && newStatus !== 'confirmado') {
     updatePayload.signing_date = null;
-    updatePayload.signing_attendees = '{}';
+    updatePayload.signing_attendees = [];
   }
 
   const { error } = await supabase
@@ -301,7 +301,7 @@ export async function updateRecruitmentStatus(
         .from('contact_purposes')
         .select('label')
         .eq('id', contactPurposeId)
-        .single();
+        .maybeSingle();
       if (purposeRow?.label) purposeLabel = purposeRow.label;
     }
     const purposeSuffix = purposeLabel ? ` — ${purposeLabel}` : '';

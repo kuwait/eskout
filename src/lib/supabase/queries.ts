@@ -286,61 +286,6 @@ export async function getFlaggedNotes(ageGroupId?: number): Promise<FlaggedNote[
   return mapped;
 }
 
-/* ───────────── Dashboard Stats ───────────── */
-
-export interface DashboardStats {
-  totalPlayers: number;
-  realSquadCount: number;
-  shadowSquadCount: number;
-  pipelineActiveCount: number;
-  byOpinion: Record<string, number>;
-  byPosition: Record<string, { real: number; shadow: number }>;
-}
-
-export async function getDashboardStats(ageGroupId: number): Promise<DashboardStats> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('players')
-    .select('position_normalized, department_opinion, recruitment_status, is_real_squad, is_shadow_squad, real_squad_position, shadow_position')
-    .eq('age_group_id', ageGroupId);
-
-  if (error || !data) {
-    return {
-      totalPlayers: 0, realSquadCount: 0, shadowSquadCount: 0,
-      pipelineActiveCount: 0, byOpinion: {}, byPosition: {},
-    };
-  }
-
-  const stats: DashboardStats = {
-    totalPlayers: data.length,
-    realSquadCount: data.filter((p) => p.is_real_squad).length,
-    shadowSquadCount: data.filter((p) => p.is_shadow_squad).length,
-    // "Active" = not pool and not rejected
-    pipelineActiveCount: data.filter((p) =>
-      p.recruitment_status !== 'pool' && p.recruitment_status !== 'rejected'
-    ).length,
-    byOpinion: {},
-    byPosition: {},
-  };
-
-  // Count by opinion
-  for (const p of data) {
-    const op = p.department_opinion || 'Sem opinião';
-    stats.byOpinion[op] = (stats.byOpinion[op] ?? 0) + 1;
-  }
-
-  // Count by position (real vs shadow)
-  const positions = ['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'];
-  for (const pos of positions) {
-    stats.byPosition[pos] = {
-      real: data.filter((p) => p.is_real_squad && (p.real_squad_position === pos || p.real_squad_position === `${pos}_E` || p.real_squad_position === `${pos}_D`)).length,
-      shadow: data.filter((p) => p.is_shadow_squad && p.shadow_position === pos).length,
-    };
-  }
-
-  return stats;
-}
-
 /* ───────────── Recent Changes ───────────── */
 
 export interface RecentChange {
