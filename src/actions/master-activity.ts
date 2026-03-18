@@ -6,6 +6,7 @@
 'use server';
 
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { DATE_FIELDS, BOOLEAN_FIELDS, formatFieldValue, buildSquadLabel } from '@/lib/utils/activity-labels';
 
 /* ───────────── Types ───────────── */
 
@@ -18,6 +19,8 @@ export interface ActivityTimelineItem {
   detail?: string;
   /** Player name if relevant */
   playerName?: string;
+  /** Player ID for linking to profile */
+  playerId?: number;
   createdAt: string;
 }
 
@@ -56,7 +59,7 @@ export async function getUserActivityTimeline(
     // 1. Status history — field changes
     service
       .from('status_history')
-      .select('id, field_changed, old_value, new_value, notes, created_at, players(name)')
+      .select('id, field_changed, old_value, new_value, notes, created_at, players(id, name)')
       .eq('changed_by', userId)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -64,7 +67,7 @@ export async function getUserActivityTimeline(
     // 2. Observation notes
     service
       .from('observation_notes')
-      .select('id, content, match_context, created_at, players(name)')
+      .select('id, content, match_context, created_at, players(id, name)')
       .eq('author_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -72,7 +75,7 @@ export async function getUserActivityTimeline(
     // 3. Training feedback
     service
       .from('training_feedback')
-      .select('id, training_date, presence, feedback, rating, created_at, players(name)')
+      .select('id, training_date, presence, feedback, rating, created_at, players(id, name)')
       .eq('author_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -80,7 +83,7 @@ export async function getUserActivityTimeline(
     // 4. Scout evaluations
     service
       .from('scout_evaluations')
-      .select('id, rating, created_at, updated_at, players(name)')
+      .select('id, rating, created_at, updated_at, players(id, name)')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(limit),
@@ -88,7 +91,7 @@ export async function getUserActivityTimeline(
     // 5. Calendar events created
     service
       .from('calendar_events')
-      .select('id, title, event_type, event_date, created_at, players(name)')
+      .select('id, title, event_type, event_date, created_at, players(id, name)')
       .eq('created_by', userId)
       .order('created_at', { ascending: false })
       .limit(limit),
@@ -96,7 +99,7 @@ export async function getUserActivityTimeline(
     // 6. Tasks completed
     service
       .from('user_tasks')
-      .select('id, title, completed, completed_at, created_at, players(name)')
+      .select('id, title, completed, completed_at, created_at, players(id, name)')
       .eq('user_id', userId)
       .eq('completed', true)
       .order('completed_at', { ascending: false })
@@ -121,23 +124,77 @@ export async function getUserActivityTimeline(
 
   // Map status_history
   for (const row of statusRes.data ?? []) {
-    const player = row.players as unknown as { name: string } | null;
-    const fieldLabel = FIELD_LABELS[row.field_changed] ?? row.field_changed;
+    const player = row.players as unknown as { id: number; name: string } | null;
+    const field = row.field_changed;
+
+    // Boolean squad fields → contextual description with squad name from notes
+    if (BOOLEAN_FIELDS.has(field)) {
+      const added = row.new_value === 'true';
+      const label = buildSquadLabel(field, row.notes);
+      items.push({
+        id: `sh-${row.id}`,
+        type: 'status_change',
+        description: added ? `Adicionado ao ${label}` : `Removido do ${label}`,
+        playerName: player?.name,
+        playerId: player?.id,
+        createdAt: row.created_at,
+      });
+      continue;
+    }
+
+    // Recruitment status: null → any status = "Adicionado ao pipeline"
+    if (field === 'recruitment_status' && !row.old_value && row.new_value) {
+      items.push({
+        id: `sh-${row.id}`,
+        type: 'status_change',
+        description: 'Adicionado ao pipeline',
+        playerName: player?.name,
+        playerId: player?.id,
+        createdAt: row.created_at,
+      });
+      continue;
+    }
+
+    // Recruitment status: value → null = "Removido do pipeline"
+    if (field === 'recruitment_status' && row.old_value && !row.new_value) {
+      items.push({
+        id: `sh-${row.id}`,
+        type: 'status_change',
+        description: 'Removido do pipeline',
+        playerName: player?.name,
+        playerId: player?.id,
+        createdAt: row.created_at,
+      });
+      continue;
+    }
+
+    const fieldLabel = FIELD_LABELS[field] ?? field;
+    const oldDisplay = formatFieldValue(field, row.old_value);
+    const newDisplay = formatFieldValue(field, row.new_value);
+
+    // Contextual verb — "Definiu" (null→value) / "Removeu" (value→null) / "Alterou" (value→value)
+    let verb = 'Alterou';
+    if (!row.old_value && row.new_value) verb = 'Definiu';
+    else if (row.old_value && !row.new_value) verb = 'Removeu';
+
     items.push({
       id: `sh-${row.id}`,
       type: 'status_change',
-      description: `Alterou ${fieldLabel}`,
-      detail: row.old_value || row.new_value
-        ? `${row.old_value || '(vazio)'} → ${row.new_value || '(vazio)'}`
-        : undefined,
+      description: `${verb} ${fieldLabel}`,
+      detail: verb === 'Definiu' ? newDisplay
+        : verb === 'Removeu' ? undefined
+        : row.old_value || row.new_value
+          ? `${oldDisplay} → ${newDisplay}`
+          : undefined,
       playerName: player?.name,
+      playerId: player?.id,
       createdAt: row.created_at,
     });
   }
 
   // Map observation notes
   for (const row of notesRes.data ?? []) {
-    const player = row.players as unknown as { name: string } | null;
+    const player = row.players as unknown as { id: number; name: string } | null;
     const preview = row.content.length > 80 ? row.content.slice(0, 80) + '…' : row.content;
     items.push({
       id: `on-${row.id}`,
@@ -145,13 +202,14 @@ export async function getUserActivityTimeline(
       description: 'Adicionou nota de observação',
       detail: preview,
       playerName: player?.name,
+      playerId: player?.id,
       createdAt: row.created_at,
     });
   }
 
   // Map training feedback
   for (const row of feedbackRes.data ?? []) {
-    const player = row.players as unknown as { name: string } | null;
+    const player = row.players as unknown as { id: number; name: string } | null;
     const presenceLabel = PRESENCE_LABELS[row.presence] ?? row.presence;
     const ratingStr = row.rating ? ` · ${row.rating}★` : '';
     items.push({
@@ -160,25 +218,27 @@ export async function getUserActivityTimeline(
       description: `Feedback de treino (${presenceLabel}${ratingStr})`,
       detail: row.feedback ? (row.feedback.length > 80 ? row.feedback.slice(0, 80) + '…' : row.feedback) : undefined,
       playerName: player?.name,
+      playerId: player?.id,
       createdAt: row.created_at,
     });
   }
 
   // Map scout evaluations
   for (const row of evalsRes.data ?? []) {
-    const player = row.players as unknown as { name: string } | null;
+    const player = row.players as unknown as { id: number; name: string } | null;
     items.push({
       id: `se-${row.id}`,
       type: 'scout_evaluation',
       description: `Avaliou jogador (${row.rating}★)`,
       playerName: player?.name,
+      playerId: player?.id,
       createdAt: row.updated_at ?? row.created_at,
     });
   }
 
   // Map calendar events
   for (const row of calendarRes.data ?? []) {
-    const player = row.players as unknown as { name: string } | null;
+    const player = row.players as unknown as { id: number; name: string } | null;
     const typeLabel = EVENT_TYPE_LABELS[row.event_type] ?? row.event_type;
     items.push({
       id: `ce-${row.id}`,
@@ -186,19 +246,21 @@ export async function getUserActivityTimeline(
       description: `Criou evento: ${typeLabel}`,
       detail: row.title,
       playerName: player?.name,
+      playerId: player?.id,
       createdAt: row.created_at,
     });
   }
 
   // Map completed tasks
   for (const row of tasksCompletedRes.data ?? []) {
-    const player = row.players as unknown as { name: string } | null;
+    const player = row.players as unknown as { id: number; name: string } | null;
     items.push({
       id: `ut-${row.id}`,
       type: 'task',
       description: 'Completou tarefa',
       detail: row.title,
       playerName: player?.name,
+      playerId: player?.id,
       createdAt: row.completed_at ?? row.created_at,
     });
   }
@@ -210,6 +272,7 @@ export async function getUserActivityTimeline(
       type: 'player_created',
       description: 'Adicionou jogador',
       playerName: row.name,
+      playerId: row.id,
       createdAt: row.created_at,
     });
   }
@@ -221,6 +284,7 @@ export async function getUserActivityTimeline(
       type: 'player_approved',
       description: 'Aprovou jogador',
       playerName: row.name,
+      playerId: row.id,
       createdAt: row.updated_at,
     });
   }
@@ -246,6 +310,8 @@ const FIELD_LABELS: Record<string, string> = {
   training_date: 'Data Treino',
   meeting_date: 'Data Reunião',
   signing_date: 'Data Assinatura',
+  decision_date: 'Prazo Decisão',
+  decision_side: 'Lado da Decisão',
   contact_assigned_to: 'Responsável',
 };
 

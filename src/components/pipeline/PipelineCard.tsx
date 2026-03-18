@@ -210,7 +210,18 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               }}
               size={20}
             />
-            <p className={`min-w-0 truncate font-medium ${displayName.length > 18 ? 'text-xs' : 'text-sm'}`}>{displayName}</p>
+            <a
+              href={`/jogadores/${player.id}`}
+              onClick={(e) => {
+                // Left-click: use popup if available; middle/ctrl/cmd: let browser open new tab
+                if (e.button === 0 && !e.ctrlKey && !e.metaKey && onPlayerClick) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onPlayerClick(player.id);
+                }
+              }}
+              className={`min-w-0 truncate font-medium hover:underline ${displayName.length > 18 ? 'text-xs' : 'text-sm'}`}
+            >{displayName}</a>
           </div>
           {/* Line 2: club — links to filtered player list */}
           <Link href={`/?clube=${encodeURIComponent(player.club)}`} onClick={(e) => e.stopPropagation()} className="mt-0.5 block truncate text-xs text-muted-foreground hover:underline">{player.club}</Link>

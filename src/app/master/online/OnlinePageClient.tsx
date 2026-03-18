@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useTransition } from 'react';
 import { Wifi, Clock, TrendingUp, Monitor, Smartphone, Search, Activity, X, GitBranch, FileText, GraduationCap, Star, CalendarDays, ListChecks, UserPlus, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getUserActivityTimeline, type ActivityTimelineItem } from '@/actions/master-activity';
+import { BOOLEAN_FIELDS, formatFieldValue } from '@/lib/utils/activity-labels';
 
 /* ───────────── Types ───────────── */
 
@@ -108,6 +109,12 @@ const FIELD_LABELS: Record<string, string> = {
   position_normalized: 'Posição',
   club: 'Clube',
   observer_decision: 'Decisão',
+  training_date: 'Data Treino',
+  meeting_date: 'Data Reunião',
+  signing_date: 'Data Assinatura',
+  decision_date: 'Prazo Decisão',
+  decision_side: 'Lado da Decisão',
+  contact_assigned_to: 'Responsável',
 };
 
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -489,25 +496,37 @@ export function OnlinePageClient({
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">Sem atividade recente</div>
           ) : (
             <ul className="divide-y max-h-96 overflow-y-auto">
-              {activityFeed.map((a) => (
-                <li key={a.id} className="px-4 py-2.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm">
-                      <span className="font-medium">{a.userName}</span>
-                      {' alterou '}
-                      <span className="text-muted-foreground">{FIELD_LABELS[a.field] ?? a.field}</span>
-                      {' de '}
-                      <span className="font-medium">{a.playerName}</span>
-                    </p>
-                    <span className="text-[11px] text-muted-foreground whitespace-nowrap">{timeAgo(a.createdAt)}</span>
-                  </div>
-                  {a.oldValue !== null && a.newValue !== null && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {a.oldValue || '(vazio)'} → {a.newValue || '(vazio)'}
-                    </p>
-                  )}
-                </li>
-              ))}
+              {activityFeed.map((a) => {
+                const isBoolSquad = BOOLEAN_FIELDS.has(a.field);
+                const isPipelineAdd = a.field === 'recruitment_status' && !a.oldValue && !!a.newValue;
+                const isPipelineRemove = a.field === 'recruitment_status' && a.oldValue && !a.newValue;
+                const isPipelineSpecial = isPipelineAdd || isPipelineRemove;
+                const squadLabel = a.field === 'is_real_squad' ? 'Plantel Real' : 'Plantel Sombra';
+                const added = a.newValue === 'true';
+                return (
+                  <li key={a.id} className="px-4 py-2.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-sm">
+                        <span className="font-medium">{a.userName}</span>
+                        {isBoolSquad
+                          ? <>{added ? ' adicionou ' : ' removeu '}<a href={`/jogadores/${a.playerId}`} className="font-medium text-purple-600 hover:underline">{a.playerName}</a>{added ? ` ao ${squadLabel}` : ` do ${squadLabel}`}</>
+                          : isPipelineAdd
+                            ? <>{' adicionou '}<a href={`/jogadores/${a.playerId}`} className="font-medium text-purple-600 hover:underline">{a.playerName}</a>{' ao pipeline'}</>
+                            : isPipelineRemove
+                              ? <>{' removeu '}<a href={`/jogadores/${a.playerId}`} className="font-medium text-purple-600 hover:underline">{a.playerName}</a>{' do pipeline'}</>
+                              : <>{' alterou '}<span className="text-muted-foreground">{FIELD_LABELS[a.field] ?? a.field}</span>{' de '}<a href={`/jogadores/${a.playerId}`} className="font-medium text-purple-600 hover:underline">{a.playerName}</a></>
+                        }
+                      </p>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">{timeAgo(a.createdAt)}</span>
+                    </div>
+                    {!isBoolSquad && !isPipelineSpecial && a.oldValue !== null && a.newValue !== null && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatFieldValue(a.field, a.oldValue)} → {formatFieldValue(a.field, a.newValue)}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -637,7 +656,17 @@ function UserActivityPanel({ user, items, isLoading, onClose }: {
                               <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">{time}</span>
                             </div>
                             {item.playerName && (
-                              <p className="text-xs text-muted-foreground">{item.playerName}</p>
+                              item.playerId ? (
+                                <a
+                                  href={`/jogadores/${item.playerId}`}
+                                  className="text-xs text-purple-600 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {item.playerName}
+                                </a>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">{item.playerName}</p>
+                              )
                             )}
                             {item.detail && (
                               <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">{item.detail}</p>

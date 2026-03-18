@@ -120,6 +120,37 @@ function buildDisplay(e: StatusHistoryEntry): EntryDisplay {
   switch (fieldChanged) {
     /* ── Recruitment status ── */
     case 'recruitment_status': {
+      // First entry in pipeline: null → any status
+      if (!oldValue && newValue) {
+        const statusLabel = newValue === 'por_tratar' ? null : recruitLabel(newValue);
+        return {
+          icon: <ArrowRightLeft className={IC} />,
+          iconBg: 'bg-blue-50 text-blue-600',
+          accent: 'border-l-blue-400',
+          content: (
+            <span className="text-sm">
+              Adicionado ao <span className="font-medium">pipeline</span>
+              {statusLabel && (
+                <> como <span className={`inline-block rounded-full px-2 py-px text-[11px] font-medium ${recruitBadgeClass(newValue)}`}>{statusLabel}</span></>
+              )}
+            </span>
+          ),
+        };
+      }
+      // Removed from pipeline: status → null
+      if (oldValue && !newValue) {
+        return {
+          icon: <ArrowRightLeft className={IC} />,
+          iconBg: 'bg-red-50 text-red-500',
+          accent: 'border-l-red-300',
+          content: (
+            <span className="text-sm">
+              Removido do <span className="font-medium">pipeline</span>
+              <span className="text-muted-foreground"> (estava em &ldquo;{recruitLabel(oldValue)}&rdquo;)</span>
+            </span>
+          ),
+        };
+      }
       // Resolve contact purpose label for display
       const purposeLabel = e.contactPurposeLabel ?? e.contactPurposeCustom ?? null;
       return {
