@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -35,13 +35,12 @@ const SIZES = {
   lg: { logo: 24, text: 'text-base', popover: 96 },
 };
 
-/* Detect touch device — SSR-safe via useSyncExternalStore */
-const subscribe = () => () => {};
-const getIsTouch = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-const getIsTouchServer = () => false;
-
 export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '', onRemoveLogo, linkToFilter }: ClubBadgeProps) {
-  const isTouch = useSyncExternalStore(subscribe, getIsTouch, getIsTouchServer);
+  // Detect touch after mount to avoid hydration mismatch (server always renders non-touch)
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
 
   if (!club) return null;
 

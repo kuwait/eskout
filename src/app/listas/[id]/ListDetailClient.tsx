@@ -87,10 +87,12 @@ export function ListDetailClient({
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [localShares, setLocalShares] = useState(shares);
-  const [groupByClub, setGroupByClub] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('eskout:list-group-by-club') === '1';
-  });
+  const [groupByClub, setGroupByClub] = useState(false);
+  // Read persisted preference after mount to avoid hydration mismatch
+  useEffect(() => {
+    const stored = localStorage.getItem('eskout:list-group-by-club') === '1';
+    if (stored) setGroupByClub(true);
+  }, []);
 
   /* ───────────── Grouped by club → birth year ───────────── */
   const clubGroups = useMemo(() => {
