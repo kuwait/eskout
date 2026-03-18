@@ -477,3 +477,152 @@ export async function deleteStatusHistoryEntry(entryId: number): Promise<ActionR
 
   return { success: true };
 }
+
+/* ───────────── Playing Up from FPF ───────────── */
+
+export interface FpfPlayingUpEntry {
+  competitionEscalao: string;
+  expectedBirthYearEnd: number;
+  games: number;
+  goals: number;
+  minutes: number;
+}
+
+/** Fetch FPF competitions where a linked player competed above their natural age group.
+ *  Only counts main/A teams — "B"/"C" teams are where clubs put younger players. */
+export async function getPlayerFpfPlayingUp(playerId: number, birthYear: number): Promise<FpfPlayingUpEntry[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('fpf_match_players')
+    .select('team_name, goals, minutes_played, fpf_matches!inner(fpf_competitions!inner(escalao, expected_birth_year_end))')
+    .eq('eskout_player_id', playerId);
+
+  if (error || !data?.length) return [];
+
+  // Filter: only main/A teams (no "B", "C" suffix in team name)
+  // FPF pattern: 'Boavista F.C.' (main), 'Boavista F.C. "B"' (secondary), 'S.C. Salgueiros "C"' (tertiary)
+  const isMainFpfTeam = (teamName: string | null): boolean => {
+    if (!teamName) return true; // no name = assume main
+    return !/"[B-Z]"/.test(teamName);
+  };
+
+  // Group by competition and filter for playing-up
+  const byComp = new Map<string, { escalao: string; expectedEnd: number; games: number; goals: number; minutes: number }>();
+  for (const row of data) {
+    // Skip B/C/D teams
+    if (!isMainFpfTeam(row.team_name)) continue;
+
+    const comp = (row.fpf_matches as unknown as { fpf_competitions: { escalao: string; expected_birth_year_end: number } }).fpf_competitions;
+    if (!comp?.expected_birth_year_end) continue;
+    // Playing up: player born AFTER the expected end year for the competition
+    if (birthYear <= comp.expected_birth_year_end) continue;
+
+    const key = `${comp.escalao}-${comp.expected_birth_year_end}`;
+    const existing = byComp.get(key) ?? { escalao: comp.escalao, expectedEnd: comp.expected_birth_year_end, games: 0, goals: 0, minutes: 0 };
+    existing.games++;
+    existing.goals += row.goals ?? 0;
+    existing.minutes += row.minutes_played ?? 0;
+    byComp.set(key, existing);
+  }
+
+  return [...byComp.values()].map((c) => ({
+    competitionEscalao: c.escalao,
+    expectedBirthYearEnd: c.expectedEnd,
+    games: c.games,
+    goals: c.goals,
+    minutes: c.minutes,
+  }));
+}
+
+/** Get ALL player IDs that play above their age group — from both ZZ and FPF.
+ *  Called once per PlayersView mount, results cached client-side. */
+export async function getPlayingUpPlayerIds(clubId: string): Promise<{ regular: number[]; pontual: number[] }> {
+  const supabase = await createClient();
+  const now = new Date();
+  const endYear = now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear();
+
+  const regular = new Set<number>();
+  const pontual = new Set<number>();
+
+  // Helper: parse S{N} from team string
+  const parseSubN = (t: string) => { const m = t.match(/S(\d{1,2})\b/); return m ? parseInt(m[1], 10) : null; };
+  const isMain = (t: string) => { const m = t.match(/S(\d{1,2})\s*(.*)$/); return m ? (m[2].trim() === '' || m[2].trim() === 'A') : false; };
+
+  // 1. ZZ: fetch players with team history (only ~300 for Boavista — fast)
+  const { data: zzPlayers } = await supabase
+    .from('players')
+    .select('id, dob, zz_team_history')
+    .eq('club_id', clubId)
+    .not('dob', 'is', null)
+    .not('zz_team_history', 'is', null);
+
+  for (const p of zzPlayers ?? []) {
+    const birthYear = new Date(p.dob).getFullYear();
+    const naturalAge = endYear - birthYear;
+    if (naturalAge < 3 || naturalAge > 19) continue;
+
+    const history = p.zz_team_history as { team?: string; season: string; games?: number }[];
+    if (!history?.length) continue;
+    const currentSeason = history[0].season;
+    const entries = history.filter((e: { season: string }) => e.season === currentSeason);
+
+    const mainAboveGames = entries
+      .filter((e: { team?: string }) => e.team && isMain(e.team) && (parseSubN(e.team) ?? 0) > naturalAge)
+      .reduce((s: number, e: { games?: number }) => s + (e.games ?? 0), 0);
+    if (mainAboveGames === 0) continue;
+
+    const totalGames = entries.reduce((s: number, e: { games?: number }) => s + (e.games ?? 0), 0);
+    if (totalGames > 0 && mainAboveGames >= totalGames * 0.3) regular.add(p.id);
+    else pontual.add(p.id);
+  }
+
+  // 2. FPF: use the existing playing-up RPC which is optimized for this
+  // Get all linked players' DOBs for the club
+  const { data: clubPlayers } = await supabase
+    .from('players')
+    .select('id, dob')
+    .eq('club_id', clubId)
+    .not('dob', 'is', null);
+
+  if (clubPlayers?.length) {
+    const birthYears = new Map<number, number>();
+    for (const p of clubPlayers) birthYears.set(p.id, new Date(p.dob).getFullYear());
+
+    // Paginated fetch of FPF match data
+    const fpfAgg = new Map<number, { above: number; total: number }>();
+    let offset = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { data } = await supabase
+        .from('fpf_match_players')
+        .select('eskout_player_id, team_name, fpf_matches!inner(fpf_competitions!inner(expected_birth_year_end))')
+        .in('eskout_player_id', clubPlayers.map((p) => p.id))
+        .range(offset, offset + 999);
+      if (!data?.length) break;
+
+      for (const row of data) {
+        const pid = row.eskout_player_id as number;
+        const by = birthYears.get(pid);
+        if (!by) continue;
+        const comp = (row.fpf_matches as unknown as { fpf_competitions: { expected_birth_year_end: number } }).fpf_competitions;
+        if (!comp?.expected_birth_year_end) continue;
+
+        const s = fpfAgg.get(pid) ?? { above: 0, total: 0 };
+        s.total++;
+        if (by > comp.expected_birth_year_end && (!row.team_name || !/"[B-Z]"/.test(row.team_name))) s.above++;
+        fpfAgg.set(pid, s);
+      }
+      if (data.length < 1000) break;
+      offset += 1000;
+    }
+
+    for (const [pid, s] of fpfAgg) {
+      if (s.above === 0 || regular.has(pid)) continue;
+      if (s.above >= s.total * 0.3) { regular.add(pid); pontual.delete(pid); }
+      else if (!regular.has(pid)) pontual.add(pid);
+    }
+  }
+
+  return { regular: [...regular], pontual: [...pontual] };
+}

@@ -15,7 +15,7 @@ function getSeasonEndYear(): number {
 
 export type PlayingUpResult =
   | { isPlayingUp: false }
-  | { isPlayingUp: true; naturalAge: number; teamAge: number; yearsAbove: number };
+  | { isPlayingUp: true; regular: boolean; naturalAge: number; teamAge: number; yearsAbove: number };
 
 /* ───────────── Parsers ───────────── */
 
@@ -35,6 +35,34 @@ export function parseZzTeamSubLevel(teamStr: string | null | undefined): number 
   return null;
 }
 
+/**
+ * Check if a ZZ team string represents the main/A team of the escalão.
+ * "Jun.C S15" → true (no division letter after S15)
+ * "Jun.C S15 A" → true (explicit A team — though rare in ZZ)
+ * "Jun.C S15 B" → false (B team — secondary, used for younger players)
+ * "Jun.C S15 C" → false
+ * "Sub-13 B" → false
+ *
+ * Only the main team counts as "playing up" — B/C teams are where clubs
+ * put younger players to gain experience in the higher escalão structure.
+ */
+export function isMainTeam(teamStr: string | null | undefined): boolean {
+  if (!teamStr) return false;
+  // Match S{N} or Sub-{N} and check what follows
+  const sMatch = teamStr.match(/S(\d{1,2})\s*(.*)$/);
+  if (sMatch) {
+    const suffix = sMatch[2].trim();
+    // No suffix or "A" = main team. "B", "C", etc. = secondary.
+    return suffix === '' || suffix === 'A';
+  }
+  const subMatch = teamStr.match(/Sub-(\d{1,2})\s*(.*)$/i);
+  if (subMatch) {
+    const suffix = subMatch[2].trim();
+    return suffix === '' || suffix === 'A';
+  }
+  return false;
+}
+
 /* ───────────── Detection ───────────── */
 
 /**
@@ -47,7 +75,7 @@ export function parseZzTeamSubLevel(teamStr: string | null | undefined): number 
  */
 export function detectPlayingUp(player: {
   dob: string | null;
-  zzTeamHistory: { team?: string; season: string }[] | null;
+  zzTeamHistory: { team?: string; season: string; games?: number }[] | null;
 }): PlayingUpResult {
   if (!player.dob || !player.zzTeamHistory?.length) return { isPlayingUp: false };
 
@@ -59,11 +87,27 @@ export function detectPlayingUp(player: {
   const naturalAge = endYear - birthYear;
   if (naturalAge < 3 || naturalAge > 19) return { isPlayingUp: false };
 
-  // Find team escalão from most recent history entry with a team field
-  const recentEntry = player.zzTeamHistory.find((e) => e.team);
-  if (!recentEntry?.team) return { isPlayingUp: false };
+  // Only consider the current season — past seasons don't count
+  const currentSeason = player.zzTeamHistory[0]?.season;
+  if (!currentSeason) return { isPlayingUp: false };
+  const currentSeasonEntries = player.zzTeamHistory.filter((e) => e.season === currentSeason);
 
-  const teamSubN = parseZzTeamSubLevel(recentEntry.team);
+  // Find a main/A team entry in the current season that's above natural age group
+  const mainEntries = currentSeasonEntries.filter((e) => e.team && isMainTeam(e.team));
+  const aboveEntry = mainEntries.find((e) => {
+    const subN = parseZzTeamSubLevel(e.team!);
+    return subN !== null && subN > naturalAge;
+  });
+  if (!aboveEntry?.team) return { isPlayingUp: false };
+
+  // Check regularity: ≥30% of total season games in the main team above = regular
+  const mainAboveGames = mainEntries
+    .filter((e) => { const n = parseZzTeamSubLevel(e.team!); return n !== null && n > naturalAge; })
+    .reduce((sum, e) => sum + (e.games ?? 0), 0);
+  const totalGames = currentSeasonEntries.reduce((sum, e) => sum + (e.games ?? 0), 0);
+  const regular = totalGames === 0 || mainAboveGames >= totalGames * 0.3;
+
+  const teamSubN = parseZzTeamSubLevel(aboveEntry.team);
   if (teamSubN === null) return { isPlayingUp: false };
 
   // Higher Sub-N = older age group. Sub-15 > Sub-14 means older players.
@@ -71,5 +115,5 @@ export function detectPlayingUp(player: {
   const yearsAbove = teamSubN - naturalAge;
   if (yearsAbove <= 0) return { isPlayingUp: false };
 
-  return { isPlayingUp: true, naturalAge, teamAge: teamSubN, yearsAbove };
+  return { isPlayingUp: true, regular, naturalAge, teamAge: teamSubN, yearsAbove };
 }

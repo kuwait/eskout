@@ -21,6 +21,8 @@ interface ObservationBadgeProps {
 
 export function ObservationBadge({ player, showLabel = false }: ObservationBadgeProps) {
   const tier = getObservationTier(player);
+  // "Adicionado" is the default for all players — not useful to show
+  if (tier === 'adicionado') return null;
   const config = OBSERVATION_TIER_MAP[tier];
   const Icon = TIER_ICONS[tier];
 

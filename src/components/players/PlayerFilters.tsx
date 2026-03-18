@@ -48,6 +48,7 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, nationalities, 
       dobFrom: '',
       dobTo: '',
       observationTier: '',
+      playingUp: '',
     });
     setShowDateRange(false);
   }
@@ -161,6 +162,19 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, nationalities, 
             {OBSERVATION_TIERS.map((t) => (
               <SelectItem key={t.value} value={t.value}>{t.labelPt}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        {/* Playing Up */}
+        <Select value={filters.playingUp || 'all'} onValueChange={(v) => update('playingUp', v === 'all' ? '' : v)}>
+          <SelectTrigger className={`w-[150px] ${filters.playingUp ? 'border-orange-300 bg-orange-50 text-orange-700' : ''}`} aria-label="Filtrar por jogar acima">
+            <SelectValue placeholder="Joga acima" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Joga acima</SelectItem>
+            <SelectItem value="any">Todos</SelectItem>
+            <SelectItem value="regular">Regular</SelectItem>
+            <SelectItem value="pontual">Pontual</SelectItem>
           </SelectContent>
         </Select>
 

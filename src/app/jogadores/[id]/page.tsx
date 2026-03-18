@@ -18,6 +18,8 @@ import {
   getPlayerSquads,
 } from '@/lib/supabase/queries';
 import { getPlayerVideos } from '@/actions/player-videos';
+import { getPlayerFpfPlayingUp } from '@/actions/players';
+import { detectPlayingUp } from '@/lib/utils/playing-up';
 import { createClient } from '@/lib/supabase/server';
 import { PlayerProfile } from '@/components/players/PlayerProfile';
 import { getPositionLabel } from '@/lib/constants';
@@ -94,6 +96,11 @@ export default async function PlayerProfilePage({ params }: PageProps) {
 
   if (!player) notFound();
 
+  // Compute playing-up on server to avoid hydration mismatch (Date.now() can differ)
+  const zzPlayingUp = detectPlayingUp(player);
+  const birthYear = player.dob ? new Date(player.dob).getFullYear() : null;
+  const fpfPlayingUp = birthYear ? await getPlayerFpfPlayingUp(playerId, birthYear) : [];
+
   // Compute hybrid rating: report ratings + scout evaluations
   const reportRatings = scoutingReports.filter((r) => r.rating !== null).map((r) => r.rating!);
   const scoutRatings = scoutEvaluations.map((e) => e.rating);
@@ -131,6 +138,8 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         ageGroupName={ageGroup?.name ?? null}
         clubMembers={clubProfiles.map((p) => ({ id: p.id, fullName: p.fullName }))}
         playerSquads={playerSquads}
+        fpfPlayingUp={fpfPlayingUp}
+        zzPlayingUp={zzPlayingUp}
       />
     </div>
   );

@@ -112,9 +112,13 @@ interface PlayerProfileProps {
   clubMembers?: { id: string; fullName: string }[];
   /** Custom squads this player belongs to (from squad_players table) */
   playerSquads?: (SquadPlayer & { squad: Squad })[];
+  /** FPF competitions where player competed above natural age group */
+  fpfPlayingUp?: { competitionEscalao: string; expectedBirthYearEnd: number; games: number; goals: number; minutes: number }[];
+  /** ZZ playing-up result (computed server-side to avoid hydration mismatch) */
+  zzPlayingUp?: import('@/lib/utils/playing-up').PlayingUpResult;
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [] }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [], fpfPlayingUp = [], zzPlayingUp }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -579,12 +583,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               {/* Bookmark icon is now inside the ListBookmarkDropdown in the header */}
               {!hideScoutingData && <ObservationBadge player={p} showLabel />}
             </div>
-          {/* Club — mobile only (desktop shows in Info Básica) */}
-          {!editing && p.club && (
-            <div className="xl:hidden">
-              <ClubBadge club={p.club} logoUrl={p.clubLogoUrl} size="sm" linkToFilter />
-            </div>
-          )}
+          {/* Club — hidden on mobile header (shown in Info Básica + Percurso) */}
           {/* Positions row — hidden on mobile (shown under MiniPitch instead) */}
           <div className="hidden flex-wrap items-center gap-2 text-sm xl:flex">
             {p.positionNormalized && (
@@ -607,8 +606,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             )}
             {!hideScoutingData && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
           </div>
-          {/* Playing up badge — below positions, always visible */}
-          <PlayingUpBadge player={p} showLabel />
+          {/* Playing up badge — own line below positions, self-start to not stretch */}
+          <div className="self-start">
+            <PlayingUpBadge player={p} showLabel fpfEntries={fpfPlayingUp} zzResult={zzPlayingUp} />
+          </div>
           {/* Opinion badge — mobile only */}
           {!hideScoutingData && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
             <div className="xl:hidden">
@@ -993,6 +994,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                     zzGamesSeason={p.zzGamesSeason}
                     zzGoalsSeason={p.zzGoalsSeason}
                     zzLastChecked={p.zzLastChecked}
+                    dob={p.dob}
                   />
                 </Section>
               </div>
@@ -1212,6 +1214,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                     zzGamesSeason={p.zzGamesSeason}
                     zzGoalsSeason={p.zzGoalsSeason}
                     zzLastChecked={p.zzLastChecked}
+                    dob={p.dob}
                   />
                 </Section>
               </div>

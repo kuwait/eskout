@@ -4,6 +4,7 @@
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
 import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
+import { detectPlayingUp } from '@/lib/utils/playing-up';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
 function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
@@ -69,7 +70,7 @@ function isValidImageUrl(url: string | null | undefined): boolean {
 
 /** Map a Supabase PlayerRow (snake_case) to the domain Player type (camelCase) */
 export function mapPlayerRow(row: PlayerRow): Player {
-  return {
+  const player: Player = {
     id: row.id,
     ageGroupId: row.age_group_id,
     name: row.name,
@@ -148,6 +149,15 @@ export function mapPlayerRow(row: PlayerRow): Player {
     // Observation notes — populated by PlayersView query
     observationNotePreviews: [],
   };
+
+  // Compute ZZ playing-up at map time so it's available everywhere
+  const zzResult = detectPlayingUp(player);
+  if (zzResult.isPlayingUp) {
+    if (zzResult.regular) player.playingUpRegular = true;
+    else player.playingUpPontual = true;
+  }
+
+  return player;
 }
 
 /* ───────────── Scouting Report Mapper ───────────── */

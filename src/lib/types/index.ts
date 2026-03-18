@@ -117,6 +117,10 @@ export interface Player {
   reportRatingCount: number;
   /** Observation note contents for table preview (newest first) */
   observationNotePreviews: string[];
+  /** Playing up: computed from ZZ team history and/or FPF data. Set by server or client. */
+  playingUpRegular?: boolean;
+  /** Playing up (pontual): played above but not regularly */
+  playingUpPontual?: boolean;
 }
 
 /* ───────────── Database Row Types (snake_case from Supabase) ───────────── */

@@ -11,6 +11,7 @@ import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { getObservationTier, POSITIONS } from '@/lib/constants';
+import { getPlayingUpPlayerIds } from '@/actions/players';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PlayerTable } from '@/components/players/PlayerTable';
@@ -35,6 +36,7 @@ export interface PlayerFilterState {
   dobFrom: string;
   dobTo: string;
   observationTier: string;
+  playingUp: string;
 }
 
 const EMPTY_FILTERS: PlayerFilterState = {
@@ -50,6 +52,7 @@ const EMPTY_FILTERS: PlayerFilterState = {
   dobFrom: '',
   dobTo: '',
   observationTier: '',
+  playingUp: '',
 };
 
 /* ───────────── Config ───────────── */
@@ -95,9 +98,13 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
 
+  // Playing-up player IDs from ZZ+FPF (fetched once on mount)
+  const [fpfPlayingUp, setFpfPlayingUp] = useState<{ regular: Set<number>; pontual: Set<number> }>({ regular: new Set(), pontual: new Set() });
+  const [playingUpReady, setPlayingUpReady] = useState(false);
+
   // Search mode: when search is active we fetch the full pool and filter client-side
   const [searchPool, setSearchPool] = useState<Player[]>([]);
-  const isSearchMode = debouncedSearch.length > 0 || filters.observationTier !== '';
+  const isSearchMode = debouncedSearch.length > 0 || filters.observationTier !== '' || (filters.playingUp !== '' && playingUpReady);
 
   // Dropdown options (fetched once)
   const [clubs, setClubs] = useState<string[]>([]);
@@ -224,14 +231,24 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
       }
     }
 
-    // Observation tier filter stays client-side (computed field)
-    const { data, count, error } = await q.order('name').range(0, 199);
+    // Playing-up filter: narrow to known IDs server-side (wait for IDs to load first)
+    if (filters.playingUp && playingUpReady) {
+      let ids: number[] = [];
+      if (filters.playingUp === 'regular') ids = [...fpfPlayingUp.regular];
+      else if (filters.playingUp === 'pontual') ids = [...fpfPlayingUp.pontual];
+      else ids = [...fpfPlayingUp.regular, ...fpfPlayingUp.pontual];
+      if (ids.length > 0) q = q.in('id', ids);
+      else { setSearchPool([]); setLoading(false); return; }
+    }
+
+    // Fetch results — paginated up to 5000 for computed-field filters
+    const { data, count, error } = await q.order('name').range(0, 4999);
     if (error || !data) { setSearchPool([]); setLoading(false); return; }
 
     const enriched = await enrichPlayers(data as PlayerRow[]);
     setSearchPool(enriched);
     setLoading(false);
-  }, [clubId, applyStructuralFilters, isSearchMode, debouncedSearch, enrichPlayers]);
+  }, [clubId, applyStructuralFilters, isSearchMode, debouncedSearch, enrichPlayers, filters.playingUp, playingUpReady, fpfPlayingUp]);
 
   useEffect(() => { fetchSearchPool(); }, [fetchSearchPool]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
 
@@ -247,16 +264,32 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     if (filters.observationTier) {
       result = result.filter((p) => getObservationTier(p) === filters.observationTier);
     }
+    if (filters.playingUp) {
+      result = result.filter((p) => {
+        const isUp = p.playingUpRegular || p.playingUpPontual;
+        if (filters.playingUp === 'regular') return p.playingUpRegular === true;
+        if (filters.playingUp === 'pontual') return p.playingUpPontual === true;
+        if (filters.playingUp === 'any') return isUp;
+        return true;
+      });
+    }
     return result;
-  }, [isSearchMode, searchPool, filters.observationTier]);
+  }, [isSearchMode, searchPool, filters.observationTier, filters.playingUp]);
 
   /* ───────────── Unified view: pick source based on mode ───────────── */
 
   const effectiveTotalCount = isSearchMode ? searchFiltered.length : totalCount;
   const totalPages = Math.max(1, Math.ceil(effectiveTotalCount / PAGE_SIZE));
-  const pageSlice = isSearchMode
+  const rawPageSlice = isSearchMode
     ? searchFiltered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-    : pageRows; // already one page from server
+    : pageRows;
+
+  // Enrich with FPF playing-up flags (lazy — doesn't trigger re-fetch)
+  const pageSlice = useMemo(() => rawPageSlice.map((p) => {
+    if (!p.playingUpRegular && fpfPlayingUp.regular.has(p.id)) return { ...p, playingUpRegular: true };
+    if (!p.playingUpPontual && !p.playingUpRegular && fpfPlayingUp.pontual.has(p.id)) return { ...p, playingUpPontual: true };
+    return p;
+  }), [rawPageSlice, fpfPlayingUp]);
 
   // Reset to first page when filters/search change
   useEffect(() => { setPage(0); }, [debouncedSearch, filters]); // eslint-disable-line react-hooks/set-state-in-effect -- reset page on filter change
@@ -265,10 +298,11 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
 
   useEffect(() => {
     const supabase = createClient();
+    // Fetch all unique values — use range(0, 5000) to bypass Supabase 1000-row default limit
     Promise.all([
-      supabase.from('players').select('club').eq('club_id', clubId).not('club', 'is', null),
-      supabase.from('players').select('nationality').eq('club_id', clubId).not('nationality', 'is', null),
-      supabase.from('players').select('dob').eq('club_id', clubId).not('dob', 'is', null),
+      supabase.from('players').select('club').eq('club_id', clubId).not('club', 'is', null).range(0, 4999),
+      supabase.from('players').select('nationality').eq('club_id', clubId).not('nationality', 'is', null).range(0, 4999),
+      supabase.from('players').select('dob').eq('club_id', clubId).not('dob', 'is', null).range(0, 4999),
     ]).then(([clubsRes, natRes, dobRes]) => {
       if (clubsRes.data) setClubs(Array.from(new Set(clubsRes.data.map((r) => r.club as string).filter(Boolean))).sort());
       if (natRes.data) setNationalities(Array.from(new Set(natRes.data.map((r) => r.nationality as string).filter(Boolean))).sort());
@@ -278,6 +312,11 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
         setBirthYears(Array.from(yrs).sort((a, b) => b - a));
       }
     });
+    // Fetch playing-up IDs (ZZ + FPF combined) to enrich table badges + filter
+    getPlayingUpPlayerIds(clubId).then((ids) => {
+      setFpfPlayingUp({ regular: new Set(ids.regular), pontual: new Set(ids.pontual) });
+      setPlayingUpReady(true);
+    }).catch(() => setPlayingUpReady(true));
   }, [clubId]);
 
   const hasFilters = Object.values(filters).some(Boolean);
