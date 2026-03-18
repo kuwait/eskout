@@ -56,8 +56,10 @@ function TaskPlayerPickerDialog({
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- clear pool when no search
     if (!debouncedSearch) { setPool([]); return; }
+    let cancelled = false;
     setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
     searchPickerPlayers({ search: debouncedSearch }).then((results) => {
+      if (cancelled) return;
       setPool(results.map((p) => ({
         id: p.id,
         name: p.name,
@@ -66,6 +68,7 @@ function TaskPlayerPickerDialog({
       })));
       setLoading(false);
     });
+    return () => { cancelled = true; };
   }, [open, debouncedSearch]);
 
   // Server-side search — no client filter needed

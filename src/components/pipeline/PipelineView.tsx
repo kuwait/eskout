@@ -437,6 +437,7 @@ function AddToPipelineDialog({
   // Fetch players with server-side text search + structural filters
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     setLoading(true);
     const supabase = createClient();
 
@@ -447,6 +448,7 @@ function AddToPipelineDialog({
       let offset = 0;
 
       for (;;) {
+        if (cancelled) return;
         let query = supabase
           .from('players')
           .select('*')
@@ -473,12 +475,14 @@ function AddToPipelineDialog({
         if (filters.foot) query = query.eq('foot', filters.foot);
 
         const { data, error } = await query.order('name').range(offset, offset + limit - 1);
+        if (cancelled) return;
         if (error || !data?.length) break;
         all.push(...(data as PlayerRow[]));
         if (data.length < limit) break;
         if (debouncedSearch) break; // Don't paginate during text search
         offset += limit;
       }
+      if (cancelled) return;
       setPool(all.map(mapPlayerRow));
 
       // When text searching, also check if there are matches already in the pipeline
@@ -504,10 +508,11 @@ function AddToPipelineDialog({
         setAlreadyInPipeline([]);
       }
 
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
 
     fetch();
+    return () => { cancelled = true; };
   }, [open, clubId, ageGroupId, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
 
   // Server-side search — just use pool directly

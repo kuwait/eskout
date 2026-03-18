@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -209,7 +209,10 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
 
   /* ───────────── Mode 2: Server-side search for text queries ───────────── */
 
-  const fetchSearchPool = useCallback(async () => {
+  // Ref to cancel stale search fetches (prevents race condition when deps change mid-fetch)
+  const searchCancelRef = useRef(0);
+
+  const fetchSearchPool = useCallback(async (fetchId: number) => {
     if (!isSearchMode) { setSearchPool([]); return; }
     setLoading(true);
     const supabase = createClient();
@@ -243,18 +246,23 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
 
     // Fetch results — paginated up to 5000 for computed-field filters
     const { data, count, error } = await q.order('name').range(0, 4999);
+    if (fetchId !== searchCancelRef.current) return; // stale fetch — discard
     if (error || !data) { setSearchPool([]); setLoading(false); return; }
 
     const enriched = await enrichPlayers(data as PlayerRow[]);
+    if (fetchId !== searchCancelRef.current) return; // stale after enrich
     setSearchPool(enriched);
     setLoading(false);
   }, [clubId, applyStructuralFilters, isSearchMode, debouncedSearch, enrichPlayers, filters.playingUp, playingUpReady, fpfPlayingUp]);
 
-  useEffect(() => { fetchSearchPool(); }, [fetchSearchPool]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
+  useEffect(() => {
+    const id = ++searchCancelRef.current;
+    fetchSearchPool(id);
+  }, [fetchSearchPool]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
 
   /* ───────────── Realtime ───────────── */
 
-  useRealtimeTable('players', { onAny: () => { if (isSearchMode) fetchSearchPool(); else fetchPage(); } });
+  useRealtimeTable('players', { onAny: () => { if (isSearchMode) fetchSearchPool(++searchCancelRef.current); else fetchPage(); } });
 
   /* ───────────── Client-side observationTier filter on search results ───────────── */
 
