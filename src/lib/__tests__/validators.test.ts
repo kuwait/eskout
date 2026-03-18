@@ -465,17 +465,17 @@ describe('quickScoutReportSchema', () => {
     ratingFisico: 5,
     ratingMentalidade: 2,
     ratingPotencial: 4,
-    ratingOverall: 3.5,
+    ratingOverall: 4,
     recommendation: 'Acompanhar' as const,
   };
 
-  it('accepts valid report with half-star overall', () => {
+  it('accepts valid report', () => {
     const result = quickScoutReportSchema.safeParse(validReport);
     expect(result.success).toBe(true);
   });
 
-  it('accepts ratingOverall at minimum 0.5', () => {
-    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 0.5 });
+  it('accepts ratingOverall at minimum 1', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 1 });
     expect(result.success).toBe(true);
   });
 
@@ -484,28 +484,18 @@ describe('quickScoutReportSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it.each([0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])('accepts ratingOverall %s', (v) => {
-    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: v });
-    expect(result.success).toBe(true);
-  });
-
   it('rejects ratingOverall of 0', () => {
     const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 0 });
     expect(result.success).toBe(false);
   });
 
-  it('rejects ratingOverall of 5.5', () => {
-    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 5.5 });
+  it('rejects ratingOverall of 6', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 6 });
     expect(result.success).toBe(false);
   });
 
-  it('rejects ratingOverall not a 0.5 multiple (0.3)', () => {
-    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 0.3 });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects ratingOverall not a 0.5 multiple (2.7)', () => {
-    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 2.7 });
+  it('rejects non-integer ratingOverall', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, ratingOverall: 3.5 });
     expect(result.success).toBe(false);
   });
 
@@ -548,6 +538,245 @@ describe('quickScoutReportSchema', () => {
   it('rejects missing playerId', () => {
     const { playerId, ...rest } = validReport;
     const result = quickScoutReportSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts valid maturation values', () => {
+    for (const mat of ['Atrasado', 'Normal', 'Avançado']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, maturation: mat });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid maturation value', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, maturation: 'Precoce' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts omitted maturation (optional)', () => {
+    const result = quickScoutReportSchema.safeParse(validReport);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.maturation).toBeUndefined();
+  });
+
+  it('accepts valid observedFoot values', () => {
+    for (const foot of ['Direito', 'Esquerdo', 'Ambos']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, observedFoot: foot });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid observedFoot value', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, observedFoot: 'Misto' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts omitted observedFoot (optional)', () => {
+    const result = quickScoutReportSchema.safeParse(validReport);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.observedFoot).toBeUndefined();
+  });
+
+  it('accepts valid standoutLevel values', () => {
+    for (const level of ['Acima', 'Ao nível', 'Abaixo']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, standoutLevel: level });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid standoutLevel value', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, standoutLevel: 'Médio' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts valid starter values', () => {
+    for (const s of ['Titular', 'Suplente']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, starter: s });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid starter value', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, starter: 'Banco' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts minutesObserved within range', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, minutesObserved: 70 });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects minutesObserved of 0', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, minutesObserved: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects minutesObserved above 120', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, minutesObserved: 121 });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts subMinute within range', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, subMinute: 45 });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts observedPosition as string', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, observedPosition: 'MC' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts conditions as string array', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, conditions: ['🌧️ Chuva', '🏟️ Sintético'] });
+    expect(result.success).toBe(true);
+  });
+
+  it('defaults conditions to empty array when omitted', () => {
+    const result = quickScoutReportSchema.safeParse(validReport);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.conditions).toEqual([]);
+  });
+
+  it('accepts valid heightImpression values', () => {
+    for (const h of ['Baixo', 'Médio', 'Alto']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, heightImpression: h });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid heightImpression value', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, heightImpression: 'Enorme' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts valid buildImpression values', () => {
+    for (const b of ['Magro', 'Normal', 'Robusto']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, buildImpression: b });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid buildImpression value', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, buildImpression: 'Gordo' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts valid opponentLevel values', () => {
+    for (const lvl of ['Forte', 'Médio', 'Fraco']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, opponentLevel: lvl });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid opponentLevel value', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, opponentLevel: 'Razoável' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts full report with all optional fields', () => {
+    const fullReport = {
+      ...validReport,
+      tagsTecnica: ['Passe', 'Drible'],
+      tagsTatica: ['Posicionamento'],
+      tagsFisico: [],
+      tagsMentalidade: ['Combativo'],
+      tagsPotencial: ['Alto potencial'],
+      maturation: 'Normal' as const,
+      observedFoot: 'Direito' as const,
+      heightImpression: 'Alto' as const,
+      buildImpression: 'Robusto' as const,
+      opponentLevel: 'Forte' as const,
+      observedPosition: 'DC(E)',
+      minutesObserved: 70,
+      standoutLevel: 'Acima' as const,
+      starter: 'Titular' as const,
+      subMinute: undefined,
+      conditions: ['🌧️ Chuva', '🏟️ Sintético'],
+      competition: 'Campeonato Distrital Sub-15',
+      opponent: 'Boavista vs Leixões',
+      matchDate: '2026-03-15',
+      notes: 'Jogador muito dominante no jogo aéreo',
+    };
+    const result = quickScoutReportSchema.safeParse(fullReport);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts suplente with subMinute', () => {
+    const result = quickScoutReportSchema.safeParse({
+      ...validReport,
+      starter: 'Suplente',
+      subMinute: 55,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects subMinute of 0', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, subMinute: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects subMinute above 120', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, subMinute: 121 });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts observedPosition DC(E) and DC(D)', () => {
+    for (const pos of ['DC(E)', 'DC(D)', 'GR', 'MC', 'PL']) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, observedPosition: pos });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('accepts all dimension ratings at boundaries (1 and 5)', () => {
+    const dims = ['ratingTecnica', 'ratingTatica', 'ratingFisico', 'ratingMentalidade', 'ratingPotencial'] as const;
+    for (const dim of dims) {
+      for (const v of [1, 5]) {
+        const result = quickScoutReportSchema.safeParse({ ...validReport, [dim]: v });
+        expect(result.success).toBe(true);
+      }
+    }
+  });
+
+  it('rejects all dimension ratings at 0', () => {
+    const dims = ['ratingTecnica', 'ratingTatica', 'ratingFisico', 'ratingMentalidade', 'ratingPotencial'] as const;
+    for (const dim of dims) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, [dim]: 0 });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('rejects non-integer for all dimension ratings', () => {
+    const dims = ['ratingTecnica', 'ratingTatica', 'ratingFisico', 'ratingMentalidade', 'ratingPotencial', 'ratingOverall'] as const;
+    for (const dim of dims) {
+      const result = quickScoutReportSchema.safeParse({ ...validReport, [dim]: 2.5 });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it('accepts omitted optional context fields', () => {
+    const result = quickScoutReportSchema.safeParse(validReport);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.maturation).toBeUndefined();
+      expect(result.data.observedFoot).toBeUndefined();
+      expect(result.data.heightImpression).toBeUndefined();
+      expect(result.data.buildImpression).toBeUndefined();
+      expect(result.data.opponentLevel).toBeUndefined();
+      expect(result.data.observedPosition).toBeUndefined();
+      expect(result.data.minutesObserved).toBeUndefined();
+      expect(result.data.standoutLevel).toBeUndefined();
+      expect(result.data.starter).toBeUndefined();
+      expect(result.data.subMinute).toBeUndefined();
+      expect(result.data.conditions).toEqual([]);
+      expect(result.data.competition).toBeUndefined();
+      expect(result.data.opponent).toBeUndefined();
+      expect(result.data.matchDate).toBeUndefined();
+      expect(result.data.notes).toBeUndefined();
+    }
+  });
+
+  it('rejects minutesObserved as non-integer', () => {
+    const result = quickScoutReportSchema.safeParse({ ...validReport, minutesObserved: 45.5 });
     expect(result.success).toBe(false);
   });
 });

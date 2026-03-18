@@ -676,6 +676,53 @@ User-level visual customization. Accessible to all roles (including scouts). Sto
 - `ThemePicker` component renders a grid of theme cards with color preview bars, description, font name, and active checkmark
 - Dark themes (Midnight, Carbon) include CSS overrides for hardcoded `bg-white`/`text-neutral-*` classes
 
+## 38. Quick Scout Reports (Avaliação Rápida)
+
+Mobile-first tap-based evaluation form for live game scouting. All roles can submit.
+
+**Table:** `quick_scout_reports` (migration 073)
+
+**5 Dimension Ratings (1-5 integer, required):**
+- Técnica (⚽), Tática (🧠), Físico (💪), Mentalidade (🔥), Potencial (📈)
+- Compact single-row layout: emoji + label + segmented bar [1-5] + score + chevron
+- Tags expand on chevron tap (not auto-expand) — no layout shift
+
+**Overall Rating + Recommendation:**
+- Overall: 1-5 integer, amber segmented bar (same layout as dimensions)
+- Recommendation: Assinar / Acompanhar / Sem interesse (expands on chevron tap after rating)
+
+**Tags per Dimension:**
+- Predefined position-aware tags (outfield vs GR) derived from 1500+ real scouting reports
+- Custom tags with ⊕ (positive) / ⊖ (negative) sentiment prefixes
+
+**Observation Context (collapsible, starts closed):**
+- **Posição observada:** 16 position buttons (DC split into DC(E)/DC(D))
+- **Maturação:** Atrasado / Normal / Avançado (migration 076)
+- **Estatura (para a idade):** Baixo / Médio / Alto (migration 078)
+- **Compleição (para a idade):** Magro / Normal / Robusto (migration 078)
+- **Pé observado:** Dir / Esq / Ambos (migration 076)
+- **Destaque no contexto:** Acima (green) / Ao nível (blue) / Abaixo (red) (migration 077)
+- **Nível do adversário:** Forte (red) / Médio (blue) / Fraco (gray) (migration 078)
+- **Titular/Suplente:** + minuto de entrada condicional (migration 077)
+- **Minutos observados:** 1-120 numeric input (migration 077)
+- **Condições:** multi-select chips — Calor, Frio, Chuva, Vento, Campo alagado, Noite, Sintético, Relva (migration 077)
+
+**Match Context (collapsible, starts closed):**
+- Competição, Jogo (adversário), Data do jogo
+
+**Notes:** optional free-text
+
+**Display (QuickReportCard):**
+- Collapsed: overall circle + opponent/author + recommendation badge + position + date
+- Expanded: dimension bars + tags + observation context badges (color-coded) + notes
+- Delete: author or admin
+
+**Files:** `src/actions/quick-scout-reports.ts`, `src/components/players/QuickReportForm.tsx`, `src/components/players/QuickReportCard.tsx`, `src/lib/constants/quick-report-tags.ts`
+
+**Migrations:** 073 (base table), 074 (overall half-stars), 076 (maturation + foot), 077 (observation context), 078 (morphology + opponent level)
+
+---
+
 ## 37. Demo Mode (`/demo`)
 
 Public demo mode for potential clients to explore the app without creating an account.

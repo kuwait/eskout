@@ -276,27 +276,21 @@ Weekly scouting coordination replacing the Excel "Mapa de Observacoes Semanais".
 
 ---
 
-## Phase 17 — Quick Scout Report (Mobile-First Evaluation)
+## Phase 17 — Quick Scout Report (Mobile-First Evaluation) ✅ DONE
 
-Evolve the current text-heavy scout report into a fast, tap-based evaluation form designed for use during live games on mobile. Current reports (`/submeter`) are essentially free-text — this phase adds structured, quick-tap inputs so scouts can evaluate without typing.
+Mobile-first tap-based evaluation form. All roles can submit. Compact single-row dimension cards with segmented 1-5 bars.
 
-**Key changes:**
-- All roles can submit reports (not just scouts) — remove role restriction on `/submeter` and `/meus-relatorios`
-- Mobile-first tap interface: large touch targets, minimal typing, one-handed operation
-- Structured dimensions: technical, tactical, physical, mental, potential (1-5 tap rating each)
-- Quick-select tags per dimension (e.g. "Bom primeiro toque", "Lento na transição", "Forte no 1v1")
-- Position-specific tag sets (GR gets different tags than PL)
-- Overall rating (1-5 stars) + recommendation (Assinar / Acompanhar / Sem interesse)
-- Optional free-text notes for extra context
-- Match context: competition, opponent, date, score (pre-filled from Mapa de Observações if Phase 16 is done)
-- Offline-capable: save locally, sync when back online
-- Report summary view: visual card with radar/bar chart of dimensions
+**Implemented:**
+- 5 dimension ratings (Técnica, Tática, Físico, Mentalidade, Potencial) — integer 1-5, tap to rate
+- Position-aware tags per dimension (outfield vs GR), custom tags with sentiment
+- Overall rating (1-5) + recommendation (Assinar / Acompanhar / Sem interesse) — expand on rate
+- Observation context (collapsible): position observed (DC split into DC(E)/DC(D)), maturation, morphology (height + build), observed foot, standout level, opponent level, starter/sub + entry minute, minutes observed, conditions (weather/pitch multi-select)
+- Match context (collapsible): competition, opponent, date
+- Notes (optional free-text)
+- QuickReportCard: compact collapsed view + full expanded details with color-coded badges
+- Realtime sync, RLS (all roles insert, author/admin delete)
+- Migrations: 073, 074, 076, 077, 078
 
-**Sub-phases:**
-- **17A:** Open report submission to all roles (middleware + RLS + UI updates)
-- **17B:** Structured evaluation schema (migration + types + validators)
-- **17C:** Mobile tap-based form UI (`/submeter` revamp)
-- **17D:** Position-specific tag system
-- **17E:** Report summary card with visual ratings
-- **17F:** Offline draft support (localStorage + sync)
-- **17G:** Integration with Mapa de Observações (pre-fill match context)
+**Not implemented (deprioritized):**
+- Offline draft support (localStorage + sync)
+- Integration with Mapa de Observações (pre-fill match context)

@@ -1116,7 +1116,7 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 
 ## 13. Migrations
 
-72 SQL migrations in `supabase/migrations/` (001-072). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
+78 SQL migrations in `supabase/migrations/` (001-078). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
 
 | # | File | Description |
 |---|------|-------------|
@@ -1192,3 +1192,9 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 070 | `070_migrate_notes_to_observations.sql` | Migrate players.notes to observation_notes table |
 | 071 | `071_decision_date.sql` | Add `decision_date` column to players (A Decidir deadline) |
 | 072 | `072_player_list_shares.sql` | Shared player lists: `player_list_shares` table + extended RLS |
+| 073 | `073_quick_scout_reports.sql` | Quick scout reports: `quick_scout_reports` table with 5 dimension ratings, overall, recommendation, tags, match context |
+| 074 | `074_qsr_overall_half_stars.sql` | Change overall rating to support half-star values (0.5-5.0) |
+| 075 | `075_scouting_reports_half_star_rating.sql` | Change scouting_reports rating to NUMERIC(2,1) for half-stars |
+| 076 | `076_qsr_maturation_foot.sql` | Add maturation (Atrasado/Normal/Avançado) and observed_foot to quick reports |
+| 077 | `077_qsr_observation_context.sql` | Add observed_position, minutes_observed, standout_level, starter, sub_minute, conditions |
+| 078 | `078_qsr_morphology_opponent_level.sql` | Add height_impression, build_impression, opponent_level |

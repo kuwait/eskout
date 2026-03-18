@@ -366,6 +366,13 @@ export interface ObservationNote {
 /* ───────────── Quick Scout Reports ───────────── */
 
 export type QuickReportRecommendation = 'Assinar' | 'Acompanhar' | 'Sem interesse';
+export type QuickReportMaturation = 'Atrasado' | 'Normal' | 'Avançado';
+export type QuickReportFoot = 'Direito' | 'Esquerdo' | 'Ambos';
+export type QuickReportStandout = 'Acima' | 'Ao nível' | 'Abaixo';
+export type QuickReportStarter = 'Titular' | 'Suplente';
+export type QuickReportHeight = 'Baixo' | 'Médio' | 'Alto';
+export type QuickReportBuild = 'Magro' | 'Normal' | 'Robusto';
+export type QuickReportOpponentLevel = 'Forte' | 'Médio' | 'Fraco';
 
 export interface QuickScoutReport {
   id: number;
@@ -385,6 +392,17 @@ export interface QuickScoutReport {
   tagsFisico: string[];
   tagsMentalidade: string[];
   tagsPotencial: string[];
+  maturation: QuickReportMaturation | null;
+  observedFoot: QuickReportFoot | null;
+  heightImpression: QuickReportHeight | null;
+  buildImpression: QuickReportBuild | null;
+  opponentLevel: QuickReportOpponentLevel | null;
+  observedPosition: string | null;
+  minutesObserved: number | null;
+  standoutLevel: QuickReportStandout | null;
+  starter: QuickReportStarter | null;
+  subMinute: number | null;
+  conditions: string[];
   competition: string | null;
   opponent: string | null;
   matchDate: string | null;

@@ -136,6 +136,7 @@ export function QuickReportCard({
             <span>{formatDate(report.createdAt)}</span>
             {report.competition && report.opponent && <span>{report.competition}</span>}
             <span>{report.authorName}</span>
+            {report.observedPosition && <span className="font-medium">{report.observedPosition}</span>}
           </div>
         </div>
 
@@ -169,7 +170,7 @@ export function QuickReportCard({
                     <span className={`text-xs font-semibold ${dim?.textColor ?? ''}`}>{r.label}</span>
                     <span className={`text-sm font-black ${dim?.textColor ?? ''}`}>{r.value}</span>
                   </div>
-                  {/* Segmented bar — same style as form */}
+                  {/* Segmented bar */}
                   <div className="flex h-5 w-full gap-0.5 rounded-md overflow-hidden mb-1.5">
                     {[1, 2, 3, 4, 5].map(n => (
                       <div
@@ -201,6 +202,65 @@ export function QuickReportCard({
               );
             })}
           </div>
+
+          {/* Observation context badges */}
+          {(report.observedPosition || report.maturation || report.observedFoot || report.heightImpression || report.buildImpression || report.standoutLevel || report.opponentLevel || report.starter || report.minutesObserved || (report.conditions && report.conditions.length > 0)) && (
+            <div className="flex flex-wrap gap-1.5 pl-2">
+              {report.observedPosition && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  Posição: <span className="font-semibold">{report.observedPosition}</span>
+                </span>
+              )}
+              {report.maturation && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  📏 <span className="font-semibold">{report.maturation}</span>
+                </span>
+              )}
+              {report.observedFoot && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  🦶 <span className="font-semibold">{report.observedFoot}</span>
+                </span>
+              )}
+              {(report.heightImpression || report.buildImpression) && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  📐 <span className="font-semibold">{[report.heightImpression, report.buildImpression].filter(Boolean).join(' · ')}</span>
+                </span>
+              )}
+              {report.opponentLevel && (
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  report.opponentLevel === 'Forte' ? 'border-red-200 bg-red-50 text-red-700'
+                    : report.opponentLevel === 'Fraco' ? 'border-neutral-200 bg-neutral-100 text-neutral-600'
+                    : 'border-sky-200 bg-sky-50 text-sky-700'
+                }`}>
+                  🏟️ Adv. {report.opponentLevel}
+                </span>
+              )}
+              {report.standoutLevel && (
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  report.standoutLevel === 'Acima' ? 'border-green-200 bg-green-50 text-green-700'
+                    : report.standoutLevel === 'Abaixo' ? 'border-red-200 bg-red-50 text-red-700'
+                    : 'border-sky-200 bg-sky-50 text-sky-700'
+                }`}>
+                  ⚡ {report.standoutLevel}
+                </span>
+              )}
+              {report.starter && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  🏃 {report.starter}{report.starter === 'Suplente' && report.subMinute ? ` (${report.subMinute}')` : ''}
+                </span>
+              )}
+              {report.minutesObserved && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  ⏱️ {report.minutesObserved} min
+                </span>
+              )}
+              {report.conditions?.map(c => (
+                <span key={c} className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Notes — highlighted as important content */}
           {report.notes && (

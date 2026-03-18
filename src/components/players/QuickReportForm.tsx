@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
-import { ChevronDown, Send, Loader2, Star } from 'lucide-react';
+import { ChevronDown, Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { submitQuickReport } from '@/actions/quick-scout-reports';
 import { DIMENSIONS, RECOMMENDATIONS, getTagsForDimension, type DimensionKey, type Tag } from '@/lib/constants/quick-report-tags';
-import type { QuickReportRecommendation } from '@/lib/types';
+import { POSITIONS } from '@/lib/constants';
+import type { QuickReportRecommendation, QuickReportMaturation, QuickReportFoot, QuickReportStandout, QuickReportStarter, QuickReportHeight, QuickReportBuild, QuickReportOpponentLevel } from '@/lib/types';
 
 /* ───────────── Types ───────────── */
 
@@ -33,17 +34,93 @@ interface FormState {
   tags: Record<DimensionKey, string[]>;
   ratingOverall: number;
   recommendation: QuickReportRecommendation | '';
+  maturation: QuickReportMaturation | '';
+  observedFoot: QuickReportFoot | '';
+  heightImpression: QuickReportHeight | '';
+  buildImpression: QuickReportBuild | '';
+  opponentLevel: QuickReportOpponentLevel | '';
+  observedPosition: string;
+  minutesObserved: string;
+  standoutLevel: QuickReportStandout | '';
+  starter: QuickReportStarter | '';
+  subMinute: string;
+  conditions: string[];
   competition: string;
   opponent: string;
   matchDate: string;
   notes: string;
 }
 
+const MATURATION_OPTIONS: { value: QuickReportMaturation; label: string; emoji: string }[] = [
+  { value: 'Atrasado', label: 'Atrasado', emoji: '🐢' },
+  { value: 'Normal', label: 'Normal', emoji: '👤' },
+  { value: 'Avançado', label: 'Avançado', emoji: '🏋️' },
+];
+
+const FOOT_OPTIONS: { value: QuickReportFoot; label: string; emoji: string }[] = [
+  { value: 'Direito', label: 'Dir', emoji: '🦶' },
+  { value: 'Esquerdo', label: 'Esq', emoji: '🦶' },
+  { value: 'Ambos', label: 'Ambos', emoji: '🦶🦶' },
+];
+
+const STANDOUT_OPTIONS: { value: QuickReportStandout; label: string; color: string }[] = [
+  { value: 'Acima', label: '↑ Acima', color: 'bg-green-600 text-white' },
+  { value: 'Ao nível', label: '→ Ao nível', color: 'bg-sky-600 text-white' },
+  { value: 'Abaixo', label: '↓ Abaixo', color: 'bg-red-500 text-white' },
+];
+
+const STARTER_OPTIONS: { value: QuickReportStarter; label: string }[] = [
+  { value: 'Titular', label: 'Titular' },
+  { value: 'Suplente', label: 'Suplente' },
+];
+
+const HEIGHT_OPTIONS: { value: QuickReportHeight; label: string }[] = [
+  { value: 'Baixo', label: '↓ Baixo' },
+  { value: 'Médio', label: '→ Médio' },
+  { value: 'Alto', label: '↑ Alto' },
+];
+
+const BUILD_OPTIONS: { value: QuickReportBuild; label: string }[] = [
+  { value: 'Magro', label: 'Magro' },
+  { value: 'Normal', label: 'Normal' },
+  { value: 'Robusto', label: 'Robusto' },
+];
+
+const OPPONENT_LEVEL_OPTIONS: { value: QuickReportOpponentLevel; label: string; color: string }[] = [
+  { value: 'Forte', label: '💪 Forte', color: 'bg-red-500 text-white' },
+  { value: 'Médio', label: '⚖️ Médio', color: 'bg-sky-600 text-white' },
+  { value: 'Fraco', label: '👎 Fraco', color: 'bg-neutral-500 text-white' },
+];
+
+/** Observed positions — DC split into DC(E) and DC(D) for match context */
+const OBSERVED_POSITIONS: { code: string; label: string }[] = POSITIONS
+  .flatMap(p => p.code === 'DC'
+    ? [{ code: 'DC(E)', label: 'Central (E)' }, { code: 'DC(D)', label: 'Central (D)' }]
+    : [{ code: p.code, label: p.labelPt }],
+  );
+
+/** Condition tags — weather + pitch state */
+const CONDITION_TAGS = [
+  '☀️ Calor', '🥶 Frio', '🌧️ Chuva', '💨 Vento',
+  '💦 Campo alagado', '🌙 Noite', '🏟️ Sintético', '🌿 Relva',
+];
+
 const EMPTY_STATE: FormState = {
   ratings: { tecnica: 0, tatica: 0, fisico: 0, mentalidade: 0, potencial: 0 },
   tags: { tecnica: [], tatica: [], fisico: [], mentalidade: [], potencial: [] },
   ratingOverall: 0,
   recommendation: '',
+  maturation: '',
+  observedFoot: '',
+  heightImpression: '',
+  buildImpression: '',
+  opponentLevel: '',
+  observedPosition: '',
+  minutesObserved: '',
+  standoutLevel: '',
+  starter: '',
+  subMinute: '',
+  conditions: [],
   competition: '',
   opponent: '',
   matchDate: '',
@@ -58,6 +135,16 @@ function isDirty(form: FormState): boolean {
     || Object.values(form.tags).some(t => t.length > 0)
     || form.ratingOverall > 0
     || form.recommendation !== ''
+    || form.maturation !== ''
+    || form.observedFoot !== ''
+    || form.heightImpression !== ''
+    || form.buildImpression !== ''
+    || form.opponentLevel !== ''
+    || form.observedPosition !== ''
+    || form.minutesObserved !== ''
+    || form.standoutLevel !== ''
+    || form.starter !== ''
+    || form.conditions.length > 0
     || form.competition !== ''
     || form.opponent !== ''
     || form.matchDate !== ''
@@ -67,6 +154,8 @@ function isDirty(form: FormState): boolean {
 export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess, onCancel, onDirtyChange }: QuickReportFormProps) {
   const [form, setForm] = useState<FormState>(EMPTY_STATE);
   const [showContext, setShowContext] = useState(false);
+  const [showObsContext, setShowObsContext] = useState(false);
+  const [showRec, setShowRec] = useState(false);
   const [isPending, startTransition] = useTransition();
   const prevDirty = useRef(false);
 
@@ -97,6 +186,7 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
 
   function setOverall(value: number) {
     setForm(prev => ({ ...prev, ratingOverall: value }));
+    if (value > 0) setShowRec(true);
   }
 
   function setRecommendation(value: QuickReportRecommendation) {
@@ -126,6 +216,17 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
         tagsFisico: form.tags.fisico,
         tagsMentalidade: form.tags.mentalidade,
         tagsPotencial: form.tags.potencial,
+        maturation: form.maturation || undefined,
+        observedFoot: form.observedFoot || undefined,
+        heightImpression: form.heightImpression || undefined,
+        buildImpression: form.buildImpression || undefined,
+        opponentLevel: form.opponentLevel || undefined,
+        observedPosition: form.observedPosition || undefined,
+        minutesObserved: form.minutesObserved ? parseInt(form.minutesObserved, 10) : undefined,
+        standoutLevel: form.standoutLevel || undefined,
+        starter: form.starter || undefined,
+        subMinute: form.subMinute ? parseInt(form.subMinute, 10) : undefined,
+        conditions: form.conditions,
         competition: form.competition || undefined,
         opponent: form.opponent || undefined,
         matchDate: form.matchDate || undefined,
@@ -142,8 +243,8 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
   }
 
   return (
-    <div className="space-y-3 overflow-hidden px-1">
-      {/* Dimension cards */}
+    <div className="space-y-2 overflow-hidden px-1">
+      {/* Dimension cards — compact single-row layout */}
       {DIMENSIONS.map(dim => (
         <DimensionCard
           key={dim.key}
@@ -156,50 +257,318 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
         />
       ))}
 
-      {/* Overall + Recommendation */}
-      <div className="rounded-xl border bg-white px-4 py-3.5 space-y-3">
-        {(() => {
-          const ratedValues = Object.values(form.ratings).filter(r => r > 0);
-          const avg = ratedValues.length > 0 ? ratedValues.reduce((a, b) => a + b, 0) / ratedValues.length : 0;
-          const avgDisplay = avg > 0 ? (Number.isInteger(avg) ? String(avg) : avg.toFixed(1)) : null;
-          return (
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">⭐ Global</span>
-              <div className="flex items-center gap-2">
-                {avgDisplay && (
-                  <span className="text-[11px] text-muted-foreground/50">
-                    Média: <span className="font-semibold">{avgDisplay}</span>
-                  </span>
+      {/* Overall — same expand behavior as dimension cards */}
+      <div className="rounded-xl border bg-white border-l-[3px] border-l-amber-400 overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <span className="text-sm shrink-0">⭐</span>
+          <span className="w-[84px] shrink-0 text-left text-xs font-semibold">Global</span>
+          {/* Segmented rating bar — integer 1-5, same as dimensions */}
+          <div className="flex h-9 flex-1 gap-0.5 rounded-lg overflow-hidden">
+            {[1, 2, 3, 4, 5].map(n => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => { const newVal = form.ratingOverall === n ? 0 : n; setOverall(newVal); }}
+                className={cn(
+                  'flex-1 flex items-center justify-center text-xs font-bold transition-all active:scale-95',
+                  n <= form.ratingOverall ? 'bg-amber-500 text-white' : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
+                  n === 1 && 'rounded-l-lg',
+                  n === 5 && 'rounded-r-lg',
                 )}
-                {form.ratingOverall > 0 && (
-                  <span className={cn('text-sm font-black', getStarColor(form.ratingOverall))}>
-                    {Number.isInteger(form.ratingOverall) ? form.ratingOverall : form.ratingOverall.toFixed(1)}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Half-star rating — tap left half = X.0, right half = X.5 */}
-        <HalfStarRating value={form.ratingOverall} onChange={setOverall} />
-
-        <div className="flex gap-2">
-          {RECOMMENDATIONS.map(rec => (
-            <button
-              key={rec.value}
-              type="button"
-              onClick={() => setRecommendation(rec.value)}
-              className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                form.recommendation === rec.value
-                  ? rec.color + ' ring-2 ring-offset-1 ring-neutral-900'
-                  : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-              }`}
-            >
-              {rec.label}
-            </button>
-          ))}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          {/* Score + chevron */}
+          <button
+            type="button"
+            onClick={() => { if (form.ratingOverall > 0) setShowRec(v => !v); }}
+            className="flex items-center gap-1 shrink-0"
+          >
+            <span className={cn(
+              'text-base font-black tabular-nums w-5 text-right transition-colors',
+              form.ratingOverall > 0 ? 'text-amber-600' : 'text-neutral-300',
+            )}>
+              {form.ratingOverall > 0 ? form.ratingOverall : '—'}
+            </span>
+            <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', form.ratingOverall > 0 ? 'text-neutral-400' : 'text-transparent', showRec && 'rotate-180')} />
+          </button>
         </div>
+
+        {/* Recommendation — expands when overall is rated */}
+        {showRec && (
+          <div className="border-t px-3 py-2.5 flex gap-2">
+            {RECOMMENDATIONS.map(rec => (
+              <button
+                key={rec.value}
+                type="button"
+                onClick={() => setRecommendation(rec.value)}
+                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
+                  form.recommendation === rec.value
+                    ? rec.color + ' ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}
+              >
+                {rec.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Observation Context — collapsible, starts closed */}
+      <div className="rounded-lg border bg-white">
+        <button
+          type="button"
+          onClick={() => setShowObsContext(v => !v)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold"
+        >
+          <span className="flex items-center gap-2">👁️ Contexto da Observação <span className="text-[11px] font-normal text-muted-foreground/50">opcional</span></span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${showObsContext ? 'rotate-180' : ''}`} />
+        </button>
+        {showObsContext && (
+        <div className="border-t px-4 py-3.5 space-y-4">
+
+        {/* Posição Observada — DC split into DC(E) and DC(D) */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">Posição observada</span>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {OBSERVED_POSITIONS.map(pos => (
+              <button
+                key={pos.code}
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, observedPosition: prev.observedPosition === pos.code ? '' : pos.code }))}
+                className={cn(
+                  'rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all active:scale-95',
+                  form.observedPosition === pos.code
+                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200',
+                )}
+                title={pos.label}
+              >
+                {pos.code}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Maturação */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">📏 Maturação</span>
+          <div className="mt-1.5 flex gap-2">
+            {MATURATION_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, maturation: prev.maturation === opt.value ? '' : opt.value }))}
+                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+                  form.maturation === opt.value
+                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}
+              >
+                {opt.emoji} {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Morfologia — Estatura */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">📐 Estatura <span className="text-[10px] font-normal">(para a idade)</span></span>
+          <div className="mt-1.5 flex gap-2">
+            {HEIGHT_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, heightImpression: prev.heightImpression === opt.value ? '' : opt.value }))}
+                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+                  form.heightImpression === opt.value
+                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Morfologia — Compleição */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">🏋️ Compleição <span className="text-[10px] font-normal">(para a idade)</span></span>
+          <div className="mt-1.5 flex gap-2">
+            {BUILD_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, buildImpression: prev.buildImpression === opt.value ? '' : opt.value }))}
+                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+                  form.buildImpression === opt.value
+                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Pé Observado */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">🦶 Pé observado</span>
+          <div className="mt-1.5 flex gap-2">
+            {FOOT_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, observedFoot: prev.observedFoot === opt.value ? '' : opt.value }))}
+                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+                  form.observedFoot === opt.value
+                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Destaque no contexto */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">⚡ Destaque no contexto do jogo</span>
+          <div className="mt-1.5 flex gap-2">
+            {STANDOUT_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, standoutLevel: prev.standoutLevel === opt.value ? '' : opt.value }))}
+                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+                  form.standoutLevel === opt.value
+                    ? opt.color + ' ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Nível do adversário */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">🏟️ Nível do adversário</span>
+          <div className="mt-1.5 flex gap-2">
+            {OPPONENT_LEVEL_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, opponentLevel: prev.opponentLevel === opt.value ? '' : opt.value }))}
+                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+                  form.opponentLevel === opt.value
+                    ? opt.color + ' ring-2 ring-offset-1 ring-neutral-900'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Titular/Suplente + Minutos */}
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <span className="text-xs font-semibold text-muted-foreground">🏃 Titular / Suplente</span>
+            <div className="mt-1.5 flex gap-2">
+              {STARTER_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setForm(prev => ({
+                    ...prev,
+                    starter: prev.starter === opt.value ? '' : opt.value,
+                    // Clear sub minute when deselecting or switching to Titular
+                    subMinute: (prev.starter === opt.value || opt.value === 'Titular') ? '' : prev.subMinute,
+                  }))}
+                  className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+                    form.starter === opt.value
+                      ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
+                      : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Sub entry minute — only show when Suplente selected */}
+          {form.starter === 'Suplente' && (
+            <div className="w-20 shrink-0">
+              <label className="text-[10px] text-muted-foreground">Min. entrada</label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={120}
+                value={form.subMinute}
+                onChange={e => setForm(prev => ({ ...prev, subMinute: e.target.value }))}
+                placeholder="Min"
+                className="mt-0.5 h-10 text-center text-xs"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Minutos observados */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">⏱️ Minutos observados</span>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={120}
+            value={form.minutesObserved}
+            onChange={e => setForm(prev => ({ ...prev, minutesObserved: e.target.value }))}
+            placeholder="Ex: 70"
+            className="mt-1.5 h-10 text-xs placeholder:text-muted-foreground/40"
+          />
+        </div>
+
+        {/* Condições */}
+        <div>
+          <span className="text-xs font-semibold text-muted-foreground">🌤️ Condições</span>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {CONDITION_TAGS.map(tag => {
+              const selected = form.conditions.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setForm(prev => ({
+                    ...prev,
+                    conditions: selected
+                      ? prev.conditions.filter(c => c !== tag)
+                      : [...prev.conditions, tag],
+                  }))}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-xs font-medium transition-all active:scale-95',
+                    selected
+                      ? 'border-neutral-700 bg-neutral-800 text-white'
+                      : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100',
+                  )}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        </div>
+        )}
       </div>
 
       {/* Match context (collapsible) */}
@@ -310,32 +679,18 @@ function DimensionCard({
       'rounded-xl border bg-white border-l-[3px] overflow-hidden',
       dimension.borderColor,
     )}>
-      {/* Header — label + segmented bar + score */}
-      <button
-        type="button"
-        onClick={() => { if (rating > 0) setManualExpand(v => !v); }}
-        className="flex w-full items-center gap-3 px-4 py-3"
-      >
-        <span className="text-base">{dimension.emoji}</span>
-        <span className="flex-1 text-left text-sm font-semibold">{dimension.label}</span>
-        {/* Score badge */}
-        <span className={cn(
-          'text-lg font-black tabular-nums w-6 text-right transition-colors',
-          rating > 0 ? dimension.textColor : 'text-neutral-300',
-        )}>
-          {rating > 0 ? rating : '—'}
-        </span>
-        {rating > 0 && <ChevronDown className={cn('h-4 w-4 text-neutral-400 transition-transform', expanded && 'rotate-180')} />}
-      </button>
+      {/* Compact single-row: emoji + label + bar + score + chevron */}
+      <div className="flex items-center gap-2 px-3 py-2">
+        <span className="text-sm shrink-0">{dimension.emoji}</span>
+        <span className="w-[84px] shrink-0 text-left text-xs font-semibold truncate">{dimension.label}</span>
 
-      {/* Segmented rating bar — always visible */}
-      <div className="px-4 pb-3">
-        <div className="flex h-10 w-full gap-0.5 rounded-lg overflow-hidden">
+        {/* Segmented rating bar — integer 1-5, tap to toggle */}
+        <div className="flex h-9 flex-1 gap-0.5 rounded-lg overflow-hidden">
           {[1, 2, 3, 4, 5].map(n => (
             <button
               key={n}
               type="button"
-              onClick={() => { const newVal = rating === n ? 0 : n; onRate(newVal); if (newVal > 0) setManualExpand(true); }}
+              onClick={() => { const newVal = rating === n ? 0 : n; onRate(newVal); }}
               className={cn(
                 'flex-1 flex items-center justify-center text-xs font-bold transition-all active:scale-95',
                 n <= rating ? `${dimension.color} text-white` : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
@@ -347,6 +702,21 @@ function DimensionCard({
             </button>
           ))}
         </div>
+
+        {/* Score + expand chevron */}
+        <button
+          type="button"
+          onClick={() => { if (rating > 0) setManualExpand(v => !v); }}
+          className="flex items-center gap-1 shrink-0"
+        >
+          <span className={cn(
+            'text-base font-black tabular-nums w-5 text-right transition-colors',
+            rating > 0 ? dimension.textColor : 'text-neutral-300',
+          )}>
+            {rating > 0 ? rating : '—'}
+          </span>
+          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', rating > 0 ? 'text-neutral-400' : 'text-transparent', expanded && 'rotate-180')} />
+        </button>
       </div>
 
       {/* Tags — expand on tap or after rating */}
@@ -482,61 +852,65 @@ export function getStarColor(value: number): string {
   return colors[key] ?? 'text-red-500';
 }
 
+/** Segmented bar with half-value support (0.5 increments, color-coded)
+ * Tap left half of segment = N-0.5, right half = N.0. Tap same value = deselect.
+ * Fill: full segments colored, half segments show left-half gradient. */
 export function HalfStarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [hoverValue, setHoverValue] = useState(0);
-  const displayValue = hoverValue > 0 && value === 0 ? hoverValue : value;
-  const colorClass = displayValue > 0 ? getStarColor(displayValue) : '';
+  const displayValue = hoverValue || value;
 
   function handleClick(clickValue: number) {
-    // Deselect if clicking same value
     onChange(value === clickValue ? 0 : clickValue);
   }
 
+  /** Background color for filled/half segments */
+  const BG_COLORS: Record<number, string> = {
+    1: 'bg-red-500', 2: 'bg-orange-400', 3: 'bg-sky-500', 4: 'bg-teal-500', 5: 'bg-green-500',
+  };
+  const colorKey = Math.ceil(displayValue) || 1;
+  const fillColor = BG_COLORS[colorKey] ?? 'bg-red-500';
+
   return (
-    <div className="flex justify-center gap-1" onMouseLeave={() => setHoverValue(0)}>
-      {[1, 2, 3, 4, 5].map(starNum => {
-        const filled = displayValue >= starNum;
-        const halfFilled = !filled && displayValue >= starNum - 0.5;
+    <div className="flex h-9 flex-1 gap-0.5 rounded-lg overflow-hidden" onMouseLeave={() => setHoverValue(0)}>
+      {[1, 2, 3, 4, 5].map(n => {
+        const filled = displayValue >= n;
+        const halfFilled = !filled && displayValue >= n - 0.5;
+        const empty = !filled && !halfFilled;
 
         return (
-          <div key={starNum} className="relative h-11 w-11 cursor-pointer">
-            {/* Background empty star */}
-            <Star className="absolute inset-0 m-auto h-9 w-9 text-neutral-200" fill="none" strokeWidth={1.5} />
-
-            {/* Filled or half-filled star */}
-            {(filled || halfFilled) && (
-              <svg className="absolute inset-0 m-auto h-9 w-9" viewBox="0 0 24 24">
-                {halfFilled && (
-                  <defs>
-                    <clipPath id={`half-${starNum}`}>
-                      <rect x="0" y="0" width="12" height="24" />
-                    </clipPath>
-                  </defs>
-                )}
-                <Star
-                  className={cn('h-9 w-9 transition-colors', colorClass)}
-                  fill="currentColor"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  clipPath={halfFilled ? `url(#half-${starNum})` : undefined}
-                />
-              </svg>
+          <div
+            key={n}
+            className={cn(
+              'relative flex-1 flex items-center justify-center text-xs font-bold transition-all overflow-hidden',
+              filled && `${fillColor} text-white`,
+              empty && 'bg-neutral-100 text-neutral-400',
+              n === 1 && 'rounded-l-lg',
+              n === 5 && 'rounded-r-lg',
             )}
+          >
+            {/* Half-filled: left half colored, right half neutral */}
+            {halfFilled && (
+              <>
+                <div className={cn('absolute inset-y-0 left-0 w-1/2', fillColor)} />
+                <div className="absolute inset-y-0 right-0 w-1/2 bg-neutral-100" />
+              </>
+            )}
+            <span className={cn('relative z-10', halfFilled && 'text-neutral-500')}>{n}</span>
 
-            {/* Touch zones — left half = X-0.5, right half = X.0 */}
+            {/* Touch zones — left = N-0.5, right = N.0 */}
             <button
               type="button"
-              onClick={() => handleClick(starNum - 0.5)}
-              onMouseEnter={() => setHoverValue(starNum - 0.5)}
-              className="absolute left-0 top-0 h-full w-1/2"
-              aria-label={`${starNum - 0.5} estrelas`}
+              onClick={() => handleClick(n - 0.5)}
+              onMouseEnter={() => setHoverValue(n - 0.5)}
+              className="absolute left-0 top-0 h-full w-1/2 z-20"
+              aria-label={`${n - 0.5} estrelas`}
             />
             <button
               type="button"
-              onClick={() => handleClick(starNum)}
-              onMouseEnter={() => setHoverValue(starNum)}
-              className="absolute right-0 top-0 h-full w-1/2"
-              aria-label={`${starNum} estrelas`}
+              onClick={() => handleClick(n)}
+              onMouseEnter={() => setHoverValue(n)}
+              className="absolute right-0 top-0 h-full w-1/2 z-20"
+              aria-label={`${n} estrelas`}
             />
           </div>
         );
