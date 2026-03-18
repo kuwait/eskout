@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
+import { PlayingUpBadge } from '@/components/common/PlayingUpBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { ClubBadge } from '@/components/common/ClubBadge';
 import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
@@ -606,6 +607,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             )}
             {!hideScoutingData && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
           </div>
+          {/* Playing up badge — below positions, always visible */}
+          <PlayingUpBadge player={p} showLabel />
           {/* Opinion badge — mobile only */}
           {!hideScoutingData && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
             <div className="xl:hidden">

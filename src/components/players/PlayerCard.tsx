@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { User } from 'lucide-react';
 import { ClubBadge } from '@/components/common/ClubBadge';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
+import { PlayingUpBadge } from '@/components/common/PlayingUpBadge';
 import { ListBookmarkDropdown } from '@/components/players/ListBookmarkDropdown';
 import { getPrimaryRating } from '@/lib/constants';
 import type { Player } from '@/lib/types';
@@ -77,6 +78,7 @@ export function PlayerCard({ player, hideEvaluations = false }: PlayerCardProps)
           {/* Line 1: name + observation badge */}
           <p className="flex items-center gap-1.5 truncate text-sm font-medium">
             <ObservationBadge player={player} />
+            <PlayingUpBadge player={player} />
             <span className="truncate">{player.name}</span>
           </p>
 

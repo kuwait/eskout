@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table';
 import { ClubBadge } from '@/components/common/ClubBadge';
 import { ObservationBadge } from '@/components/common/ObservationBadge';
+import { PlayingUpBadge } from '@/components/common/PlayingUpBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { getPrimaryRating } from '@/lib/constants';
@@ -216,6 +217,7 @@ export function PlayerTable({ players, hideEvaluations = false }: PlayerTablePro
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 truncate font-medium text-neutral-900">
                         <ObservationBadge player={player} />
+                        <PlayingUpBadge player={player} />
                         <span className="truncate">{player.name}</span>
                       </p>
                       {player.club && (
