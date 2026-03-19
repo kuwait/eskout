@@ -35,6 +35,7 @@ import {
   getPickerClubs,
 } from '@/actions/player-lists';
 import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
+import { extractSearchWords, matchesPickerSearch } from '@/lib/utils/search';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
@@ -797,7 +798,11 @@ function AddPlayerDialog({
   }, [open, hasAnyFilter, debouncedSearch, existingIds, filters.position, filters.club, filters.opinion, filters.foot]);
 
   /* Server-side search — just use pool directly */
-  const filtered = pool;
+  // Client-side cross-field + accent-insensitive refinement
+  const searchWords = extractSearchWords(filters.search);
+  const filtered = searchWords.length > 1
+    ? pool.filter((p) => matchesPickerSearch({ name: p.name, club: p.club }, searchWords))
+    : pool;
 
   /* Client-side pagination */
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);

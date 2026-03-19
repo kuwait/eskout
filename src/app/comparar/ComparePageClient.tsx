@@ -27,6 +27,7 @@ import { MiniPitch } from '@/components/common/MiniPitch';
 import { getNationalityFlag, getPositionLabel, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { saveComparison, deleteComparison } from '@/actions/comparisons';
 import { searchPickerPlayers, getPickerClubs } from '@/actions/player-lists';
+import { extractSearchWords, matchesPickerSearch } from '@/lib/utils/search';
 import { toast } from 'sonner';
 import type { CompareBundle } from './page';
 import type { DepartmentOpinion, PickerPlayer, Player, PositionCode, SavedComparison } from '@/lib/types';
@@ -486,7 +487,11 @@ function AddToCompareDialog({
   }, [open, hasAnyFilter, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, existingIds]);
 
   /* Server-side search — just use pool directly */
-  const filtered = pool;
+  // Client-side cross-field + accent-insensitive refinement
+  const searchWords = extractSearchWords(filters.search);
+  const filtered = searchWords.length > 1
+    ? pool.filter((p) => matchesPickerSearch({ name: p.name, club: p.club }, searchWords))
+    : pool;
 
   /* Client-side pagination */
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);

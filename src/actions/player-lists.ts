@@ -859,19 +859,27 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
       .eq('club_id', clubId)
       .eq('pending_approval', false);
 
-    // Server-side text search — use up to 3 words (first, last, and one middle if present)
-    // With 4+ words, skip the most common middle names to avoid over-filtering
+    // Server-side text search:
+    // - 1 word: .or(name, club) — search both fields
+    // - 2+ words: chain .ilike('name') for all-but-last words only — narrows by name
+    //   Client-side matchesPickerSearch (accent-insensitive) refines with ALL words across name+club.
+    //   Chaining .ilike() on the same column is reliable (PostgREST treats duplicate params as AND).
+    //   We skip the last word server-side because it might be a club name (cross-field search).
     if (filters.search) {
       const words = filters.search.trim().split(/\s+/).filter(w => w.length >= 2);
       let searchWords: string[];
       if (words.length <= 3) {
         searchWords = words;
       } else {
-        // Use first, second-to-last, and last (skip common middle names like "de", "da", "dos")
         searchWords = [words[0], words[words.length - 2], words[words.length - 1]];
       }
-      for (const word of searchWords) {
-        query = query.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
+      if (searchWords.length === 1) {
+        query = query.or(`name.ilike.%${searchWords[0]}%,club.ilike.%${searchWords[0]}%`);
+      } else {
+        // Use all-but-last words on name — the last word might be a club name
+        for (const word of searchWords.slice(0, -1)) {
+          query = query.ilike('name', `%${word}%`);
+        }
       }
     }
 

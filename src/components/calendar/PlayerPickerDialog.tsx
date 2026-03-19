@@ -26,6 +26,7 @@ import {
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { searchPickerPlayers, getPickerClubs } from '@/actions/player-lists';
+import { extractSearchWords, matchesPickerSearch } from '@/lib/utils/search';
 import type { PickerPlayer } from '@/lib/types';
 
 /* ───────────── Props ───────────── */
@@ -109,7 +110,13 @@ export function PlayerPickerDialog({
   }, [open, hasAnyFilter, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot]);
 
   // Server-side search — just slice
-  const filtered = useMemo(() => pool.slice(0, 30), [pool]);
+  const filtered = useMemo(() => {
+    const words = extractSearchWords(filters.search);
+    const refined = words.length > 1
+      ? pool.filter((p) => matchesPickerSearch({ name: p.name, club: p.club }, words))
+      : pool;
+    return refined.slice(0, 30);
+  }, [pool, filters.search]);
 
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 

@@ -313,11 +313,13 @@ Components that follow this pattern: `PlayersView`, `PipelineView`, `SquadPanelV
 
 ### Data Fetching Strategy
 
-All player search/picker dialogs use a **lazy fetch** pattern to avoid loading all 6000 players upfront:
+All player search/picker dialogs use a **two-stage search** pattern:
 
 - **Structural filters server-side**: position, club, opinion, foot applied via `searchPickerPlayers()` server action
-- **Text search client-side**: accent-insensitive multi-field `fuzzyMatch()` on the fetched pool
+- **Text search — hybrid**: server-side `.ilike('name')` chain for all-but-last word (PostgREST handles duplicate column params as AND), client-side `matchesPickerSearch()` (`src/lib/utils/search.ts`) for accent-insensitive cross-field (name + club) refinement with all words
 - **Pagination client-side**: 20 results per page in dialogs
+
+The client-side `matchesPickerSearch()` uses `stripAccents()` (NFD + diacritic removal) so "hernani" matches "Hernâni". Each search word must appear in either name or club (cross-field matching).
 
 Dialogs using this pattern: `AddToPipelineDialog`, `AddToSquadDialog`, `AddToCompareDialog`, `AddPlayerDialog` (lists), `TaskPlayerPickerDialog`, `PlayerPickerDialog` (calendar).
 

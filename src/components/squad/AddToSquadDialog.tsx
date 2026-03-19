@@ -25,6 +25,7 @@ import {
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { POSITION_LABELS, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, isSpecialSection, SPECIAL_SECTION_LABELS } from '@/lib/constants';
 import type { SpecialSquadSection } from '@/lib/constants';
+import { extractSearchWords, matchesPickerSearch } from '@/lib/utils/search';
 import { addToShadowSquad, toggleRealSquad } from '@/actions/squads';
 import { searchPickerPlayers, getPickerClubs } from '@/actions/player-lists';
 import type { DepartmentOpinion, PickerPlayer } from '@/lib/types';
@@ -92,7 +93,8 @@ export function AddToSquadDialog({
       setFilters({
         ...EMPTY_FILTERS,
         position: basePos,
-        year: initialYear ?? '',
+        // Special sections are generic — don't pre-filter by year
+        year: isSpecial ? '' : (initialYear ?? ''),
       });
       setDebouncedSearch('');
       setErrorMsg(null);
@@ -153,13 +155,23 @@ export function AddToSquadDialog({
 
   const filtered = useMemo(() => {
     let result = pool;
-    // Text search is now server-side — only year filter remains client-side
+    // Multi-word cross-field search (name + club) — client-side for reliability
+    // Server already filtered by first word; this refines with all words
+    if (filters.search) {
+      const words = extractSearchWords(filters.search);
+      if (words.length > 1) {
+        result = result.filter((p) => matchesPickerSearch(
+          { name: p.name, club: p.club },
+          words
+        ));
+      }
+    }
     if (filters.year) {
       const yr = parseInt(filters.year, 10);
       result = result.filter((p) => p.dob && new Date(p.dob).getFullYear() === yr);
     }
     return result.slice(0, 50);
-  }, [pool, filters.year]);
+  }, [pool, filters.search, filters.year]);
 
   // Shadow squad: year is always locked, so don't count it as a clearable filter
   const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || (squadType === 'real' && filters.year);

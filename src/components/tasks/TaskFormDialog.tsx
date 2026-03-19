@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Loader2, Search, User, X } from 'lucide-reac
 
 import { cn } from '@/lib/utils';
 import { searchPickerPlayers } from '@/actions/player-lists';
+import { extractSearchWords, matchesPickerSearch } from '@/lib/utils/search';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -71,8 +72,11 @@ function TaskPlayerPickerDialog({
     return () => { cancelled = true; };
   }, [open, debouncedSearch]);
 
-  // Server-side search — no client filter needed
-  const filtered = pool;
+  // Client-side cross-field + accent-insensitive refinement on top of server results
+  const searchWords = extractSearchWords(debouncedSearch);
+  const filtered = searchWords.length > 1
+    ? pool.filter((p) => matchesPickerSearch({ name: p.name, club: p.club }, searchWords))
+    : pool;
 
   // Reset page when search changes
   // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on search change
