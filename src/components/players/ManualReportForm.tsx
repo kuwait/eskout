@@ -72,6 +72,7 @@ function isDirty(form: FormState): boolean {
 
 /* ───────────── Component ───────────── */
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- playerName kept for future use (e.g. form title)
 export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, onDirtyChange }: ManualReportFormProps) {
   const [form, setForm] = useState<FormState>(EMPTY_STATE);
   const [isPending, startTransition] = useTransition();

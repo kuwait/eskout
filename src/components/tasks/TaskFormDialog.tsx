@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Search, User, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -54,10 +54,10 @@ function TaskPlayerPickerDialog({
   // Fetch players with server-side text search — only when there's a search term
   useEffect(() => {
     if (!open) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear pool when no search
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pool when search cleared (no async, just clearing)
     if (!debouncedSearch) { setPool([]); return; }
     let cancelled = false;
-    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
+    setLoading(true);
     searchPickerPlayers({ search: debouncedSearch }).then((results) => {
       if (cancelled) return;
       setPool(results.map((p) => ({

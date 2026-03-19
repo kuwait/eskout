@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -37,10 +37,11 @@ const SIZES = {
 
 export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '', onRemoveLogo, linkToFilter }: ClubBadgeProps) {
   // Detect touch after mount to avoid hydration mismatch (server always renders non-touch)
-  const [isTouch, setIsTouch] = useState(false);
-  useEffect(() => {
-    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
-  }, []);
+  const [isTouch] = useState(() =>
+    typeof window !== 'undefined'
+      ? 'ontouchstart' in window || navigator.maxTouchPoints > 0
+      : false
+  );
 
   if (!club) return null;
 

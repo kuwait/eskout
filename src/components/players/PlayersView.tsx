@@ -10,7 +10,7 @@ import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
-import { getObservationTier, POSITIONS } from '@/lib/constants';
+import { getObservationTier } from '@/lib/constants';
 import { getPlayingUpPlayerIds } from '@/actions/players';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -59,31 +59,6 @@ const EMPTY_FILTERS: PlayerFilterState = {
 
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
-
-/* ───────────── Accent-insensitive search helpers ───────────── */
-
-import { normalize } from '@/lib/utils';
-
-/** Map position code → searchable label (e.g. "DC" → "dc defesa central") */
-const POSITION_SEARCH_MAP = new Map<string, string>(
-  POSITIONS.map((p) => [p.code, normalize(`${p.code} ${p.labelPt}`)])
-);
-
-/**
- * Multi-field fuzzy search: each word must match name, club, or position (code + label).
- * Accent-insensitive comparison.
- */
-function multiFieldMatch(player: Player, words: string[]): boolean {
-  const nameNorm = normalize(player.name);
-  const clubNorm = normalize(player.club);
-  const posNorm = player.positionNormalized
-    ? (POSITION_SEARCH_MAP.get(player.positionNormalized) ?? normalize(player.positionNormalized))
-    : '';
-
-  return words.every((word) =>
-    nameNorm.includes(word) || clubNorm.includes(word) || posNorm.includes(word)
-  );
-}
 
 export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluations?: boolean; clubId: string }) {
   const searchParams = useSearchParams();
@@ -245,7 +220,7 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     }
 
     // Fetch results — paginated up to 5000 for computed-field filters
-    const { data, count, error } = await q.order('name').range(0, 4999);
+    const { data, error } = await q.order('name').range(0, 4999);
     if (fetchId !== searchCancelRef.current) return; // stale fetch — discard
     if (error || !data) { setSearchPool([]); setLoading(false); return; }
 
@@ -258,7 +233,7 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
   useEffect(() => {
     const id = ++searchCancelRef.current;
     fetchSearchPool(id);
-  }, [fetchSearchPool]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
+  }, [fetchSearchPool]);
 
   /* ───────────── Realtime ───────────── */
 

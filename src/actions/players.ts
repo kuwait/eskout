@@ -592,7 +592,6 @@ export async function getPlayingUpPlayerIds(clubId: string): Promise<{ regular: 
     // Paginated fetch of FPF match data
     const fpfAgg = new Map<number, { above: number; total: number }>();
     let offset = 0;
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const { data } = await supabase
         .from('fpf_match_players')

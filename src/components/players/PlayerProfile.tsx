@@ -30,7 +30,6 @@ import {
 import { ObservationBadge } from '@/components/common/ObservationBadge';
 import { PlayingUpBadge } from '@/components/common/PlayingUpBadge';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { ClubBadge } from '@/components/common/ClubBadge';
 import { MiniPitch, PitchCanvas } from '@/components/common/MiniPitch';
 import {
   Dialog,
@@ -46,7 +45,6 @@ import {
 import { RefreshPlayerButton } from '@/components/players/RefreshPlayerButton';
 import { ObservationNotes, AddNoteButton } from '@/components/players/ObservationNotes';
 import { StatusHistory } from '@/components/players/StatusHistory';
-import { ScoutEvaluations } from '@/components/players/ScoutEvaluations';
 import { ScoutingReports } from '@/components/players/ScoutingReports';
 import { QuickReportCard } from '@/components/players/QuickReportCard';
 import { QuickReportForm } from '@/components/players/QuickReportForm';
@@ -70,8 +68,8 @@ import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { usePresence } from '@/hooks/usePresence';
 
 /* ───────────── Extracted sub-components ───────────── */
-import { RATING_COLOR_MAP, RATING_DEFAULT, parseRating, shortenName, formatDate } from '@/components/players/profile-utils';
-import { Section, EditField, InfoChip, DecisionBadge, DECISION_BADGE_STYLES, DECISION_DEFAULT_STYLE, JerseySvg } from '@/components/players/ProfileViewSections';
+import { RATING_COLOR_MAP, RATING_DEFAULT, shortenName, formatDate } from '@/components/players/profile-utils';
+import { Section, EditField, InfoChip, DECISION_BADGE_STYLES, DECISION_DEFAULT_STYLE, JerseySvg } from '@/components/players/ProfileViewSections';
 import { DateInput, FootSelector, ShirtNumberInput, LinkCard, OpinionEditPills, ReferralPicker, ContactAssignPicker, EditPitchPicker } from '@/components/players/ProfileFormWidgets';
 import { RecruitmentCard } from '@/components/players/RecruitmentCard';
 import { DeleteConfirmDialog } from '@/components/players/DeleteConfirmDialog';
@@ -118,7 +116,8 @@ interface PlayerProfileProps {
   zzPlayingUp?: import('@/lib/utils/playing-up').PlayingUpResult;
 }
 
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [], fpfPlayingUp = [], zzPlayingUp }: PlayerProfileProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- _scoutEvaluations kept for future structured evaluations
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations: _scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [], fpfPlayingUp = [], zzPlayingUp }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -163,10 +162,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
   // Club-scoped profiles for referral/contact assign dropdowns (passed from server)
   const profiles = clubMembers;
-
-  // Hybrid rating from player (pre-computed: report ratings + scout evaluations)
-  const hybridAvgRating = player.reportAvgRating;
-  const hybridRatingCount = player.reportRatingCount;
 
   /* ───────────── Realtime: refresh when other users modify this player ───────────── */
 
@@ -1013,7 +1008,6 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             {/* Observação — unified evaluation section */}
             {!hideScoutingData && (() => {
               const extractedReports = scoutingReports.filter(r => r.extractionStatus === 'success' || r.extractionStatus === 'partial');
-              const totalReports = extractedReports.length || p.reportLabels.length;
               const hasObservation = !hideEvaluations; // always show for "+ Avaliar"
               if (!hasObservation) return null;
 

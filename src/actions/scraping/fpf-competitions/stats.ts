@@ -270,7 +270,7 @@ export async function searchPlayer(
 
   if (!query || query.trim().length < 2) return { success: true, data: [] };
 
-  const { rows, matchSeries } = await fetchAllMatchPlayers(supabase, competitionId);
+  const { rows } = await fetchAllMatchPlayers(supabase, competitionId);
 
   // Filter by name (case-insensitive partial match)
   const q = query.toLowerCase().trim();

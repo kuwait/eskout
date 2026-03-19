@@ -536,7 +536,7 @@ describe('quickScoutReportSchema', () => {
   });
 
   it('rejects missing playerId', () => {
-    const { playerId, ...rest } = validReport;
+    const { playerId: _omitted, ...rest } = validReport; // eslint-disable-line @typescript-eslint/no-unused-vars
     const result = quickScoutReportSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });

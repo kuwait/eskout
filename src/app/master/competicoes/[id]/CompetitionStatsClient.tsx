@@ -11,7 +11,6 @@ import {
   ArrowLeft, TrendingUp, Clock, AlertTriangle, Shield, Search, X,
   Loader2, Goal, CalendarDays, Unlink, ChevronDown, ChevronRight,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   getTopScorers, getMostMinutes, getMostCards, getTeamStats,
@@ -276,7 +275,6 @@ function PlayingUpTab({ competitionId }: { competitionId: number }) {
   }, [data]);
 
   const hasPhases = phaseGroups.length > 1;
-  const hasSeries = phaseGroups.some((pg) => pg.seriesGroups.length > 1 || (pg.seriesGroups.length === 1 && pg.seriesGroups[0].series !== 'Geral'));
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
   if (!data?.length) return <EmptyState message="Nenhum jogador a jogar acima do escalão detetado." />;

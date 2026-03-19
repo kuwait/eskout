@@ -4,7 +4,7 @@
 // RELEVANT FILES: src/app/admin/dados/qualidade/page.tsx, src/app/admin/dados/importar/page.tsx
 
 import Link from 'next/link';
-import { Database, Users, FileText, AlertTriangle, Shield, GitBranch, Calendar, ListTodo, Upload } from 'lucide-react';
+import { Database, Users, FileText, AlertTriangle, Shield, GitBranch, ListTodo, Upload } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub } from '@/lib/supabase/club-context';
 

@@ -151,6 +151,7 @@ function isDirty(form: FormState): boolean {
     || form.notes !== '';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- playerName kept for future use
 export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess, onCancel, onDirtyChange }: QuickReportFormProps) {
   const [form, setForm] = useState<FormState>(EMPTY_STATE);
   const [showContext, setShowContext] = useState(false);
@@ -743,8 +744,6 @@ function TagsSection({ tags, selectedTags, onToggleTag }: {
 }) {
   const [showInput, setShowInput] = useState(false);
   const [customTag, setCustomTag] = useState('');
-  const [inputMode, setInputMode] = useState<'positive' | 'negative' | null>(null);
-
   function addCustom(sentiment: 'positive' | 'negative') {
     const trimmed = customTag.trim();
     if (!trimmed) return;
@@ -804,7 +803,7 @@ function TagsSection({ tags, selectedTags, onToggleTag }: {
             autoFocus
             value={customTag}
             onChange={e => setCustomTag(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') { setShowInput(false); setCustomTag(''); setInputMode(null); } }}
+            onKeyDown={e => { if (e.key === 'Escape') { setShowInput(false); setCustomTag(''); } }}
             placeholder="Escrever..."
             className="w-28 rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-neutral-500"
             maxLength={30}

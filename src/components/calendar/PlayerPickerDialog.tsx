@@ -93,9 +93,9 @@ export function PlayerPickerDialog({
   const hasAnyFilter = debouncedSearch || filters.position || filters.club || filters.opinion || filters.foot;
   useEffect(() => {
     if (!open) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear pool when no filter
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pool when filters cleared (no async, just clearing)
     if (!hasAnyFilter) { setPool([]); return; }
-    setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch
+    setLoading(true);
     searchPickerPlayers({
       search: debouncedSearch || undefined,
       position: filters.position || undefined,

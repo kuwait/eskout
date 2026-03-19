@@ -53,8 +53,6 @@ function ReportCard({ report, canDelete, onDelete }: { report: ScoutingReport; c
   const rc = RATING_COLORS[ratingKey] ?? RATING_DEFAULT;
   const dc = report.decision ? (DECISION_STYLES[report.decision] ?? DECISION_DEFAULT) : null;
   const dotColor = RATING_DOT_COLORS[ratingKey] ?? 'bg-neutral-300';
-  const textColorDark = dotColor.replace('bg-', 'text-').replace('-500', '-700').replace('-400', '-600');
-
   const hasContent = report.physicalProfile || report.strengths || report.weaknesses || report.analysis;
 
   return (
@@ -181,19 +179,6 @@ function ReportCard({ report, canDelete, onDelete }: { report: ScoutingReport; c
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-/* ───────────── Helper Components ───────────── */
-
-function AssessmentBlock({ title, content, variant }: { title: string; content: string; variant?: 'positive' | 'negative' }) {
-  const borderColor = variant === 'positive' ? 'border-l-emerald-400' : variant === 'negative' ? 'border-l-red-400' : 'border-l-neutral-300';
-
-  return (
-    <div className={`rounded-lg border border-l-[3px] ${borderColor} p-3`}>
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      <p className="whitespace-pre-line text-sm text-neutral-700">{content}</p>
     </div>
   );
 }

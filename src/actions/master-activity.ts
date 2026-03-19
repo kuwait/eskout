@@ -6,7 +6,7 @@
 'use server';
 
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { DATE_FIELDS, BOOLEAN_FIELDS, formatFieldValue, buildSquadLabel } from '@/lib/utils/activity-labels';
+import { BOOLEAN_FIELDS, formatFieldValue, buildSquadLabel } from '@/lib/utils/activity-labels';
 
 /* ───────────── Types ───────────── */
 

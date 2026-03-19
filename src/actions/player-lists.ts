@@ -282,7 +282,7 @@ export async function getListItems(listId: number): Promise<PlayerListItem[]> {
 
 /** Get list metadata by id — uses service client to support shared lists (RLS blocks non-owner reads) */
 export async function getListById(listId: number): Promise<PlayerList | null> {
-  const { userId, role } = await getActiveClub();
+  const { role } = await getActiveClub();
   if (role === 'scout') return null;
 
   // Use service client — player_lists RLS only allows owner/admin reads,
