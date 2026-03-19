@@ -698,10 +698,9 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
       : undefined;
     const exportData = { squadType, ageGroupLabel, byPosition: byPos, squadName: squad.name };
 
-    // Player count — include special section players in total
+    // Player counts — pitch only (special sections show their own counts)
     const pitchPlayers = Object.values(byPos).flat();
-    const sectionPlayers = sections ? Object.values(sections).flat() : [];
-    const totalCount = pitchPlayers.length + sectionPlayers.length;
+    const totalCount = pitchPlayers.length;
     const doubtCount = pitchPlayers.filter((p) => p.isDoubt).length;
 
     return (
