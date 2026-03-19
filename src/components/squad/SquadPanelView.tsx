@@ -151,11 +151,14 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     () => initialSquadId ?? getStoredSquadId(squadType)
   );
   /** Persist squad selection to localStorage when changed */
-  const setSelectedSquadId = useCallback((id: number | null) => {
-    setSelectedSquadIdState(id);
-    if (id != null) {
-      localStorage.setItem(`${SQUAD_SELECTION_KEY_PREFIX}${squadType}`, String(id));
-    }
+  const setSelectedSquadId = useCallback((idOrFn: number | null | ((prev: number | null) => number | null)) => {
+    setSelectedSquadIdState((prev) => {
+      const id = typeof idOrFn === 'function' ? idOrFn(prev) : idOrFn;
+      if (id != null) {
+        localStorage.setItem(`${SQUAD_SELECTION_KEY_PREFIX}${squadType}`, String(id));
+      }
+      return id;
+    });
   }, [squadType]);
   // Map<squadId, Map<playerId, { position, sortOrder }>>
   const [allSquadPlayersMap, setAllSquadPlayersMap] = useState<Map<number, SquadPlayersMap>>(new Map());
@@ -270,11 +273,14 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
 
     // For real squads: auto-select first if current selection is not in list
     if (squadType === 'real') {
-      const valid = mapped.find((s) => s.id === selectedSquadId);
-      if (!valid && mapped[0]) setSelectedSquadId(mapped[0].id);
-      else if (!valid) setSelectedSquadId(null);
+      setSelectedSquadId((prev) => {
+        const valid = mapped.find((s) => s.id === prev);
+        if (!valid && mapped[0]) return mapped[0].id;
+        if (!valid) return null;
+        return prev;
+      });
     }
-  }, [squadType, selectedId, selectedSquadId, initialSquadId, clubId, setSelectedSquadId]);
+  }, [squadType, selectedId, initialSquadId, clubId, setSelectedSquadId]);
 
   useEffect(() => { fetchSquads(); }, [fetchSquads]);
 

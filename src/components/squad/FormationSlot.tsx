@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { AlertTriangle, Plus, Trash2, User } from 'lucide-react';
+import { Plus, Trash2, User } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
