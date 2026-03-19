@@ -10,7 +10,8 @@ import { useRouter } from 'next/navigation';
 import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow, mapSquadRow } from '@/lib/supabase/mappers';
-import { SQUAD_SLOT_CODES } from '@/lib/constants';
+import { SQUAD_SLOT_CODES, SPECIAL_SQUAD_SECTIONS, SPECIAL_SECTION_LABELS, isSpecialSection } from '@/lib/constants';
+import type { SpecialSquadSection } from '@/lib/constants';
 import { LayoutGrid, List, Columns2 } from 'lucide-react';
 import { PageSpinner } from '@/components/ui/page-spinner';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
@@ -19,6 +20,7 @@ import { FormationView, type DragEndInfo } from '@/components/squad/FormationVie
 import { SquadListView } from '@/components/squad/SquadListView';
 import { SquadCompareView } from '@/components/squad/SquadCompareView';
 import { AddToSquadDialog } from '@/components/squad/AddToSquadDialog';
+import { SquadSpecialSection } from '@/components/squad/SquadSpecialSection';
 import {
   addToShadowSquad, removeFromShadowSquad, toggleRealSquad,
   addPlayerToSquad, removePlayerFromSquad,
@@ -54,13 +56,20 @@ function getStoredSquadId(squadType: string): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
+/** Result of grouping squad players by position + special sections */
+interface ComputedSquadLayout {
+  byPosition: Record<string, Player[]>;
+  specialSections: Record<string, Player[]>;
+}
+
 /** Group players by squad slot position from a squad_players map */
 function computeByPosition(
   playerMap: SquadPlayersMap,
   allPlayers: Player[]
-): Record<string, Player[]> {
+): ComputedSquadLayout {
   const map: Record<string, Player[]> = {};
   for (const slot of SQUAD_SLOT_CODES) map[slot] = [];
+  const sections: Record<string, Player[]> = { DUVIDA: [], POSSIBILIDADE: [] };
 
   for (const [playerId, sp] of playerMap) {
     const player = allPlayers.find((p) => p.id === playerId);
@@ -68,6 +77,13 @@ function computeByPosition(
     // Stamp squad-context doubt flag onto the player object for rendering
     const stamped = sp.isDoubt ? { ...player, isDoubt: true } : player;
     const pos = sp.position;
+
+    // Special sections — not on the pitch
+    if (isSpecialSection(pos)) {
+      sections[pos].push(stamped);
+      continue;
+    }
+
     if (pos === 'DC') {
       const dcE = map['DC_E'] ?? []; const dcD = map['DC_D'] ?? [];
       if (dcE.length <= dcD.length) { dcE.push(stamped); map['DC_E'] = dcE; }
@@ -80,7 +96,12 @@ function computeByPosition(
   for (const slot of SQUAD_SLOT_CODES) {
     map[slot]?.sort((a, b) => (playerMap.get(a.id)?.sortOrder ?? 0) - (playerMap.get(b.id)?.sortOrder ?? 0));
   }
-  return map;
+  // Sort special sections by sort_order
+  for (const key of SPECIAL_SQUAD_SECTIONS) {
+    sections[key].sort((a, b) => (playerMap.get(a.id)?.sortOrder ?? 0) - (playerMap.get(b.id)?.sortOrder ?? 0));
+  }
+
+  return { byPosition: map, specialSections: sections };
 }
 
 /** Group players by position using legacy boolean flags on players */
@@ -398,7 +419,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
   // Other squad for compare view — custom squad_players if available, legacy fallback
   const otherByPosition = useMemo(() => {
     if (otherSquadPlayersMap.size > 0) {
-      return computeByPosition(otherSquadPlayersMap, allPlayers);
+      return computeByPosition(otherSquadPlayersMap, allPlayers).byPosition;
     }
     const otherType = squadType === 'shadow' ? 'real' : 'shadow';
     return computeLegacyByPosition(players, otherType);
@@ -417,7 +438,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     return ids;
   }, [dialogSquadPlayerMap, legacyByPosition]);
 
-  // Visible squads with their byPosition (for custom squads)
+  // Visible squads with their byPosition + specialSections (for custom squads)
   const visibleSquadSections = useMemo(() => {
     if (!hasCustomSquads) return [];
     if (squadType === 'real') {
@@ -425,12 +446,14 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
       const squad = squads.find((s) => s.id === selectedSquadId);
       if (!squad) return [];
       const pm = allSquadPlayersMap.get(squad.id) ?? new Map();
-      return [{ squad, byPos: computeByPosition(pm, allPlayers) }];
+      const { byPosition, specialSections } = computeByPosition(pm, allPlayers);
+      return [{ squad, byPos: byPosition, specialSections }];
     }
-    // Shadow: all squads for age group
+    // Shadow: all squads for age group (no special sections)
     return squads.map((squad) => {
       const pm = allSquadPlayersMap.get(squad.id) ?? new Map();
-      return { squad, byPos: computeByPosition(pm, allPlayers) };
+      const { byPosition } = computeByPosition(pm, allPlayers);
+      return { squad, byPos: byPosition, specialSections: { DUVIDA: [], POSSIBILIDADE: [] } as Record<string, Player[]> };
     });
   }, [squads, hasCustomSquads, squadType, selectedSquadId, allSquadPlayersMap, allPlayers]);
 
@@ -442,7 +465,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
   const compareLeftByPosition = useMemo(() => {
     if (!compareLeftSquadForMemo) return legacyByPosition;
     const pm = allSquadPlayersMap.get(compareLeftSquadForMemo.id) ?? new Map();
-    return computeByPosition(pm, allPlayers);
+    return computeByPosition(pm, allPlayers).byPosition;
   }, [compareLeftSquadForMemo, allSquadPlayersMap, allPlayers, legacyByPosition]);
 
   /* ───────────── Handlers ───────────── */
@@ -567,7 +590,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
           const next = new Map(prev);
           const updated = new Map(next.get(squadId) ?? new Map());
           const existing = updated.get(playerId);
-          if (existing) updated.set(playerId, { position: dbPosition, sortOrder: insertAt });
+          if (existing) updated.set(playerId, { ...existing, position: dbPosition, sortOrder: insertAt });
           targetList.forEach((p, i) => { const sp = updated.get(p.id); if (sp) updated.set(p.id, { ...sp, sortOrder: i }); });
           next.set(squadId, updated);
           return next;
@@ -619,6 +642,24 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     });
   }
 
+  /** Move a player from a pitch position to a special section (DUVIDA / POSSIBILIDADE) */
+  function handleMoveToSection(playerId: number, squadId: number | null, section: string) {
+    if (!squadId) return;
+    markMutation();
+    // Optimistic: change the player's position in the map
+    setAllSquadPlayersMap((prev) => {
+      const next = new Map(prev);
+      const updated = new Map(next.get(squadId) ?? new Map());
+      const existing = updated.get(playerId);
+      if (existing) updated.set(playerId, { ...existing, position: section, sortOrder: 999 });
+      next.set(squadId, updated);
+      return next;
+    });
+    moveSquadPlayerPosition(playerId, section, 999, squadType, squadId).then((res) => {
+      if (!res.success) fetchSquadPlayers();
+    });
+  }
+
   /* ───────────── Render ───────────── */
 
   const labelFn = squadType === 'shadow'
@@ -647,17 +688,21 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     : '';
 
   /** Render one squad's formation/list */
-  function renderSquadContent(squad: Squad, byPos: Record<string, Player[]>, showName: boolean) {
+  function renderSquadContent(squad: Squad, byPos: Record<string, Player[]>, showName: boolean, sections?: Record<string, Player[]>) {
     const openAdd = (pos: string) => { setDialogPosition(pos); setDialogSquadId(squad.id); setDialogOpen(true); };
     const remove = (pid: number) => handleRemove(pid, squad.id);
     const dragEnd = (info: DragEndInfo) => handleDragEnd(info, squad.id, byPos);
     const toggleDoubt = (pid: number, isDoubt: boolean) => handleToggleDoubt(pid, squad.id, isDoubt);
+    const moveToSection = squadType === 'real'
+      ? (pid: number, section: SpecialSquadSection) => handleMoveToSection(pid, squad.id, section)
+      : undefined;
     const exportData = { squadType, ageGroupLabel, byPosition: byPos, squadName: squad.name };
 
-    // Player count + doubt count
-    const allSquadPlayers = Object.values(byPos).flat();
-    const totalCount = allSquadPlayers.length;
-    const doubtCount = allSquadPlayers.filter((p) => p.isDoubt).length;
+    // Player count — include special section players in total
+    const pitchPlayers = Object.values(byPos).flat();
+    const sectionPlayers = sections ? Object.values(sections).flat() : [];
+    const totalCount = pitchPlayers.length + sectionPlayers.length;
+    const doubtCount = pitchPlayers.filter((p) => p.isDoubt).length;
 
     return (
       <div key={squad.id} className="space-y-4">
@@ -695,7 +740,23 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         {viewMode === 'campo' && (
           <>
             {mounted ? (
-              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} onToggleDoubt={toggleDoubt} />
+              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} onToggleDoubt={toggleDoubt} onMoveToSection={moveToSection} specialSections={sections}>
+                {/* Special sections inside DndContext — enables drag from pitch to sections */}
+                {squadType === 'real' && sections && (
+                  <div className="grid grid-cols-1 gap-3 pt-3 sm:grid-cols-2">
+                    {SPECIAL_SQUAD_SECTIONS.map((sectionKey) => (
+                      <SquadSpecialSection
+                        key={sectionKey}
+                        sectionKey={sectionKey}
+                        label={SPECIAL_SECTION_LABELS[sectionKey]}
+                        players={sections[sectionKey] ?? []}
+                        onAdd={() => openAdd(sectionKey)}
+                        onRemovePlayer={remove}
+                      />
+                    ))}
+                  </div>
+                )}
+              </FormationView>
             ) : (
               <div className="flex h-[520px] items-center justify-center rounded-xl bg-green-700">
                 <span className="text-sm text-white/60">A carregar campo...</span>
@@ -709,7 +770,24 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
           </>
         )}
         {viewMode === 'lista' && (
-          <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onToggleDoubt={toggleDoubt} />
+          <>
+            <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onToggleDoubt={toggleDoubt} />
+            {/* Special sections for list view — outside DnD (no drag in list view) */}
+            {squadType === 'real' && sections && (
+              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+                {SPECIAL_SQUAD_SECTIONS.map((sectionKey) => (
+                  <SquadSpecialSection
+                    key={sectionKey}
+                    sectionKey={sectionKey}
+                    label={SPECIAL_SECTION_LABELS[sectionKey]}
+                    players={sections[sectionKey] ?? []}
+                    onAdd={() => openAdd(sectionKey)}
+                    onRemovePlayer={remove}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -830,8 +908,8 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         {/* Custom squads — campo/lista views */}
         {hasCustomSquads && viewMode !== 'comparar' && (
           visibleSquadSections.length > 0
-            ? visibleSquadSections.map(({ squad, byPos }) =>
-                renderSquadContent(squad, byPos, visibleSquadSections.length > 1)
+            ? visibleSquadSections.map(({ squad, byPos, specialSections }) =>
+                renderSquadContent(squad, byPos, visibleSquadSections.length > 1, specialSections)
               )
             : (
               <p className="py-8 text-center text-muted-foreground">

@@ -34,6 +34,21 @@ export type SquadSlot = Exclude<PositionCode, 'AD' | 'AE' | 'MD' | 'ME'> | 'DC_E
 const NON_SQUAD_POSITIONS = new Set(['AD', 'AE', 'MD', 'ME', 'SA']);
 export const SQUAD_SLOT_CODES: SquadSlot[] = [...POSITION_CODES.filter((c) => !NON_SQUAD_POSITIONS.has(c)) as SquadSlot[], 'DC_E', 'DC_D'];
 
+/** Special squad sections — non-positional groups below the pitch (real squads only) */
+export const SPECIAL_SQUAD_SECTIONS = ['DUVIDA', 'POSSIBILIDADE'] as const;
+export type SpecialSquadSection = typeof SPECIAL_SQUAD_SECTIONS[number];
+
+/** Display labels for special squad sections */
+export const SPECIAL_SECTION_LABELS: Record<SpecialSquadSection, string> = {
+  DUVIDA: 'Dúvida',
+  POSSIBILIDADE: 'Possibilidades',
+};
+
+/** Check if a position value is a special section (not a pitch slot) */
+export function isSpecialSection(position: string): position is SpecialSquadSection {
+  return position === 'DUVIDA' || position === 'POSSIBILIDADE';
+}
+
 /** Squad display slots — DC split into DC (E) and DC (D) for list/compare views */
 export const SQUAD_SLOTS: { slot: SquadSlot; label: string }[] = [
   { slot: 'GR', label: 'Guarda-Redes' },

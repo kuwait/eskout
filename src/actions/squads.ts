@@ -12,6 +12,7 @@ import { createSquadSchema, renameSquadSchema, updateSquadDescriptionSchema, squ
 import type { ActionResponse, Squad, SquadRow, SquadType } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { mapSquadRow } from '@/lib/supabase/mappers';
+import { isSpecialSection } from '@/lib/constants';
 
 /* ───────────── Helper: log status change ───────────── */
 
@@ -506,13 +507,15 @@ export async function moveSquadPlayerPosition(
       return { success: false, error: `Erro ao mover jogador: ${error.message}` };
     }
 
-    // Sync legacy position field
+    // Sync legacy position field — special sections don't have a pitch position
     const positionField = squadType === 'shadow' ? 'shadow_position' : 'real_squad_position';
+    const legacyPosition = isSpecialSection(newPosition) ? null : newPosition;
     await supabase
       .from('players')
-      .update({ [positionField]: newPosition })
+      .update({ [positionField]: legacyPosition })
       .eq('id', playerId)
       .eq('club_id', clubId);
+
   } else {
     // Legacy path: update players table directly
     const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
@@ -764,9 +767,12 @@ async function syncLegacyFlags(
       .eq('id', playerId)
       .eq('club_id', clubId);
   } else {
+    // Special sections (DUVIDA, POSSIBILIDADE) keep the player in the squad system
+    // but don't occupy a pitch position
+    const legacyPosition = isSpecialSection(position) ? null : position;
     await supabase
       .from('players')
-      .update({ is_real_squad: true, real_squad_position: position })
+      .update({ is_real_squad: true, real_squad_position: legacyPosition })
       .eq('id', playerId)
       .eq('club_id', clubId);
   }

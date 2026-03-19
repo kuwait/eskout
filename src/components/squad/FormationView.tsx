@@ -21,6 +21,8 @@ import {
 } from '@dnd-kit/core';
 import { FormationSlot } from '@/components/squad/FormationSlot';
 import type { Player, PositionCode } from '@/lib/types';
+import { isSpecialSection } from '@/lib/constants';
+import type { SpecialSquadSection } from '@/lib/constants';
 
 /* ───────────── Formation Groups ───────────── */
 
@@ -78,6 +80,12 @@ interface FormationViewProps {
   onPlayerClick?: (playerId: number) => void;
   onDragEnd?: (info: DragEndInfo) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
+  /** Move player to a special section (Dúvida / Possibilidades) — real squads only */
+  onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
+  /** Players in special sections (DUVIDA, POSSIBILIDADE) — included in DnD context for cross-zone drag */
+  specialSections?: Record<string, Player[]>;
+  /** Extra content rendered inside the DndContext (after the pitch) — e.g. droppable special sections */
+  children?: React.ReactNode;
 }
 
 /** Parse drag ID format "player-{id}" → player ID */
@@ -110,7 +118,7 @@ interface DragVirtual {
   toIndex: number;
 }
 
-export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt }: FormationViewProps) {
+export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt, onMoveToSection, specialSections, children }: FormationViewProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [dragVirtual, setDragVirtual] = useState<DragVirtual | null>(null);
   const isDesktop = useIsDesktop();
@@ -120,14 +128,20 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 20 } });
   const sensors = useSensors(pointerSensor, touchSensor);
 
-  // Map player ID → slot for quick lookup of source position
+  // Map player ID → slot for quick lookup of source position (includes special sections)
   const playerSlotMap = useMemo(() => {
     const map = new Map<number, string>();
     for (const [slot, players] of Object.entries(byPosition)) {
       for (const p of players) map.set(p.id, slot);
     }
+    // Include special section players so drag-from-section works
+    if (specialSections) {
+      for (const [section, players] of Object.entries(specialSections)) {
+        for (const p of players) map.set(p.id, section);
+      }
+    }
     return map;
-  }, [byPosition]);
+  }, [byPosition, specialSections]);
 
   // Display positions: during cross-position drag, player is virtually moved to target slot
   const displayByPosition = useMemo(() => {
@@ -155,9 +169,10 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
     if (playerId === null) return;
     const slot = playerSlotMap.get(playerId);
     if (!slot) return;
-    const player = (byPosition[slot] ?? []).find((p) => p.id === playerId);
+    // Look up player from pitch positions or special sections
+    const player = (byPosition[slot] ?? specialSections?.[slot] ?? []).find((p) => p.id === playerId);
     setActivePlayer(player ?? null);
-  }, [byPosition, playerSlotMap]);
+  }, [byPosition, specialSections, playerSlotMap]);
 
   /** Detect cross-position hover → virtually move player to target slot */
   const handleDragOver = useCallback((event: DragOverEvent) => {
@@ -189,6 +204,17 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
           break;
         }
       }
+      // Also check special sections if not found in pitch positions
+      if (!targetSlot && specialSections) {
+        for (const [section, players] of Object.entries(specialSections)) {
+          const idx = players.findIndex((p) => p.id === overPlayerId);
+          if (idx >= 0) {
+            targetSlot = section;
+            targetIndex = idx;
+            break;
+          }
+        }
+      }
     }
 
     if (!targetSlot || targetIndex === null) { setDragVirtual(null); return; }
@@ -197,7 +223,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
     if (targetSlot === sourceSlot) { setDragVirtual(null); return; }
 
     setDragVirtual({ playerId: activePlayer.id, fromSlot: sourceSlot, toSlot: targetSlot, toIndex: targetIndex });
-  }, [activePlayer, playerSlotMap, displayByPosition]);
+  }, [activePlayer, playerSlotMap, displayByPosition, specialSections]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const virtual = dragVirtual;
@@ -224,12 +250,28 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
       return;
     }
 
-    // Same-position reorder
+    // Check if dropped on a droppable zone (position or special section)
     const overId = String(over.id);
-    if (overId.startsWith('droppable-')) return; // dropped on own position droppable — no-op
+    if (overId.startsWith('droppable-')) {
+      const targetSlot = overId.replace('droppable-', '');
+      // Dropped on a special section without virtual — handle directly
+      if (isSpecialSection(targetSlot) && targetSlot !== sourceSlot) {
+        onDragEnd({ playerId, sourcePosition: sourceSlot, targetPosition: targetSlot, newIndex: 0 });
+        return;
+      }
+      // Dropped on own pitch position droppable — no-op
+      return;
+    }
 
     const overPlayerId = parseDragPlayerId(overId);
     if (overPlayerId === null) return;
+
+    // Check if the over-player is in a special section (dropped on a section card)
+    const overPlayerSlot = playerSlotMap.get(overPlayerId);
+    if (overPlayerSlot && isSpecialSection(overPlayerSlot) && overPlayerSlot !== sourceSlot) {
+      onDragEnd({ playerId, sourcePosition: sourceSlot, targetPosition: overPlayerSlot, newIndex: 0 });
+      return;
+    }
 
     const list = byPosition[sourceSlot] ?? [];
     const overIndex = list.findIndex((p) => p.id === overPlayerId);
@@ -257,6 +299,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
         onRemovePlayer={onRemovePlayer}
         onPlayerClick={onPlayerClick}
         onToggleDoubt={onToggleDoubt}
+        onMoveToSection={onMoveToSection}
       />
     );
   };
@@ -325,6 +368,9 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
           </div>
         </div>
       )}
+
+      {/* Extra content inside DndContext — e.g. droppable special sections */}
+      {children}
 
       {/* Drag overlay — floating card that follows the cursor */}
       <DragOverlay>

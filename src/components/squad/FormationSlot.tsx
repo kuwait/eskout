@@ -12,11 +12,12 @@ import { Plus, Trash2, User } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { POSITION_LABELS } from '@/lib/constants';
+import { POSITION_LABELS, SPECIAL_SECTION_LABELS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import type { Player, PositionCode } from '@/lib/types';
+import type { SpecialSquadSection } from '@/lib/constants';
 
 interface FormationSlotProps {
   position: string;
@@ -30,6 +31,8 @@ interface FormationSlotProps {
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
+  /** Move player to a special section (Dúvida / Possibilidades) — real squads only */
+  onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
 }
 
 /* ───────────── Rank styling for shadow squad priority ───────────── */
@@ -63,12 +66,14 @@ function DraggablePlayerCard({
   squadType,
   onRemove,
   onToggleDoubt,
+  onMoveToSection,
 }: {
   player: Player;
   index: number;
   squadType: 'real' | 'shadow';
   onRemove: () => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
+  onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
 }) {
   const dragId = `player-${player.id}`;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
@@ -177,7 +182,7 @@ function DraggablePlayerCard({
             )}
           </div>
           {/* Action buttons */}
-          <div className="mt-1 flex items-center justify-between gap-1">
+          <div className="mt-1 flex flex-wrap items-center gap-1">
             {onToggleDoubt && (
               <button
                 className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${
@@ -207,6 +212,23 @@ function DraggablePlayerCard({
               Remover
             </button>
           </div>
+          {/* Move to special section buttons — real squads only */}
+          {onMoveToSection && (
+            <div className="mt-1 flex gap-1">
+              <button
+                className="flex-1 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 hover:bg-amber-100"
+                onClick={(e) => { e.stopPropagation(); setShowActions(false); onMoveToSection(player.id, 'DUVIDA'); }}
+              >
+                → {SPECIAL_SECTION_LABELS.DUVIDA}
+              </button>
+              <button
+                className="flex-1 rounded bg-purple-50 px-1.5 py-0.5 text-[9px] font-medium text-purple-700 hover:bg-purple-100"
+                onClick={(e) => { e.stopPropagation(); setShowActions(false); onMoveToSection(player.id, 'POSSIBILIDADE'); }}
+              >
+                → {SPECIAL_SECTION_LABELS.POSSIBILIDADE}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -216,7 +238,7 @@ function DraggablePlayerCard({
 /* ───────────── Formation Slot (droppable + sortable container) ───────────── */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- onPlayerClick kept in interface for backward compat, Link replaced onClick
-export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt }: FormationSlotProps) {
+export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onMoveToSection }: FormationSlotProps) {
   const label = positionLabel ?? ((POSITION_LABELS as Record<string, string>)[position] ?? position);
   const displayCode = positionLabel ?? position;
   const dndId = slotId ?? position;
@@ -249,6 +271,7 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
             squadType={squadType}
             onRemove={() => onRemovePlayer(p.id)}
             onToggleDoubt={onToggleDoubt}
+            onMoveToSection={onMoveToSection}
           />
         ))}
       </SortableContext>

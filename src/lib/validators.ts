@@ -79,7 +79,7 @@ export type ObservationNoteData = z.infer<typeof observationNoteSchema>;
 
 /* ───────────── Squad Position (shared enum for real & shadow squad slots) ───────────── */
 
-const SQUAD_POSITION_CODES = ['GR', 'DD', 'DE', 'DC', 'DC_E', 'DC_D', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'] as const;
+const SQUAD_POSITION_CODES = ['GR', 'DD', 'DE', 'DC', 'DC_E', 'DC_D', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL', 'DUVIDA', 'POSSIBILIDADE'] as const;
 
 /* ───────────── Shadow Squad ───────────── */
 

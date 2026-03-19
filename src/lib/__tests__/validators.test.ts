@@ -136,6 +136,11 @@ describe('shadowSquadSchema', () => {
     expect(shadowSquadSchema.safeParse({ playerId: 1, position: 'DC_D' }).success).toBe(true);
   });
 
+  it('accepts special section positions (DUVIDA, POSSIBILIDADE)', () => {
+    expect(shadowSquadSchema.safeParse({ playerId: 1, position: 'DUVIDA' }).success).toBe(true);
+    expect(shadowSquadSchema.safeParse({ playerId: 1, position: 'POSSIBILIDADE' }).success).toBe(true);
+  });
+
   it('rejects invalid position', () => {
     const result = shadowSquadSchema.safeParse({ playerId: 42, position: 'XX' });
     expect(result.success).toBe(false);
@@ -158,6 +163,11 @@ describe('realSquadSchema', () => {
   it('accepts DC sub-slots', () => {
     expect(realSquadSchema.safeParse({ playerId: 1, position: 'DC_E' }).success).toBe(true);
     expect(realSquadSchema.safeParse({ playerId: 1, position: 'DC_D' }).success).toBe(true);
+  });
+
+  it('accepts special section positions (DUVIDA, POSSIBILIDADE)', () => {
+    expect(realSquadSchema.safeParse({ playerId: 1, position: 'DUVIDA' }).success).toBe(true);
+    expect(realSquadSchema.safeParse({ playerId: 1, position: 'POSSIBILIDADE' }).success).toBe(true);
   });
 
   it('rejects invalid position', () => {
@@ -250,6 +260,11 @@ describe('squadPlayerSchema', () => {
   it('accepts DC sub-slots', () => {
     expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 1, position: 'DC_D' }).success).toBe(true);
     expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 1, position: 'DC_E' }).success).toBe(true);
+  });
+
+  it('accepts special section positions (DUVIDA, POSSIBILIDADE)', () => {
+    expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 1, position: 'DUVIDA' }).success).toBe(true);
+    expect(squadPlayerSchema.safeParse({ squadId: 1, playerId: 1, position: 'POSSIBILIDADE' }).success).toBe(true);
   });
 
   it('rejects invalid position', () => {

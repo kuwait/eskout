@@ -11,9 +11,12 @@ import {
   getPositionLabel,
   getNationalityFlag,
   getEscalaoBirthYearRange,
+  isSpecialSection,
   CURRENT_SEASON,
   POSITION_CODES,
   SQUAD_SLOT_CODES,
+  SPECIAL_SQUAD_SECTIONS,
+  SPECIAL_SECTION_LABELS,
   RECRUITMENT_STATUSES,
   TRAINING_PRESENCE,
 } from '@/lib/constants';
@@ -330,5 +333,62 @@ describe('getEscalaoBirthYearRange', () => {
     const range = getEscalaoBirthYearRange('Sub-15', SEASON_START)!;
     const birthYear = 2011;
     expect(birthYear).toBeLessThanOrEqual(range.end); // not playing up
+  });
+});
+
+/* ───────────── Special Squad Sections ───────────── */
+
+describe('SPECIAL_SQUAD_SECTIONS', () => {
+  it('has exactly 2 entries', () => {
+    expect(SPECIAL_SQUAD_SECTIONS).toHaveLength(2);
+  });
+
+  it('contains DUVIDA and POSSIBILIDADE', () => {
+    expect(SPECIAL_SQUAD_SECTIONS).toContain('DUVIDA');
+    expect(SPECIAL_SQUAD_SECTIONS).toContain('POSSIBILIDADE');
+  });
+
+  it('does not overlap with SQUAD_SLOT_CODES', () => {
+    for (const section of SPECIAL_SQUAD_SECTIONS) {
+      expect(SQUAD_SLOT_CODES).not.toContain(section);
+    }
+  });
+});
+
+describe('SPECIAL_SECTION_LABELS', () => {
+  it('maps DUVIDA to Portuguese label', () => {
+    expect(SPECIAL_SECTION_LABELS.DUVIDA).toBe('Dúvida');
+  });
+
+  it('maps POSSIBILIDADE to Portuguese label', () => {
+    expect(SPECIAL_SECTION_LABELS.POSSIBILIDADE).toBe('Possibilidades');
+  });
+});
+
+describe('isSpecialSection', () => {
+  it('returns true for DUVIDA', () => {
+    expect(isSpecialSection('DUVIDA')).toBe(true);
+  });
+
+  it('returns true for POSSIBILIDADE', () => {
+    expect(isSpecialSection('POSSIBILIDADE')).toBe(true);
+  });
+
+  it('returns false for regular position codes', () => {
+    expect(isSpecialSection('GR')).toBe(false);
+    expect(isSpecialSection('DC')).toBe(false);
+    expect(isSpecialSection('MC')).toBe(false);
+    expect(isSpecialSection('PL')).toBe(false);
+  });
+
+  it('returns false for DC sub-slots', () => {
+    expect(isSpecialSection('DC_E')).toBe(false);
+    expect(isSpecialSection('DC_D')).toBe(false);
+  });
+
+  it('returns false for empty string and invalid codes', () => {
+    expect(isSpecialSection('')).toBe(false);
+    expect(isSpecialSection('XX')).toBe(false);
+    expect(isSpecialSection('duvida')).toBe(false);
   });
 });

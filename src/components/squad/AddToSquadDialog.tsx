@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { POSITION_LABELS, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
+import { POSITION_LABELS, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS, isSpecialSection, SPECIAL_SECTION_LABELS } from '@/lib/constants';
+import type { SpecialSquadSection } from '@/lib/constants';
 import { addToShadowSquad, toggleRealSquad } from '@/actions/squads';
 import { searchPickerPlayers, getPickerClubs } from '@/actions/player-lists';
 import type { DepartmentOpinion, PickerPlayer } from '@/lib/types';
@@ -82,11 +83,12 @@ export function AddToSquadDialog({
   }, [filters.search]);
 
   // Pre-fill position + year filters when dialog opens
-  // DC_E/DC_D → DC for the position filter (base position code)
+  // DC_E/DC_D → DC for the position filter; special sections → no position filter
   /* eslint-disable react-hooks/set-state-in-effect -- resets filter form when dialog opens with new position/year */
   useEffect(() => {
     if (open) {
-      const basePos = position === 'DC_E' || position === 'DC_D' ? 'DC' : position;
+      const isSpecial = isSpecialSection(position);
+      const basePos = isSpecial ? '' : (position === 'DC_E' || position === 'DC_D' ? 'DC' : position);
       setFilters({
         ...EMPTY_FILTERS,
         position: basePos,
@@ -128,9 +130,12 @@ export function AddToSquadDialog({
   }, [open, debouncedSearch, filters.position, filters.club, filters.opinion, filters.foot, excludeIds]);
 
   const posLabel = (POSITION_LABELS as Record<string, string>)[position] ?? position;
-  const title = squadType === 'shadow'
-    ? `Plantel Sombra — ${position} (${posLabel})`
-    : `Plantel — ${position} (${posLabel})`;
+  const isSpecialPos = isSpecialSection(position);
+  const title = isSpecialPos
+    ? `Plantel — ${SPECIAL_SECTION_LABELS[position as SpecialSquadSection]}`
+    : squadType === 'shadow'
+      ? `Plantel Sombra — ${position} (${posLabel})`
+      : `Plantel — ${position} (${posLabel})`;
 
   /** Extract unique birth years from the pool for year filter */
   const years = useMemo(() => {
