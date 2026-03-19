@@ -5,6 +5,7 @@
 
 'use client';
 
+import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import type { CalendarEvent } from '@/lib/types';
 import { EventBadge } from '@/components/calendar/EventBadge';
@@ -82,6 +83,17 @@ export function CalendarGrid({ events, year, month, onDayClick, onEventClick }: 
   const days = buildCalendarDays(year, month);
   const today = new Date().toISOString().split('T')[0];
 
+  // Track which day cells are expanded to show all events
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const toggleExpanded = useCallback((date: string) => {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }, []);
+
   // Group events by date for quick lookup
   const eventsByDate = new Map<string, CalendarEvent[]>();
   for (const event of events) {
@@ -106,9 +118,10 @@ export function CalendarGrid({ events, year, month, onDayClick, onEventClick }: 
         {days.map((dayInfo) => {
           const dayEvents = eventsByDate.get(dayInfo.date) ?? [];
           const isToday = dayInfo.date === today;
-          // Show max 4 events, then "+N mais"
+          // Show max 4 events unless day is expanded
           const MAX_VISIBLE = 4;
-          const visibleEvents = dayEvents.slice(0, MAX_VISIBLE);
+          const isExpanded = expandedDays.has(dayInfo.date);
+          const visibleEvents = isExpanded ? dayEvents : dayEvents.slice(0, MAX_VISIBLE);
           const hiddenCount = dayEvents.length - MAX_VISIBLE;
 
           return (
@@ -146,10 +159,29 @@ export function CalendarGrid({ events, year, month, onDayClick, onEventClick }: 
                     }}
                   />
                 ))}
-                {hiddenCount > 0 && (
-                  <div className="px-1 text-[10px] font-medium text-neutral-400">
+                {hiddenCount > 0 && !isExpanded && (
+                  <button
+                    type="button"
+                    className="px-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpanded(dayInfo.date);
+                    }}
+                  >
                     +{hiddenCount} mais
-                  </div>
+                  </button>
+                )}
+                {isExpanded && dayEvents.length > MAX_VISIBLE && (
+                  <button
+                    type="button"
+                    className="px-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpanded(dayInfo.date);
+                    }}
+                  >
+                    ver menos
+                  </button>
                 )}
               </div>
             </div>
