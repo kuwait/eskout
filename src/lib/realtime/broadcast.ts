@@ -3,13 +3,13 @@
 // Called from Server Actions after successful DB mutations to notify other connected clients
 // RELEVANT FILES: src/lib/realtime/types.ts, src/lib/supabase/server.ts, src/actions/players.ts
 
-import { createServiceClient } from '@/lib/supabase/server';
 import type { MutationAction, MutationEvent, RealtimeTable } from './types';
 
 /**
  * Broadcast a mutation event to all connected clients in the same club.
- * Uses the service role Supabase client (standard JS client, NOT SSR) which
- * supports Realtime properly. Subscribes → sends → unsubscribes.
+ * Uses the Supabase Realtime HTTP API (REST) instead of WebSocket — much more
+ * reliable in serverless environments (Vercel) where WebSocket connections are
+ * short-lived and may not deliver messages before the function terminates.
  *
  * Fire-and-forget: errors are logged but never thrown — mutations should
  * succeed even if broadcast fails (graceful degradation).
@@ -26,7 +26,8 @@ export async function broadcastMutation(
   }
 ): Promise<void> {
   try {
-    const supabase = await createServiceClient();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const channelName = `club-${clubId}`;
 
     const payload: MutationEvent = {
@@ -38,35 +39,28 @@ export async function broadcastMutation(
       fields: opts?.fields,
     };
 
-    const channel = supabase.channel(channelName);
-
-    // Subscribe first, then send, then clean up
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        supabase.removeChannel(channel);
-        reject(new Error('Broadcast subscribe timeout'));
-      }, 5000);
-
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          clearTimeout(timeout);
-          channel
-            .send({ type: 'broadcast', event: 'mutation', payload })
-            .then(() => {
-              supabase.removeChannel(channel);
-              resolve();
-            })
-            .catch((err) => {
-              supabase.removeChannel(channel);
-              reject(err);
-            });
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          clearTimeout(timeout);
-          supabase.removeChannel(channel);
-          reject(new Error(`Channel ${status}`));
-        }
-      });
+    // Use Supabase Realtime REST API for server-side broadcast
+    const res = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: channelName,
+            event: 'mutation',
+            payload,
+          },
+        ],
+      }),
     });
+
+    if (!res.ok) {
+      console.error('[Realtime] broadcast HTTP error:', res.status, await res.text());
+    }
   } catch (err) {
     // Never throw — broadcast failure should not block mutations
     console.error('[Realtime] broadcast failed:', err);
