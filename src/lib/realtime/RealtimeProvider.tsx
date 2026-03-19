@@ -22,6 +22,7 @@ import type {
   RealtimeConnectionStatus,
   RealtimeTable,
 } from './types';
+import { REALTIME_TABLES } from './types';
 
 /* ───────────── Config ───────────── */
 
@@ -96,6 +97,8 @@ export function RealtimeProvider({
   const statusListenersRef = useRef(new Set<StatusListener>());
   const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const currentPageRef = useRef('/');
+  /** Track whether we were previously disconnected — to fire RECONNECT events */
+  const wasDisconnectedRef = useRef(false);
 
   /* ───────────── Event Bus Implementation ───────────── */
 
@@ -134,11 +137,28 @@ export function RealtimeProvider({
     mutationListenersRef.current.get('*')?.forEach((fn) => fn(event));
   }, []);
 
-  /** Update connection status and notify listeners */
+  /** Update connection status and notify listeners.
+   *  On reconnect (disconnected → connected), fire RECONNECT events on all tables
+   *  so components refetch data that may have changed while disconnected. */
   const updateStatus = useCallback((newStatus: RealtimeConnectionStatus) => {
+    const wasDisconnected = wasDisconnectedRef.current;
+
+    if (newStatus === 'disconnected') {
+      wasDisconnectedRef.current = true;
+    }
+
+    // Fire RECONNECT events when going from disconnected → connected
+    if (newStatus === 'connected' && wasDisconnected) {
+      wasDisconnectedRef.current = false;
+      // Dispatch a RECONNECT mutation for every table so all listeners refetch
+      for (const table of REALTIME_TABLES) {
+        dispatchMutation({ table, action: 'RECONNECT', by: '__system__' });
+      }
+    }
+
     setStatus(newStatus);
     statusListenersRef.current.forEach((fn) => fn(newStatus));
-  }, []);
+  }, [dispatchMutation]);
 
   /* ───────────── Channel Lifecycle ───────────── */
 

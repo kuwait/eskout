@@ -30,7 +30,7 @@ export type RealtimeTable = (typeof REALTIME_TABLES)[number];
 
 /* ───────────── Mutation Events ───────────── */
 
-export type MutationAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'BULK';
+export type MutationAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'BULK' | 'RECONNECT';
 
 export interface MutationEvent {
   /** Which table was mutated */
@@ -73,6 +73,8 @@ export interface RealtimeTableCallbacks {
   onUpdate?: (event: MutationEvent) => void;
   onDelete?: (event: MutationEvent) => void;
   onBulk?: (event: MutationEvent) => void;
+  /** Called when the channel reconnects after being disconnected (e.g. tab was hidden) */
+  onReconnect?: (event: MutationEvent) => void;
   /** Called for any event type — convenience when you want the same handler for all */
   onAny?: (event: MutationEvent) => void;
 }

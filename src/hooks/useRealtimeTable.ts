@@ -97,6 +97,9 @@ function dispatchToCallbacks(event: MutationEvent, cbs: RealtimeTableCallbacks):
     case 'BULK':
       cbs.onBulk?.(event);
       break;
+    case 'RECONNECT':
+      cbs.onReconnect?.(event);
+      break;
   }
 }
 
