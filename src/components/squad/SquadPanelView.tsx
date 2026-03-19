@@ -34,6 +34,7 @@ type ViewMode = 'campo' | 'lista' | 'comparar';
 type SquadPlayersMap = Map<number, { position: string; sortOrder: number }>;
 
 const VIEW_MODE_KEY_PREFIX = 'eskout-view-';
+const SQUAD_SELECTION_KEY_PREFIX = 'eskout-squad-';
 
 /** Read persisted view mode from localStorage */
 function getStoredViewMode(squadType: string): ViewMode {
@@ -41,6 +42,15 @@ function getStoredViewMode(squadType: string): ViewMode {
   const stored = localStorage.getItem(`${VIEW_MODE_KEY_PREFIX}${squadType}`);
   if (stored === 'lista' || stored === 'comparar') return stored;
   return 'campo';
+}
+
+/** Read persisted squad selection from localStorage */
+function getStoredSquadId(squadType: string): number | null {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem(`${SQUAD_SELECTION_KEY_PREFIX}${squadType}`);
+  if (!stored) return null;
+  const num = Number(stored);
+  return Number.isFinite(num) ? num : null;
 }
 
 /** Group players by squad slot position from a squad_players map */
@@ -133,7 +143,17 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
 
   const [squads, setSquads] = useState<Squad[]>([]);
   // For real squads: which squad is currently selected in the navigator
-  const [selectedSquadId, setSelectedSquadId] = useState<number | null>(initialSquadId ?? null);
+  // Priority: initialSquadId (direct link) > localStorage > null
+  const [selectedSquadId, setSelectedSquadIdState] = useState<number | null>(
+    () => initialSquadId ?? getStoredSquadId(squadType)
+  );
+  /** Persist squad selection to localStorage when changed */
+  const setSelectedSquadId = useCallback((id: number | null) => {
+    setSelectedSquadIdState(id);
+    if (id != null) {
+      localStorage.setItem(`${SQUAD_SELECTION_KEY_PREFIX}${squadType}`, String(id));
+    }
+  }, [squadType]);
   // Map<squadId, Map<playerId, { position, sortOrder }>>
   const [allSquadPlayersMap, setAllSquadPlayersMap] = useState<Map<number, SquadPlayersMap>>(new Map());
   // Age group IDs that have shadow squads — for filtering the AgeGroupSelector
@@ -251,7 +271,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
       if (!valid && mapped[0]) setSelectedSquadId(mapped[0].id);
       else if (!valid) setSelectedSquadId(null);
     }
-  }, [squadType, selectedId, selectedSquadId, initialSquadId, clubId]);
+  }, [squadType, selectedId, selectedSquadId, initialSquadId, clubId, setSelectedSquadId]);
 
   useEffect(() => { fetchSquads(); }, [fetchSquads]);
 
