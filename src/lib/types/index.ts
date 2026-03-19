@@ -121,6 +121,8 @@ export interface Player {
   playingUpRegular?: boolean;
   /** Playing up (pontual): played above but not regularly */
   playingUpPontual?: boolean;
+  /** Squad-context only: player is marked as "Dúvida" in the current squad view */
+  isDoubt?: boolean;
 }
 
 /* ───────────── Database Row Types (snake_case from Supabase) ───────────── */
@@ -805,6 +807,7 @@ export interface SquadPlayer {
   clubId: string;
   position: string;
   sortOrder: number;
+  isDoubt: boolean;
   addedAt: string;
 }
 
@@ -815,6 +818,7 @@ export interface SquadPlayerRow {
   club_id: string;
   position: string;
   sort_order: number;
+  is_doubt: boolean;
   added_at: string;
 }
 

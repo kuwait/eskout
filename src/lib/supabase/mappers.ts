@@ -275,6 +275,7 @@ export function mapSquadPlayerRow(row: SquadPlayerRow): SquadPlayer {
     clubId: row.club_id,
     position: row.position,
     sortOrder: row.sort_order,
+    isDoubt: row.is_doubt ?? false,
     addedAt: row.added_at,
   };
 }

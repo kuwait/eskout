@@ -7,7 +7,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { Plus, Trash2, User } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, Plus, Trash2, User } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -28,6 +29,7 @@ interface FormationSlotProps {
   onAdd: () => void;
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
+  onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
 }
 
 /* ───────────── Rank styling for shadow squad priority ───────────── */
@@ -60,13 +62,13 @@ function DraggablePlayerCard({
   index,
   squadType,
   onRemove,
-  onPlayerClick,
+  onToggleDoubt,
 }: {
   player: Player;
   index: number;
   squadType: 'real' | 'shadow';
   onRemove: () => void;
-  onPlayerClick?: (playerId: number) => void;
+  onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
 }) {
   const dragId = `player-${player.id}`;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
@@ -106,11 +108,22 @@ function DraggablePlayerCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`relative w-full min-w-[100px] max-w-[160px] cursor-grab rounded-md bg-white/95 shadow-sm touch-none active:cursor-grabbing ${
+      className={`relative w-full min-w-[100px] max-w-[160px] cursor-grab rounded-md shadow-sm touch-none active:cursor-grabbing ${
+        player.isDoubt
+          ? 'border border-dashed border-amber-400 bg-amber-50/90 opacity-80'
+          : 'bg-white/95'
+      } ${
         squadType === 'shadow' ? RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200' : ''
       }`}
       onClick={handleCardClick}
     >
+      {/* Doubt flag — bottom-right corner */}
+      {player.isDoubt && (
+        <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-amber-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Dúvida">
+          Dúvida
+        </span>
+      )}
+
       {/* Rank corner badge — top-right */}
       {squadType === 'shadow' && (
         <span className={`absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-bl-md rounded-tr-md text-[9px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
@@ -165,12 +178,26 @@ function DraggablePlayerCard({
           </div>
           {/* Action buttons */}
           <div className="mt-1 flex items-center justify-between gap-1">
-            <button
+            {onToggleDoubt && (
+              <button
+                className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${
+                  player.isDoubt
+                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                    : 'text-amber-600 hover:bg-amber-50'
+                }`}
+                onClick={(e) => { e.stopPropagation(); onToggleDoubt(player.id, !player.isDoubt); }}
+                aria-label={player.isDoubt ? 'Remover dúvida' : 'Marcar como dúvida'}
+              >
+                {player.isDoubt ? '✓ Dúvida' : '? Dúvida'}
+              </button>
+            )}
+            <Link
+              href={`/jogadores/${player.id}`}
               className="flex-1 rounded px-1.5 py-0.5 text-center text-[9px] font-medium text-blue-600 hover:bg-blue-50"
-              onClick={(e) => { e.stopPropagation(); setShowActions(false); onPlayerClick?.(player.id); }}
+              onClick={(e) => { e.stopPropagation(); setShowActions(false); }}
             >
               Ver perfil
-            </button>
+            </Link>
             <button
               className="flex items-center gap-0.5 rounded bg-red-50 px-1.5 py-0.5 text-[9px] font-medium text-red-600 hover:bg-red-100"
               onClick={(e) => { e.stopPropagation(); setShowActions(false); onRemove(); }}
@@ -188,7 +215,8 @@ function DraggablePlayerCard({
 
 /* ───────────── Formation Slot (droppable + sortable container) ───────────── */
 
-export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick }: FormationSlotProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- onPlayerClick kept in interface for backward compat, Link replaced onClick
+export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt }: FormationSlotProps) {
   const label = positionLabel ?? ((POSITION_LABELS as Record<string, string>)[position] ?? position);
   const displayCode = positionLabel ?? position;
   const dndId = slotId ?? position;
@@ -220,7 +248,7 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
             index={i}
             squadType={squadType}
             onRemove={() => onRemovePlayer(p.id)}
-            onPlayerClick={onPlayerClick}
+            onToggleDoubt={onToggleDoubt}
           />
         ))}
       </SortableContext>

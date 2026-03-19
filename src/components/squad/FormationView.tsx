@@ -77,6 +77,7 @@ interface FormationViewProps {
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
   onDragEnd?: (info: DragEndInfo) => void;
+  onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
 }
 
 /** Parse drag ID format "player-{id}" → player ID */
@@ -109,7 +110,7 @@ interface DragVirtual {
   toIndex: number;
 }
 
-export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd }: FormationViewProps) {
+export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt }: FormationViewProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [dragVirtual, setDragVirtual] = useState<DragVirtual | null>(null);
   const isDesktop = useIsDesktop();
@@ -255,6 +256,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
         onAdd={() => onAdd(slotId)}
         onRemovePlayer={onRemovePlayer}
         onPlayerClick={onPlayerClick}
+        onToggleDoubt={onToggleDoubt}
       />
     );
   };

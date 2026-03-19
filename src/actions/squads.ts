@@ -339,6 +339,35 @@ export async function removePlayerFromSquad(
   return { success: true };
 }
 
+/* ───────────── Toggle Doubt Flag ───────────── */
+
+/** Mark or unmark a squad player as "Dúvida" */
+export async function toggleSquadPlayerDoubt(
+  squadId: number,
+  playerId: number,
+  isDoubt: boolean
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('squad_players')
+    .update({ is_doubt: isDoubt })
+    .eq('squad_id', squadId)
+    .eq('player_id', playerId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar dúvida: ${error.message}` };
+  }
+
+  revalidatePath('/campo');
+  await broadcastRowMutation(clubId, 'squad_players', 'UPDATE', userId, playerId);
+  return { success: true };
+}
+
 /* ───────────── Reorder Squad Player (within same position) ───────────── */
 
 export async function reorderSquadPlayer(

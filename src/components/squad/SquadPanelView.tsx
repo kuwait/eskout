@@ -23,6 +23,7 @@ import {
   addToShadowSquad, removeFromShadowSquad, toggleRealSquad,
   addPlayerToSquad, removePlayerFromSquad,
   bulkReorderSquad, moveSquadPlayerPosition,
+  toggleSquadPlayerDoubt,
 } from '@/actions/squads';
 import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +32,7 @@ import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { Player, PickerPlayer, PlayerRow, Squad, SquadRow, SquadType } from '@/lib/types';
 
 type ViewMode = 'campo' | 'lista' | 'comparar';
-type SquadPlayersMap = Map<number, { position: string; sortOrder: number }>;
+type SquadPlayersMap = Map<number, { position: string; sortOrder: number; isDoubt: boolean }>;
 
 const VIEW_MODE_KEY_PREFIX = 'eskout-view-';
 const SQUAD_SELECTION_KEY_PREFIX = 'eskout-squad-';
@@ -64,13 +65,15 @@ function computeByPosition(
   for (const [playerId, sp] of playerMap) {
     const player = allPlayers.find((p) => p.id === playerId);
     if (!player) continue;
+    // Stamp squad-context doubt flag onto the player object for rendering
+    const stamped = sp.isDoubt ? { ...player, isDoubt: true } : player;
     const pos = sp.position;
     if (pos === 'DC') {
       const dcE = map['DC_E'] ?? []; const dcD = map['DC_D'] ?? [];
-      if (dcE.length <= dcD.length) { dcE.push(player); map['DC_E'] = dcE; }
-      else { dcD.push(player); map['DC_D'] = dcD; }
+      if (dcE.length <= dcD.length) { dcE.push(stamped); map['DC_E'] = dcE; }
+      else { dcD.push(stamped); map['DC_D'] = dcD; }
     } else if (map[pos]) {
-      map[pos].push(player);
+      map[pos].push(stamped);
     }
   }
 
@@ -296,7 +299,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     const supabase = createClient();
     const { data, error } = await supabase
       .from('squad_players')
-      .select('squad_id, player_id, position, sort_order')
+      .select('squad_id, player_id, position, sort_order, is_doubt')
       .in('squad_id', visibleSquadIds);
 
     if (error || !data) { setAllSquadPlayersMap(new Map()); return; }
@@ -304,7 +307,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     const map = new Map<number, SquadPlayersMap>();
     for (const sid of visibleSquadIds) map.set(sid, new Map());
     for (const row of data) {
-      map.get(row.squad_id)?.set(row.player_id, { position: row.position, sortOrder: row.sort_order });
+      map.get(row.squad_id)?.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false });
     }
     setAllSquadPlayersMap(map);
   }, [visibleSquadIds]);
@@ -350,14 +353,14 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
 
     const { data } = await supabase
       .from('squad_players')
-      .select('squad_id, player_id, position, sort_order')
+      .select('squad_id, player_id, position, sort_order, is_doubt')
       .eq('squad_id', compareRightId);
 
     if (!data) { setOtherSquadPlayersMap(new Map()); return; }
 
     const map: SquadPlayersMap = new Map();
     for (const row of data) {
-      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order });
+      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false });
     }
     setOtherSquadPlayersMap(map);
   }, [compareRightId]);
@@ -453,7 +456,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
       setAllSquadPlayersMap((prev) => {
         const next = new Map(prev);
         const updated = new Map(next.get(squadId) ?? new Map());
-        updated.set(player.id, { position: pos, sortOrder: nextOrder });
+        updated.set(player.id, { position: pos, sortOrder: nextOrder, isDoubt: false });
         next.set(squadId, updated);
         return next;
       });
@@ -591,6 +594,25 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     }
   }
 
+  /* ───────────── Doubt toggle ───────────── */
+
+  function handleToggleDoubt(playerId: number, squadId: number | null, isDoubt: boolean) {
+    if (!squadId) return; // Legacy squads don't support doubt
+    markMutation();
+    // Optimistic update
+    setAllSquadPlayersMap((prev) => {
+      const next = new Map(prev);
+      const updated = new Map(next.get(squadId) ?? new Map());
+      const existing = updated.get(playerId);
+      if (existing) updated.set(playerId, { ...existing, isDoubt });
+      next.set(squadId, updated);
+      return next;
+    });
+    toggleSquadPlayerDoubt(squadId, playerId, isDoubt).then((res) => {
+      if (!res.success) fetchSquadPlayers(); // Revert on failure
+    });
+  }
+
   /* ───────────── Render ───────────── */
 
   const labelFn = squadType === 'shadow'
@@ -623,7 +645,13 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
     const openAdd = (pos: string) => { setDialogPosition(pos); setDialogSquadId(squad.id); setDialogOpen(true); };
     const remove = (pid: number) => handleRemove(pid, squad.id);
     const dragEnd = (info: DragEndInfo) => handleDragEnd(info, squad.id, byPos);
+    const toggleDoubt = (pid: number, isDoubt: boolean) => handleToggleDoubt(pid, squad.id, isDoubt);
     const exportData = { squadType, ageGroupLabel, byPosition: byPos, squadName: squad.name };
+
+    // Player count + doubt count
+    const allSquadPlayers = Object.values(byPos).flat();
+    const totalCount = allSquadPlayers.length;
+    const doubtCount = allSquadPlayers.filter((p) => p.isDoubt).length;
 
     return (
       <div key={squad.id} className="space-y-4">
@@ -641,6 +669,19 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
                   {squad.description}
                 </Badge>
               )}
+              {/* Player count + doubt count */}
+              <div className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900">
+                  {totalCount}
+                  <span className="font-normal opacity-70">{totalCount === 1 ? 'atleta' : 'atletas'}</span>
+                </span>
+                {doubtCount > 0 && (
+                  <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
+                    {doubtCount}
+                    <span className="font-normal opacity-80">{doubtCount === 1 ? 'dúvida' : 'dúvidas'}</span>
+                  </span>
+                )}
+              </div>
             </div>
             <SquadExportMenu data={exportData} captureRef={squadContentRef} />
           </div>
@@ -648,7 +689,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
         {viewMode === 'campo' && (
           <>
             {mounted ? (
-              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} />
+              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} onToggleDoubt={toggleDoubt} />
             ) : (
               <div className="flex h-[520px] items-center justify-center rounded-xl bg-green-700">
                 <span className="text-sm text-white/60">A carregar campo...</span>
@@ -662,7 +703,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
           </>
         )}
         {viewMode === 'lista' && (
-          <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} />
+          <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onToggleDoubt={toggleDoubt} />
         )}
       </div>
     );
@@ -740,11 +781,13 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
       <div className="sticky top-0 z-20 -mx-4 border-b border-transparent bg-card px-4 pb-2 pt-1 shadow-[0_1px_3px_rgba(0,0,0,0.05)] lg:-mx-6 lg:px-6">
         <div className="flex items-center justify-between gap-2">
           {/* Navigator: Real → SquadSelector, Shadow → AgeGroupSelector */}
-          {squadType === 'real' ? (
-            <SquadSelector squads={squads} selectedSquadId={selectedSquadId} onSelect={setSelectedSquadId} />
-          ) : (
-            <AgeGroupSelector showAll={false} variant="navigator" value={selectedId} onChange={setSelectedId} ageGroups={filteredAgeGroups} labelFn={labelFn} />
-          )}
+          <div className="flex items-center gap-2">
+            {squadType === 'real' ? (
+              <SquadSelector squads={squads} selectedSquadId={selectedSquadId} onSelect={setSelectedSquadId} />
+            ) : (
+              <AgeGroupSelector showAll={false} variant="navigator" value={selectedId} onChange={setSelectedId} ageGroups={filteredAgeGroups} labelFn={labelFn} />
+            )}
+          </div>
 
           {/* View mode toggle + export */}
           <div className="flex items-center gap-2">
