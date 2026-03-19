@@ -10,7 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Check, Clock, Eye, Camera, Footprints, Loader2, Pencil, Phone, Printer, Ruler, Share2, Shirt, Trash2, User, Weight, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, Clock, Eye, Camera, Footprints, GitBranchPlus, Loader2, Pencil, Phone, Printer, Ruler, Share2, Shirt, Trash2, User, Weight, X } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +61,7 @@ import {
   getPositionLabel,
 } from '@/lib/constants';
 import { updatePlayer, deletePlayer, approvePlayer, rejectPlayer, deleteStatusHistoryEntry } from '@/actions/players';
+import { updateRecruitmentStatus } from '@/actions/pipeline';
 import { autoScrapePlayer } from '@/actions/scraping';
 import { fetchZzProfileClient } from '@/lib/zerozero/client';
 import { ListBookmarkDropdown } from '@/components/players/ListBookmarkDropdown';
@@ -145,6 +146,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPitchPopup, setShowPitchPopup] = useState(false);
   const [isDeleting, startDelete] = useTransition();
+  const [isAddingToPipeline, startPipeline] = useTransition();
   const [historyEntries, setHistoryEntries] = useState(statusHistory);
   const profileRef = useRef<HTMLDivElement>(null);
   const isAdmin = userRole === 'admin';
@@ -185,6 +187,19 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
 
   /* ───────────── Lists bookmark ───────────── */
   const canObserve = !isScout;
+
+  /* ───────────── Add to Pipeline ───────────── */
+  function handleAddToPipeline() {
+    startPipeline(async () => {
+      const res = await updateRecruitmentStatus(player.id, 'por_tratar');
+      if (res.success) {
+        toast.success('Jogador adicionado à pipeline');
+        router.refresh();
+      } else {
+        toast.error(res.error || 'Erro ao adicionar à pipeline');
+      }
+    });
+  }
 
   function handleEdit() {
     setDraft(player);
@@ -448,6 +463,21 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </>
             )}
             <RefreshPlayerButton player={player} />
+            {/* Add to pipeline — only when player is NOT already in pipeline */}
+            {canObserve && !p.recruitmentStatus && (
+              <>
+                <div className="mx-0.5 h-4 w-px bg-neutral-200" />
+                <button
+                  onClick={handleAddToPipeline}
+                  disabled={isAddingToPipeline}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground hover:shadow-sm disabled:opacity-50"
+                  title="Iniciar recrutamento"
+                >
+                  {isAddingToPipeline ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitBranchPlus className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">Recrutar</span>
+                </button>
+              </>
+            )}
             {canEdit && (
               <>
                 <div className="mx-0.5 h-4 w-px bg-neutral-200" />
