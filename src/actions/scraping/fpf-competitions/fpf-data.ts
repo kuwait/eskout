@@ -36,23 +36,23 @@ export interface FpfFixtureMatch {
 
 /* ───────────── Associations ───────────── */
 
-/** Hardcoded list of Portuguese football associations (stable, unlikely to change) */
+/** Hardcoded list of Portuguese football associations — IDs from resultados.fpf.pt/Competition */
 export const FPF_ASSOCIATIONS: FpfAssociation[] = [
-  { id: 216, name: 'AF Açores' },
-  { id: 217, name: 'AF Angra do Heroísmo' },
-  { id: 218, name: 'AF Aveiro' },
+  { id: 224, name: 'AF Algarve' },
+  { id: 216, name: 'AF Angra do Heroísmo' },
+  { id: 217, name: 'AF Aveiro' },
+  { id: 218, name: 'AF Beja' },
   { id: 219, name: 'AF Braga' },
   { id: 220, name: 'AF Bragança' },
   { id: 221, name: 'AF Castelo Branco' },
   { id: 222, name: 'AF Coimbra' },
   { id: 223, name: 'AF Évora' },
-  { id: 224, name: 'AF Algarve' },
-  { id: 225, name: 'AF Madeira' },
   { id: 226, name: 'AF Guarda' },
   { id: 227, name: 'AF Horta' },
   { id: 228, name: 'AF Leiria' },
   { id: 229, name: 'AF Lisboa' },
-  { id: 230, name: 'AF Beja' },
+  { id: 225, name: 'AF Madeira' },
+  { id: 230, name: 'AF Ponta Delgada' },
   { id: 231, name: 'AF Portalegre' },
   { id: 232, name: 'AF Porto' },
   { id: 233, name: 'AF Santarém' },
