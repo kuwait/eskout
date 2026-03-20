@@ -278,14 +278,42 @@ export async function exportAsPdf(data: ExportSquadData, mode: 'download' | 'pri
 /* ───────────── Shared: capture element as PNG data URL ───────────── */
 
 async function captureElement(element: HTMLElement): Promise<string> {
-  const { toPng } = await import('html-to-image');
-  // html-to-image uses the browser's serialization — handles oklch/lab/modern CSS
-  return toPng(element, {
-    backgroundColor: '#ffffff',
-    pixelRatio: 2,
-    // Skip cross-origin images that would taint the canvas
-    skipAutoScale: true,
-  });
+  const { toCanvas } = await import('html-to-image');
+
+  // Pre-convert cross-origin images to data URLs via our proxy to avoid canvas taint
+  const imgs = element.querySelectorAll<HTMLImageElement>('img[src]');
+  const originals: { img: HTMLImageElement; src: string }[] = [];
+
+  await Promise.all(Array.from(imgs).map(async (img) => {
+    const src = img.src;
+    if (src.startsWith('data:') || src.startsWith(window.location.origin)) return;
+    originals.push({ img, src });
+    try {
+      const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(src)}`;
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error('proxy fetch failed');
+      const json = await res.json();
+      if (json.dataUrl) img.src = json.dataUrl;
+    } catch {
+      // Hide the image entirely so it doesn't taint the canvas
+      img.style.visibility = 'hidden';
+    }
+  }));
+
+  try {
+    // Use toCanvas for more reliable rendering (avoids SVG serialization issues)
+    const canvas = await toCanvas(element, {
+      backgroundColor: '#ffffff',
+      pixelRatio: 2,
+      skipAutoScale: true,
+    });
+    return canvas.toDataURL('image/png');
+  } finally {
+    for (const { img, src } of originals) {
+      img.src = src;
+      img.style.visibility = '';
+    }
+  }
 }
 
 /* ───────────── Visual PDF (screenshot of current view) ───────────── */
@@ -302,7 +330,7 @@ export async function exportAsVisualPdf(element: HTMLElement, data: ExportSquadD
     const img = new window.Image();
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve();
-      img.onerror = reject;
+      img.onerror = () => reject(new Error('Falha ao carregar imagem capturada para PDF'));
       img.src = dataUrl;
     });
 
