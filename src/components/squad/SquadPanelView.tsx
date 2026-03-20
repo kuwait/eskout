@@ -733,7 +733,10 @@ export function SquadPanelView({ squadType, initialSquadId, clubId }: SquadPanel
                 )}
               </div>
             </div>
-            <SquadExportMenu data={exportData} captureRef={squadContentRef} />
+            {/* Per-squad export — only shown when multiple squads visible (single squad uses global export) */}
+            {visibleSquadSections.length > 1 && (
+              <SquadExportMenu data={exportData} captureRef={squadContentRef} />
+            )}
           </div>
         )}
         {viewMode === 'campo' && (
