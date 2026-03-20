@@ -441,16 +441,82 @@ export async function updateCompetitionStats(
   const auth = await requireSuperadmin();
   if (!auth) return { success: false, error: 'Acesso negado' };
 
-  const { count: totalScraped } = await auth.supabase
-    .from('fpf_matches')
-    .select('id', { count: 'exact', head: true })
-    .eq('competition_id', competitionId);
+  const sb = auth.supabase;
 
-  await auth.supabase
+  // 1. Fetch all matches for this competition (paginated — can exceed 1000)
+  const PAGE = 1000;
+  const matches: { id: number; series_name: string | null; home_team: string; away_team: string }[] = [];
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data } = await sb
+      .from('fpf_matches')
+      .select('id, series_name, home_team, away_team')
+      .eq('competition_id', competitionId)
+      .range(offset, offset + PAGE - 1);
+    if (data && data.length > 0) {
+      matches.push(...data);
+      offset += PAGE;
+      hasMore = data.length === PAGE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  // Aggregate match-level stats
+  const seriesSet = new Set<string>();
+  const teamsSet = new Set<string>();
+  for (const m of matches) {
+    if (m.series_name) seriesSet.add(m.series_name);
+    teamsSet.add(m.home_team);
+    teamsSet.add(m.away_team);
+  }
+
+  // 2. Fetch player stats — batch .in() in chunks of 300 match IDs
+  const matchIds = matches.map((m) => m.id);
+  const allPlayers = new Set<string>();
+  const linkedPlayers = new Set<string>();
+  const unlinkedPlayers = new Set<string>();
+
+  if (matchIds.length > 0) {
+    const ID_CHUNK = 300;
+    for (let c = 0; c < matchIds.length; c += ID_CHUNK) {
+      const chunk = matchIds.slice(c, c + ID_CHUNK);
+      let pOffset = 0;
+      let pMore = true;
+      while (pMore) {
+        const { data: page } = await sb
+          .from('fpf_match_players')
+          .select('fpf_player_id, eskout_player_id')
+          .in('match_id', chunk)
+          .range(pOffset, pOffset + PAGE - 1);
+        if (page && page.length > 0) {
+          for (const p of page) {
+            if (!p.fpf_player_id) continue;
+            const key = String(p.fpf_player_id);
+            allPlayers.add(key);
+            if (p.eskout_player_id) linkedPlayers.add(key); else unlinkedPlayers.add(key);
+          }
+          pOffset += PAGE;
+          pMore = page.length === PAGE;
+        } else {
+          pMore = false;
+        }
+      }
+    }
+  }
+
+  // 3. Write denormalized stats to fpf_competitions
+  await sb
     .from('fpf_competitions')
     .update({
-      scraped_matches: totalScraped ?? 0,
-      total_matches: totalScraped ?? 0,
+      scraped_matches: matches.length,
+      total_matches: matches.length,
+      total_series: seriesSet.size,
+      total_teams: teamsSet.size,
+      total_players: allPlayers.size,
+      linked_players: linkedPlayers.size,
+      unlinked_players: unlinkedPlayers.size,
       last_scraped_at: new Date().toISOString(),
       scrape_status: isDone ? 'complete' : 'partial',
     })
@@ -838,9 +904,12 @@ export interface CompetitionSummary {
   matchCount: number;
   teamsCount: number;
   playersCount: number;
+  linkedPlayersCount: number;
+  unlinkedPlayersCount: number;
 }
 
 /** Get all tracked competitions with summary stats (for the competition list page).
+ *  Stats are denormalized on the fpf_competitions row — single SELECT, instant load.
  *  Also resets stale 'scraping' status — no server process survives a page reload. */
 export async function getTrackedCompetitions(): Promise<ActionResponse<CompetitionSummary[]>> {
   const supabase = await createClient();
@@ -862,82 +931,23 @@ export async function getTrackedCompetitions(): Promise<ActionResponse<Competiti
   if (error) return { success: false, error: error.message };
   const comps = (data ?? []) as FpfCompetitionRow[];
 
-  if (comps.length === 0) return { success: true, data: [] };
-
-  // Fetch summary stats for all competitions in parallel
-  const compIds = comps.map((c) => c.id);
-
-  // Get match stats per competition (series, fixtures, teams) + match IDs for player lookup
-  const [{ data: matchStats }, { data: matchIdRows }] = await Promise.all([
-    supabase
-      .from('fpf_matches')
-      .select('competition_id, series_name, fpf_fixture_id, home_team, away_team')
-      .in('competition_id', compIds),
-    supabase
-      .from('fpf_matches')
-      .select('id, competition_id')
-      .in('competition_id', compIds),
-  ]);
-
-  // Build per-match-id → competition_id lookup
-  const matchToComp = new Map<number, number>();
-  for (const m of matchIdRows ?? []) {
-    matchToComp.set(m.id, m.competition_id);
-  }
-
-  // Get distinct player count per competition (using actual match IDs)
-  const allMatchIds = (matchIdRows ?? []).map((m) => m.id);
-  const { data: playerStats } = allMatchIds.length > 0
-    ? await supabase
-        .from('fpf_match_players')
-        .select('match_id, fpf_player_id')
-        .in('match_id', allMatchIds)
-    : { data: null };
-
-  // Aggregate per competition
-  const statsMap = new Map<number, { series: Set<string>; fixtures: Set<number>; teams: Set<string>; players: Set<number | string> }>();
-  for (const id of compIds) {
-    statsMap.set(id, { series: new Set(), fixtures: new Set(), teams: new Set(), players: new Set() });
-  }
-
-  for (const m of matchStats ?? []) {
-    const s = statsMap.get(m.competition_id);
-    if (!s) continue;
-    if (m.series_name) s.series.add(m.series_name);
-    s.fixtures.add(m.fpf_fixture_id);
-    s.teams.add(m.home_team);
-    s.teams.add(m.away_team);
-  }
-
-  // Count distinct players per competition from match_players
-  const playersByComp = new Map<number, Set<string>>();
-  for (const id of compIds) playersByComp.set(id, new Set());
-
-  if (playerStats) {
-    for (const p of playerStats as { match_id: number; fpf_player_id: number | null }[]) {
-      const compId = matchToComp.get(p.match_id);
-      if (compId && p.fpf_player_id) {
-        playersByComp.get(compId)?.add(String(p.fpf_player_id));
-      }
-    }
-  }
-
-  const result: CompetitionSummary[] = comps.map((c) => {
-    const s = statsMap.get(c.id);
-    return {
-      competition: c,
-      seriesCount: s?.series.size ?? 0,
-      fixtureCount: s?.fixtures.size ?? 0,
-      matchCount: c.scraped_matches,
-      teamsCount: s?.teams.size ?? 0,
-      playersCount: playersByComp.get(c.id)?.size ?? 0,
-    };
-  });
+  // All stats come from denormalized columns — no extra queries needed
+  const result: CompetitionSummary[] = comps.map((c) => ({
+    competition: c,
+    seriesCount: c.total_series,
+    fixtureCount: c.total_fixtures,
+    matchCount: c.scraped_matches,
+    teamsCount: c.total_teams,
+    playersCount: c.total_players,
+    linkedPlayersCount: c.linked_players,
+    unlinkedPlayersCount: c.unlinked_players,
+  }));
 
   return { success: true, data: result };
 }
 
-/** Re-fetch summary stats for a single competition (after scraping finishes) */
+/** Re-fetch summary stats for a single competition (after scraping/linking finishes).
+ *  Reads denormalized columns — single SELECT. */
 export async function getCompetitionSummary(competitionId: number): Promise<ActionResponse<CompetitionSummary>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -951,48 +961,18 @@ export async function getCompetitionSummary(competitionId: number): Promise<Acti
 
   if (!comp) return { success: false, error: 'Competição não encontrada' };
 
-  // Fetch stats in parallel
-  const [{ data: matchStats }, { data: matchIdRows }] = await Promise.all([
-    supabase
-      .from('fpf_matches')
-      .select('series_name, fpf_fixture_id, home_team, away_team')
-      .eq('competition_id', competitionId),
-    supabase
-      .from('fpf_matches')
-      .select('id')
-      .eq('competition_id', competitionId),
-  ]);
-
-  const series = new Set<string>();
-  const fixtureIds = new Set<number>();
-  const teams = new Set<string>();
-  for (const m of matchStats ?? []) {
-    if (m.series_name) series.add(m.series_name);
-    fixtureIds.add(m.fpf_fixture_id);
-    teams.add(m.home_team);
-    teams.add(m.away_team);
-  }
-
-  const allMatchIds = (matchIdRows ?? []).map((m) => m.id);
-  let playersCount = 0;
-  if (allMatchIds.length > 0) {
-    const { data: playerStats } = await supabase
-      .from('fpf_match_players')
-      .select('fpf_player_id')
-      .in('match_id', allMatchIds);
-    const uniquePlayers = new Set((playerStats ?? []).map((p) => p.fpf_player_id).filter(Boolean));
-    playersCount = uniquePlayers.size;
-  }
-
+  const c = comp as FpfCompetitionRow;
   return {
     success: true,
     data: {
-      competition: comp as FpfCompetitionRow,
-      seriesCount: series.size,
-      fixtureCount: fixtureIds.size,
-      matchCount: comp.scraped_matches ?? (matchIdRows ?? []).length,
-      teamsCount: teams.size,
-      playersCount,
+      competition: c,
+      seriesCount: c.total_series,
+      fixtureCount: c.total_fixtures,
+      matchCount: c.scraped_matches,
+      teamsCount: c.total_teams,
+      playersCount: c.total_players,
+      linkedPlayersCount: c.linked_players,
+      unlinkedPlayersCount: c.unlinked_players,
     },
   };
 }

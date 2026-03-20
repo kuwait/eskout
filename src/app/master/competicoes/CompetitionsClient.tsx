@@ -9,7 +9,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Plus, Loader2, CheckCircle2, Trophy, Trash2, Play, RefreshCw,
-  Clock, AlertCircle,
+  Clock, Check, ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -73,13 +73,25 @@ export function CompetitionsClient({
 
   // Scrape-all state: sequential batch across all competitions
   const [isScrapeAll, setIsScrapeAll] = useState(false);
+  const isScrapeAllRef = useRef(false); // Ref mirror for async access inside finishScrape
   const [scrapeAllIndex, setScrapeAllIndex] = useState(0);
   const [scrapeAllTotal, setScrapeAllTotal] = useState(0);
+  const [scrapeAllDone, setScrapeAllDone] = useState<Set<number>>(new Set()); // IDs already updated in batch
 
   // Delete dialog state
   const [deleteTarget, setDeleteTarget] = useState<FpfCompetitionRow | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Collapsible escalão groups — all start collapsed
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((escalao: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(escalao)) next.delete(escalao); else next.add(escalao);
+      return next;
+    });
+  }, []);
 
   const seasons = getAvailableSeasons();
 
@@ -139,7 +151,7 @@ export function CompetitionsClient({
 
     if (res.success && res.data) {
       const newSummary: CompetitionSummary = {
-        competition: res.data, seriesCount: 0, fixtureCount: 0, matchCount: 0, teamsCount: 0, playersCount: 0,
+        competition: res.data, seriesCount: 0, fixtureCount: 0, matchCount: 0, teamsCount: 0, playersCount: 0, linkedPlayersCount: 0, unlinkedPlayersCount: 0,
       };
       setSummaries((prev) => {
         const existing = prev.findIndex((s) => s.competition.id === res.data!.id);
@@ -150,7 +162,7 @@ export function CompetitionsClient({
         }
         return [newSummary, ...prev];
       });
-      setTab('list');
+      // Stay on browse tab — the row turns green with "Já adicionada" badge
     }
   }
 
@@ -319,6 +331,9 @@ export function CompetitionsClient({
           message: `📥 ${linkRes.data!.unlinked} jogadores não ligados — importa na página da competição (tab "Não Ligados")`,
         }]);
       }
+
+      // Re-compute denormalized stats after linking (player counts changed)
+      await updateCompetitionStats(competitionId, true);
     }
 
     // Re-fetch enriched summary from server to update stats
@@ -333,32 +348,50 @@ export function CompetitionsClient({
       ));
     }
 
-    setScrapingId(null);
-    setStopPending(false);
+    // Only clear scraping state if NOT in a batch "scrape all" — batch manages its own lifecycle
+    if (isScrapeAllRef.current) {
+      setScrapeAllDone((prev) => new Set([...prev, competitionId]));
+    } else {
+      setScrapingId(null);
+      setStopPending(false);
+    }
   }
 
   /* ───────────── Scrape All ───────────── */
 
   async function handleScrapeAll() {
-    const compIds = competitions.map((c) => c.id);
+    // Sort by escalão (same visual order as the grouped list) then by position within group
+    const ESCALAO_ORDER = ['Sénior', 'Sub-19', 'Sub-17', 'Sub-15', 'Sub-13', 'Sub-11', 'Sub-9', 'Sub-7'];
+    const sorted = [...summaries].sort((a, b) => {
+      const ea = ESCALAO_ORDER.indexOf(a.competition.escalao || '');
+      const eb = ESCALAO_ORDER.indexOf(b.competition.escalao || '');
+      return (ea === -1 ? 999 : ea) - (eb === -1 ? 999 : eb);
+    });
+    const compIds = sorted.map((s) => s.competition.id);
     if (compIds.length === 0) return;
 
     setIsScrapeAll(true);
+    isScrapeAllRef.current = true;
     setScrapeAllTotal(compIds.length);
+    setScrapeAllDone(new Set());
     stopRef.current = false;
     setStopPending(false);
 
     for (let i = 0; i < compIds.length; i++) {
       if (stopRef.current) break;
       setScrapeAllIndex(i + 1);
-      // Reuse existing handleScrape — it sets/clears scrapingId internally
       await handleScrape(compIds[i]);
       if (stopRef.current) break;
     }
 
+    // Clean up batch state + clear scraping state that finishScrape skipped
     setIsScrapeAll(false);
+    isScrapeAllRef.current = false;
     setScrapeAllIndex(0);
     setScrapeAllTotal(0);
+    setScrapeAllDone(new Set());
+    setScrapingId(null);
+    setStopPending(false);
   }
 
   function handleDeleteClick(id: number) {
@@ -477,15 +510,32 @@ export function CompetitionsClient({
           {/* National competitions list */}
           {showNational && (
             <div className="space-y-1">
-              {FPF_NATIONAL_YOUTH_COMPETITIONS.map((nc) => (
-                <div key={nc.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <span className="font-medium">{nc.name}</span>
-                  <Button size="sm" variant="outline" onClick={() => handleAdd({ id: nc.id, name: nc.name, url: '' }, nc.classId)}>
-                    <Plus className="mr-1 h-3 w-3" />
-                    Adicionar
-                  </Button>
-                </div>
-              ))}
+              {FPF_NATIONAL_YOUTH_COMPETITIONS.map((nc) => {
+                const isTracked = competitions.some(
+                  (c) => c.fpf_competition_id === nc.id && c.fpf_season_id === selectedSeason.seasonId,
+                );
+                return (
+                  <div
+                    key={nc.id}
+                    className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
+                      isTracked ? 'border-emerald-200 bg-emerald-50/50' : ''
+                    }`}
+                  >
+                    <span className={`font-medium ${isTracked ? 'text-emerald-700' : ''}`}>{nc.name}</span>
+                    {isTracked ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        <Check className="h-3 w-3" />
+                        Já adicionada
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => handleAdd({ id: nc.id, name: nc.name, url: '' }, nc.classId)}>
+                        <Plus className="mr-1 h-3 w-3" />
+                        Adicionar
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -523,22 +573,39 @@ export function CompetitionsClient({
           {browseResults.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">{browseResults.length} competições encontradas:</p>
-              {browseResults.map((comp) => (
-                <div key={comp.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <span className="font-medium">{comp.name}</span>
-                    {detectClassId(comp.name) && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        ({FPF_CLASS_TO_ESCALAO[detectClassId(comp.name)!]})
+              {browseResults.map((comp) => {
+                const isTracked = competitions.some(
+                  (c) => c.fpf_competition_id === comp.id && c.fpf_season_id === selectedSeason.seasonId,
+                );
+                return (
+                  <div
+                    key={comp.id}
+                    className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
+                      isTracked ? 'border-emerald-200 bg-emerald-50/50' : ''
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className={`font-medium ${isTracked ? 'text-emerald-700' : ''}`}>{comp.name}</span>
+                      {detectClassId(comp.name) && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          ({FPF_CLASS_TO_ESCALAO[detectClassId(comp.name)!]})
+                        </span>
+                      )}
+                    </div>
+                    {isTracked ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        <Check className="h-3 w-3" />
+                        Já adicionada
                       </span>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => handleAdd(comp)}>
+                        <Plus className="mr-1 h-3 w-3" />
+                        Adicionar
+                      </Button>
                     )}
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => handleAdd(comp)}>
-                    <Plus className="mr-1 h-3 w-3" />
-                    Adicionar
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -581,16 +648,94 @@ export function CompetitionsClient({
             </div>
           )}
 
-          {summaries.map((s) => (
-            <CompetitionRow
-              key={s.competition.id}
-              summary={s}
-              isScraping={scrapingId === s.competition.id}
-              isStopping={scrapingId === s.competition.id && stopPending}
-              onScrape={() => handleScrape(s.competition.id)}
-              onDelete={() => handleDeleteClick(s.competition.id)}
-            />
-          ))}
+          {/* Group by escalão, ordered oldest → youngest, collapsible */}
+          {(() => {
+            const ESCALAO_ORDER = ['Sénior', 'Sub-19', 'Sub-17', 'Sub-15', 'Sub-13', 'Sub-11', 'Sub-9', 'Sub-7'];
+            const groups = new Map<string, CompetitionSummary[]>();
+            for (const s of summaries) {
+              const key = s.competition.escalao || 'Sem escalão';
+              if (!groups.has(key)) groups.set(key, []);
+              groups.get(key)!.push(s);
+            }
+            const sortedKeys = [...groups.keys()].sort((a, b) => {
+              const ia = ESCALAO_ORDER.indexOf(a);
+              const ib = ESCALAO_ORDER.indexOf(b);
+              return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+            return sortedKeys.map((escalao) => {
+              const items = groups.get(escalao)!;
+              const isOpen = expandedGroups.has(escalao);
+
+              // Aggregate stats for collapsed summary
+              const totalMatches = items.reduce((sum, s) => sum + s.matchCount, 0);
+              const totalTeams = items.reduce((sum, s) => sum + s.teamsCount, 0);
+              const totalPlayers = items.reduce((sum, s) => sum + s.playersCount, 0);
+              const totalLinked = items.reduce((sum, s) => sum + s.linkedPlayersCount, 0);
+              const totalUnlinked = items.reduce((sum, s) => sum + s.unlinkedPlayersCount, 0);
+
+              return (
+                <div key={escalao}>
+                  {/* Collapsible header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(escalao)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                    <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-700">
+                      {escalao}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{items.length} comp.</span>
+                    <span className="h-px flex-1 bg-border" />
+
+                    {/* Summary pills — always visible (collapsed and expanded) */}
+                    <div className="flex items-center gap-1.5">
+                      {totalTeams > 0 && (
+                        <StatPill value={totalTeams} label="equipas" color="bg-blue-50 text-blue-700" />
+                      )}
+                      <StatPill
+                        value={totalMatches}
+                        label="jogos"
+                        color={totalMatches > 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-neutral-100 text-neutral-400'}
+                      />
+                      {totalPlayers > 0 && (
+                        <StatPill value={totalPlayers} label="jogadores" color="bg-cyan-50 text-cyan-700" />
+                      )}
+                      {totalPlayers > 0 && (
+                        <StatPill
+                          value={`${totalLinked}/${totalPlayers}`}
+                          label="ligados"
+                          color={totalUnlinked === 0
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : totalLinked >= totalUnlinked
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-red-50 text-red-700'
+                          }
+                        />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Expanded: show individual competition rows */}
+                  {isOpen && (
+                    <div className="space-y-1.5 pl-6 pt-1">
+                      {items.map((s) => (
+                        <CompetitionRow
+                          key={s.competition.id}
+                          summary={s}
+                          isScraping={scrapingId === s.competition.id}
+                          isStopping={scrapingId === s.competition.id && stopPending}
+                          batchDone={isScrapeAll && scrapeAllDone.has(s.competition.id)}
+                          onScrape={() => handleScrape(s.competition.id)}
+                          onDelete={() => handleDeleteClick(s.competition.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -732,100 +877,196 @@ export function CompetitionsClient({
 
 /* ───────────── Competition Row ───────────── */
 
-const STATUS_CONFIG: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-  pending: { icon: <Clock className="h-3.5 w-3.5" />, label: 'Pendente', color: 'text-muted-foreground' },
-  scraping: { icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, label: 'A correr…', color: 'text-amber-600' },
-  partial: { icon: <AlertCircle className="h-3.5 w-3.5" />, label: 'Parcial', color: 'text-amber-600' },
-  complete: { icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: 'Completo', color: 'text-emerald-600' },
-  error: { icon: <AlertCircle className="h-3.5 w-3.5" />, label: 'Erro', color: 'text-red-600' },
+const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+  pending:  { label: 'Pendente',   bg: 'bg-neutral-100', text: 'text-neutral-600', dot: 'bg-neutral-400' },
+  scraping: { label: 'A correr…',  bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500' },
+  partial:  { label: 'Parcial',    bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500' },
+  complete: { label: 'Completo',   bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  error:    { label: 'Erro',       bg: 'bg-red-100',     text: 'text-red-700',     dot: 'bg-red-500' },
 };
+
+/** Colored action/status tag for the competition checklist row */
+const ACTION_TAG_COLORS: Record<string, string> = {
+  emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  amber: 'bg-amber-50 text-amber-700 ring-amber-200',
+  orange: 'bg-orange-50 text-orange-700 ring-orange-200',
+  red: 'bg-red-50 text-red-700 ring-red-200',
+  neutral: 'bg-neutral-50 text-neutral-500 ring-neutral-200',
+};
+
+function ActionTag({ color, icon, children }: { color: string; icon: string; children: React.ReactNode }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ${ACTION_TAG_COLORS[color] ?? ACTION_TAG_COLORS.neutral}`}>
+      <span className="text-[9px]">{icon}</span>
+      {children}
+    </span>
+  );
+}
+
+/** Compact stat pill with visible label text */
+function StatPill({ value, label, color = 'bg-neutral-100 text-neutral-600' }: {
+  value: string | number;
+  label: string;
+  color?: string;
+}) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-tight ${color}`}>
+      <span className="font-bold tabular-nums">{value}</span>
+      <span className="opacity-70">{label}</span>
+    </span>
+  );
+}
 
 function CompetitionRow({
   summary,
   isScraping,
   isStopping,
+  batchDone,
   onScrape,
   onDelete,
 }: {
   summary: CompetitionSummary;
   isScraping: boolean;
   isStopping: boolean;
+  batchDone?: boolean;
   onScrape: () => void;
   onDelete: () => void;
 }) {
   const comp = summary.competition;
 
   // Override status when actively scraping or stopping
-  const status = isStopping
-    ? { icon: <Clock className="h-3.5 w-3.5" />, label: 'A parar…', color: 'text-amber-600' }
-    : isScraping
-      ? STATUS_CONFIG.scraping
-      : STATUS_CONFIG[comp.scrape_status] ?? STATUS_CONFIG.pending;
+  const statusKey = isStopping ? 'scraping' : isScraping ? 'scraping' : comp.scrape_status;
+  const status = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.pending;
+  const statusLabel = isStopping ? 'A parar…' : status.label;
+
+  // Determine actionable insights
+  const hasUnlinked = summary.unlinkedPlayersCount > 0;
+  const linkPercent = summary.playersCount > 0
+    ? Math.round((summary.linkedPlayersCount / summary.playersCount) * 100)
+    : 0;
 
   return (
-    <div className="rounded-lg border p-3 space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <Link href={`/master/competicoes/${comp.id}`} className="text-sm font-semibold hover:underline">
+    <div className={`rounded-lg border p-2.5 space-y-1.5 transition-colors ${
+      isScraping ? 'border-amber-200 bg-amber-50/30'
+        : batchDone ? 'border-emerald-200 bg-emerald-50/30'
+        : 'hover:bg-muted/30'
+    }`}>
+      {/* Row 1: Name + escalão badge + status badge */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Link href={`/master/competicoes/${comp.id}`} className="text-sm font-semibold hover:underline truncate">
             {comp.name}
           </Link>
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            <span>{comp.season}</span>
-            {comp.association_name && <span>{comp.association_name}</span>}
-            {comp.escalao && <span className="font-medium text-purple-600">{comp.escalao}</span>}
-          </div>
+          {comp.escalao && (
+            <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700">
+              {comp.escalao}
+            </span>
+          )}
         </div>
-        <div className={`flex items-center gap-1 text-xs whitespace-nowrap ${status.color}`}>
-          {status.icon}
-          {status.label}
-        </div>
-      </div>
-
-      {/* Stats row — show series, teams, matches, players */}
-      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-        {summary.seriesCount > 0 && (
-          <span>{summary.seriesCount} {summary.seriesCount === 1 ? 'série' : 'séries'}</span>
-        )}
-        {summary.teamsCount > 0 && (
-          <span>{summary.teamsCount} equipas</span>
-        )}
-        <span>{summary.matchCount} jogos</span>
-        {summary.playersCount > 0 && (
-          <span>{summary.playersCount} jogadores</span>
-        )}
-        {comp.last_scraped_at && (
-          <span>Último scrape: {new Date(comp.last_scraped_at).toLocaleDateString('pt-PT')}</span>
-        )}
-      </div>
-
-      <div className="flex items-center justify-end">
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Status badge — show "Atualizado" checkmark during batch for completed ones */}
+          {batchDone ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+              <Check className="h-2.5 w-2.5" />
+              Atualizado
+            </span>
+          ) : (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.bg} ${status.text}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${statusKey === 'scraping' ? 'animate-pulse' : ''} ${status.dot}`} />
+              {statusLabel}
+            </span>
+          )}
+          {/* Actions */}
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-7 text-xs"
+            className="h-6 w-6 p-0"
             onClick={onScrape}
             disabled={isScraping}
+            title={comp.scrape_status === 'complete' ? 'Atualizar' : comp.scrape_status === 'partial' ? 'Continuar' : 'Scrape'}
           >
-            {comp.scrape_status === 'complete' ? (
-              <><RefreshCw className="mr-1 h-3 w-3" />Atualizar</>
-            ) : comp.scrape_status === 'partial' ? (
-              <><Play className="mr-1 h-3 w-3" />Continuar</>
-            ) : (
-              <><Play className="mr-1 h-3 w-3" />Scrape</>
-            )}
+            {comp.scrape_status === 'complete'
+              ? <RefreshCw className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+              : <Play className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+            }
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-xs text-muted-foreground/50 hover:text-red-500"
+            className="h-6 w-6 p-0 text-muted-foreground/40 hover:text-red-500"
             onClick={onDelete}
             disabled={isScraping}
+            title="Eliminar"
           >
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
       </div>
+
+      {/* Row 2: Metadata line */}
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <span>{comp.season}</span>
+        {comp.association_name && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>{comp.association_name}</span>
+          </>
+        )}
+        {comp.last_scraped_at && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>Atualizado {new Date(comp.last_scraped_at).toLocaleDateString('pt-PT')}</span>
+          </>
+        )}
+      </div>
+
+      {/* Row 3: Stat pills — text labels for clarity */}
+      <div className="flex flex-wrap items-center gap-1">
+        {summary.seriesCount > 0 && (
+          <StatPill
+            value={summary.seriesCount}
+            label={summary.seriesCount === 1 ? 'série' : 'séries'}
+          />
+        )}
+        {summary.teamsCount > 0 && (
+          <StatPill value={summary.teamsCount} label="equipas" color="bg-blue-50 text-blue-700" />
+        )}
+        <StatPill
+          value={summary.matchCount}
+          label="jogos"
+          color={summary.matchCount > 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-neutral-100 text-neutral-400'}
+        />
+        {summary.playersCount > 0 && (
+          <StatPill value={summary.playersCount} label="jogadores" color="bg-cyan-50 text-cyan-700" />
+        )}
+
+        {/* Linked players — shows fraction + color indicates health */}
+        {summary.playersCount > 0 && (
+          <StatPill
+            value={`${summary.linkedPlayersCount}/${summary.playersCount}`}
+            label="ligados"
+            color={linkPercent === 100
+              ? 'bg-emerald-50 text-emerald-700'
+              : linkPercent >= 50
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-red-50 text-red-700'
+            }
+          />
+        )}
+      </div>
+
+      {/* Row 4: Linking status — the actionable info */}
+      {summary.playersCount > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {hasUnlinked ? (
+            <Link href={`/master/competicoes/${comp.id}`} className="transition-colors hover:opacity-80">
+              <ActionTag color="orange" icon="→">{summary.unlinkedPlayersCount} jogadores por ligar</ActionTag>
+            </Link>
+          ) : (
+            <ActionTag color="emerald" icon="✓">Todos ligados</ActionTag>
+          )}
+        </div>
+      )}
     </div>
   );
 }

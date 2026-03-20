@@ -875,6 +875,11 @@ export interface FpfCompetitionRow {
   total_fixtures: number;
   total_matches: number;
   scraped_matches: number;
+  total_series: number;
+  total_teams: number;
+  total_players: number;
+  linked_players: number;
+  unlinked_players: number;
   last_scraped_at: string | null;
   scrape_status: FpfCompetitionScrapeStatus;
   scrape_error: string | null;
