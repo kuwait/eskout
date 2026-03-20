@@ -110,7 +110,7 @@ interface PlayerProfileProps {
   /** Club-scoped profiles for referral/contact assign dropdowns */
   clubMembers?: { id: string; fullName: string }[];
   /** Custom squads this player belongs to (from squad_players table) */
-  playerSquads?: (SquadPlayer & { squad: Squad })[];
+  playerSquads?: (SquadPlayer & { squad: Squad & { ageGroupName?: string | null } })[];
   /** FPF competitions where player competed above natural age group */
   fpfPlayingUp?: { competitionEscalao: string; expectedBirthYearEnd: number; games: number; goals: number; minutes: number }[];
   /** ZZ playing-up result (computed server-side to avoid hydration mismatch) */
@@ -1298,11 +1298,11 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                                 <div className="flex items-center gap-2">
                                   <span className={`h-2 w-2 rounded-full ${isReal ? 'bg-green-500' : 'bg-purple-500'}`} />
                                   <span className={`text-sm font-semibold ${isReal ? 'text-green-800' : 'text-purple-800'}`}>
-                                    {sp.squad.name}
+                                    {isReal
+                                      ? `Plantel${sp.squad.ageGroupName ? ` - ${sp.squad.ageGroupName}` : ''}`
+                                      : `Plantel Sombra${sp.squad.ageGroupName ? ` - ${sp.squad.ageGroupName}` : ''} ${sp.squad.name}`
+                                    }
                                   </span>
-                                  {sp.squad.description && (
-                                    <span className="text-xs text-muted-foreground">— {sp.squad.description}</span>
-                                  )}
                                 </div>
                                 {sp.position && (
                                   <p className={`mt-0.5 pl-4 text-xs ${isReal ? 'text-green-700' : 'text-purple-700'}`}>

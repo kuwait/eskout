@@ -743,15 +743,16 @@ export async function getSquadWithPlayers(squadId: number): Promise<SquadWithPla
   return { ...squad, players };
 }
 
-/** Fetch all squads a player belongs to (for player profile) */
-export async function getPlayerSquads(playerId: number): Promise<(SquadPlayer & { squad: Squad })[]> {
+/** Fetch all squads a player belongs to (for player profile).
+ *  Joins age_groups to get the escalão name for display. */
+export async function getPlayerSquads(playerId: number): Promise<(SquadPlayer & { squad: Squad & { ageGroupName: string | null } })[]> {
   const clubId = await getActiveClubId();
   if (!clubId) return [];
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('squad_players')
-    .select('*, squads(*)')
+    .select('*, squads(*, age_groups(name))')
     .eq('player_id', playerId)
     .eq('club_id', clubId);
 
@@ -759,10 +760,13 @@ export async function getPlayerSquads(playerId: number): Promise<(SquadPlayer & 
 
   return data.map((row) => {
     const sp = mapSquadPlayerRow(row as SquadPlayerRow);
-    const squadRow = (row as Record<string, unknown>).squads as SquadRow;
+    const squadRaw = (row as Record<string, unknown>).squads as Record<string, unknown>;
+    const ageGroupData = squadRaw?.age_groups as { name: string } | null;
+    const squadRow = squadRaw as unknown as SquadRow;
+    const squad = mapSquadRow(squadRow);
     return {
       ...sp,
-      squad: mapSquadRow(squadRow),
+      squad: { ...squad, ageGroupName: ageGroupData?.name ?? null },
     };
   });
 }
