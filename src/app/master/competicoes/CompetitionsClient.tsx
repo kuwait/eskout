@@ -394,14 +394,20 @@ export function CompetitionsClient({
   /* ───────────── Helpers ───────────── */
 
   function detectClassId(name: string): number | null {
-    const lower = name.toLowerCase();
-    if (lower.includes('sub-19') || lower.includes('sub19') || lower.includes('júnior') || lower.includes('junior')) return 3;
-    if (lower.includes('sub-17') || lower.includes('sub17') || lower.includes('juveni')) return 4;
-    if (lower.includes('sub-15') || lower.includes('sub15') || lower.includes('iniciado')) return 5;
-    if (lower.includes('sub-13') || lower.includes('sub13') || lower.includes('infanti')) return 6;
-    if (lower.includes('sub-11') || lower.includes('sub11') || lower.includes('benjami')) return 8;
-    if (lower.includes('sub-9') || lower.includes('sub9') || lower.includes('traquin')) return 9;
-    if (lower.includes('sub-7') || lower.includes('sub7') || lower.includes('petiz')) return 10;
+    // Normalize separators: "Sub/15", "Sub-15", "Sub15", "Sub 15" → all matched
+    const lower = name.toLowerCase().replace(/sub[\s/.-]*(\d)/g, 'sub-$1');
+    if (lower.includes('sub-19') || lower.includes('júnior') || lower.includes('junior')) return 3;
+    if (lower.includes('sub-18')) return 3; // Sub-18 = Juniores A = Sub-19 class
+    if (lower.includes('sub-17') || lower.includes('juveni')) return 4;
+    if (lower.includes('sub-16')) return 4; // Sub-16 = Juniores B = Sub-17 class
+    if (lower.includes('sub-15') || lower.includes('iniciado')) return 5;
+    if (lower.includes('sub-14')) return 5; // Sub-14 = Juniores C = Sub-15 class
+    if (lower.includes('sub-13') || lower.includes('infanti')) return 6;
+    if (lower.includes('sub-12')) return 6; // Sub-12 = Juniores D = Sub-13 class
+    if (lower.includes('sub-11') || lower.includes('benjami')) return 8;
+    if (lower.includes('sub-10')) return 8; // Sub-10 = Benjamins = Sub-11 class
+    if (lower.includes('sub-9') || lower.includes('traquin')) return 9;
+    if (lower.includes('sub-7') || lower.includes('petiz')) return 10;
     return null;
   }
 
