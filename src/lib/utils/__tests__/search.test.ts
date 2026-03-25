@@ -104,4 +104,36 @@ describe('matchesPickerSearch', () => {
     const player = { name: 'Carlos Soares', club: 'FC Hernani' };
     expect(matchesPickerSearch(player, ['carl', 'hern'])).toBe(true);
   });
+
+  /* ───────────── Accent-insensitive regression tests ───────────── */
+
+  it('matches "joao andrade coimbroes" without accents', () => {
+    const player = { name: 'João Andrade', club: 'SC Coimbrões' };
+    const words = extractSearchWords('joao andrade coimbroes');
+    expect(matchesPickerSearch(player, words)).toBe(true);
+  });
+
+  it('matches "João Andrade Coimbrões" with accents', () => {
+    const player = { name: 'João Andrade', club: 'SC Coimbrões' };
+    const words = extractSearchWords('João Andrade Coimbrões');
+    expect(matchesPickerSearch(player, words)).toBe(true);
+  });
+
+  it('matches mixed accents: some words with, some without', () => {
+    const player = { name: 'João Andrade', club: 'SC Coimbrões' };
+    const words = extractSearchWords('joao Andrade Coimbrões');
+    expect(matchesPickerSearch(player, words)).toBe(true);
+  });
+
+  it('matches cedilla: Gonçalves vs Goncalves', () => {
+    const player = { name: 'Pedro Gonçalves', club: 'Sporting CP' };
+    expect(matchesPickerSearch(player, ['goncalves'])).toBe(true);
+    expect(matchesPickerSearch(player, ['Gonçalves'])).toBe(true);
+  });
+
+  it('matches tilde in club: São vs Sao', () => {
+    const player = { name: 'Carlos Lima', club: 'São João de Ver' };
+    expect(matchesPickerSearch(player, ['sao'])).toBe(true);
+    expect(matchesPickerSearch(player, ['São'])).toBe(true);
+  });
 });

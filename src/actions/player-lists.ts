@@ -839,9 +839,10 @@ export interface PickerSearchFilters {
 }
 
 /**
- * Search picker players with server-side structural filters.
- * Text search is NOT done here — callers apply fuzzyMatch client-side.
- * Returns all matching rows (paginated past Supabase 1000-row limit).
+ * Search picker players with accent-insensitive text search via Postgres unaccent().
+ * "coimbroes" matches "Coimbrões", "joao" matches "João", etc.
+ * Each search word must match in either name OR club (cross-field).
+ * Returns up to 50 results.
  */
 export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Promise<PickerPlayer[]> {
   const { clubId, role } = await getActiveClub();
@@ -849,64 +850,37 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
 
   const supabase = await createClient();
 
-  const all: PickerPlayer[] = [];
-  const offset = 0;
-
-  for (;;) {
-    let query = supabase
-      .from('players')
-      .select(PICKER_COLS)
-      .eq('club_id', clubId)
-      .eq('pending_approval', false);
-
-    // Server-side text search:
-    // - 1 word: .or(name, club) — search both fields
-    // - 2+ words: chain .ilike('name') for all-but-last words only — narrows by name
-    //   Client-side matchesPickerSearch (accent-insensitive) refines with ALL words across name+club.
-    //   Chaining .ilike() on the same column is reliable (PostgREST treats duplicate params as AND).
-    //   We skip the last word server-side because it might be a club name (cross-field search).
-    if (filters.search) {
-      const words = filters.search.trim().split(/\s+/).filter(w => w.length >= 2);
-      let searchWords: string[];
-      if (words.length <= 3) {
-        searchWords = words;
-      } else {
-        searchWords = [words[0], words[words.length - 2], words[words.length - 1]];
-      }
-      if (searchWords.length === 1) {
-        query = query.or(`name.ilike.%${searchWords[0]}%,club.ilike.%${searchWords[0]}%`);
-      } else {
-        // Use all-but-last words on name — the last word might be a club name
-        for (const word of searchWords.slice(0, -1)) {
-          query = query.ilike('name', `%${word}%`);
-        }
-      }
+  // Extract search words (up to 3, skip short words)
+  let words: string[] = [];
+  if (filters.search) {
+    const all = filters.search.trim().split(/\s+/).filter(w => w.length >= 2);
+    if (all.length <= 3) {
+      words = all;
+    } else {
+      words = [all[0], all[all.length - 2], all[all.length - 1]];
     }
-
-    // Position filter — always applied (even during text search)
-    if (filters.position) {
-      query = query.or(`position_normalized.eq.${filters.position},secondary_position.eq.${filters.position},tertiary_position.eq.${filters.position}`);
-    }
-    if (filters.club) query = query.eq('club', filters.club);
-    if (filters.opinion) query = query.contains('department_opinion', [filters.opinion]);
-    if (filters.foot) query = query.eq('foot', filters.foot);
-
-    // Always limit to 50 results — pickers don't need more than that
-    const PICKER_LIMIT = 50;
-    const { data, error } = await query.order('name').range(offset, offset + PICKER_LIMIT - 1);
-    if (error || !data?.length) break;
-
-    for (const row of data) {
-      // Skip excluded IDs
-      if (filters.excludeIds?.includes(row.id)) continue;
-      all.push(mapPickerRow(row));
-    }
-
-    // Never paginate beyond 50 results — it's a picker, not a list
-    break;
   }
 
-  return all;
+  // Use RPC with unaccent for accent-insensitive search across name+club
+  const { data, error } = await supabase.rpc('search_players_unaccent', {
+    p_club_id: clubId,
+    p_words: words.length > 0 ? words : [],
+    p_position: filters.position || null,
+    p_club: filters.club || null,
+    p_opinion: filters.opinion || null,
+    p_foot: filters.foot || null,
+    p_exclude_ids: filters.excludeIds?.length ? filters.excludeIds : null,
+    p_limit: 50,
+  });
+
+  if (error) {
+    console.error('[searchPickerPlayers] RPC error:', error.message, error.details, error.hint);
+    return [];
+  }
+  if (!data) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data as any[]).map(mapPickerRow);
 }
 
 /**
