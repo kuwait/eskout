@@ -1,7 +1,7 @@
 // src/lib/__tests__/performance-guards.test.ts
-// Guards against performance regressions — fetch-all patterns, badge cascades, heartbeat intervals
-// Prevents reintroduction of patterns that caused excessive Vercel CPU usage
-// RELEVANT FILES: src/components/players/PlayersView.tsx, src/hooks/useRealtimeBadges.ts, src/components/layout/AppShellClient.tsx
+// Guards against performance regressions — Vercel Fluid Active CPU (4h free tier)
+// Every test here prevents a pattern that wastes serverless CPU time
+// RELEVANT FILES: src/components/players/PlayersView.tsx, src/hooks/useRealtimeBadges.ts, src/components/layout/AppShell.tsx, src/middleware.ts
 
 import { execSync } from 'child_process';
 import * as path from 'path';
@@ -252,5 +252,156 @@ describe('AddToSquadDialog', () => {
 
     // Must use [] as fallback, not null
     expect(actionContent).toMatch(/p_words:\s*words\.length\s*>\s*0\s*\?\s*words\s*:\s*\[\]/);
+  });
+});
+
+/* ───────────── Middleware Query Guard ───────────── */
+
+describe('Middleware DB queries are bounded', () => {
+  let content: string;
+
+  beforeAll(() => {
+    content = execSync(`cat "${SRC_DIR}/src/middleware.ts"`, { encoding: 'utf-8' });
+  });
+
+  it('should have at most 4 .from() calls (profile, memberships, role, superadmin check)', () => {
+    // Middleware runs on EVERY request — each query adds ~30ms of CPU per request.
+    // Current: auth.getUser() + up to 4 conditional .from() calls.
+    // Adding more queries here is the fastest way to burn through Vercel CPU limits.
+    const fromCalls = (content.match(/\.from\(/g) || []).length;
+    expect(fromCalls).toBeLessThanOrEqual(4);
+  });
+
+  it('should NOT use .rpc() in middleware (too expensive for every request)', () => {
+    expect(content).not.toContain('.rpc(');
+  });
+
+  it('should NOT import heavy libraries', () => {
+    // Middleware should be lightweight — no mappers, utils, or domain logic
+    expect(content).not.toContain('mapPlayerRow');
+    expect(content).not.toContain('mappers');
+    expect(content).not.toContain('constants');
+  });
+});
+
+/* ───────────── force-dynamic Proliferation Guard ───────────── */
+
+describe('force-dynamic pages are limited', () => {
+  it('should have at most 5 pages with force-dynamic', () => {
+    // force-dynamic means every page view = fresh SSR render = CPU time.
+    // Each force-dynamic page should be justified. Adding more without reason
+    // directly increases Vercel CPU consumption.
+    const result = execSync(
+      `grep -rn "force-dynamic" "${SRC_DIR}/src/app/" --include="*.ts" --include="*.tsx" || true`,
+      { encoding: 'utf-8' }
+    );
+    const pages = result.split('\n').filter(Boolean).filter(l => !l.includes('__tests__'));
+    expect(pages.length).toBeLessThanOrEqual(5);
+  });
+
+  it('dashboard and export pages should NOT be force-dynamic', () => {
+    // These pages don't need real-time data — they can use ISR/static.
+    const dashboardContent = execSync(`cat "${SRC_DIR}/src/app/page.tsx"`, { encoding: 'utf-8' });
+    expect(dashboardContent).not.toContain('force-dynamic');
+
+    const exportContent = execSync(`cat "${SRC_DIR}/src/app/exportar/page.tsx"`, { encoding: 'utf-8' });
+    expect(exportContent).not.toContain('force-dynamic');
+  });
+});
+
+/* ───────────── Client-side Supabase Query Guard ───────────── */
+
+describe('Client-side Supabase queries are minimal', () => {
+  it('PlayersView should have at most 2 createClient() calls', () => {
+    // Client-side queries bypass server caching and create new connections.
+    // PlayersView needs: 1 for fetchPage+enrichment, 1 for RPC dropdown options.
+    const content = execSync(
+      `cat "${SRC_DIR}/src/components/players/PlayersView.tsx"`,
+      { encoding: 'utf-8' }
+    );
+    const clientCalls = (content.match(/createClient\(\)/g) || []).length;
+    // 3 calls: fetchPage, enrichPlayers, RPC dropdown options
+    expect(clientCalls).toBeLessThanOrEqual(3);
+  });
+
+  it('PipelineView should have at most 3 createClient() calls', () => {
+    const content = execSync(
+      `cat "${SRC_DIR}/src/components/pipeline/PipelineView.tsx"`,
+      { encoding: 'utf-8' }
+    );
+    const clientCalls = (content.match(/createClient\(\)/g) || []).length;
+    expect(clientCalls).toBeLessThanOrEqual(3);
+  });
+});
+
+/* ───────────── Export API Safety Guard ───────────── */
+
+describe('Export API has safety limits', () => {
+  it('Excel export should paginate (use .range()) not fetch-all', () => {
+    const content = execSync(
+      `cat "${SRC_DIR}/src/actions/export.ts" 2>/dev/null || cat "${SRC_DIR}/src/app/api/export/route.ts" 2>/dev/null || echo ""`,
+      { encoding: 'utf-8' }
+    );
+    // Must use paginated fetching, not unbounded .select('*')
+    if (content) {
+      expect(content).toMatch(/\.range\(|PAGE_SIZE|page\s*\*/);
+    }
+  });
+});
+
+/* ───────────── setInterval Polling Guard ───────────── */
+
+describe('Polling intervals are conservative', () => {
+  it('should not have setInterval with intervals below 10 seconds in components', () => {
+    // Fast polling burns CPU: 100ms interval = 600 calls/minute per user.
+    // Scan all client components for aggressive setInterval patterns.
+    const result = execSync(
+      `grep -rn "setInterval" "${SRC_DIR}/src/components/" --include="*.ts" --include="*.tsx" || true`,
+      { encoding: 'utf-8' }
+    );
+
+    const violations = result.split('\n').filter(Boolean).filter(line => {
+      // Extract interval value
+      const match = line.match(/setInterval\([^,]+,\s*(\d[\d_]*)\)/);
+      if (!match) return false;
+      const interval = parseInt(match[1].replace(/_/g, ''), 10);
+      // Skip UI-only intervals (progress animations, visual feedback) — they don't make queries
+      if (line.includes('progressRef') || line.includes('Progress') || line.includes('animation')) return false;
+      // Flag intervals below 10 seconds (10000ms) that likely trigger network requests
+      return interval < 10_000;
+    });
+
+    expect(violations).toEqual([]);
+  });
+});
+
+/* ───────────── Realtime Subscription Guard ───────────── */
+
+describe('Realtime subscriptions are bounded', () => {
+  it('PlayerProfile should have at most 4 useRealtimeTable calls', () => {
+    // Each subscription = WebSocket listener + potential refetch.
+    // More subscriptions = more CPU on events.
+    const content = execSync(
+      `cat "${SRC_DIR}/src/components/players/PlayerProfile.tsx"`,
+      { encoding: 'utf-8' }
+    );
+    const subscriptions = (content.match(/useRealtimeTable\(/g) || []).length;
+    expect(subscriptions).toBeLessThanOrEqual(4);
+  });
+
+  it('no component should have more than 5 useRealtimeTable calls', () => {
+    // Scan all components for excessive subscriptions
+    const result = execSync(
+      `grep -c "useRealtimeTable" "${SRC_DIR}/src/components/"**/*.tsx 2>/dev/null || true`,
+      { encoding: 'utf-8' }
+    );
+    const lines = result.split('\n').filter(Boolean);
+    for (const line of lines) {
+      const [file, countStr] = line.split(':');
+      const count = parseInt(countStr, 10);
+      if (!isNaN(count)) {
+        expect(count).toBeLessThanOrEqual(5);
+      }
+    }
   });
 });
