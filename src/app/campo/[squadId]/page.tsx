@@ -20,11 +20,12 @@ export default async function SquadByIdPage({ params }: PageProps) {
 
   const { clubId } = await getActiveClub();
   const supabase = await createClient();
-  const { data: squad } = await supabase
-    .from('squads')
-    .select('id, name, squad_type')
-    .eq('id', squadId)
-    .single();
+
+  // Fetch squad type + full squad data in parallel
+  const [{ data: squad }, { data: panelData }] = await Promise.all([
+    supabase.from('squads').select('id, name, squad_type').eq('id', squadId).single(),
+    supabase.rpc('get_squad_panel', { p_club_id: clubId, p_squad_type: 'real', p_squad_id: squadId }),
+  ]);
 
   if (!squad) notFound();
 
@@ -38,6 +39,7 @@ export default async function SquadByIdPage({ params }: PageProps) {
         squadType={squadType}
         initialSquadId={squadId}
         clubId={clubId}
+        initialData={panelData}
       />
     </div>
   );
