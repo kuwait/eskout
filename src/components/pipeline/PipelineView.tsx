@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
+import { useState, useEffect, useMemo, useCallback, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
@@ -36,10 +36,24 @@ import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { StatusChangeDialog } from '@/components/pipeline/StatusChangeDialog';
 import type { ContactPurpose, DecisionSide, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
-export function PipelineView({ clubId }: { clubId: string }) {
+interface PipelineViewProps {
+  clubId: string;
+  /** Server-rendered initial players (all age groups) — avoids client-side loading delay */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  initialPlayers?: any[];
+  /** Server-rendered contact purpose labels for em_contacto cards */
+  initialContactPurposes?: { player_id: number; purpose_label: string }[];
+}
+
+export function PipelineView({ clubId, initialPlayers, initialContactPurposes }: PipelineViewProps) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
-  const [pipelinePlayers, setPipelinePlayers] = useState<Player[]>([]);
+
+  // Initialize from server-rendered data (instant render, no loading skeleton)
+  const [pipelinePlayers, setPipelinePlayers] = useState<Player[]>(() => {
+    if (!initialPlayers?.length) return [];
+    return initialPlayers.map((row: PlayerRow) => mapPlayerRow(row));
+  });
   const [, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clubMembers, setClubMembers] = useState<{ id: string; fullName: string }[]>([]);
@@ -58,65 +72,52 @@ export function PipelineView({ clubId }: { clubId: string }) {
   /* ───────────── Fetch ───────────── */
 
   // Map of playerId -> last contact purpose label (for em_contacto cards)
-  const [contactPurposeMap, setContactPurposeMap] = useState<Record<number, string>>({});
+  const [contactPurposeMap, setContactPurposeMap] = useState<Record<number, string>>(() => {
+    if (!initialContactPurposes?.length) return {};
+    const map: Record<number, string> = {};
+    for (const cp of initialContactPurposes) {
+      if (cp.purpose_label) map[cp.player_id] = cp.purpose_label;
+    }
+    return map;
+  });
 
-  // Fetch only players with recruitment_status (in the pipeline) — fast, ~100-200 rows
+  // Single RPC fetch: pipeline players + contact purpose labels in one round-trip
+  // (was: pagination loop + sequential contact purpose fetch = 2-3 queries)
   const fetchPipelinePlayers = useCallback(async () => {
     const supabase = createClient();
-    const PAGE = 1000;
-    const all: PlayerRow[] = [];
-    let offset = 0;
-    for (;;) {
-      let query = supabase.from('players').select('*').eq('club_id', clubId).not('recruitment_status', 'is', null);
-      if (selectedId) query = query.eq('age_group_id', selectedId);
-      const { data, error } = await query.order('name').range(offset, offset + PAGE - 1);
-      if (error || !data?.length) break;
-      all.push(...(data as PlayerRow[]));
-      if (data.length < PAGE) break;
-      offset += PAGE;
+    const { data, error } = await supabase.rpc('get_pipeline_players', {
+      p_club_id: clubId,
+      p_age_group_id: selectedId ?? null,
+    });
+
+    if (error || !data) {
+      startTransition(() => { setPipelinePlayers([]); setContactPurposeMap({}); });
+      return;
     }
-    const mapped = all.map(mapPlayerRow);
 
-    // Fetch latest contact purpose for em_contacto players
-    const emContactoIds = mapped
-      .filter((p) => p.recruitmentStatus === 'em_contacto')
-      .map((p) => p.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = data as { players: any[]; contact_purposes: { player_id: number; purpose_label: string }[] };
+    const mapped = (result.players ?? []).map((row: PlayerRow) => mapPlayerRow(row));
 
-    if (emContactoIds.length > 0) {
-      // Get latest status_history entry with contact purpose (structured or custom) for each em_contacto player
-      const { data: historyRows } = await supabase
-        .from('status_history')
-        .select('player_id, contact_purpose_id, contact_purpose_custom, contact_purposes(label)')
-        .in('player_id', emContactoIds)
-        .eq('field_changed', 'recruitment_status')
-        .eq('new_value', 'em_contacto')
-        .or('contact_purpose_id.not.is.null,contact_purpose_custom.not.is.null')
-        .order('created_at', { ascending: false });
-
-      // Build map: use first (most recent) entry per player
-      const purposeMap: Record<number, string> = {};
-      for (const row of historyRows ?? []) {
-        if (purposeMap[row.player_id]) continue; // already have the most recent
-        // contact_purposes is a FK join — Supabase returns object (not array)
-        const cpJoin = row.contact_purposes as unknown as { label: string } | null;
-        // Custom text takes precedence when contact_purpose_id is null (i.e., "Outro" was selected)
-        const label = row.contact_purpose_id
-          ? (cpJoin?.label ?? null)
-          : (row.contact_purpose_custom ?? null);
-        if (label) purposeMap[row.player_id] = label;
-      }
-
-      startTransition(() => { setContactPurposeMap(purposeMap); });
-    } else {
-      startTransition(() => { setContactPurposeMap({}); });
+    // Build contact purpose map from RPC result
+    const purposeMap: Record<number, string> = {};
+    for (const cp of result.contact_purposes ?? []) {
+      if (cp.purpose_label) purposeMap[cp.player_id] = cp.purpose_label;
     }
 
     startTransition(() => {
       setPipelinePlayers(mapped);
+      setContactPurposeMap(purposeMap);
     });
   }, [selectedId, clubId]);
 
+  // Skip initial fetch when server-rendered data is available (selectedId starts as null = all)
+  const hasServerData = useRef(!!initialPlayers?.length);
   useEffect(() => {
+    if (hasServerData.current) {
+      hasServerData.current = false; // next change (e.g. age group switch) will fetch
+      return;
+    }
     fetchPipelinePlayers();
   }, [fetchPipelinePlayers]);
 
