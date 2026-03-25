@@ -59,13 +59,39 @@ const EMPTY_FILTERS: PlayerFilterState = {
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
 
-export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluations?: boolean; clubId: string }) {
+/** Server-rendered initial data from get_players_page RPC */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface PlayersPageData {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  players: any[];
+  total_count: number;
+  options: { clubs: string[]; nationalities: string[]; birth_years: number[] };
+}
+
+export function PlayersView({ hideEvaluations = false, clubId, initialData }: { hideEvaluations?: boolean; clubId: string; initialData?: PlayersPageData | null }) {
   const searchParams = useSearchParams();
   const initialClub = searchParams.get('clube') ?? '';
   const initialNationality = searchParams.get('nacionalidade') ?? '';
-  const [pageRows, setPageRows] = useState<Player[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+
+  // Initialize from server-rendered data when available (instant render)
+  const [pageRows, setPageRows] = useState<Player[]>(() => {
+    if (!initialData?.players?.length) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return initialData.players.map((row: any) => {
+      const player = mapPlayerRow(row as PlayerRow);
+      // Hydrate enrichment from RPC (avg_rating, rating_count, note_previews)
+      if (row.avg_rating != null) {
+        player.reportAvgRating = Number(row.avg_rating);
+        player.reportRatingCount = row.rating_count ?? 0;
+      }
+      if (Array.isArray(row.note_previews)) {
+        player.observationNotePreviews = row.note_previews;
+      }
+      return player;
+    });
+  });
+  const [totalCount, setTotalCount] = useState(initialData?.total_count ?? 0);
+  const [loading, setLoading] = useState(!initialData?.players?.length);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState<PlayerFilterState>({ ...EMPTY_FILTERS, club: initialClub, nationality: initialNationality });
@@ -76,10 +102,19 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
   const [fpfPlayingUp, setFpfPlayingUp] = useState<{ regular: Set<number>; pontual: Set<number> }>({ regular: new Set(), pontual: new Set() });
   const [playingUpReady, setPlayingUpReady] = useState(false);
 
-  // Dropdown options (fetched once via RPC)
-  const [clubs, setClubs] = useState<string[]>([]);
-  const [nationalities, setNationalities] = useState<string[]>([]);
-  const [birthYears, setBirthYears] = useState<number[]>([]);
+  // Stable array of playing-up IDs — only recomputes when filter is active AND IDs change
+  // Prevents applyAllFilters/fetchPage from recreating when playingUpReady changes but filter is off
+  const playingUpIds = useMemo<number[] | null>(() => {
+    if (!filters.playingUp || !playingUpReady) return null;
+    if (filters.playingUp === 'regular') return [...fpfPlayingUp.regular];
+    if (filters.playingUp === 'pontual') return [...fpfPlayingUp.pontual];
+    return [...fpfPlayingUp.regular, ...fpfPlayingUp.pontual];
+  }, [filters.playingUp, playingUpReady, fpfPlayingUp]);
+
+  // Dropdown options (initialized from server data, fetched client-side as fallback)
+  const [clubs, setClubs] = useState<string[]>(initialData?.options?.clubs ?? []);
+  const [nationalities, setNationalities] = useState<string[]>(initialData?.options?.nationalities ?? []);
+  const [birthYears, setBirthYears] = useState<number[]>(initialData?.options?.birth_years ?? []);
 
   // Ref to cancel stale fetches (prevents race condition when deps change mid-fetch)
   const fetchCancelRef = useRef(0);
@@ -132,13 +167,8 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     }
 
     // Playing-up filter: narrow to known IDs server-side
-    if (filters.playingUp && playingUpReady) {
-      const fpf = fpfPlayingUp;
-      let ids: number[] = [];
-      if (filters.playingUp === 'regular') ids = [...fpf.regular];
-      else if (filters.playingUp === 'pontual') ids = [...fpf.pontual];
-      else ids = [...fpf.regular, ...fpf.pontual];
-      if (ids.length > 0) q = q.in('id', ids);
+    if (filters.playingUp && playingUpIds) {
+      if (playingUpIds.length > 0) q = q.in('id', playingUpIds);
       else q = q.in('id', [-1]); // no matches — impossible ID to return empty
     }
 
@@ -157,7 +187,7 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
     }
 
     return q;
-  }, [filters, debouncedSearch, playingUpReady, fpfPlayingUp]);
+  }, [filters, debouncedSearch, playingUpIds]);
 
   /* ───────────── Enrich players with ratings + notes ───────────── */
 
@@ -204,12 +234,9 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
   /* ───────────── Unified server-side paginated fetch ───────────── */
 
   // Track the previous playingUpReady to detect when ONLY it changed (causes useless refetch)
-  const prevPlayingUpReadyRef = useRef(playingUpReady);
+  // prevPlayingUpReadyRef removed — needsFetch pattern handles skip logic
 
   const fetchPage = useCallback(async (fetchId?: number) => {
-    // If playingUp filter is active but IDs haven't loaded yet, skip (will re-trigger when ready)
-    if (filters.playingUp && !playingUpReady) return;
-
     setLoading(true);
     const supabase = createClient();
 
@@ -230,23 +257,28 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [clubId, applyAllFilters, page, enrichPlayers, filters.playingUp, playingUpReady]);
+  }, [clubId, applyAllFilters, page, enrichPlayers]);
 
+  // Tracks whether the user has changed search/filter/page since mount.
+  // When initialData is provided, the first render already has page 0 data — skip fetch until user acts.
+  const needsFetch = useRef(!initialData?.players?.length || !!initialClub || !!initialNationality);
   useEffect(() => {
-    // Skip redundant fetch when playingUp filter is NOT active and only playingUpReady changed
-    // (the query result is identical with or without playingUp data when the filter is off)
-    if (!filters.playingUp && prevPlayingUpReadyRef.current !== playingUpReady) {
-      prevPlayingUpReadyRef.current = playingUpReady;
-      return;
-    }
-    prevPlayingUpReadyRef.current = playingUpReady;
+    if (!needsFetch.current) return;
     const id = ++fetchCancelRef.current;
     fetchPage(id);
-  }, [fetchPage, filters.playingUp, playingUpReady]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
+  }, [fetchPage]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
+
+  // When search, filters, or page change, mark that we need to fetch
+  // Skip on mount (initial values aren't user-driven)
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    needsFetch.current = true;
+  }, [debouncedSearch, filters, page]);
 
   /* ───────────── Realtime ───────────── */
 
-  useRealtimeTable('players', { onAny: () => { fetchPage(++fetchCancelRef.current); } });
+  useRealtimeTable('players', { onAny: () => { needsFetch.current = true; fetchPage(++fetchCancelRef.current); } });
 
   /* ───────────── Enrich with FPF playing-up flags (lazy overlay) ───────────── */
 
@@ -263,23 +295,26 @@ export function PlayersView({ hideEvaluations = false, clubId }: { hideEvaluatio
 
   /* ───────────── Fetch dropdown options once via RPC ───────────── */
 
+  // Fetch dropdown options only if NOT already provided by server
+  const hasServerOptions = useRef(clubs.length > 0);
   useEffect(() => {
-    const supabase = createClient();
-    // Single RPC returns all distinct values — replaces 3 × 5000-row queries
-    supabase.rpc('distinct_player_options', { p_club_id: clubId }).then(({ data, error }) => {
-      if (!error && data) {
-        const opts = data as { clubs: string[]; nationalities: string[]; birth_years: number[] };
-        setClubs(opts.clubs ?? []);
-        setNationalities(opts.nationalities ?? []);
-        setBirthYears(opts.birth_years ?? []);
-      }
-    });
+    if (!hasServerOptions.current) {
+      const supabase = createClient();
+      supabase.rpc('distinct_player_options', { p_club_id: clubId }).then(({ data, error }) => {
+        if (!error && data) {
+          const opts = data as { clubs: string[]; nationalities: string[]; birth_years: number[] };
+          setClubs(opts.clubs ?? []);
+          setNationalities(opts.nationalities ?? []);
+          setBirthYears(opts.birth_years ?? []);
+        }
+      });
+    }
     // Fetch playing-up IDs (ZZ + FPF combined) to enrich table badges + filter
     getPlayingUpPlayerIds(clubId).then((ids) => {
       setFpfPlayingUp({ regular: new Set(ids.regular), pontual: new Set(ids.pontual) });
       setPlayingUpReady(true);
     }).catch(() => setPlayingUpReady(true));
-  }, [clubId]);
+  }, [clubId]); // eslint-disable-line react-hooks/exhaustive-deps -- hasServerOptions is stable ref
 
   const hasFilters = Object.values(filters).some(Boolean);
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
