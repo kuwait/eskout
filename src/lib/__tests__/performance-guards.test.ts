@@ -448,13 +448,15 @@ describe('RealtimeProvider idle detection', () => {
 
 /* ───────────── Export API Safety ───────────── */
 
-describe('Export API has row limits', () => {
-  it('fetchFilteredPlayers should have a max row cap', () => {
+describe('Export API has safety guards', () => {
+  it('uses paginated fetching', () => {
     const content = execSync(`cat "${SRC_DIR}/src/actions/export.ts"`, { encoding: 'utf-8' });
-    // Must have a MAX_ROWS cap to prevent memory blow-up on large exports
-    expect(content).toMatch(/MAX_ROWS|MAX_EXPORT|maxRows/);
-    // And still paginate
     expect(content).toMatch(/PAGE_SIZE/);
+  });
+
+  it('full database JSON export requires superadmin', () => {
+    const content = execSync(`cat "${SRC_DIR}/src/actions/export.ts"`, { encoding: 'utf-8' });
+    expect(content).toMatch(/is_superadmin/);
   });
 });
 

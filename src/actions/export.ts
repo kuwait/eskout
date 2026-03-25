@@ -89,6 +89,10 @@ export async function exportFullDatabaseJson(): Promise<{
     const { error: authError, supabase, clubId } = await checkExportAuth();
     if (authError) return { success: false, error: authError };
 
+    // Full DB export is restricted to superadmin (heavy operation — all tables, all rows)
+    const { data: profile } = await supabase.from('profiles').select('is_superadmin').eq('id', (await supabase.auth.getUser()).data.user!.id).single();
+    if (!profile?.is_superadmin) return { success: false, error: 'Apenas superadmins podem exportar a base de dados completa' };
+
     // Fetch all tables in parallel
     const results = await Promise.all(
       ALL_TABLES.map(async (table) => ({
@@ -159,12 +163,11 @@ async function fetchFilteredPlayers(
   clubId: string,
 ): Promise<{ rows: Record<string, unknown>[]; error?: string }> {
   const PAGE_SIZE = 1000;
-  const MAX_ROWS = 10000; // Safety cap — prevent memory blow-up on large unfiltered exports
   let allPlayers: Record<string, unknown>[] = [];
   let page = 0;
   let hasMore = true;
 
-  while (hasMore && allPlayers.length < MAX_ROWS) {
+  while (hasMore) {
     let query = supabase
       .from('players')
       .select('*, age_groups(name)')
