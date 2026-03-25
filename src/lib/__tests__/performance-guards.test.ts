@@ -397,7 +397,7 @@ describe('Realtime subscriptions are bounded', () => {
     );
     const lines = result.split('\n').filter(Boolean);
     for (const line of lines) {
-      const [file, countStr] = line.split(':');
+      const [, countStr] = line.split(':');
       const count = parseInt(countStr, 10);
       if (!isNaN(count)) {
         expect(count).toBeLessThanOrEqual(5);

@@ -797,9 +797,6 @@ export async function getPickerPlayers(): Promise<PickerPlayer[]> {
 
 /* ───────────── Picker Search (server-side structural filters) ───────────── */
 
-/** Lightweight columns selected for picker queries */
-const PICKER_COLS = 'id, name, club, club_logo_url, position_normalized, secondary_position, tertiary_position, dob, foot, department_opinion, nationality' as const;
-
 /** Parse department_opinion from DB row (handles both JS array and Postgres string format) */
 function parseOpinions(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw;

@@ -129,14 +129,11 @@ function computeLegacyByPosition(players: Player[], squadType: SquadType): Recor
 }
 
 /** RPC result shape from get_squad_panel */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC returns untyped JSON
 interface SquadPanelData {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  squads: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  squad_players: any[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  players: any[];
+  squads: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  squad_players: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  players: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   shadow_age_group_ids: number[];
 }
 
@@ -161,7 +158,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     return (initialData.players as PlayerRow[]).map(mapPlayerRow);
   });
   const [initialLoading, setInitialLoading] = useState(!initialData?.squads?.length);
-  const [squadsLoaded, setSquadsLoaded] = useState(!!initialData?.squads?.length);
+  // squadsLoaded removed — initialLoading handles the loading state
 
   const [viewMode, setViewModeState] = useState<ViewMode>(() => getStoredViewMode(squadType));
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -255,7 +252,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
 
     if (error || !data) {
       setSquads([]); setAllSquadPlayersMap(new Map()); setAllPlayers([]);
-      setSquadsLoaded(true); setInitialLoading(false);
+      setInitialLoading(false);
       return;
     }
 
@@ -265,7 +262,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     // Map squads
     const mappedSquads = ((result.squads ?? []) as SquadRow[]).map(mapSquadRow);
     setSquads(mappedSquads);
-    setSquadsLoaded(true);
+    // squadsLoaded removed
 
     // Map squad_players into per-squad maps
     const spMap = new Map<number, SquadPlayersMap>();
@@ -315,11 +312,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     fetchAllSquadData();
   }, [fetchAllSquadData, squadType, selectedId, initialSquadId]);
 
-  // Keep visibleSquadIds for realtime and other-side fetches
-  const visibleSquadIds = useMemo(() => {
-    if (squadType === 'real') return selectedSquadId ? [selectedSquadId] : [];
-    return squads.map((s) => s.id);
-  }, [squadType, selectedSquadId, squads]);
+
 
   /* ───────────── Fetch other-side squads for compare view ───────────── */
 

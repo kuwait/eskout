@@ -60,10 +60,8 @@ const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
 
 /** Server-rendered initial data from get_players_page RPC */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface PlayersPageData {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  players: any[];
+  players: (PlayerRow & { avg_rating?: number; rating_count?: number; note_previews?: string[] })[];
   total_count: number;
   options: { clubs: string[]; nationalities: string[]; birth_years: number[] };
 }
@@ -76,9 +74,8 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
   // Initialize from server-rendered data when available (instant render)
   const [pageRows, setPageRows] = useState<Player[]>(() => {
     if (!initialData?.players?.length) return [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return initialData.players.map((row: any) => {
-      const player = mapPlayerRow(row as PlayerRow);
+    return initialData.players.map((row) => {
+      const player = mapPlayerRow(row);
       // Hydrate enrichment from RPC (avg_rating, rating_count, note_previews)
       if (row.avg_rating != null) {
         player.reportAvgRating = Number(row.avg_rating);
@@ -266,7 +263,7 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
     if (!needsFetch.current) return;
     const id = ++fetchCancelRef.current;
     fetchPage(id);
-  }, [fetchPage]); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch
+  }, [fetchPage]);
 
   // When search, filters, or page change, mark that we need to fetch
   // Skip on mount (initial values aren't user-driven)
@@ -314,7 +311,7 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
       setFpfPlayingUp({ regular: new Set(ids.regular), pontual: new Set(ids.pontual) });
       setPlayingUpReady(true);
     }).catch(() => setPlayingUpReady(true));
-  }, [clubId]); // eslint-disable-line react-hooks/exhaustive-deps -- hasServerOptions is stable ref
+  }, [clubId]);
 
   const hasFilters = Object.values(filters).some(Boolean);
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
