@@ -39,33 +39,30 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
   const pendingApproval = isScout;
   const adminReviewed = !isScout && !needsAdminReview; // true only for admin
 
-  // Duplicate detection — check by FPF/ZeroZero links first, then by name+DOB
+  // Duplicate detection — single OR query combining FPF link, ZeroZero link, and name+DOB
   const fpfLink = rest.fpfLink?.trim() || null;
   const zzLink = rest.zerozeroLink?.trim() || null;
 
-  if (fpfLink) {
-    const { data: dup } = await supabase
-      .from('players').select('id, name').eq('fpf_link', fpfLink).eq('club_id', clubId).maybeSingle();
-    if (dup) {
+  const orClauses: string[] = [];
+  if (fpfLink) orClauses.push(`fpf_link.eq.${fpfLink}`);
+  if (zzLink) orClauses.push(`zerozero_link.eq.${zzLink}`);
+  // Name + DOB always checked (ilike for case-insensitive name)
+  orClauses.push(`and(name.ilike.${rest.name.trim()},dob.eq.${dob})`);
+
+  const { data: dups } = await supabase
+    .from('players').select('id, name, fpf_link, zerozero_link')
+    .eq('club_id', clubId)
+    .or(orClauses.join(','));
+
+  if (dups && dups.length > 0) {
+    const dup = dups[0];
+    if (fpfLink && dup.fpf_link === fpfLink) {
       return { success: false, error: `Jogador já existe com este link FPF: ${dup.name} (ID ${dup.id})` };
     }
-  }
-  if (zzLink) {
-    const { data: dup } = await supabase
-      .from('players').select('id, name').eq('zerozero_link', zzLink).eq('club_id', clubId).maybeSingle();
-    if (dup) {
+    if (zzLink && dup.zerozero_link === zzLink) {
       return { success: false, error: `Jogador já existe com este link ZeroZero: ${dup.name} (ID ${dup.id})` };
     }
-  }
-  // Name + DOB match (case-insensitive name)
-  const { data: nameDup } = await supabase
-    .from('players').select('id, name')
-    .ilike('name', rest.name.trim())
-    .eq('dob', dob)
-    .eq('club_id', clubId)
-    .maybeSingle();
-  if (nameDup) {
-    return { success: false, error: `Jogador com o mesmo nome e data de nascimento já existe: ${nameDup.name} (ID ${nameDup.id})` };
+    return { success: false, error: `Jogador com o mesmo nome e data de nascimento já existe: ${dup.name} (ID ${dup.id})` };
   }
 
   // Find or create age group (club-scoped)

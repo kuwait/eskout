@@ -138,7 +138,23 @@ export function PipelineView({ clubId }: { clubId: string }) {
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */
 
-  useRealtimeTable('players', { onAny: () => fetchPipelinePlayers() });
+  // Only refetch pipeline when recruitment-relevant fields change, not on every player mutation
+  // (e.g., photo upload or note edit shouldn't trigger full pipeline reload)
+  useRealtimeTable('players', {
+    onAny: (event) => {
+      // Always refetch on INSERT/DELETE/BULK/RECONNECT — player may have entered/left pipeline
+      if (event.action !== 'UPDATE') { fetchPipelinePlayers(); return; }
+      // For UPDATEs: only refetch if the event includes pipeline-relevant fields
+      // (if no fields listed, refetch to be safe — server action may not have specified fields)
+      if (!event.fields || event.fields.some(f =>
+        ['recruitment_status', 'pipeline_order', 'age_group_id', 'name', 'club',
+         'position_normalized', 'department_opinion', 'decision_side', 'decision_date',
+         'training_date', 'meeting_date', 'signing_date', 'contact_assigned_to'].includes(f)
+      )) {
+        fetchPipelinePlayers();
+      }
+    },
+  });
 
   /* ───────────── Group pipeline players by status ───────────── */
 

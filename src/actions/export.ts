@@ -159,11 +159,12 @@ async function fetchFilteredPlayers(
   clubId: string,
 ): Promise<{ rows: Record<string, unknown>[]; error?: string }> {
   const PAGE_SIZE = 1000;
+  const MAX_ROWS = 10000; // Safety cap — prevent memory blow-up on large unfiltered exports
   let allPlayers: Record<string, unknown>[] = [];
   let page = 0;
   let hasMore = true;
 
-  while (hasMore) {
+  while (hasMore && allPlayers.length < MAX_ROWS) {
     let query = supabase
       .from('players')
       .select('*, age_groups(name)')

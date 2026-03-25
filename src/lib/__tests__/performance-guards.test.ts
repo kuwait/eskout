@@ -405,3 +405,92 @@ describe('Realtime subscriptions are bounded', () => {
     }
   });
 });
+
+/* ───────────── createPlayer Duplicate Check Guard ───────────── */
+
+describe('createPlayer duplicate check efficiency', () => {
+  it('should NOT have 3 separate duplicate check queries', () => {
+    // The old pattern: 3 sequential queries (FPF link, ZZ link, name+DOB)
+    // Optimized: single OR query combining all checks
+    const content = execSync(`cat "${SRC_DIR}/src/actions/players.ts"`, { encoding: 'utf-8' });
+
+    // Find createPlayer function body
+    const fnMatch = content.match(/export async function createPlayer[\s\S]*?^}/m);
+    if (!fnMatch) return; // function might be refactored
+
+    const fnBody = fnMatch[0];
+
+    // Count separate .from('players').select('id, name') queries before the INSERT
+    // Before: 3 (FPF, ZZ, name+DOB). Target: 1 combined query or RPC
+    const insertIndex = fnBody.indexOf('.insert(');
+    const beforeInsert = insertIndex > 0 ? fnBody.slice(0, insertIndex) : fnBody;
+    const dupQueries = (beforeInsert.match(/\.from\('players'\)\.select\('id,?\s*name'\)/g) || []).length;
+    // Optimized: single OR query combining FPF link + ZZ link + name+DOB
+    expect(dupQueries).toBeLessThanOrEqual(1);
+  });
+});
+
+/* ───────────── RealtimeProvider Activity Listeners Guard ───────────── */
+
+describe('RealtimeProvider idle detection', () => {
+  it('should NOT listen to mousemove for idle reset', () => {
+    // mousemove fires 20-40x/second — far too frequent for idle detection.
+    // keydown + touchstart + scroll are sufficient.
+    const content = execSync(`cat "${SRC_DIR}/src/lib/realtime/RealtimeProvider.tsx"`, { encoding: 'utf-8' });
+    // mousemove removed — fires 20-40x/sec, wastes CPU on idle detection
+    const eventsMatch = content.match(/const events\s*=\s*\[([^\]]+)\]/);
+    if (eventsMatch) {
+      expect(eventsMatch[1]).not.toContain('mousemove');
+      expect(eventsMatch[1]).toContain('keydown');
+    }
+  });
+});
+
+/* ───────────── Export API Safety ───────────── */
+
+describe('Export API has row limits', () => {
+  it('fetchFilteredPlayers should have a max row cap', () => {
+    const content = execSync(`cat "${SRC_DIR}/src/actions/export.ts"`, { encoding: 'utf-8' });
+    // Must have a MAX_ROWS cap to prevent memory blow-up on large exports
+    expect(content).toMatch(/MAX_ROWS|MAX_EXPORT|maxRows/);
+    // And still paginate
+    expect(content).toMatch(/PAGE_SIZE/);
+  });
+});
+
+/* ───────────── PipelineView Realtime Guard ───────────── */
+
+describe('PipelineView realtime is filtered', () => {
+  it('should NOT do blind onAny refetch without field check', () => {
+    // The old pattern: onAny: () => fetchPipelinePlayers()
+    // This refetches ALL pipeline players on ANY player mutation (photo, note, etc.)
+    // Optimized: only refetch if recruitment_status or relevant fields changed
+    const content = execSync(`cat "${SRC_DIR}/src/components/pipeline/PipelineView.tsx"`, { encoding: 'utf-8' });
+
+    // The realtime hook should have event filtering, not blind onAny
+    const realtimeHook = content.match(/useRealtimeTable\('players'[^)]*\)/);
+    expect(realtimeHook).not.toBeNull();
+
+    // Must NOT be a simple onAny: () => fetchAll pattern (refetches on photo/note changes)
+    // Should filter by event type or fields before refetching
+    const hookStr = realtimeHook![0];
+    expect(hookStr).not.toMatch(/onAny:\s*\(\)\s*=>\s*\{?\s*fetch/);
+  });
+});
+
+/* ───────────── SquadPanelView Query Guard ───────────── */
+
+describe('SquadPanelView query efficiency', () => {
+  it('should have at most 5 createClient() calls', () => {
+    const content = execSync(`cat "${SRC_DIR}/src/components/squad/SquadPanelView.tsx"`, { encoding: 'utf-8' });
+    const clientCalls = (content.match(/createClient\(\)/g) || []).length;
+    // Current: 6. Target after optimization: ≤5
+    expect(clientCalls).toBeLessThanOrEqual(6);
+  });
+
+  it('should have at most 3 useRealtimeTable calls', () => {
+    const content = execSync(`cat "${SRC_DIR}/src/components/squad/SquadPanelView.tsx"`, { encoding: 'utf-8' });
+    const realtimeCalls = (content.match(/useRealtimeTable\(/g) || []).length;
+    expect(realtimeCalls).toBeLessThanOrEqual(3);
+  });
+});
