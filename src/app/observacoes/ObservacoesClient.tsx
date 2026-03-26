@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Binoculars, Calendar, ChevronRight, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -230,7 +231,7 @@ function RoundCard({
   const endLabel = new Date(round.endDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition hover:bg-accent/30">
+    <Link href={`/observacoes/${round.id}`} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition hover:bg-accent/30">
       {/* Icon */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
         <Calendar className="h-5 w-5" />
@@ -256,7 +257,7 @@ function RoundCard({
       {canManage ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" disabled={isPending}>
+            <button type="button" onClick={(e) => e.preventDefault()} className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" disabled={isPending}>
               <MoreVertical className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
@@ -295,7 +296,7 @@ function RoundCard({
       ) : (
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       )}
-    </div>
+    </Link>
   );
 }
 

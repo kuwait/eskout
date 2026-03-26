@@ -1,0 +1,470 @@
+// src/app/observacoes/[id]/RoundDetailClient.tsx
+// Round detail view — availability form (all roles) + availability matrix (admin/editor)
+// Scouts declare when they're free; coordinators see who's available for each day
+// RELEVANT FILES: src/actions/scout-availability.ts, src/lib/types/index.ts, src/app/observacoes/[id]/page.tsx
+
+'use client';
+
+import { useState, useTransition, useMemo } from 'react';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import { ArrowLeft, Calendar, Check, Clock, Plus, Sun, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { addAvailability, removeAvailability } from '@/actions/scout-availability';
+import type { AvailabilityPeriod, AvailabilityType, ScoutAvailability, ScoutingRound, UserRole } from '@/lib/types';
+
+/* ───────────── Constants ───────────── */
+
+const AVAILABILITY_TYPE_OPTIONS: { value: AvailabilityType; label: string; icon: typeof Check }[] = [
+  { value: 'always', label: 'Sempre disponível', icon: Check },
+  { value: 'full_day', label: 'Dia inteiro', icon: Calendar },
+  { value: 'period', label: 'Período', icon: Sun },
+  { value: 'time_range', label: 'Hora exacta', icon: Clock },
+];
+
+const PERIOD_OPTIONS: { value: AvailabilityPeriod; label: string }[] = [
+  { value: 'morning', label: 'Manhã' },
+  { value: 'afternoon', label: 'Tarde' },
+  { value: 'evening', label: 'Noite' },
+];
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  draft: { label: 'Rascunho', color: 'bg-neutral-100 text-neutral-600 border-neutral-200' },
+  published: { label: 'Publicada', color: 'bg-green-50 text-green-700 border-green-200' },
+  closed: { label: 'Fechada', color: 'bg-slate-100 text-slate-600 border-slate-200' },
+};
+
+/* ───────────── Component ───────────── */
+
+export function RoundDetailClient({
+  round,
+  availability: initialAvailability,
+  scouts,
+  userRole,
+  userId,
+}: {
+  round: ScoutingRound;
+  availability: ScoutAvailability[];
+  scouts: { id: string; name: string; role: string }[];
+  userRole: UserRole;
+  userId: string;
+}) {
+  const [availability, setAvailability] = useState(initialAvailability);
+  const [addOpen, setAddOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const canManage = userRole === 'admin' || userRole === 'editor';
+  const myAvailability = availability.filter((a) => a.scoutId === userId);
+  const statusCfg = STATUS_CONFIG[round.status];
+
+  // Days in the round range
+  const roundDays = useMemo(() => {
+    const days: string[] = [];
+    const current = new Date(round.startDate);
+    const end = new Date(round.endDate);
+    while (current <= end) {
+      days.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  }, [round.startDate, round.endDate]);
+
+  function handleRemove(id: number) {
+    startTransition(async () => {
+      const res = await removeAvailability(id, round.id);
+      if (res.success) {
+        setAvailability((prev) => prev.filter((a) => a.id !== id));
+        toast.success('Disponibilidade removida');
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+      {/* Back + header */}
+      <Link href="/observacoes" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-neutral-700 transition">
+        <ArrowLeft className="h-4 w-4" />
+        Jornadas
+      </Link>
+
+      <div className="mb-6">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold text-neutral-900 sm:text-xl">{round.name}</h1>
+          <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>
+            {statusCfg.label}
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {new Date(round.startDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })}
+          {' — '}
+          {new Date(round.endDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
+        </p>
+        {round.notes && <p className="mt-1 text-xs text-muted-foreground/70">{round.notes}</p>}
+      </div>
+
+      {/* My availability section */}
+      <section className="mb-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-neutral-900">A tua disponibilidade</h2>
+          <Button onClick={() => setAddOpen(true)} size="sm" variant="outline" className="gap-1.5" disabled={round.status === 'closed'}>
+            <Plus className="h-3.5 w-3.5" />
+            Adicionar
+          </Button>
+        </div>
+
+        {myAvailability.length === 0 ? (
+          <div className="rounded-lg border-2 border-dashed border-neutral-200 py-6 text-center">
+            <p className="text-sm text-muted-foreground">Sem disponibilidade declarada</p>
+            {round.status !== 'closed' && (
+              <p className="mt-1 text-xs text-muted-foreground/60">Adiciona quando estás disponível</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {myAvailability.map((a) => (
+              <AvailabilitySlot key={a.id} slot={a} onRemove={() => handleRemove(a.id)} isPending={isPending} isClosed={round.status === 'closed'} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Availability matrix — admin/editor only */}
+      {canManage && scouts.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-neutral-900">Disponibilidade da equipa</h2>
+          <AvailabilityMatrix scouts={scouts} availability={availability} days={roundDays} />
+        </section>
+      )}
+
+      {/* Add availability dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Declarar disponibilidade</DialogTitle>
+          </DialogHeader>
+          <AvailabilityForm
+            roundId={round.id}
+            roundDays={roundDays}
+            isPending={isPending}
+            onSubmit={(data) => {
+              startTransition(async () => {
+                const res = await addAvailability(data);
+                if (res.success && res.data) {
+                  setAvailability((prev) => [...prev, res.data!]);
+                  setAddOpen(false);
+                  toast.success('Disponibilidade adicionada');
+                } else {
+                  toast.error(res.error);
+                }
+              });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/* ───────────── Availability Slot Card ───────────── */
+
+function AvailabilitySlot({ slot, onRemove, isPending, isClosed }: {
+  slot: ScoutAvailability;
+  onRemove: () => void;
+  isPending: boolean;
+  isClosed: boolean;
+}) {
+  const label = formatAvailabilityLabel(slot);
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-600">
+        <Check className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-neutral-900">{label}</p>
+        {slot.notes && <p className="mt-0.5 truncate text-xs text-muted-foreground">{slot.notes}</p>}
+      </div>
+      {!isClosed && (
+        <button type="button" onClick={onRemove} disabled={isPending} className="shrink-0 rounded p-1 text-muted-foreground hover:text-red-500 transition">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ───────────── Availability Matrix ───────────── */
+
+function AvailabilityMatrix({ scouts, availability, days }: {
+  scouts: { id: string; name: string; role: string }[];
+  availability: ScoutAvailability[];
+  days: string[];
+}) {
+  // Build lookup: scoutId → { date → slots[] }
+  const matrix = useMemo(() => {
+    const m: Record<string, Record<string, ScoutAvailability[]>> = {};
+    // Track "always" scouts
+    const alwaysScouts = new Set<string>();
+
+    for (const a of availability) {
+      if (a.availabilityType === 'always') {
+        alwaysScouts.add(a.scoutId);
+        continue;
+      }
+      if (!a.availableDate) continue;
+      if (!m[a.scoutId]) m[a.scoutId] = {};
+      if (!m[a.scoutId][a.availableDate]) m[a.scoutId][a.availableDate] = [];
+      m[a.scoutId][a.availableDate].push(a);
+    }
+
+    return { dated: m, alwaysScouts };
+  }, [availability]);
+
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b bg-neutral-50">
+            <th className="sticky left-0 z-10 bg-neutral-50 px-3 py-2 text-left font-medium text-neutral-600">Scout</th>
+            {days.map((day) => {
+              const d = new Date(day);
+              const weekday = d.toLocaleDateString('pt-PT', { weekday: 'short' }).replace('.', '');
+              const dayNum = d.getDate();
+              return (
+                <th key={day} className="min-w-[60px] px-2 py-2 text-center font-medium text-neutral-600">
+                  <div className="text-[10px] uppercase text-muted-foreground">{weekday}</div>
+                  <div>{dayNum}</div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {scouts.map((scout) => {
+            const isAlways = matrix.alwaysScouts.has(scout.id);
+            return (
+              <tr key={scout.id} className="border-b last:border-0">
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium text-neutral-900 whitespace-nowrap">
+                  {scout.name}
+                  <span className="ml-1.5 text-[10px] text-muted-foreground/50">{scout.role === 'scout' ? '' : scout.role}</span>
+                </td>
+                {days.map((day) => {
+                  const slots = matrix.dated[scout.id]?.[day] ?? [];
+                  return (
+                    <td key={day} className="px-2 py-2 text-center">
+                      {isAlways ? (
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600">
+                          <Check className="h-3 w-3" />
+                        </span>
+                      ) : slots.length > 0 ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          {slots.map((s) => (
+                            <span key={s.id} className="rounded bg-green-50 px-1 py-0.5 text-[9px] font-medium text-green-700">
+                              {formatShortLabel(s)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-neutral-300">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ───────────── Availability Form ───────────── */
+
+function AvailabilityForm({ roundId, roundDays, isPending, onSubmit }: {
+  roundId: number;
+  roundDays: string[];
+  isPending: boolean;
+  onSubmit: (data: {
+    roundId: number;
+    availabilityType: string;
+    availableDate?: string;
+    period?: string;
+    timeStart?: string;
+    timeEnd?: string;
+    notes?: string;
+  }) => void;
+}) {
+  const [type, setType] = useState<AvailabilityType>('full_day');
+  const [date, setDate] = useState(roundDays[0] ?? '');
+  const [period, setPeriod] = useState<AvailabilityPeriod>('morning');
+  const [timeStart, setTimeStart] = useState('09:00');
+  const [timeEnd, setTimeEnd] = useState('12:00');
+  const [notes, setNotes] = useState('');
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit({
+          roundId,
+          availabilityType: type,
+          availableDate: type !== 'always' ? date : undefined,
+          period: type === 'period' ? period : undefined,
+          timeStart: type === 'time_range' ? timeStart : undefined,
+          timeEnd: type === 'time_range' ? timeEnd : undefined,
+          notes: notes || undefined,
+        });
+      }}
+      className="space-y-4"
+    >
+      {/* Type selector */}
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-neutral-600">Tipo</label>
+        <div className="grid grid-cols-2 gap-2">
+          {AVAILABILITY_TYPE_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setType(opt.value)}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition',
+                  type === opt.value
+                    ? 'border-green-300 bg-green-50 text-green-700'
+                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Date — not shown for 'always' */}
+      {type !== 'always' && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Dia</label>
+          <select
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          >
+            {roundDays.map((day) => {
+              const d = new Date(day);
+              const label = d.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
+              return <option key={day} value={day}>{label}</option>;
+            })}
+          </select>
+        </div>
+      )}
+
+      {/* Period selector */}
+      {type === 'period' && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Período</label>
+          <div className="flex gap-2">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setPeriod(opt.value)}
+                className={cn(
+                  'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition',
+                  period === opt.value
+                    ? 'border-green-300 bg-green-50 text-green-700'
+                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Time range */}
+      {type === 'time_range' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600">De</label>
+            <input
+              type="time"
+              value={timeStart}
+              onChange={(e) => setTimeStart(e.target.value)}
+              required
+              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Até</label>
+            <input
+              type="time"
+              value={timeEnd}
+              onChange={(e) => setTimeEnd(e.target.value)}
+              required
+              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Notes */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-600">Notas</label>
+        <input
+          type="text"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Ex: Só se for perto do Porto"
+          className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        />
+      </div>
+
+      <Button type="submit" disabled={isPending} className="w-full">
+        Confirmar
+      </Button>
+    </form>
+  );
+}
+
+/* ───────────── Helpers ───────────── */
+
+function formatAvailabilityLabel(slot: ScoutAvailability): string {
+  if (slot.availabilityType === 'always') return 'Sempre disponível';
+  const dateLabel = slot.availableDate
+    ? new Date(slot.availableDate).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })
+    : '';
+  if (slot.availabilityType === 'full_day') return `${dateLabel} — dia inteiro`;
+  if (slot.availabilityType === 'period') {
+    const periodLabel = PERIOD_OPTIONS.find((p) => p.value === slot.period)?.label ?? slot.period;
+    return `${dateLabel} — ${periodLabel}`;
+  }
+  if (slot.availabilityType === 'time_range') {
+    return `${dateLabel} — ${slot.timeStart} às ${slot.timeEnd}`;
+  }
+  return dateLabel;
+}
+
+function formatShortLabel(slot: ScoutAvailability): string {
+  if (slot.availabilityType === 'full_day') return 'Dia';
+  if (slot.availabilityType === 'period') {
+    return PERIOD_OPTIONS.find((p) => p.value === slot.period)?.label ?? '?';
+  }
+  if (slot.availabilityType === 'time_range') {
+    return `${slot.timeStart}–${slot.timeEnd}`;
+  }
+  return '✓';
+}

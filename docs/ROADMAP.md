@@ -206,6 +206,16 @@ Custom squad system replacing hardcoded real/shadow booleans. Clubs can create u
 - [x] Permissions: admin/editor manage, admin-only delete, scouts read-only
 - [x] Nav: "Observações" (Binoculars icon) between Calendário and Tarefas, visible to admin/editor/scout, hidden from recruiter
 
+### 16C. Scout Availability Declaration ✅ DONE
+- [x] Server actions: `getScoutAvailability`, `addAvailability`, `removeAvailability`, `getClubScouts`
+- [x] Mapper: `mapScoutAvailabilityRow` in mappers.ts
+- [x] Route: `/observacoes/[id]` — round detail page with availability management
+- [x] Scout view: declare availability (always/full_day/period/time_range), list own slots, remove
+- [x] Admin/editor view: availability matrix (rows=scouts, columns=days) with colored cells
+- [x] Form: type selector grid, conditional date/period/time fields, notes
+- [x] Round cards now clickable (Link to detail page)
+- [x] Closed rounds: add button disabled, no delete on slots
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view

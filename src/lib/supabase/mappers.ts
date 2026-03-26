@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutAvailability, ScoutAvailabilityRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
 import { detectPlayingUp } from '@/lib/utils/playing-up';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
@@ -286,6 +286,26 @@ export function mapScoutingRoundRow(row: ScoutingRoundRow): ScoutingRound {
     status: row.status as ScoutingRound['status'],
     notes: row.notes ?? '',
     createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Scout Availability Mapper ───────────── */
+
+/** Map a Supabase ScoutAvailabilityRow (snake_case) to the domain ScoutAvailability type (camelCase) */
+export function mapScoutAvailabilityRow(row: ScoutAvailabilityRow): ScoutAvailability {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    roundId: row.round_id,
+    scoutId: row.scout_id,
+    availabilityType: row.availability_type as ScoutAvailability['availabilityType'],
+    availableDate: row.available_date,
+    period: (row.period as ScoutAvailability['period']) ?? null,
+    timeStart: row.time_start,
+    timeEnd: row.time_end,
+    notes: row.notes ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
