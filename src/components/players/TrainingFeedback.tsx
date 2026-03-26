@@ -285,6 +285,20 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
             <ShareLinkButtons url={shareLink.url} />
           </div>
         )}
+
+        {/* Delete confirmation */}
+        <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminar feedback?</AlertDialogTitle>
+              <AlertDialogDescription>Esta ação não pode ser revertida.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={onDelete} className="bg-red-600 text-white hover:bg-red-700">Eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
