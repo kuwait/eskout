@@ -121,6 +121,19 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
   const [localNote, setLocalNote] = useState(player.recruitmentNotes);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local note when server/realtime updates the prop
   useEffect(() => { setLocalNote(player.recruitmentNotes); }, [player.recruitmentNotes]);
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(player.recruitmentNotes);
+  const [isSavingNote, startSaveNote] = useTransition();
+
+  function saveNote(text: string) {
+    setEditingNote(false);
+    setLocalNote(text);
+    if (text === player.recruitmentNotes) return;
+    startSaveNote(async () => {
+      await updatePlayer(player.id, { recruitment_notes: text });
+    });
+  }
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
@@ -325,13 +338,46 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           </button>
         )}
 
-        {/* Pipeline note — display only, editing via ⋮ menu */}
-        {localNote && (
-          <div className="mt-1 flex w-full items-center gap-1.5 rounded bg-amber-50 px-2 py-1 text-left text-[10px] text-amber-700">
+        {/* Pipeline note — inline editable, or display with click-to-edit */}
+        {editingNote ? (
+          <div data-no-navigate className="mt-1.5 space-y-1" onClick={(e) => e.stopPropagation()}>
+            <textarea
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              rows={2}
+              className="w-full resize-none rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 focus:border-amber-500 focus:outline-none"
+              autoFocus
+              placeholder="Nota rápida…"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveNote(noteDraft.trim()); }
+                if (e.key === 'Escape') { setEditingNote(false); setNoteDraft(localNote); }
+              }}
+            />
+            <div className="flex justify-end gap-1">
+              <button type="button" onClick={() => { setEditingNote(false); setNoteDraft(localNote); }} className="rounded p-0.5 text-muted-foreground hover:bg-neutral-100">
+                <X className="h-3 w-3" />
+              </button>
+              <button type="button" onClick={() => saveNote(noteDraft.trim())} className="rounded p-0.5 text-amber-600 hover:bg-amber-100">
+                <Check className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ) : localNote ? (
+          <button
+            data-no-navigate
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setNoteDraft(localNote); setEditingNote(true); }}
+            disabled={isSavingNote}
+            className="mt-1 flex w-full items-center gap-1.5 rounded bg-amber-50 px-2 py-1 text-left text-[10px] text-amber-700 hover:bg-amber-100"
+          >
             <StickyNote className="h-2.5 w-2.5 shrink-0 text-amber-400" />
             <span className="flex-1">{localNote}</span>
-          </div>
-        )}
+            <X
+              className="h-2.5 w-2.5 shrink-0 opacity-40 hover:opacity-100"
+              onClick={(e) => { e.stopPropagation(); saveNote(''); }}
+            />
+          </button>
+        ) : null}
 
         {/* Corner menu with "Mover" + "Remover" — same on mobile and desktop */}
         {onStatusChange && player.recruitmentStatus && (
@@ -343,7 +389,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
             onRemove={onRemove}
             onDecisionSideChange={onDecisionSideChange}
             currentNote={localNote}
-            onNoteSaved={setLocalNote}
+            onNoteSaved={saveNote}
           />
         )}
       </div>
@@ -741,7 +787,6 @@ function CardActionsMenu({
   // Note editing inside the dialog
   const [showNoteEditor, setShowNoteEditor] = useState(false);
   const [noteDraft, setNoteDraft] = useState(currentNote ?? '');
-  const [isSavingNote, startSaveNote] = useTransition();
 
   function handleClose() {
     setOpen(false);
@@ -752,11 +797,8 @@ function CardActionsMenu({
 
   function handleSaveNote() {
     const trimmed = noteDraft.trim();
-    onNoteSaved?.(trimmed); // Optimistic display
+    onNoteSaved?.(trimmed); // Delegates to parent saveNote() — handles optimistic + server update
     handleClose();
-    startSaveNote(async () => {
-      await updatePlayer(playerId, { recruitment_notes: trimmed });
-    });
   }
 
   return (
@@ -792,7 +834,7 @@ function CardActionsMenu({
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={handleClose}>Cancelar</Button>
-                <Button size="sm" onClick={handleSaveNote} disabled={isSavingNote}>Guardar</Button>
+                <Button size="sm" onClick={handleSaveNote}>Guardar</Button>
               </div>
             </div>
           ) : showDecisionPicker ? (
