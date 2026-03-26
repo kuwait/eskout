@@ -145,6 +145,9 @@ Personal TODO workspace per user with auto-generated tasks from pipeline actions
 - [x] Status history: human-readable decision_side entries, shadow squad generation year
 - [x] New department opinions: "Ver em treino" (cyan) and "Stand-by" (slate)
 - [x] Fix pipeline horizontal scroll (remove overflow-hidden blocking ScrollArea)
+- [x] Fix decision_side race condition — pass side through single `updateRecruitmentStatus` call
+- [x] New pipeline column: "Em Stand-by" (slate) between A Decidir and Confirmado — mandatory reason text (`standby_reason`, migration 090)
+- [x] Pipeline card notes — inline editable via ⋮ menu, amber badge display, uses existing `recruitment_notes` column
 
 ### 5B-5. Custom Squads ✅ DONE
 Custom squad system replacing hardcoded real/shadow booleans. Clubs can create unlimited squads per age group.

@@ -179,6 +179,7 @@ Dedicated page `/jogadores/{id}`.
 | `vir_treinar` | Vir treinar | Blue |
 | `reuniao_marcada` | Reunião Marcada | Orange |
 | `a_decidir` | A decidir | Dark Blue |
+| `em_standby` | Em Stand-by | Slate |
 | `confirmado` | Confirmado | Green |
 | `assinou` | Assinou | Dark Green |
 | `rejeitado` | Recusou vir | Red |
@@ -192,6 +193,14 @@ The `a_decidir` column is split into two always-visible sub-sections via a `deci
 Both sub-sections are always visible with a dashed separator. DnD between sub-sections changes `decision_side`, not the status. The field is cleared automatically when leaving `a_decidir`. See migration 058.
 
 **Decision Date (`decision_date`):** Cards in `a_decidir` can have an optional deadline — the date by which the club or player should give an answer. Displayed on the pipeline card. Cleared automatically when leaving `a_decidir`. See migration 071.
+
+### "Em Stand-by" (Standby Reason)
+
+Players approved but waiting for a spot or other conditions. Moving to `em_standby` requires a mandatory reason text (`standby_reason` column). The reason is displayed on the pipeline card and editable inline. Cleared automatically when leaving `em_standby`. See migration 090.
+
+### Pipeline Card Notes
+
+Any pipeline card can have a free-text note (`recruitment_notes` column). Notes are added/edited via the ⋮ action menu (inline textarea) or by clicking the note badge on the card. Notes show as an amber badge below the card content. No note = no UI clutter.
 
 ### Department Opinions
 

@@ -597,11 +597,12 @@ CREATE TABLE players (
   recruitment_status TEXT DEFAULT 'por_tratar'
     CHECK (recruitment_status IN (
       'por_tratar','em_contacto','vir_treinar','reuniao_marcada',
-      'a_decidir','confirmado','assinou','rejeitado'
+      'a_decidir','em_standby','confirmado','assinou','rejeitado'
     )),
   decision_side TEXT DEFAULT NULL
     CHECK (decision_side IN ('club', 'player')),  -- A Decidir sub-section (migration 058)
   decision_date TIMESTAMPTZ,                       -- Deadline for A Decidir answer (migration 071)
+  standby_reason TEXT,                              -- Mandatory reason when in em_standby (migration 090)
   recruitment_notes TEXT,
   contact_assigned_to UUID REFERENCES profiles(id),
   training_date DATE,
@@ -1003,7 +1004,7 @@ type ObserverDecision = '' | 'Assinar' | 'Acompanhar' | 'Rever' | 'Sem Interesse
 
 type RecruitmentStatus =
   | 'por_tratar' | 'em_contacto' | 'vir_treinar' | 'reuniao_marcada'
-  | 'a_decidir' | 'confirmado' | 'assinou' | 'rejeitado';
+  | 'a_decidir' | 'em_standby' | 'confirmado' | 'assinou' | 'rejeitado';
 
 type UserRole = 'admin' | 'editor' | 'scout' | 'recruiter';
 type Foot = 'Dir' | 'Esq' | 'Amb' | '';
@@ -1200,3 +1201,15 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 076 | `076_qsr_maturation_foot.sql` | Add maturation (Atrasado/Normal/Avançado) and observed_foot to quick reports |
 | 077 | `077_qsr_observation_context.sql` | Add observed_position, minutes_observed, standout_level, starter, sub_minute, conditions |
 | 078 | `078_qsr_morphology_opponent_level.sql` | Add height_impression, build_impression, opponent_level |
+| 079 | `079_squad_player_doubt.sql` | Squad player doubt flag |
+| 080 | `080_competition_summary_columns.sql` | Competition summary columns |
+| 081 | `081_distinct_player_options_rpc.sql` | Distinct player options RPC |
+| 082 | `082_unaccent_search.sql` | Unaccent search support |
+| 083 | `083_club_age_groups_rls.sql` | Club-scoped age groups RLS |
+| 084 | `084_security_advisor_fixes.sql` | Security advisor fixes |
+| 085 | `085_appshell_counts_rpc.sql` | AppShell badge counts RPC |
+| 086 | `086_player_profile_rpc.sql` | Player profile RPC (single round-trip) |
+| 087 | `087_pipeline_players_rpc.sql` | Pipeline players + contact purposes RPC |
+| 088 | `088_squad_panel_rpc.sql` | Squad panel RPC |
+| 089 | `089_players_page_rpc.sql` | Players page RPC |
+| 090 | `090_em_standby_status.sql` | Add `em_standby` recruitment status + `standby_reason` column |

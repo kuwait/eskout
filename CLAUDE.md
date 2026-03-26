@@ -418,6 +418,7 @@ Eskout identity — black & white base with accent colors for status:
 --pipeline-vir-treinar: #3b82f6;
 --pipeline-reuniao-marcada: #f97316;
 --pipeline-a-decidir: #1e40af;
+--pipeline-em-standby: #64748b;
 --pipeline-confirmado: #22c55e;
 --pipeline-assinou: #16a34a;
 --pipeline-rejeitado: #ef4444;
@@ -494,8 +495,8 @@ Eskout identity — black & white base with accent colors for status:
 ### Recruitment Pipeline
 
 ```
-por_tratar → em_contacto → vir_treinar → reuniao_marcada → a_decidir → confirmado → assinou
-                                                                      → rejeitado
+por_tratar → em_contacto → vir_treinar → reuniao_marcada → a_decidir → em_standby → confirmado → assinou
+                                                                                    → rejeitado
 ```
 
 The `a_decidir` status is split into two sub-sections via `decision_side`: `'club'` (default) and `'player'`.
