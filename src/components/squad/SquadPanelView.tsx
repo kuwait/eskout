@@ -34,7 +34,7 @@ import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { Player, PickerPlayer, PlayerRow, Squad, SquadRow, SquadType } from '@/lib/types';
 
 type ViewMode = 'campo' | 'lista' | 'comparar';
-type SquadPlayersMap = Map<number, { position: string; sortOrder: number; isDoubt: boolean }>;
+type SquadPlayersMap = Map<number, { position: string; sortOrder: number; isDoubt: boolean; isSigned: boolean }>;
 
 const VIEW_MODE_KEY_PREFIX = 'eskout-view-';
 const SQUAD_SELECTION_KEY_PREFIX = 'eskout-squad-';
@@ -75,7 +75,7 @@ function computeByPosition(
     const player = allPlayers.find((p) => p.id === playerId);
     if (!player) continue;
     // Stamp squad-context doubt flag onto the player object for rendering
-    const stamped = sp.isDoubt ? { ...player, isDoubt: true } : player;
+    const stamped = (sp.isDoubt || sp.isSigned) ? { ...player, isDoubt: sp.isDoubt, isSigned: sp.isSigned } : player;
     const pos = sp.position;
 
     // Special sections — not on the pitch
@@ -210,7 +210,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const map = new Map<number, SquadPlayersMap>();
     for (const row of initialData.squad_players) {
       if (!map.has(row.squad_id)) map.set(row.squad_id, new Map());
-      map.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false });
+      map.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false });
     }
     return map;
   });
@@ -267,7 +267,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const spMap = new Map<number, SquadPlayersMap>();
     for (const row of result.squad_players ?? []) {
       if (!spMap.has(row.squad_id)) spMap.set(row.squad_id, new Map());
-      spMap.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false });
+      spMap.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false });
     }
     setAllSquadPlayersMap(spMap);
 
@@ -352,14 +352,14 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
 
     const { data } = await supabase
       .from('squad_players')
-      .select('squad_id, player_id, position, sort_order, is_doubt')
+      .select('squad_id, player_id, position, sort_order, is_doubt, is_signed')
       .eq('squad_id', compareRightId);
 
     if (!data) { setOtherSquadPlayersMap(new Map()); return; }
 
     const map: SquadPlayersMap = new Map();
     for (const row of data) {
-      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false });
+      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false });
     }
     setOtherSquadPlayersMap(map);
   }, [compareRightId]);
@@ -456,7 +456,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
       setAllSquadPlayersMap((prev) => {
         const next = new Map(prev);
         const updated = new Map(next.get(squadId) ?? new Map());
-        updated.set(player.id, { position: pos, sortOrder: nextOrder, isDoubt: false });
+        updated.set(player.id, { position: pos, sortOrder: nextOrder, isDoubt: false, isSigned: false });
         next.set(squadId, updated);
         return next;
       });
@@ -613,6 +613,26 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     });
   }
 
+  /** Toggle is_signed on squad_players — independent of pipeline */
+  function handleToggleSigned(playerId: number, squadId: number | null, isSigned: boolean) {
+    if (!squadId) return;
+    markMutation();
+    // Optimistic update on squad players map
+    setAllSquadPlayersMap((prev) => {
+      const next = new Map(prev);
+      const updated = new Map(next.get(squadId) ?? new Map());
+      const existing = updated.get(playerId);
+      if (existing) updated.set(playerId, { ...existing, isSigned });
+      next.set(squadId, updated);
+      return next;
+    });
+    import('@/actions/squads').then(({ toggleSquadPlayerSigned }) =>
+      toggleSquadPlayerSigned(squadId, playerId, isSigned).then((res) => {
+        if (!res.success) fetchAllSquadData();
+      })
+    );
+  }
+
   /** Move a player from a pitch position to a special section (DUVIDA / POSSIBILIDADE) */
   function handleMoveToSection(playerId: number, squadId: number | null, section: string) {
     if (!squadId) return;
@@ -664,6 +684,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const remove = (pid: number) => handleRemove(pid, squad.id);
     const dragEnd = (info: DragEndInfo) => handleDragEnd(info, squad.id, byPos);
     const toggleDoubt = (pid: number, isDoubt: boolean) => handleToggleDoubt(pid, squad.id, isDoubt);
+    const toggleSigned = (pid: number, isSigned: boolean) => handleToggleSigned(pid, squad.id, isSigned);
     const moveToSection = squadType === 'real'
       ? (pid: number, section: SpecialSquadSection) => handleMoveToSection(pid, squad.id, section)
       : undefined;
@@ -713,7 +734,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
         {viewMode === 'campo' && (
           <>
             {mounted ? (
-              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} onToggleDoubt={toggleDoubt} onMoveToSection={moveToSection} specialSections={sections}>
+              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} onToggleDoubt={toggleDoubt} onToggleSigned={toggleSigned} onMoveToSection={moveToSection} specialSections={sections}>
                 {/* Special sections inside DndContext — enables drag from pitch to sections */}
                 {squadType === 'real' && sections && (
                   <div className="grid grid-cols-1 gap-3 pt-3 sm:grid-cols-2">
@@ -744,7 +765,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
         )}
         {viewMode === 'lista' && (
           <>
-            <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onToggleDoubt={toggleDoubt} />
+            <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onToggleDoubt={toggleDoubt} onToggleSigned={toggleSigned} />
             {/* Special sections for list view — outside DnD (no drag in list view) */}
             {squadType === 'real' && sections && (
               <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">

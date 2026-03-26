@@ -369,6 +369,34 @@ export async function toggleSquadPlayerDoubt(
   return { success: true };
 }
 
+/* ───────────── Toggle Signed (squad-level, independent of pipeline) ───────────── */
+
+export async function toggleSquadPlayerSigned(
+  squadId: number,
+  playerId: number,
+  isSigned: boolean
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('squad_players')
+    .update({ is_signed: isSigned })
+    .eq('squad_id', squadId)
+    .eq('player_id', playerId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar assinatura: ${error.message}` };
+  }
+
+  revalidatePath('/campo');
+  await broadcastRowMutation(clubId, 'squad_players', 'UPDATE', userId, playerId);
+  return { success: true };
+}
+
 /* ───────────── Reorder Squad Player (within same position) ───────────── */
 
 export async function reorderSquadPlayer(

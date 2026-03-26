@@ -43,11 +43,12 @@ interface SquadListViewProps {
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
+  onToggleSigned?: (playerId: number, isSigned: boolean) => void;
 }
 
 /* ───────────── Component ───────────── */
 
-export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt }: SquadListViewProps) {
+export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onToggleSigned }: SquadListViewProps) {
   return (
     <div className="space-y-4">
       {SQUAD_SLOTS.map(({ slot, label }) => {
@@ -159,7 +160,7 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                           {player.isDoubt && (
                             <span className="rounded bg-amber-100 px-1 py-0 text-[9px] font-medium text-amber-700">DÚVIDA</span>
                           )}
-                          {!player.isDoubt && player.recruitmentStatus === 'assinou' && (
+                          {!player.isDoubt && player.isSigned && (
                             <span className="rounded bg-green-100 px-1 py-0 text-[9px] font-medium text-green-700">ASSINOU</span>
                           )}
                         </div>
@@ -178,6 +179,19 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                             aria-label={player.isDoubt ? 'Remover dúvida' : 'Marcar como dúvida'}
                           >
                             {player.isDoubt ? '✓ Dúvida' : '? Dúvida'}
+                          </button>
+                        )}
+                        {onToggleSigned && (
+                          <button
+                            className={`rounded px-2 py-1 text-[10px] font-medium ${
+                              player.isSigned
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'text-green-600 hover:bg-green-50'
+                            }`}
+                            onClick={(e) => { e.stopPropagation(); onToggleSigned(player.id, !player.isSigned); }}
+                            aria-label={player.isSigned ? 'Remover assinatura' : 'Marcar como assinou'}
+                          >
+                            {player.isSigned ? '✓ Assinou' : '✍ Assinou'}
                           </button>
                         )}
                         <button

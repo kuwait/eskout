@@ -119,6 +119,8 @@ function DraggablePlayerCard({
       className={`relative w-full min-w-[100px] max-w-[160px] cursor-grab rounded-md shadow-sm touch-none active:cursor-grabbing ${
         player.isDoubt
           ? 'border border-dashed border-amber-400 bg-amber-50/90 opacity-80'
+          : player.isSigned
+          ? 'border border-green-300 bg-green-50/80'
           : 'bg-white/95'
       } ${
         squadType === 'shadow' ? RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200' : ''
@@ -132,7 +134,7 @@ function DraggablePlayerCard({
         </span>
       )}
       {/* Signed flag — bottom-right corner (green) */}
-      {!player.isDoubt && player.recruitmentStatus === 'assinou' && (
+      {!player.isDoubt && player.isSigned && (
         <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-green-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Assinou">
           Assinou
         </span>
@@ -208,14 +210,14 @@ function DraggablePlayerCard({
             {onToggleSigned && (
               <button
                 className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${
-                  player.recruitmentStatus === 'assinou'
+                  player.isSigned
                     ? 'bg-green-100 text-green-700 hover:bg-green-200'
                     : 'text-green-600 hover:bg-green-50'
                 }`}
-                onClick={(e) => { e.stopPropagation(); onToggleSigned(player.id, player.recruitmentStatus !== 'assinou'); }}
-                aria-label={player.recruitmentStatus === 'assinou' ? 'Remover assinatura' : 'Marcar como assinou'}
+                onClick={(e) => { e.stopPropagation(); onToggleSigned(player.id, !player.isSigned); }}
+                aria-label={player.isSigned ? 'Remover assinatura' : 'Marcar como assinou'}
               >
-                {player.recruitmentStatus === 'assinou' ? '✓ Assinou' : '✍ Assinou'}
+                {player.isSigned ? '✓ Assinou' : '✍ Assinou'}
               </button>
             )}
             <Link

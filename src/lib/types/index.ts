@@ -125,6 +125,8 @@ export interface Player {
   playingUpPontual?: boolean;
   /** Squad-context only: player is marked as "Dúvida" in the current squad view */
   isDoubt?: boolean;
+  /** Squad-context only: player is marked as "Assinou" in the current squad view */
+  isSigned?: boolean;
 }
 
 /* ───────────── Database Row Types (snake_case from Supabase) ───────────── */
@@ -879,6 +881,7 @@ export interface SquadPlayer {
   position: string;
   sortOrder: number;
   isDoubt: boolean;
+  isSigned: boolean;
   addedAt: string;
 }
 
@@ -890,6 +893,7 @@ export interface SquadPlayerRow {
   position: string;
   sort_order: number;
   is_doubt: boolean;
+  is_signed: boolean;
   added_at: string;
 }
 

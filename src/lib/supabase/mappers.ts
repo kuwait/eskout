@@ -300,6 +300,7 @@ export function mapSquadPlayerRow(row: SquadPlayerRow): SquadPlayer {
     position: row.position,
     sortOrder: row.sort_order,
     isDoubt: row.is_doubt ?? false,
+    isSigned: row.is_signed ?? false,
     addedAt: row.added_at,
   };
 }

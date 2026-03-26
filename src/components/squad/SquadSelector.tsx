@@ -65,7 +65,9 @@ export function SquadSelector({
         open={dropdownOpen}
         onOpenChange={setDropdownOpen}
       >
+        {/* suppressHydrationWarning: disabled prop renders as "" on server vs false on client */}
         <SelectTrigger
+          suppressHydrationWarning
           className="h-9 w-auto min-w-[100px] max-w-[200px] justify-center rounded-none border-x border-y-0 border-neutral-200 bg-transparent px-3 text-sm font-semibold shadow-none focus:ring-0 dark:border-neutral-700 [&_svg:last-child]:hidden"
           aria-label="Selecionar plantel"
         >
