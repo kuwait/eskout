@@ -53,7 +53,7 @@ export function AppShellClient({
 
   const isDemo = clubInfo?.isDemo ?? false;
 
-  // Heartbeat: update presence every 60 seconds (page, device, last_seen_at)
+  // Heartbeat: update presence every 5 minutes (page, device, last_seen_at)
   // Skip in demo mode — demo user doesn't need presence tracking
   useEffect(() => {
     if (isPublic || !userId || isDemo) return;
@@ -63,7 +63,7 @@ export function AppShellClient({
     const interval = setInterval(() => {
       const dev = window.innerWidth < 768 ? 'mobile' : 'desktop';
       updateLastSeen(pathname, dev);
-    }, 60_000);
+    }, 300_000);
     return () => clearInterval(interval);
   }, [isPublic, userId, pathname, isDemo]);
 

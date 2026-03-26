@@ -181,14 +181,17 @@ function ExternalLinks({ fpfLink, zerozeroLink }: { fpfLink?: string | null; zer
     <span className="inline-flex gap-0.5 shrink-0">
       {fpfLink && (
         <a href={fpfLink} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity" title="Perfil FPF" onClick={(e) => e.stopPropagation()}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static 3px icon, next/image overhead not justified */}
           <img src="/icons/fpf.png" alt="FPF" className="h-3 w-3" />
         </a>
       )}
       {zerozeroLink ? (
         <a href={zerozeroLink} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity" title="Perfil ZeroZero" onClick={(e) => e.stopPropagation()}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static 3px icon */}
           <img src="/icons/zerozero.png" alt="ZZ" className="h-3 w-3" />
         </a>
       ) : (
+        // eslint-disable-next-line @next/next/no-img-element -- static 3px icon
         <span className="opacity-30" title="Sem perfil ZeroZero"><img src="/icons/zerozero-disabled.png" alt="" className="h-3 w-3" /></span>
       )}
     </span>
@@ -1002,7 +1005,7 @@ function SuggestionList({
             {isSelected ? '✓' : ''}
           </span>
                     {s.eskoutPhotoUrl && (
-            <img src={s.eskoutPhotoUrl} alt="" className="h-6 w-6 rounded-full object-cover bg-muted shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <img src={s.eskoutPhotoUrl} alt="" className="h-6 w-6 rounded-full object-cover bg-muted shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /> // eslint-disable-line @next/next/no-img-element -- external URL with onError
           )}
           <span className={`font-medium ${isSelected ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>{s.eskoutName}</span>
           {s.eskoutClub && <span className="text-muted-foreground">{s.eskoutClub}</span>}
@@ -1262,6 +1265,7 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
                 {/* Player header with FPF photo */}
                 <div className="flex items-start gap-2.5">
                   {p.fpfPlayerId && (
+                    // eslint-disable-next-line @next/next/no-img-element -- external FPF URL with onError
                     <img
                       src={`https://resultados.fpf.pt/Player/Logo/${p.fpfPlayerId}`}
                       alt=""

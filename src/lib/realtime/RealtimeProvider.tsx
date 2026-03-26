@@ -276,7 +276,8 @@ export function RealtimeProvider({
   /* ───────────── User Activity Listeners ───────────── */
 
   useEffect(() => {
-    const events = ['mousemove', 'keydown', 'touchstart', 'scroll'];
+    // mousemove removed — fires 20-40x/sec, too aggressive for idle detection
+    const events = ['keydown', 'touchstart', 'scroll'];
     const handler = () => resetIdleTimer();
 
     for (const event of events) {

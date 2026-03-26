@@ -1,6 +1,6 @@
 // src/app/page.tsx
 // Home page — renders the Jogadores (players) view directly
-// This is the main entry point of the app after login
+// Fetches initial data server-side for instant render (same as /jogadores)
 // RELEVANT FILES: src/components/players/PlayersView.tsx, src/hooks/useAgeGroup.tsx, src/app/jogadores/page.tsx
 
 import Link from 'next/link';
@@ -8,10 +8,15 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PlayersView } from '@/components/players/PlayersView';
 import { getActiveClub } from '@/lib/supabase/club-context';
+import { createClient } from '@/lib/supabase/server';
 
 export default async function HomePage() {
   const ctx = await getActiveClub();
   const hideEvaluations = ctx.role === 'recruiter';
+  const supabase = await createClient();
+
+  // Server-side: first page of 50 players + dropdown options in 1 RPC
+  const { data } = await supabase.rpc('get_players_page', { p_club_id: ctx.clubId });
 
   return (
     <div className="p-4 lg:p-6">
@@ -24,7 +29,7 @@ export default async function HomePage() {
           </Link>
         </Button>
       </div>
-      <PlayersView hideEvaluations={hideEvaluations} clubId={ctx.clubId} />
+      <PlayersView hideEvaluations={hideEvaluations} clubId={ctx.clubId} initialData={data} />
     </div>
   );
 }

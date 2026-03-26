@@ -60,8 +60,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     userId = user.id;
 
     if (clubId) {
-      // Fetch profile, membership, club, age groups, alert counts, and task count — ALL in parallel
-      const [profileRes, membershipRes, clubRes, agRes, urgRes, impRes, pendingRes, taskCountRes, obsCountRes, sidebarListsRes] = await Promise.all([
+      // Fetch profile, membership, club, age groups, sidebar lists, and ALL alert counts — in parallel
+      // Alert counts consolidated in a single RPC (get_appshell_counts) instead of 7+ separate queries
+      const [profileRes, membershipRes, clubRes, agRes, sidebarListsRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('is_superadmin, full_name, can_view_competitions')
@@ -83,32 +84,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .select('id, name, generation_year, season')
           .eq('club_id', clubId)
           .order('generation_year', { ascending: false }),
-        supabase
-          .from('observation_notes')
-          .select('id', { count: 'exact', head: true })
-          .eq('priority', 'urgente')
-          .eq('club_id', clubId),
-        supabase
-          .from('observation_notes')
-          .select('id', { count: 'exact', head: true })
-          .eq('priority', 'importante')
-          .eq('club_id', clubId),
-        supabase
-          .from('scouting_reports')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pendente')
-          .eq('club_id', clubId),
-        supabase
-          .from('user_tasks')
-          .select('id', { count: 'exact', head: true })
-          .eq('club_id', clubId)
-          .eq('user_id', user.id)
-          .eq('completed', false),
-        supabase
-          .from('player_lists')
-          .select('id')
-          .eq('club_id', clubId)
-          .eq('user_id', user.id),
         // Sidebar lists — lightweight query for nav sub-items
         supabase
           .from('player_lists')
@@ -153,58 +128,22 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         }));
       }
 
-      // Per-user badge: count players added by others minus this user's dismissals
-      // Admin sees all new players; Editor only sees players added by editor/recruiter/scout (not admin)
-      let pendingPlayersCount = 0;
-      if (userRole === 'admin' || userRole === 'editor') {
-        let playersQuery = supabase
-          .from('players')
-          .select('id', { count: 'exact', head: true })
-          .eq('club_id', clubId)
-          .neq('created_by', userId);
+      // Single RPC for all alert counts (replaces 7+ individual count queries)
+      const { data: counts } = await supabase.rpc('get_appshell_counts', {
+        p_club_id: clubId,
+        p_user_id: userId,
+        p_user_role: userRole,
+      });
 
-        // Editor: exclude players created by admins
-        if (userRole === 'editor') {
-          // Get admin user IDs for this club
-          const { data: adminMembers } = await supabase
-            .from('club_memberships')
-            .select('user_id')
-            .eq('club_id', clubId)
-            .eq('role', 'admin');
-          const adminIds = (adminMembers ?? []).map(m => m.user_id);
-          for (const adminId of adminIds) {
-            playersQuery = playersQuery.neq('created_by', adminId);
-          }
-        }
-
-        const [playersRes, dismissedRes] = await Promise.all([
-          playersQuery,
-          supabase
-            .from('player_added_dismissals')
-            .select('player_id', { count: 'exact', head: true })
-            .eq('user_id', userId),
-        ]);
-        pendingPlayersCount = Math.max(0, (playersRes.count ?? 0) - (dismissedRes.count ?? 0));
-      }
-
-      // Count total items across all user lists
-      let observationCount = 0;
-      const listIds = (obsCountRes.data ?? []).map((l: { id: number }) => l.id);
-      if (listIds.length > 0) {
-        const { count } = await supabase
-          .from('player_list_items')
-          .select('*', { count: 'exact', head: true })
-          .in('list_id', listIds);
-        observationCount = count ?? 0;
-      }
+      const c = counts as { urgente: number; importante: number; pending_reports: number; pending_tasks: number; observation_count: number; pending_players: number } | null;
 
       alertCounts = {
-        urgente: urgRes.count ?? 0,
-        importante: impRes.count ?? 0,
-        pendingReports: pendingRes.count ?? 0,
-        pendingPlayers: pendingPlayersCount,
-        pendingTasks: taskCountRes.count ?? 0,
-        observationCount,
+        urgente: c?.urgente ?? 0,
+        importante: c?.importante ?? 0,
+        pendingReports: c?.pending_reports ?? 0,
+        pendingPlayers: c?.pending_players ?? 0,
+        pendingTasks: c?.pending_tasks ?? 0,
+        observationCount: c?.observation_count ?? 0,
       };
 
       // Map sidebar lists for nav sub-items (own lists)

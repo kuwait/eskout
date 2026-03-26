@@ -89,6 +89,10 @@ export async function exportFullDatabaseJson(): Promise<{
     const { error: authError, supabase, clubId } = await checkExportAuth();
     if (authError) return { success: false, error: authError };
 
+    // Full DB export is restricted to superadmin (heavy operation — all tables, all rows)
+    const { data: profile } = await supabase.from('profiles').select('is_superadmin').eq('id', (await supabase.auth.getUser()).data.user!.id).single();
+    if (!profile?.is_superadmin) return { success: false, error: 'Apenas superadmins podem exportar a base de dados completa' };
+
     // Fetch all tables in parallel
     const results = await Promise.all(
       ALL_TABLES.map(async (table) => ({

@@ -83,19 +83,11 @@ export function AddToSquadDialog({
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Pre-fill position + year filters when dialog opens
-  // DC_E/DC_D → DC for the position filter; special sections → no position filter
+  // Reset filters when dialog opens (no pre-filled position or year — let user search freely)
   /* eslint-disable react-hooks/set-state-in-effect -- resets filter form when dialog opens with new position/year */
   useEffect(() => {
     if (open) {
-      const isSpecial = isSpecialSection(position);
-      const basePos = isSpecial ? '' : (position === 'DC_E' || position === 'DC_D' ? 'DC' : position);
-      setFilters({
-        ...EMPTY_FILTERS,
-        position: basePos,
-        // Special sections are generic — don't pre-filter by year
-        year: isSpecial ? '' : (initialYear ?? ''),
-      });
+      setFilters(EMPTY_FILTERS);
       setDebouncedSearch('');
       setErrorMsg(null);
     } else {
@@ -174,7 +166,8 @@ export function AddToSquadDialog({
   }, [pool, filters.search, filters.year]);
 
   // Shadow squad: year is always locked, so don't count it as a clearable filter
-  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot || (squadType === 'real' && filters.year);
+  // Year is pre-filled intentionally — don't count it as a clearable filter
+  const hasFilters = filters.position || filters.club || filters.opinion || filters.foot;
 
   function updateFilter(key: keyof Filters, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));

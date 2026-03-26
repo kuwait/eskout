@@ -49,7 +49,8 @@ export default async function OnlinePage() {
 
   const now = new Date();
   const nowIso = now.toISOString();
-  const twoMinAgo = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
+  // Threshold: 6 min to match 5-min heartbeat interval with margin
+  const twoMinAgo = new Date(now.getTime() - 6 * 60 * 1000).toISOString();
   const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const today = now.toISOString().slice(0, 10);
 
