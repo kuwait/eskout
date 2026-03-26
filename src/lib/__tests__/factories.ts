@@ -282,6 +282,7 @@ export function makeTrainingFeedbackRow(overrides?: Partial<TrainingFeedbackRow>
     coach_rating_performance: null,
     coach_rating_potential: null,
     coach_maturation: null,
+    coach_observed_position: null,
     created_at: '2026-03-10T18:00:00Z',
     updated_at: '2026-03-10T18:00:00Z',
     profiles: { full_name: 'Carlos Lopes' },

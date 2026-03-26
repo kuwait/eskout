@@ -25,6 +25,9 @@ interface CoachFeedbackFormProps {
   token: string;
 }
 
+/** Tags with negative sentiment — displayed in red when selected */
+const NEGATIVE_TAGS = new Set(['perde_muitas_bolas', 'agarrado_bola', 'trapalhao', 'sem_nocao_espaco', 'desorientado', 'timido', 'nervoso', 'agressivo', 'desligado', 'dificuldade_contexto', 'nivel_abaixo']);
+
 /* ───────────── Component ───────────── */
 
 export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
@@ -45,13 +48,14 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
   const [intensityScale, setIntensityScale] = useState<string | null>(null);
   const [maturation, setMaturation] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [observedPositions, setObservedPositions] = useState<string[]>([]);
   const [coachName, setCoachName] = useState('');
 
   function toggleTag(tag: string) {
     setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
   }
 
-  const canSubmit = ratingPerformance !== null && ratingPotential !== null && decision !== null && feedback.trim().length > 0 && coachName.trim().length > 0;
+  const canSubmit = observedPositions.length > 0 && ratingPerformance !== null && ratingPotential !== null && decision !== null && feedback.trim().length > 0 && coachName.trim().length > 0;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -73,6 +77,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
           intensityScale,
           maturation,
           tags,
+          observedPosition: observedPositions.join(',') || undefined,
           coachName: coachName.trim(),
         }),
       });
@@ -105,6 +110,28 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
   return (
     <div className="space-y-5">
+      {/* ── Position observed (required) ── */}
+      <div>
+        <SectionLabel required info="Em que posição jogou o atleta durante o treino">Posição observada</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'].map((pos) => (
+            <button
+              key={pos}
+              type="button"
+              onClick={() => setObservedPositions((prev) => prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos])}
+              className={cn(
+                'rounded-md px-2.5 py-1.5 text-xs font-medium transition',
+                observedPositions.includes(pos)
+                  ? 'bg-neutral-800 text-white'
+                  : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200',
+              )}
+            >
+              {pos}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Dual Rating (required) ── */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -130,7 +157,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
                 'rounded-xl border py-2.5 text-sm font-semibold transition text-center',
                 decision === opt.value
                   ? opt.colorActive
-                  : opt.color,
+                  : 'border-neutral-200 text-neutral-500 hover:border-neutral-400',
               )}
             >
               {decision === opt.value && <span className="mr-1">{opt.icon}</span>}
@@ -153,15 +180,15 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
       </div>
 
       {/* ── Physical scales (optional) ── */}
-      <div className="rounded-xl border border-l-[3px] border-l-neutral-400 bg-neutral-50/50 p-3 space-y-3">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Físico <span className="font-normal text-neutral-400">(opcional)</span></p>
+      <div className="rounded-xl border border-l-[3px] border-l-cyan-400 bg-neutral-50/50 p-3 space-y-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">⚡ Físico</p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-          <ScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={setHeightScale} info="Alto = acima da média · Normal = na média · Baixo = abaixo" />
-          <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={setBuildScale} info="Ecto = magro/longilíneo · Meso = atlético · Endo = robusto" />
-          <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={setSpeedScale} info="Rápido = destaca-se · Normal = na média · Lento = abaixo" />
-          <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={setIntensityScale} info="Intenso = esforço máximo · Pouco = baixa energia" />
-          <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={setMaturation} info="Nada = pré-pubertário · Início = início do pico · Maturado = pico atingido · Super = muito avançado" />
+          <ScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={setHeightScale} info="Alto = acima da média · Normal = na média · Baixo = abaixo" color="cyan" />
+          <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={setBuildScale} info="Ecto = magro/longilíneo · Meso = atlético · Endo = robusto" color="cyan" />
+          <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={setSpeedScale} info="Rápido = destaca-se · Normal = na média · Lento = abaixo" color="cyan" />
+          <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={setIntensityScale} info="Intenso = esforço máximo · Pouco = baixa energia" color="cyan" />
         </div>
+        <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={setMaturation} info="Nada = pré-pubertário · Início = início do pico · Maturado = pico atingido · Super = muito avançado" color="cyan" />
       </div>
 
       {/* ── Tags (optional) ── */}
@@ -172,7 +199,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
           : { border: 'border-l-amber-400', label: 'text-amber-600', emoji: '🔄' };
         return (
           <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', catStyle.border)}>
-            <p className={cn('mb-2 text-[11px] font-bold uppercase tracking-widest', catStyle.label)}>{catStyle.emoji} {cat.labelPt} <span className="font-normal text-neutral-400">(opcional)</span></p>
+            <p className={cn('mb-2 text-[11px] font-bold uppercase tracking-widest', catStyle.label)}>{catStyle.emoji} {cat.labelPt}</p>
             <div className="flex flex-wrap gap-1.5">
               {cat.tags.map((tag) => {
                 const selected = tags.includes(tag.value);
@@ -184,7 +211,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
                     className={cn(
                       'rounded-full px-3 py-1.5 text-xs font-medium transition',
                       selected
-                        ? 'bg-blue-100 text-blue-700 border border-blue-300 shadow-sm'
+                        ? (NEGATIVE_TAGS.has(tag.value) ? 'bg-red-100 text-red-700 border border-red-300 shadow-sm' : 'bg-green-100 text-green-700 border border-green-300 shadow-sm')
                         : 'border border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400',
                     )}
                   >
@@ -198,6 +225,9 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
       })}
 
       {/* ── Coach name (optional) ── */}
+
+
+      {/* Coach name */}
       <div>
         <SectionLabel required>O seu nome</SectionLabel>
         <input
@@ -225,7 +255,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
       {!canSubmit && (
         <p className="text-center text-[10px] text-neutral-400">
-          Preencha o nome, avaliações, decisão e feedback para submeter.
+          Preencha posição, nome, avaliações, decisão e feedback.
         </p>
       )}
     </div>
@@ -234,13 +264,16 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
 /* ───────────── Scale Row ───────────── */
 
-function ScaleRow({ label, options, value, onChange, info }: {
+function ScaleRow({ label, options, value, onChange, info, color = 'neutral' }: {
   label: string;
   options: { value: string; labelPt: string }[];
   value: string | null;
   onChange: (v: string | null) => void;
   info?: string;
+  color?: 'neutral' | 'cyan';
 }) {
+  const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white' : 'bg-neutral-800 text-white';
+  const inactiveClass = 'bg-neutral-200/60 text-neutral-500 hover:bg-neutral-200';
   return (
     <div>
       <div className="mb-1 flex items-center gap-1">
@@ -274,7 +307,7 @@ function ScaleRow({ label, options, value, onChange, info }: {
             onClick={() => onChange(value === opt.value ? null : opt.value)}
             className={cn(
               'flex-1 flex items-center justify-center text-xs font-semibold transition-all active:scale-95',
-              value === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
+              value === opt.value ? activeClass : inactiveClass,
               i === 0 && 'rounded-l-lg',
               i === options.length - 1 && 'rounded-r-lg',
             )}

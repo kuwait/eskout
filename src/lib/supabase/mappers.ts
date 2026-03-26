@@ -267,6 +267,7 @@ export function mapTrainingFeedbackRow(row: TrainingFeedbackRow): TrainingFeedba
     coachRatingPerformance: row.coach_rating_performance ?? null,
     coachRatingPotential: row.coach_rating_potential ?? null,
     coachMaturation: (row.coach_maturation as TrainingFeedback['coachMaturation']) ?? null,
+    coachObservedPosition: row.coach_observed_position ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

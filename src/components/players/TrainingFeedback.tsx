@@ -283,105 +283,114 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
     );
   }
 
-  // ── Normal card ──
+  // ── Normal card: same visual language as QuickReportCard ──
+  const BAR_COLORS: Record<number, string> = { 1: 'bg-red-500', 2: 'bg-orange-400', 3: 'bg-sky-500', 4: 'bg-teal-500', 5: 'bg-green-500' };
   const mainRating = rPerf ?? 0;
-  const dotBg = mainRating >= 4 ? 'bg-emerald-500' : mainRating === 3 ? 'bg-blue-500' : mainRating === 2 ? 'bg-orange-500' : mainRating >= 1 ? 'bg-red-500' : 'bg-neutral-300';
+  const ratingBg = mainRating >= 4 ? 'bg-green-50' : mainRating === 3 ? 'bg-sky-50' : mainRating === 2 ? 'bg-orange-50' : mainRating >= 1 ? 'bg-red-50' : 'bg-neutral-50';
+  const ratingBorder = mainRating >= 4 ? 'border-green-200' : mainRating === 3 ? 'border-sky-200' : mainRating === 2 ? 'border-orange-200' : mainRating >= 1 ? 'border-red-200' : 'border-neutral-200';
+  const dotColor = BAR_COLORS[mainRating] ?? 'bg-neutral-400';
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-      {/* Header strip */}
-      <div className="flex items-start gap-3 border-b border-neutral-100 px-4 py-3">
-        {/* Rating circle */}
-        <div className={cn('mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black text-white', dotBg)}>
+    <div className={cn('overflow-hidden rounded-lg border', ratingBorder)}>
+      {/* Header — colored background, compact info */}
+      <div className={cn('flex items-center gap-3 px-3 py-2.5', ratingBg)}>
+        {/* Rating dot */}
+        <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', dotColor)}>
           {mainRating || '–'}
         </div>
 
         <div className="min-w-0 flex-1">
-          {/* Date + escalão */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-neutral-800">{dateLabel}</span>
+            <span className="text-sm font-medium text-neutral-900">{dateLabel}</span>
             {entry.escalao && (
-              <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">{entry.escalao}</span>
+              <span className="rounded bg-white/60 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{entry.escalao}</span>
             )}
-          </div>
-          {/* Badges: decision + ratings */}
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {decisionConfig && (
-              <span className={cn('rounded-md border px-1.5 py-0.5 text-[10px] font-bold', decisionConfig.color)}>
-                {decisionConfig.icon} {decisionConfig.labelPt}
+              <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold', decisionConfig.colorActive)}>
+                {decisionConfig.labelPt}
               </span>
             )}
-            {rPerf && (() => {
-              const c = RATING_COLORS[rPerf] ?? DEFAULT_COLORS;
-              return <span className={cn('rounded-md px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)}>Rend. {rPerf}/5</span>;
-            })()}
-            {rPot && (() => {
-              const c = RATING_COLORS[rPot] ?? DEFAULT_COLORS;
-              return <span className={cn('rounded-md px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)}>Pot. {rPot}/5</span>;
-            })()}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            {authorName && <span>{hasCoach ? `Mister ${authorName}` : authorName}</span>}
           </div>
         </div>
 
-        {/* Delete */}
         {canDelete && (
           confirmDelete ? (
-            <button type="button" onClick={() => { onDelete(); setConfirmDelete(false); }} disabled={isPending} onBlur={() => setConfirmDelete(false)} className="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-bold text-white">Confirmar</button>
+            <button type="button" onClick={() => { onDelete(); setConfirmDelete(false); }} disabled={isPending} onBlur={() => setConfirmDelete(false)} className="shrink-0 rounded bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">Apagar</button>
           ) : (
-            <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="shrink-0 rounded-md p-1.5 text-neutral-300 hover:text-red-500 hover:bg-red-50 transition"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="shrink-0 rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
           )
         )}
       </div>
 
-      {/* Body */}
-      <div className="px-4 py-3 space-y-3">
-        {/* Title */}
-        {hasCoach && (
-          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Feedback do treinador</p>
+      {/* Body — ratings as segmented bars + text + tags */}
+      <div className="px-3 py-3 space-y-3">
+        {/* Rating bars — same style as QuickReportCard dimensions */}
+        {rPerf && (
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-sm">⭐</span>
+              <span className="text-xs font-semibold">Rendimento</span>
+              <span className={cn('text-sm font-black', (RATING_COLORS[rPerf] ?? DEFAULT_COLORS).text)}>{rPerf}</span>
+            </div>
+            <div className="flex h-2 w-full gap-0.5 rounded-md overflow-hidden">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <div key={n} className={cn('flex-1', n <= rPerf ? (BAR_COLORS[rPerf] ?? 'bg-neutral-300') : 'bg-neutral-100')} />
+              ))}
+            </div>
+          </div>
         )}
-
-        {/* Quote-style feedback text */}
-        {feedback && (
-          <blockquote className="border-l-2 border-neutral-200 pl-3 text-[13px] italic leading-relaxed text-neutral-600">
-            &ldquo;{feedback}&rdquo;
-          </blockquote>
-        )}
-
-        {/* Physical + tags in a subtle box */}
-        {(physicalPairs.length > 0 || tagsByCategory.length > 0) && (
-          <div className="rounded-lg bg-neutral-50 px-3 py-2 space-y-2">
-            {physicalPairs.length > 0 && (
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                {physicalPairs.map((p) => (
-                  <span key={p.category} className="text-[10px]">
-                    <span className="text-neutral-400">{p.category}</span>{' '}
-                    <span className="font-semibold text-neutral-600">{p.label}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-            {tagsByCategory.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {tagsByCategory.map((t) => {
-                  const colorClass = t.category === 'tecnica' ? 'bg-blue-100/70 text-blue-600'
-                    : t.category === 'tatico' ? 'bg-teal-100/70 text-teal-600'
-                    : t.category === 'mental' ? 'bg-purple-100/70 text-purple-600'
-                    : 'bg-amber-100/70 text-amber-600';
-                  return (
-                    <span key={t.value} className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', colorClass)}>
-                      {t.label}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
+        {rPot && (
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-sm">📈</span>
+              <span className="text-xs font-semibold">Potencial</span>
+              <span className={cn('text-sm font-black', (RATING_COLORS[rPot] ?? DEFAULT_COLORS).text)}>{rPot}</span>
+            </div>
+            <div className="flex h-2 w-full gap-0.5 rounded-md overflow-hidden">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <div key={n} className={cn('flex-1', n <= rPot ? (BAR_COLORS[rPot] ?? 'bg-neutral-300') : 'bg-neutral-100')} />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Author */}
-        {authorName && (
-          <p className="text-[10px] text-neutral-400">
-            por {hasCoach ? <span className="font-semibold text-neutral-500">Mister {authorName}</span> : authorName}
-          </p>
+        {/* Physical pills */}
+        {physicalPairs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {physicalPairs.map((p) => (
+              <span key={p.category} className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+                {p.category}: {p.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Category tags */}
+        {tagsByCategory.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {tagsByCategory.map((t) => {
+              const colorClass = t.category === 'tecnica' ? 'bg-blue-50 text-blue-600 border-blue-200'
+                : t.category === 'tatico' ? 'bg-teal-50 text-teal-600 border-teal-200'
+                : t.category === 'mental' ? 'bg-purple-50 text-purple-600 border-purple-200'
+                : 'bg-amber-50 text-amber-600 border-amber-200';
+              return (
+                <span key={t.value} className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', colorClass)}>
+                  {t.label}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Feedback text — in a subtle green box like QSR notes */}
+        {feedback && (
+          <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2.5">
+            <p className="text-[10px] font-bold text-green-700 mb-1">Notas</p>
+            <p className="text-sm leading-relaxed text-neutral-700">{feedback}</p>
+          </div>
         )}
       </div>
     </div>
@@ -418,7 +427,7 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated, onClose }: {
           coachFeedback: null, coachRating: null, coachRatingPerformance: null, coachRatingPotential: null,
           coachDecision: null, coachHeightScale: null, coachBuildScale: null,
           coachSpeedScale: null, coachIntensityScale: null, coachMaturation: null,
-          coachTags: [], coachName: null, coachSubmittedAt: null,
+          coachTags: [], coachObservedPosition: null, coachName: null, coachSubmittedAt: null,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         }, res.data.url);
       } else {
@@ -538,6 +547,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
   const [intensityScale, setIntensityScale] = useState<IntensityScale | null>(null);
   const [maturation, setMaturation] = useState<MaturationScale | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [observedPositions, setObservedPositions] = useState<string[]>([]);
 
   const showStructured = presence === 'attended';
 
@@ -571,7 +581,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
           coachFeedback: null, coachRating: null, coachRatingPerformance: null, coachRatingPotential: null,
           coachDecision: null, coachHeightScale: null, coachBuildScale: null,
           coachSpeedScale: null, coachIntensityScale: null, coachMaturation: null,
-          coachTags: [], coachName: null, coachSubmittedAt: null,
+          coachTags: [], coachObservedPosition: null, coachName: null, coachSubmittedAt: null,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         });
         toast.success('Feedback registado');
@@ -625,6 +635,30 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
           ))}
         </div>
       </div>
+
+      {/* ── Posição observada (only when attended) ── */}
+      {showStructured && (
+        <div>
+          <SectionLabel info="Em que posição jogou o atleta durante o treino">Posição observada</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL'].map((pos) => (
+              <button
+                key={pos}
+                type="button"
+                onClick={() => setObservedPositions((prev) => prev.includes(pos) ? prev.filter((p) => p !== pos) : [...prev, pos])}
+                className={cn(
+                  'rounded-md px-2.5 py-1.5 text-xs font-medium transition',
+                  observedPositions.includes(pos)
+                    ? 'bg-neutral-800 text-white'
+                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200',
+                )}
+              >
+                {pos}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Avaliação dupla: Rendimento + Potencial ── */}
       <div className="grid grid-cols-2 gap-3">
@@ -731,7 +765,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
                         className={cn(
                           'rounded-full border px-3 py-1.5 text-xs font-medium transition',
                           selected
-                            ? catColor.selected + ' shadow-sm'
+                            ? (NEGATIVE_TAGS.has(tag.value) ? 'bg-red-100 text-red-700 border-red-300 shadow-sm' : 'bg-green-100 text-green-700 border-green-300 shadow-sm')
                             : catColor.unselected,
                         )}
                       >
@@ -932,6 +966,9 @@ function SectionLabel({ children, inline, info }: { children: React.ReactNode; i
     </div>
   );
 }
+
+/** Tags with negative sentiment — displayed in red when selected */
+const NEGATIVE_TAGS = new Set(['perde_muitas_bolas', 'agarrado_bola', 'trapalhao', 'sem_nocao_espaco', 'desorientado', 'timido', 'nervoso', 'agressivo', 'desligado', 'dificuldade_contexto', 'nivel_abaixo']);
 
 /* ───────────── Tag Category Colors ───────────── */
 

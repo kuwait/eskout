@@ -16,6 +16,7 @@ import {
   calendarEventSchema,
   recruitmentStatusChangeSchema,
   trainingFeedbackSchema,
+  coachFeedbackSchema,
   saveComparisonSchema,
   addVideoSchema,
   quickScoutReportSchema,
@@ -366,6 +367,97 @@ describe('trainingFeedbackSchema', () => {
   it('accepts optional escalao', () => {
     const result = trainingFeedbackSchema.safeParse({ ...validFeedback, escalao: 'Sub-14' });
     expect(result.success).toBe(true);
+  });
+});
+
+/* ───────────── coachFeedbackSchema ───────────── */
+
+describe('coachFeedbackSchema', () => {
+  const validCoachFeedback = {
+    feedback: 'Bom treino, mostrou qualidade.',
+    ratingPerformance: 4,
+    ratingPotential: 3,
+    decision: 'assinar' as const,
+    observedPosition: 'DC',
+    coachName: 'Mister João',
+  };
+
+  it('accepts valid coach feedback', () => {
+    const result = coachFeedbackSchema.safeParse(validCoachFeedback);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty feedback text', () => {
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, feedback: '' }).success).toBe(false);
+  });
+
+  it('rejects missing ratingPerformance', () => {
+    const { ratingPerformance: _, ...rest } = validCoachFeedback;
+    expect(coachFeedbackSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it('rejects missing ratingPotential', () => {
+    const { ratingPotential: _, ...rest } = validCoachFeedback;
+    expect(coachFeedbackSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it('rejects missing decision', () => {
+    const { decision: _, ...rest } = validCoachFeedback;
+    expect(coachFeedbackSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it('rejects missing observedPosition', () => {
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, observedPosition: '' }).success).toBe(false);
+  });
+
+  it('rejects missing coachName', () => {
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, coachName: '' }).success).toBe(false);
+  });
+
+  it('accepts all valid decisions including duvidas', () => {
+    for (const d of ['assinar', 'repetir', 'descartar', 'duvidas']) {
+      expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, decision: d }).success).toBe(true);
+    }
+  });
+
+  it('rejects invalid decision', () => {
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, decision: 'invalid' }).success).toBe(false);
+  });
+
+  it('rejects ratingPerformance outside 1-5', () => {
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, ratingPerformance: 0 }).success).toBe(false);
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, ratingPerformance: 6 }).success).toBe(false);
+  });
+
+  it('accepts optional physical scales', () => {
+    const result = coachFeedbackSchema.safeParse({ ...validCoachFeedback, heightScale: 'alto', buildScale: 'mesomorfo' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid physical scale values', () => {
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, heightScale: 'giant' }).success).toBe(false);
+  });
+
+  it('accepts optional tags array', () => {
+    const result = coachFeedbackSchema.safeParse({ ...validCoachFeedback, tags: ['muita_qualidade', 'comunicativo'] });
+    expect(result.success).toBe(true);
+  });
+
+  it('strips unknown fields (SQL injection prevention)', () => {
+    const result = coachFeedbackSchema.safeParse({
+      ...validCoachFeedback,
+      malicious: "'; DROP TABLE players; --",
+    });
+    expect(result.success).toBe(true);
+    // Unknown fields are stripped by Zod — not passed through
+    if (result.success) {
+      expect('malicious' in result.data).toBe(false);
+    }
+  });
+
+  it('validates maturation scale values', () => {
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, maturation: 'nada_maturado' }).success).toBe(true);
+    expect(coachFeedbackSchema.safeParse({ ...validCoachFeedback, maturation: 'invalid' }).success).toBe(false);
   });
 });
 

@@ -635,6 +635,7 @@ export interface TrainingFeedback {
   coachIntensityScale: IntensityScale | null;
   coachMaturation: MaturationScale | null;
   coachTags: string[];
+  coachObservedPosition: string | null;
   coachName: string | null;
   coachSubmittedAt: string | null;
   createdAt: string;
@@ -671,6 +672,7 @@ export interface TrainingFeedbackRow {
   coach_intensity_scale: string | null;
   coach_maturation: string | null;
   coach_tags: string[] | null;
+  coach_observed_position: string | null;
   coach_name: string | null;
   coach_submitted_at: string | null;
   created_at: string;

@@ -83,7 +83,12 @@ export async function POST(
     return NextResponse.json({ error: 'Link expirado ou já utilizado' }, { status: 410 });
   }
 
-  // Parse and validate body
+  // Parse and validate body — limit size to prevent abuse
+  const contentLength = parseInt(request.headers.get('content-length') ?? '0', 10);
+  if (contentLength > 50_000) {
+    return NextResponse.json({ error: 'Payload demasiado grande' }, { status: 413 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -114,6 +119,7 @@ export async function POST(
       coach_speed_scale: data.speedScale ?? null,
       coach_intensity_scale: data.intensityScale ?? null,
       coach_tags: data.tags,
+      coach_observed_position: data.observedPosition || null,
       coach_name: data.coachName || null,
       coach_submitted_at: now,
     })

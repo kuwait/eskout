@@ -214,6 +214,7 @@ export const coachFeedbackSchema = z.object({
   intensityScale: z.enum(INTENSITY_SCALE_VALUES).nullable().optional(),
   maturation: z.enum(MATURATION_SCALE_VALUES).nullable().optional(),
   tags: z.array(z.string()).default([]),
+  observedPosition: z.string().min(1, 'Posição é obrigatória'),
   coachName: z.string().min(1, 'Nome é obrigatório'),
 });
 
