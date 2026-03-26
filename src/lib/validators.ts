@@ -196,6 +196,24 @@ export const trainingFeedbackSchema = z.object({
 
 export type TrainingFeedbackFormData = z.infer<typeof trainingFeedbackSchema>;
 
+/* ───────────── Coach Feedback (external, via share link) ───────────── */
+
+const COACH_DECISION_VALUES = ['assinar', 'repetir', 'descartar', 'duvidas'] as const;
+
+export const coachFeedbackSchema = z.object({
+  feedback: z.string().min(1, 'Feedback é obrigatório'),
+  rating: z.number().int().min(1, 'Avaliação é obrigatória').max(5),
+  decision: z.enum(COACH_DECISION_VALUES, { message: 'Decisão é obrigatória' }),
+  heightScale: z.enum(HEIGHT_SCALE_VALUES).nullable().optional(),
+  buildScale: z.enum(BUILD_SCALE_VALUES).nullable().optional(),
+  speedScale: z.enum(SPEED_SCALE_VALUES).nullable().optional(),
+  intensityScale: z.enum(INTENSITY_SCALE_VALUES).nullable().optional(),
+  tags: z.array(z.string()).default([]),
+  coachName: z.string().optional(),
+});
+
+export type CoachFeedbackFormData = z.infer<typeof coachFeedbackSchema>;
+
 /* ───────────── Player Lists ───────────── */
 
 export const createListSchema = z.object({

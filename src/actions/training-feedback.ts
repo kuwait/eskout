@@ -177,3 +177,103 @@ export async function deleteTrainingFeedback(
   await broadcastRowMutation(clubId, 'training_feedback', 'DELETE', userId, feedbackId);
   return { success: true };
 }
+
+/* ───────────── Share with External Coach ───────────── */
+
+/** Generate a shareable link for an external coach to fill in feedback */
+export async function shareTrainingFeedback(
+  feedbackId: number,
+): Promise<ActionResponse<{ token: string; url: string }>> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para partilhar feedback' };
+  }
+  const supabase = await createClient();
+
+  // Verify the feedback exists and belongs to this club
+  const { data: fb } = await supabase
+    .from('training_feedback')
+    .select('id')
+    .eq('id', feedbackId)
+    .eq('club_id', clubId)
+    .single();
+
+  if (!fb) {
+    return { success: false, error: 'Feedback não encontrado' };
+  }
+
+  // Revoke any existing active tokens for this feedback
+  await supabase
+    .from('feedback_share_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('feedback_id', feedbackId)
+    .is('used_at', null)
+    .is('revoked_at', null);
+
+  // Create new token — expires in 7 days
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: token, error } = await supabase
+    .from('feedback_share_tokens')
+    .insert({
+      club_id: clubId,
+      feedback_id: feedbackId,
+      created_by: userId,
+      expires_at: expiresAt,
+    })
+    .select('token')
+    .single();
+
+  if (error || !token) {
+    return { success: false, error: `Erro ao criar link: ${error?.message}` };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const url = `${appUrl}/feedback/${token.token}`;
+
+  return { success: true, data: { token: token.token, url } };
+}
+
+/** Revoke an active share token */
+export async function revokeShareToken(
+  tokenId: number,
+): Promise<ActionResponse> {
+  const { clubId } = await getActiveClub();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('feedback_share_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', tokenId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao revogar: ${error.message}` };
+  }
+  return { success: true };
+}
+
+/** Get active share tokens for a list of feedback IDs */
+export async function getShareTokensForFeedbacks(
+  feedbackIds: number[],
+): Promise<{ feedbackId: number; tokenId: number; token: string; usedAt: string | null; revokedAt: string | null; expiresAt: string; coachName: string | null }[]> {
+  if (feedbackIds.length === 0) return [];
+  const { clubId } = await getActiveClub();
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('feedback_share_tokens')
+    .select('id, feedback_id, token, used_at, revoked_at, expires_at, coach_name')
+    .eq('club_id', clubId)
+    .in('feedback_id', feedbackIds)
+    .order('created_at', { ascending: false });
+
+  return (data ?? []).map((row) => ({
+    feedbackId: row.feedback_id,
+    tokenId: row.id,
+    token: row.token,
+    usedAt: row.used_at,
+    revokedAt: row.revoked_at,
+    expiresAt: row.expires_at,
+    coachName: row.coach_name,
+  }));
+}

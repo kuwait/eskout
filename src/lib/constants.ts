@@ -524,6 +524,14 @@ export const TRAINING_DECISIONS: { value: TrainingDecision; labelPt: string; ico
   { value: 'descartar', labelPt: 'Descartar', icon: '✗', color: 'bg-red-50 text-red-700 border-red-200' },
 ];
 
+/** Coach decisions (external feedback) — includes 'duvidas' option */
+export const COACH_DECISIONS: { value: string; labelPt: string; icon: string; color: string }[] = [
+  { value: 'assinar', labelPt: 'Assinar', icon: '✓', color: 'bg-green-50 text-green-700 border-green-200' },
+  { value: 'repetir', labelPt: 'Repetir', icon: '↻', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { value: 'duvidas', labelPt: 'Dúvidas', icon: '?', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  { value: 'descartar', labelPt: 'Descartar', icon: '✗', color: 'bg-red-50 text-red-700 border-red-200' },
+];
+
 /* ───────────── Training Physical Scales ───────────── */
 
 export const HEIGHT_SCALE_OPTIONS: { value: HeightScale; labelPt: string }[] = [

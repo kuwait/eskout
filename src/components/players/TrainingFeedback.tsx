@@ -7,7 +7,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Calendar, GraduationCap, Loader2, Plus, Star, Trash2 } from 'lucide-react';
+import { Calendar, Check, ChevronDown, GraduationCap, Loader2, Plus, Share2, Star, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
 import {
   TRAINING_PRESENCE,
   TRAINING_DECISIONS,
+  COACH_DECISIONS,
   HEIGHT_SCALE_OPTIONS,
   BUILD_SCALE_OPTIONS,
   SPEED_SCALE_OPTIONS,
@@ -34,7 +35,7 @@ import type {
   TrainingPresence,
   UserRole,
 } from '@/lib/types';
-import { createTrainingFeedback, deleteTrainingFeedback } from '@/actions/training-feedback';
+import { createTrainingFeedback, deleteTrainingFeedback, shareTrainingFeedback } from '@/actions/training-feedback';
 import { cn } from '@/lib/utils';
 
 /* ───────────── Props ───────────── */
@@ -250,7 +251,137 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
         <p className="mt-2 text-sm leading-snug text-neutral-700">{entry.feedback}</p>
       )}
 
-      <p className="mt-1.5 text-[10px] text-muted-foreground">por {entry.authorName}</p>
+      {/* Author + share button */}
+      <div className="mt-1.5 flex items-center justify-between">
+        <p className="text-[10px] text-muted-foreground">por {entry.authorName}</p>
+        {entry.presence === 'attended' && !entry.coachSubmittedAt && (
+          <ShareButton feedbackId={entry.id} />
+        )}
+      </div>
+
+      {/* Coach feedback section */}
+      {entry.coachSubmittedAt && (
+        <CoachFeedbackDisplay entry={entry} />
+      )}
+    </div>
+  );
+}
+
+/* ───────────── Share Button ───────────── */
+
+function ShareButton({ feedbackId }: { feedbackId: number }) {
+  const [isSharing, startShare] = useTransition();
+  const [copied, setCopied] = useState(false);
+
+  function handleShare() {
+    startShare(async () => {
+      const res = await shareTrainingFeedback(feedbackId);
+      if (res.success && res.data) {
+        await navigator.clipboard.writeText(res.data.url);
+        setCopied(true);
+        toast.success('Link copiado!');
+        setTimeout(() => setCopied(false), 3000);
+      } else {
+        toast.error(res.error ?? 'Erro ao gerar link');
+      }
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleShare}
+      disabled={isSharing}
+      className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-50"
+    >
+      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Share2 className="h-3 w-3" />}
+      {isSharing ? 'A gerar...' : copied ? 'Copiado!' : 'Enviar a treinador'}
+    </button>
+  );
+}
+
+/* ───────────── Coach Feedback Display ───────────── */
+
+function CoachFeedbackDisplay({ entry }: { entry: TFeedback }) {
+  const [expanded, setExpanded] = useState(false);
+  const coachDecisionConfig = COACH_DECISIONS.find((d) => d.value === entry.coachDecision);
+
+  // Coach physical pairs
+  const coachPhysical: { category: string; label: string }[] = [];
+  if (entry.coachHeightScale) { const o = HEIGHT_SCALE_OPTIONS.find((x) => x.value === entry.coachHeightScale); if (o) coachPhysical.push({ category: 'Estatura', label: o.labelPt }); }
+  if (entry.coachBuildScale) { const o = BUILD_SCALE_OPTIONS.find((x) => x.value === entry.coachBuildScale); if (o) coachPhysical.push({ category: 'Corpo', label: o.labelPt }); }
+  if (entry.coachSpeedScale) { const o = SPEED_SCALE_OPTIONS.find((x) => x.value === entry.coachSpeedScale); if (o) coachPhysical.push({ category: 'Velocidade', label: o.labelPt }); }
+  if (entry.coachIntensityScale) { const o = INTENSITY_SCALE_OPTIONS.find((x) => x.value === entry.coachIntensityScale); if (o) coachPhysical.push({ category: 'Intensidade', label: o.labelPt }); }
+
+  const coachTags = entry.coachTags.map((tag) => {
+    const cat = TRAINING_TAG_CATEGORIES.find((c) => c.tags.some((t) => t.value === tag));
+    return { value: tag, label: TRAINING_TAG_LABEL_MAP[tag] ?? tag, category: cat?.category ?? '' };
+  });
+
+  return (
+    <div className="mt-2 rounded-lg border border-cyan-200 bg-cyan-50/50 px-2.5 py-2">
+      {/* Header: coach name + rating + expand toggle */}
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between gap-2"
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] font-bold text-cyan-700">Treinador</span>
+          {entry.coachName && (
+            <span className="text-[10px] text-cyan-600">{entry.coachName}</span>
+          )}
+          {coachDecisionConfig && (
+            <span className={cn('shrink-0 rounded-full border px-1.5 py-px text-[9px] font-bold', coachDecisionConfig.color)}>
+              {coachDecisionConfig.icon} {coachDecisionConfig.labelPt}
+            </span>
+          )}
+          {entry.coachRating && (() => {
+            const c = RATING_COLORS[entry.coachRating] ?? DEFAULT_COLORS;
+            return (
+              <span className={cn('flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-bold', c.bg, c.text)}>
+                {'★'.repeat(entry.coachRating)}{'☆'.repeat(5 - entry.coachRating)}
+                <span className="ml-0.5">{RATING_LABELS[entry.coachRating]}</span>
+              </span>
+            );
+          })()}
+        </div>
+        <ChevronDown className={cn('h-3 w-3 shrink-0 text-cyan-400 transition-transform', expanded && 'rotate-180')} />
+      </button>
+
+      {/* Expanded: full feedback */}
+      {expanded && (
+        <div className="mt-2 space-y-1.5">
+          {entry.coachFeedback && (
+            <p className="text-xs leading-snug text-neutral-700">{entry.coachFeedback}</p>
+          )}
+          {coachPhysical.length > 0 && (
+            <p className="text-[10px] text-neutral-500">
+              {coachPhysical.map((p, i) => (
+                <span key={p.category}>
+                  {i > 0 && <span className="mx-1 text-neutral-300">·</span>}
+                  <span className="text-neutral-400">{p.category}</span>{' '}
+                  <span className="font-semibold text-neutral-700">{p.label}</span>
+                </span>
+              ))}
+            </p>
+          )}
+          {coachTags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {coachTags.map((t) => {
+                const colorClass = t.category === 'tecnica' ? 'bg-blue-100 text-blue-700 border-blue-200'
+                  : t.category === 'mental' ? 'bg-purple-100 text-purple-700 border-purple-200'
+                  : 'bg-amber-100 text-amber-700 border-amber-200';
+                return (
+                  <span key={t.value} className={cn('rounded-full border px-1.5 py-px text-[9px] font-semibold', colorClass)}>
+                    {t.label}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -303,6 +434,9 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
           id: Date.now(), clubId: '', playerId, authorId: '', authorName: currentUserName || 'Eu',
           trainingDate: date, escalao: escalao || null, presence, feedback: feedback || null, rating,
           decision, heightScale, buildScale, speedScale, intensityScale, tags,
+          coachFeedback: null, coachRating: null, coachDecision: null,
+          coachHeightScale: null, coachBuildScale: null, coachSpeedScale: null, coachIntensityScale: null,
+          coachTags: [], coachName: null, coachSubmittedAt: null,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         });
         toast.success('Feedback registado');
@@ -359,7 +493,14 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
       {/* ── Avaliação ── */}
       <div>
-        <SectionLabel>Avaliação</SectionLabel>
+        <div className="mb-1.5 flex items-baseline gap-2">
+          <SectionLabel inline>Avaliação</SectionLabel>
+          {rating && (
+            <span className={cn('text-xs font-bold', (RATING_COLORS[rating] ?? DEFAULT_COLORS).text)}>
+              {RATING_LABELS[rating]}
+            </span>
+          )}
+        </div>
         <RatingBar rating={rating} onChange={setRating} />
       </div>
 
@@ -497,7 +638,7 @@ function ScaleRow({ label, options, value, onChange }: {
 
 function RatingBar({ rating, onChange }: { rating: number | null; onChange: (v: number | null) => void }) {
   return (
-    <div className="space-y-1">
+    <div>
       <div className="flex h-10 gap-0.5 rounded-xl overflow-hidden">
         {[1, 2, 3, 4, 5].map((n) => {
           const active = rating !== null && n <= rating;
@@ -519,11 +660,6 @@ function RatingBar({ rating, onChange }: { rating: number | null; onChange: (v: 
           );
         })}
       </div>
-      {rating && (
-        <p className={cn('text-center text-xs font-bold', (RATING_COLORS[rating] ?? DEFAULT_COLORS).text)}>
-          {RATING_LABELS[rating]}
-        </p>
-      )}
     </div>
   );
 }
@@ -550,8 +686,8 @@ function TrainingDateInput({ value, onChange }: { value: string; onChange: (v: s
 
 /* ───────────── Section Label ───────────── */
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">{children}</p>;
+function SectionLabel({ children, inline }: { children: React.ReactNode; inline?: boolean }) {
+  return <p className={cn('text-[11px] font-bold uppercase tracking-widest text-neutral-500', !inline && 'mb-1.5')}>{children}</p>;
 }
 
 /* ───────────── Rating Colors & Labels ───────────── */

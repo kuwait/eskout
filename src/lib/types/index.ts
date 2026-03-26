@@ -619,6 +619,17 @@ export interface TrainingFeedback {
   speedScale: SpeedScale | null;
   intensityScale: IntensityScale | null;
   tags: string[];
+  /** Coach feedback (external, via share link) */
+  coachFeedback: string | null;
+  coachRating: number | null;
+  coachDecision: TrainingDecision | null;
+  coachHeightScale: HeightScale | null;
+  coachBuildScale: BuildScale | null;
+  coachSpeedScale: SpeedScale | null;
+  coachIntensityScale: IntensityScale | null;
+  coachTags: string[];
+  coachName: string | null;
+  coachSubmittedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -639,9 +650,34 @@ export interface TrainingFeedbackRow {
   speed_scale: string | null;
   intensity_scale: string | null;
   tags: string[] | null;
+  coach_feedback: string | null;
+  coach_rating: number | null;
+  coach_decision: string | null;
+  coach_height_scale: string | null;
+  coach_build_scale: string | null;
+  coach_speed_scale: string | null;
+  coach_intensity_scale: string | null;
+  coach_tags: string[] | null;
+  coach_name: string | null;
+  coach_submitted_at: string | null;
   created_at: string;
   updated_at: string;
   profiles?: { full_name: string } | null;
+}
+
+/* ───────────── Feedback Share Token ───────────── */
+
+export interface FeedbackShareToken {
+  id: number;
+  clubId: string;
+  feedbackId: number;
+  token: string;
+  createdBy: string;
+  coachName: string | null;
+  expiresAt: string;
+  usedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
 }
 
 /* ───────────── Player Videos ───────────── */
