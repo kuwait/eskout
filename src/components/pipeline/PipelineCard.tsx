@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { Building2, Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, GraduationCap, Pause, Pencil, Phone, Trash2, User, Users, X } from 'lucide-react';
+import { Building2, Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, GraduationCap, Pause, Pencil, Phone, StickyNote, Trash2, User, Users, X } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
@@ -320,6 +320,9 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               : statusConfig.placeholder}
           </button>
         )}
+
+        {/* Pipeline note — editable inline on any card */}
+        <PipelineNoteButton playerId={player.id} currentNote={player.recruitmentNotes} />
 
         {/* Corner menu with "Mover" + "Remover" — same on mobile and desktop */}
         {onStatusChange && player.recruitmentStatus && (
@@ -1033,6 +1036,98 @@ function StandbyReasonButton({
       <Pause className="h-2.5 w-2.5 shrink-0 text-slate-400" />
       <span className="flex-1">{currentReason || 'Motivo…'}</span>
       <Pencil className="h-2.5 w-2.5 shrink-0 opacity-40" />
+    </button>
+  );
+}
+
+/* ───────────── Pipeline Note Button — inline note on any card ───────────── */
+
+function PipelineNoteButton({
+  playerId,
+  currentNote,
+}: {
+  playerId: number;
+  currentNote: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(currentNote);
+  const [isSaving, startSave] = useTransition();
+
+  useEffect(() => { setDraft(currentNote); }, [currentNote]);
+
+  function handleSave() {
+    const trimmed = draft.trim();
+    setEditing(false);
+    // Only save if value actually changed
+    if (trimmed === currentNote) return;
+    startSave(async () => {
+      await updatePlayer(playerId, { recruitment_notes: trimmed });
+    });
+  }
+
+  // No note yet — show a small icon button only
+  if (!editing && !currentNote) {
+    return (
+      <button
+        data-no-navigate
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        disabled={isSaving}
+        className="mt-1 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:bg-amber-50 hover:text-amber-500"
+        aria-label="Adicionar nota"
+      >
+        <StickyNote className="h-3 w-3" />
+      </button>
+    );
+  }
+
+  // Editing mode — textarea
+  if (editing) {
+    return (
+      <div data-no-navigate className="mt-1.5 space-y-1" onClick={(e) => e.stopPropagation()}>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          className="w-full resize-none rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 focus:border-amber-500 focus:outline-none"
+          autoFocus
+          placeholder="Nota rápida…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave(); }
+            if (e.key === 'Escape') { setEditing(false); setDraft(currentNote); }
+          }}
+        />
+        <div className="flex justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => { setEditing(false); setDraft(currentNote); }}
+            className="rounded p-0.5 text-muted-foreground hover:bg-neutral-100"
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="rounded p-0.5 text-amber-600 hover:bg-amber-100"
+          >
+            <Check className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Has note — show it, click to edit
+  return (
+    <button
+      data-no-navigate
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      disabled={isSaving}
+      className="mt-1 flex w-full items-center gap-1.5 rounded bg-amber-50 px-2 py-1 text-left text-[10px] text-amber-700 hover:bg-amber-100"
+    >
+      <StickyNote className="h-2.5 w-2.5 shrink-0 text-amber-400" />
+      <span className="flex-1">{currentNote}</span>
     </button>
   );
 }
