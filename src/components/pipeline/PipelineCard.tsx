@@ -941,6 +941,16 @@ function CardActionsMenu({
                 <StickyNote className="h-3.5 w-3.5 text-amber-500" />
                 {currentNote ? 'Editar nota' : 'Adicionar nota'}
               </button>
+              {currentNote && (
+                <button
+                  type="button"
+                  onClick={() => { onNoteSaved?.(''); handleClose(); }}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remover nota
+                </button>
+              )}
 
               {/* Remove from pipeline */}
               {onRemove && (
