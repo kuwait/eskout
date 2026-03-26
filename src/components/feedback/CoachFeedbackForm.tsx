@@ -127,10 +127,10 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
               type="button"
               onClick={() => setDecision(decision === opt.value ? null : opt.value)}
               className={cn(
-                'rounded-xl py-2.5 text-sm font-semibold transition text-center',
+                'rounded-xl border py-2.5 text-sm font-semibold transition text-center',
                 decision === opt.value
-                  ? opt.color + ' shadow-sm border'
-                  : 'border border-neutral-200 text-neutral-400 hover:border-neutral-400',
+                  ? opt.colorActive
+                  : opt.color,
               )}
             >
               {decision === opt.value && <span className="mr-1">{opt.icon}</span>}
@@ -156,11 +156,11 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
       <div className="rounded-xl border border-l-[3px] border-l-neutral-400 bg-neutral-50/50 p-3 space-y-3">
         <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Físico <span className="font-normal text-neutral-400">(opcional)</span></p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-          <ScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={setHeightScale} />
-          <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={setBuildScale} info="Ecto = magro/longilíneo · Meso = atlético/musculado · Endo = largo/robusto" />
-          <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={setSpeedScale} />
-          <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={setIntensityScale} />
-          <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={setMaturation} info="Nada = pré-pubertário · Início = início do pico · Maturado = pico atingido · Super = muito avançado para a idade" />
+          <ScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={setHeightScale} info="Alto = acima da média · Normal = na média · Baixo = abaixo" />
+          <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={setBuildScale} info="Ecto = magro/longilíneo · Meso = atlético · Endo = robusto" />
+          <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={setSpeedScale} info="Rápido = destaca-se · Normal = na média · Lento = abaixo" />
+          <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={setIntensityScale} info="Intenso = esforço máximo · Pouco = baixa energia" />
+          <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={setMaturation} info="Nada = pré-pubertário · Início = início do pico · Maturado = pico atingido · Super = muito avançado" />
         </div>
       </div>
 

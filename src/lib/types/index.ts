@@ -596,7 +596,7 @@ export interface CalendarEventRow {
 /* ───────────── Training Feedback ───────────── */
 
 export type TrainingPresence = 'attended' | 'missed' | 'rescheduled';
-export type TrainingDecision = 'assinar' | 'repetir' | 'descartar' | 'sem_decisao';
+export type TrainingDecision = 'assinar' | 'repetir' | 'duvidas' | 'descartar' | 'sem_decisao';
 export type HeightScale = 'alto' | 'normal' | 'baixo';
 export type BuildScale = 'ectomorfo' | 'mesomorfo' | 'endomorfo';
 export type SpeedScale = 'rapido' | 'normal' | 'lento';

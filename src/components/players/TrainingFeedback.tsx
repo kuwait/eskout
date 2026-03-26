@@ -608,7 +608,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
       <div className="grid grid-cols-2 gap-3">
         <div>
           <div className="mb-1.5 flex items-baseline gap-2">
-            <SectionLabel inline>Rendimento</SectionLabel>
+            <SectionLabel inline info="Jogador de rendimento — pronto para jogar e contribuir já">Rendimento</SectionLabel>
             {ratingPerformance && (
               <span className={cn('text-xs font-bold', (RATING_COLORS[ratingPerformance] ?? DEFAULT_COLORS).text)}>
                 {RATING_LABELS[ratingPerformance]}
@@ -619,7 +619,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
         </div>
         <div>
           <div className="mb-1.5 flex items-baseline gap-2">
-            <SectionLabel inline>Potencial</SectionLabel>
+            <SectionLabel inline info="Jogador de potencial — pode evoluir muito com tempo e contexto certo">Potencial</SectionLabel>
             {ratingPotential && (
               <span className={cn('text-xs font-bold', (RATING_COLORS[ratingPotential] ?? DEFAULT_COLORS).text)}>
                 {RATING_LABELS[ratingPotential]}
@@ -633,18 +633,18 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
       {/* ── Decisão (only when attended) ── */}
       {showStructured && (
         <div>
-          <SectionLabel>Decisão</SectionLabel>
-          <div className="grid grid-cols-3 gap-2">
+          <SectionLabel info="Assinar = queremos · Repetir = outro treino · Dúvidas = precisa avaliar · Descartar = não interessa">Decisão</SectionLabel>
+          <div className="grid grid-cols-2 gap-2">
             {TRAINING_DECISIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setDecision(decision === opt.value ? 'sem_decisao' : opt.value)}
                 className={cn(
-                  'rounded-xl py-2.5 text-sm font-semibold transition text-center',
+                  'rounded-xl border py-2.5 text-sm font-semibold transition text-center',
                   decision === opt.value
-                    ? opt.color + ' shadow-sm border'
-                    : 'border border-neutral-200 text-neutral-400 hover:border-neutral-400',
+                    ? opt.colorActive
+                    : opt.color,
                 )}
               >
                 {decision === opt.value && <span className="mr-1">{opt.icon}</span>}
@@ -674,24 +674,30 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
           <div className="rounded-xl border border-l-[3px] border-l-cyan-400 bg-neutral-50/50 p-3 space-y-3">
             <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">⚡ Físico</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <ScaleBlock label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} />
-              <ScaleBlock label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} info="Ecto = magro/longilíneo · Meso = atlético/musculado · Endo = largo/robusto" />
-              <ScaleBlock label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
-              <ScaleBlock label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
+              <ScaleBlock label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} info="Alto = acima da média · Normal = na média · Baixo = abaixo" />
+              <ScaleBlock label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} info="Ecto = magro/longilíneo · Meso = atlético · Endo = robusto" />
+              <ScaleBlock label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} info="Rápido = destaca-se · Normal = na média · Lento = abaixo" />
+              <ScaleBlock label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} info="Intenso = esforço máximo · Pouco = baixa energia" />
             </div>
-            <ScaleBlock label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} info="Desenvolvimento físico relativo à idade: Nada = pré-pubertário · Início = início do pico · Maturado = pico atingido · Super = muito avançado para a idade" />
+            <ScaleBlock label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} info="Nada = pré-pubertário · Início = início do pico de crescimento · Maturado = pico atingido · Super = muito avançado para a idade" />
           </div>
 
           {/* Tags by category — each in its own colored card */}
           {TRAINING_TAG_CATEGORIES.map((cat) => {
             const catColor = TAG_CATEGORY_COLORS[cat.category] ?? TAG_CATEGORY_COLORS.adaptacao;
-            const borderColor = cat.category === 'tecnica' ? 'border-l-blue-400'
-              : cat.category === 'tatico' ? 'border-l-teal-400'
-              : cat.category === 'mental' ? 'border-l-purple-400'
-              : 'border-l-amber-400';
             return (
-              <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', borderColor)}>
-                <p className={cn('mb-2 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
+              <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', catColor.border)}>
+                <div className="mb-2 flex items-center gap-1">
+                  <p className={cn('text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-neutral-200 text-[8px] font-bold text-neutral-500 hover:bg-neutral-300">i</button>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="start" className="w-52 rounded-lg border-neutral-200 bg-neutral-900 p-2.5 text-[11px] leading-relaxed text-neutral-200 shadow-lg">
+                      <p>{catColor.info}</p>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {cat.tags.map((tag) => {
                     const selected = tags.includes(tag.value);
@@ -842,17 +848,36 @@ function TrainingDateInput({ value, onChange }: { value: string; onChange: (v: s
 
 /* ───────────── Section Label ───────────── */
 
-function SectionLabel({ children, inline }: { children: React.ReactNode; inline?: boolean }) {
-  return <p className={cn('text-[11px] font-bold uppercase tracking-widest text-neutral-500', !inline && 'mb-1.5')}>{children}</p>;
+function SectionLabel({ children, inline, info }: { children: React.ReactNode; inline?: boolean; info?: string }) {
+  return (
+    <div className={cn('flex items-center gap-1', !inline && 'mb-1.5')}>
+      <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">{children}</p>
+      {info && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-neutral-200 text-[8px] font-bold text-neutral-500 hover:bg-neutral-300">i</button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="start" className="w-52 rounded-lg border-neutral-200 bg-neutral-900 p-2.5 text-[11px] leading-relaxed text-neutral-200 shadow-lg">
+            {info.split(' · ').map((item) => (
+              <p key={item} className="flex items-start gap-1.5">
+                <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-cyan-400" />
+                {item}
+              </p>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
 }
 
 /* ───────────── Tag Category Colors ───────────── */
 
-const TAG_CATEGORY_COLORS: Record<string, { label: string; emoji: string; selected: string; unselected: string }> = {
-  tecnica:   { label: 'text-blue-600',   emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500',     unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300' },
-  tatico:    { label: 'text-teal-600',   emoji: '🧩', selected: 'bg-teal-500 text-white border-teal-500',     unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-300' },
-  mental:    { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-300' },
-  adaptacao: { label: 'text-amber-600',  emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500',   unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300' },
+const TAG_CATEGORY_COLORS: Record<string, { label: string; emoji: string; selected: string; unselected: string; border: string; info: string }> = {
+  tecnica:   { label: 'text-blue-600',   emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500',     unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300', border: 'border-l-blue-400', info: 'O que faz bem ou mal com bola' },
+  tatico:    { label: 'text-teal-600',   emoji: '🧩', selected: 'bg-teal-500 text-white border-teal-500',     unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-300', border: 'border-l-teal-400', info: 'Leitura do jogo e inteligência posicional' },
+  mental:    { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-300', border: 'border-l-purple-400', info: 'Personalidade e comportamento em campo' },
+  adaptacao: { label: 'text-amber-600',  emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500',   unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300', border: 'border-l-amber-400', info: 'Como reagiu ao contexto e nível do treino' },
 };
 
 /* ───────────── Rating Colors & Labels ───────────── */

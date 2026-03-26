@@ -518,18 +518,19 @@ export const TRAINING_PRESENCE: { value: TrainingPresence; labelPt: string; icon
 
 /* ───────────── Training Decision (Decisão Pós-Treino) ───────────── */
 
-export const TRAINING_DECISIONS: { value: TrainingDecision; labelPt: string; icon: string; color: string }[] = [
-  { value: 'assinar', labelPt: 'Assinar', icon: '✓', color: 'bg-green-50 text-green-700 border-green-200' },
-  { value: 'repetir', labelPt: 'Repetir', icon: '↻', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  { value: 'descartar', labelPt: 'Descartar', icon: '✗', color: 'bg-red-50 text-red-700 border-red-200' },
+export const TRAINING_DECISIONS: { value: TrainingDecision; labelPt: string; icon: string; color: string; colorActive: string }[] = [
+  { value: 'assinar', labelPt: 'Assinar', icon: '✓', color: 'bg-green-100/60 text-green-600 border-green-200', colorActive: 'bg-green-500 text-white border-green-500 shadow-sm' },
+  { value: 'repetir', labelPt: 'Repetir', icon: '↻', color: 'bg-blue-100/60 text-blue-600 border-blue-200', colorActive: 'bg-blue-500 text-white border-blue-500 shadow-sm' },
+  { value: 'duvidas', labelPt: 'Dúvidas', icon: '?', color: 'bg-amber-100/60 text-amber-600 border-amber-200', colorActive: 'bg-amber-500 text-white border-amber-500 shadow-sm' },
+  { value: 'descartar', labelPt: 'Descartar', icon: '✗', color: 'bg-red-100/60 text-red-600 border-red-200', colorActive: 'bg-red-500 text-white border-red-500 shadow-sm' },
 ];
 
-/** Coach decisions (external feedback) — includes 'duvidas' option */
-export const COACH_DECISIONS: { value: string; labelPt: string; icon: string; color: string }[] = [
-  { value: 'assinar', labelPt: 'Assinar', icon: '✓', color: 'bg-green-50 text-green-700 border-green-200' },
-  { value: 'repetir', labelPt: 'Repetir', icon: '↻', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  { value: 'duvidas', labelPt: 'Dúvidas', icon: '?', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  { value: 'descartar', labelPt: 'Descartar', icon: '✗', color: 'bg-red-50 text-red-700 border-red-200' },
+/** Coach decisions (external feedback) — same values as TRAINING_DECISIONS */
+export const COACH_DECISIONS: { value: string; labelPt: string; icon: string; color: string; colorActive: string }[] = [
+  { value: 'assinar', labelPt: 'Assinar', icon: '✓', color: 'bg-green-100/60 text-green-600 border-green-200', colorActive: 'bg-green-500 text-white border-green-500 shadow-sm' },
+  { value: 'repetir', labelPt: 'Repetir', icon: '↻', color: 'bg-blue-100/60 text-blue-600 border-blue-200', colorActive: 'bg-blue-500 text-white border-blue-500 shadow-sm' },
+  { value: 'duvidas', labelPt: 'Dúvidas', icon: '?', color: 'bg-amber-100/60 text-amber-600 border-amber-200', colorActive: 'bg-amber-500 text-white border-amber-500 shadow-sm' },
+  { value: 'descartar', labelPt: 'Descartar', icon: '✗', color: 'bg-red-100/60 text-red-600 border-red-200', colorActive: 'bg-red-500 text-white border-red-500 shadow-sm' },
 ];
 
 /* ───────────── Training Physical Scales ───────────── */

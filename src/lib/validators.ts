@@ -173,7 +173,7 @@ export type CalendarEventFormData = z.infer<typeof calendarEventSchema>;
 /* ───────────── Training Feedback ───────────── */
 
 const TRAINING_PRESENCE_VALUES = ['attended', 'missed', 'rescheduled'] as const;
-const TRAINING_DECISION_VALUES = ['assinar', 'repetir', 'descartar', 'sem_decisao'] as const;
+const TRAINING_DECISION_VALUES = ['assinar', 'repetir', 'duvidas', 'descartar', 'sem_decisao'] as const;
 const HEIGHT_SCALE_VALUES = ['alto', 'normal', 'baixo'] as const;
 const BUILD_SCALE_VALUES = ['ectomorfo', 'mesomorfo', 'endomorfo'] as const;
 const SPEED_SCALE_VALUES = ['rapido', 'normal', 'lento'] as const;
