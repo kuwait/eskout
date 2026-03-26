@@ -19,6 +19,15 @@ import {
   SPECIAL_SECTION_LABELS,
   RECRUITMENT_STATUSES,
   TRAINING_PRESENCE,
+  TRAINING_DECISIONS,
+  COACH_DECISIONS,
+  HEIGHT_SCALE_OPTIONS,
+  BUILD_SCALE_OPTIONS,
+  SPEED_SCALE_OPTIONS,
+  INTENSITY_SCALE_OPTIONS,
+  MATURATION_SCALE_OPTIONS,
+  TRAINING_TAG_CATEGORIES,
+  TRAINING_TAG_LABEL_MAP,
 } from '@/lib/constants';
 import { makePlayer } from '@/lib/__tests__/factories';
 
@@ -273,6 +282,100 @@ describe('constant arrays', () => {
       expect(p.labelPt).toBeTruthy();
       expect(p.icon).toBeTruthy();
       expect(p.color).toBeTruthy();
+    }
+  });
+});
+
+/* ───────────── Training Decisions ───────────── */
+
+describe('TRAINING_DECISIONS', () => {
+  it('has 4 decisions with colorActive', () => {
+    expect(TRAINING_DECISIONS).toHaveLength(4);
+    const values = TRAINING_DECISIONS.map((d) => d.value);
+    expect(values).toContain('assinar');
+    expect(values).toContain('repetir');
+    expect(values).toContain('duvidas');
+    expect(values).toContain('descartar');
+  });
+
+  it('entries have required fields', () => {
+    for (const d of TRAINING_DECISIONS) {
+      expect(d.labelPt).toBeTruthy();
+      expect(d.icon).toBeTruthy();
+      expect(d.color).toBeTruthy();
+      expect(d.colorActive).toBeTruthy();
+    }
+  });
+});
+
+describe('COACH_DECISIONS', () => {
+  it('has 4 decisions matching TRAINING_DECISIONS values', () => {
+    expect(COACH_DECISIONS).toHaveLength(4);
+    const values = COACH_DECISIONS.map((d) => d.value);
+    expect(values).toContain('assinar');
+    expect(values).toContain('duvidas');
+  });
+});
+
+/* ───────────── Physical Scales ───────────── */
+
+describe('Physical scale options', () => {
+  it('HEIGHT_SCALE_OPTIONS has 3 values', () => {
+    expect(HEIGHT_SCALE_OPTIONS).toHaveLength(3);
+    expect(HEIGHT_SCALE_OPTIONS.map((o) => o.value)).toEqual(['alto', 'normal', 'baixo']);
+  });
+
+  it('BUILD_SCALE_OPTIONS has ectomorfo/mesomorfo/endomorfo', () => {
+    expect(BUILD_SCALE_OPTIONS).toHaveLength(3);
+    expect(BUILD_SCALE_OPTIONS.map((o) => o.value)).toEqual(['ectomorfo', 'mesomorfo', 'endomorfo']);
+  });
+
+  it('SPEED_SCALE_OPTIONS has 3 values', () => {
+    expect(SPEED_SCALE_OPTIONS).toHaveLength(3);
+  });
+
+  it('INTENSITY_SCALE_OPTIONS has 2 values', () => {
+    expect(INTENSITY_SCALE_OPTIONS).toHaveLength(2);
+  });
+
+  it('MATURATION_SCALE_OPTIONS has 4 values', () => {
+    expect(MATURATION_SCALE_OPTIONS).toHaveLength(4);
+    expect(MATURATION_SCALE_OPTIONS.map((o) => o.value)).toEqual(['nada_maturado', 'a_iniciar', 'maturado', 'super_maturado']);
+  });
+});
+
+/* ───────────── Training Tags ───────────── */
+
+describe('TRAINING_TAG_CATEGORIES', () => {
+  it('has 4 categories', () => {
+    expect(TRAINING_TAG_CATEGORIES).toHaveLength(4);
+    const cats = TRAINING_TAG_CATEGORIES.map((c) => c.category);
+    expect(cats).toEqual(['tecnica', 'tatico', 'mental', 'adaptacao']);
+  });
+
+  it('each category has at least 4 tags', () => {
+    for (const cat of TRAINING_TAG_CATEGORIES) {
+      expect(cat.tags.length).toBeGreaterThanOrEqual(4);
+      expect(cat.labelPt).toBeTruthy();
+    }
+  });
+
+  it('all tag values are unique across categories', () => {
+    const allValues = TRAINING_TAG_CATEGORIES.flatMap((c) => c.tags.map((t) => t.value));
+    expect(new Set(allValues).size).toBe(allValues.length);
+  });
+
+  it('TRAINING_TAG_LABEL_MAP covers all tags', () => {
+    const allValues = TRAINING_TAG_CATEGORIES.flatMap((c) => c.tags.map((t) => t.value));
+    for (const v of allValues) {
+      expect(TRAINING_TAG_LABEL_MAP[v]).toBeTruthy();
+    }
+  });
+
+  it('negative tags exist in the categories', () => {
+    const allValues = TRAINING_TAG_CATEGORIES.flatMap((c) => c.tags.map((t) => t.value));
+    for (const neg of ['perde_muitas_bolas', 'trapalhao', 'desorientado', 'nervoso', 'nivel_abaixo']) {
+      expect(allValues).toContain(neg);
     }
   });
 });
