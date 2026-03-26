@@ -43,7 +43,7 @@ interface StatusColumnProps {
   /** Disable drag-and-drop (mobile) — cards get status dropdown instead */
   disableDrag?: boolean;
   /** Move card to different status column (mobile alternative to drag) */
-  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus, decisionSide?: DecisionSide) => void;
   /** Change decision side within a_decidir column */
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
   /** Map of playerId -> last contact purpose label for em_contacto cards */

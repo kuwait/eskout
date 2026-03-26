@@ -66,7 +66,7 @@ function saveColumnOrder(order: RecruitmentStatus[]) {
 
 interface KanbanBoardProps {
   playersByStatus: Record<RecruitmentStatus, Player[]>;
-  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus, decisionSide?: DecisionSide) => void;
   onRemove?: (playerId: number) => void;
   onDateChange?: (playerId: number, field: 'trainingDate' | 'meetingDate' | 'signingDate' | 'decisionDate', newDate: string | null) => void;
   /** Callback for reorder after drag-and-drop within/between columns */
@@ -355,24 +355,19 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
 
     // If card moved to a different column, notify parent
     if (originalContainer !== overContainer) {
-      onStatusChange?.(playerId, overContainer);
-    }
-
-    // Determine target decision side when landing in a_decidir
-    if (overContainer === 'a_decidir' && onDecisionSideChange) {
-      // First check if over.id is a sub-zone droppable directly (empty zone drop)
-      const dropSubZone = parseSubZoneId(String(over.id));
-      if (dropSubZone) {
-        onDecisionSideChange(playerId, dropSubZone);
-      } else {
-        // over.id is a card — infer sub-zone from that card's player decisionSide
-        const overCardId = parseCardId(String(over.id));
-        const overPlayer = overCardId !== null ? playerMap.get(cardId(overCardId)) : null;
-        if (overPlayer?.decisionSide) {
-          onDecisionSideChange(playerId, overPlayer.decisionSide);
+      // For a_decidir, determine the decision side from the drop target sub-zone
+      let targetDecisionSide: DecisionSide | undefined;
+      if (overContainer === 'a_decidir') {
+        const dropSubZone = parseSubZoneId(String(over.id));
+        if (dropSubZone) {
+          targetDecisionSide = dropSubZone;
+        } else {
+          const overCardId = parseCardId(String(over.id));
+          const overPlayer = overCardId !== null ? playerMap.get(cardId(overCardId)) : null;
+          targetDecisionSide = overPlayer?.decisionSide ?? 'club';
         }
-        // else: cross-column move to a_decidir — updateRecruitmentStatus already defaults to 'club'
       }
+      onStatusChange?.(playerId, overContainer, targetDecisionSide);
     }
 
     // Send reorder updates for the target column
@@ -387,7 +382,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
 
     setActiveId(null);
     setClonedItems(null);
-  }, [containerItems, clonedItems, activeColumnId, onStatusChange, onReorder, onDecisionSideChange, playerMap]);
+  }, [containerItems, clonedItems, activeColumnId, onStatusChange, onReorder, playerMap]);
 
   const handleDragCancel = useCallback(() => {
     // Restore pre-drag snapshot

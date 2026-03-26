@@ -58,6 +58,7 @@ const STATUSES = [
   { value: 'vir_treinar', label: 'Vir Treinar' },
   { value: 'reuniao_marcada', label: 'Reunião Marcada' },
   { value: 'a_decidir', label: 'A Decidir' },
+  { value: 'em_standby', label: 'Em Stand-by' },
   { value: 'confirmado', label: 'Confirmado' },
   { value: 'assinou', label: 'Assinou' },
   { value: 'rejeitado', label: 'Rejeitado' },

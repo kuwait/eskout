@@ -249,8 +249,8 @@ describe('constant arrays', () => {
     expect(SQUAD_SLOT_CODES).not.toContain('SA');
   });
 
-  it('RECRUITMENT_STATUSES has 8 entries with tailwindLight properties', () => {
-    expect(RECRUITMENT_STATUSES).toHaveLength(8);
+  it('RECRUITMENT_STATUSES has 9 entries with tailwindLight properties', () => {
+    expect(RECRUITMENT_STATUSES).toHaveLength(9);
     for (const status of RECRUITMENT_STATUSES) {
       expect(status.tailwindLight).toBeDefined();
       expect(status.tailwindLight.bg).toMatch(/^bg-/);

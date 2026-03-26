@@ -130,6 +130,7 @@ export const RECRUITMENT_STATUSES: {
   { value: 'vir_treinar', labelPt: 'Vir treinar', color: '#3b82f6', tailwind: 'bg-blue-500 text-white', tailwindLight: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-300', dot: 'bg-blue-500' } },
   { value: 'reuniao_marcada', labelPt: 'Reunião Marcada', color: '#f97316', tailwind: 'bg-orange-500 text-white', tailwindLight: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-300', dot: 'bg-orange-500' } },
   { value: 'a_decidir', labelPt: 'A decidir', color: '#1e40af', tailwind: 'bg-blue-800 text-white', tailwindLight: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-300', dot: 'bg-blue-800' } },
+  { value: 'em_standby', labelPt: 'Em Stand-by', color: '#64748b', tailwind: 'bg-slate-500 text-white', tailwindLight: { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-300', dot: 'bg-slate-500' } },
   { value: 'confirmado', labelPt: 'Confirmado', color: '#22c55e', tailwind: 'bg-green-500 text-white', tailwindLight: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-300', dot: 'bg-green-500' } },
   { value: 'assinou', labelPt: 'Assinou', color: '#16a34a', tailwind: 'bg-green-700 text-white', tailwindLight: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300', dot: 'bg-emerald-600' } },
   { value: 'rejeitado', labelPt: 'Recusou vir', color: '#ef4444', tailwind: 'bg-red-500 text-white', tailwindLight: { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-300', dot: 'bg-red-500' } },

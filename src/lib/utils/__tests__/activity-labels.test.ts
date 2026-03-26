@@ -104,6 +104,7 @@ describe('formatFieldValue', () => {
     expect(formatFieldValue('recruitment_status', 'vir_treinar')).toBe('Vir treinar');
     expect(formatFieldValue('recruitment_status', 'reuniao_marcada')).toBe('Reunião Marcada');
     expect(formatFieldValue('recruitment_status', 'a_decidir')).toBe('A decidir');
+    expect(formatFieldValue('recruitment_status', 'em_standby')).toBe('Em Stand-by');
     expect(formatFieldValue('recruitment_status', 'confirmado')).toBe('Confirmado');
     expect(formatFieldValue('recruitment_status', 'assinou')).toBe('Assinou');
     expect(formatFieldValue('recruitment_status', 'rejeitado')).toBe('Recusou vir');

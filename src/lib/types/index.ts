@@ -32,6 +32,7 @@ export type RecruitmentStatus =
   | 'vir_treinar'
   | 'reuniao_marcada'
   | 'a_decidir'
+  | 'em_standby'
   | 'confirmado'
   | 'assinou'
   | 'rejeitado';
@@ -90,6 +91,7 @@ export interface Player {
   recruitmentStatus: RecruitmentStatus | null;
   decisionSide: DecisionSide | null;
   decisionDate: string | null;
+  standbyReason: string | null;
   trainingDate: string | null;
   meetingDate: string | null;
   signingDate: string | null;
@@ -183,6 +185,7 @@ export interface PlayerRow {
   recruitment_status: string;
   decision_side: string | null;
   decision_date: string | null;
+  standby_reason: string | null;
   training_date: string | null;
   meeting_date: string | null;
   signing_date: string | null;

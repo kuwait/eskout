@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/select';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { StatusChangeDialog } from '@/components/pipeline/StatusChangeDialog';
+import { StandbyReasonDialog } from '@/components/pipeline/StandbyReasonDialog';
 import type { ContactPurpose, DecisionSide, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
 
 interface PipelineViewProps {
@@ -61,6 +62,9 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
   // StatusChangeDialog state — shown when moving to em_contacto
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState<{ playerId: number; playerName: string } | null>(null);
+  // StandbyReasonDialog state — shown when moving to em_standby
+  const [standbyDialogOpen, setStandbyDialogOpen] = useState(false);
+  const [pendingStandbyChange, setPendingStandbyChange] = useState<{ playerId: number; playerName: string } | null>(null);
   // Show birth year on cards when viewing all age groups
   const showBirthYear = selectedId === null;
 
@@ -175,7 +179,7 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
   /* ───────────── Handlers ───────────── */
 
   /** Move between columns — intercept em_contacto to show purpose dialog */
-  async function handleStatusChange(playerId: number, newStatus: RecruitmentStatus) {
+  async function handleStatusChange(playerId: number, newStatus: RecruitmentStatus, decisionSide?: DecisionSide) {
     // Intercept: moving to em_contacto → show dialog first
     if (newStatus === 'em_contacto') {
       const player = pipelinePlayers.find((p) => p.id === playerId);
@@ -183,8 +187,15 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
       setStatusDialogOpen(true);
       return;
     }
+    // Intercept: moving to em_standby → show reason dialog first
+    if (newStatus === 'em_standby') {
+      const player = pipelinePlayers.find((p) => p.id === playerId);
+      setPendingStandbyChange({ playerId, playerName: player?.name ?? `Jogador #${playerId}` });
+      setStandbyDialogOpen(true);
+      return;
+    }
 
-    await commitStatusChange(playerId, newStatus);
+    await commitStatusChange(playerId, newStatus, undefined, undefined, undefined, undefined, decisionSide);
   }
 
   /** Actually perform the status change (called directly or after dialog confirmation) */
@@ -195,6 +206,8 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
     contactPurposeCustom?: string | null,
     note?: string | null,
     assignedTo?: string | null,
+    decisionSide?: DecisionSide,
+    standbyReason?: string,
   ) {
     const prev = pipelinePlayers;
     setPipelinePlayers((cur) =>
@@ -203,10 +216,16 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
         const updated = { ...p, recruitmentStatus: newStatus };
         // Auto-set decision_side when entering a_decidir, clear when leaving
         if (newStatus === 'a_decidir') {
-          updated.decisionSide = 'club';
+          updated.decisionSide = decisionSide ?? 'club';
         } else if (p.recruitmentStatus === 'a_decidir') {
           updated.decisionSide = null;
           updated.decisionDate = null;
+        }
+        // Set/clear standby reason
+        if (newStatus === 'em_standby') {
+          updated.standbyReason = standbyReason ?? null;
+        } else if (p.recruitmentStatus === 'em_standby') {
+          updated.standbyReason = null;
         }
         // Clear date fields when leaving their respective statuses (mirrors server logic)
         if (p.recruitmentStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
@@ -235,6 +254,8 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
       contactPurposeId ?? undefined,
       contactPurposeCustom ?? undefined,
       assignedTo,
+      decisionSide,
+      standbyReason,
     );
     if (!result.success) {
       console.error('handleStatusChange failed:', result.error);
@@ -254,6 +275,13 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
 
     commitStatusChange(pendingStatusChange.playerId, 'em_contacto', purposeId, purposeCustom, note, assignedTo);
     setPendingStatusChange(null);
+  }
+
+  /** Called when the StandbyReasonDialog is confirmed */
+  function handleStandbyDialogConfirm(reason: string) {
+    if (!pendingStandbyChange) return;
+    commitStatusChange(pendingStandbyChange.playerId, 'em_standby', undefined, undefined, undefined, undefined, undefined, reason);
+    setPendingStandbyChange(null);
   }
 
   /** Change decision side within a_decidir — optimistic + server persist */
@@ -363,6 +391,17 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
           handleAdd(player);
           setDialogOpen(false);
         }}
+      />
+
+      {/* Standby reason dialog — shown when moving to em_standby */}
+      <StandbyReasonDialog
+        open={standbyDialogOpen}
+        onOpenChange={(v) => {
+          setStandbyDialogOpen(v);
+          if (!v) setPendingStandbyChange(null);
+        }}
+        playerName={pendingStandbyChange?.playerName ?? ''}
+        onConfirm={handleStandbyDialogConfirm}
       />
 
       {/* Contact purpose dialog — shown when moving to em_contacto */}

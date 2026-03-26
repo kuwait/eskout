@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { Calendar, Check, Clock, Handshake, MessageCircle, Pencil, PenLine, Phone, User, Users, X, XCircle } from 'lucide-react';
+import { Calendar, Check, Clock, Handshake, MessageCircle, Pause, Pencil, PenLine, Phone, User, Users, X, XCircle } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { RECRUITMENT_LABEL_MAP } from '@/lib/constants';
 import { updatePlayer } from '@/actions/players';
@@ -16,7 +16,7 @@ import type { RecruitmentStatus } from '@/lib/types';
 /* ───────────── Pipeline Steps & Status Visuals ───────────── */
 
 /** Pipeline steps in order (rejeitado is special — shown as end state) */
-export const PIPELINE_STEPS = ['por_tratar', 'em_contacto', 'vir_treinar', 'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou'] as const;
+export const PIPELINE_STEPS = ['por_tratar', 'em_contacto', 'vir_treinar', 'reuniao_marcada', 'a_decidir', 'em_standby', 'confirmado', 'assinou'] as const;
 
 /** Icon + color per status */
 export const STATUS_VISUAL: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string; ring: string }> = {
@@ -25,6 +25,7 @@ export const STATUS_VISUAL: Record<string, { icon: React.ComponentType<{ classNa
   vir_treinar:     { icon: User,           color: 'text-blue-600',    bg: 'bg-blue-100',      ring: 'ring-blue-300' },
   reuniao_marcada: { icon: Handshake,      color: 'text-orange-600',  bg: 'bg-orange-100',    ring: 'ring-orange-300' },
   a_decidir:       { icon: Clock,          color: 'text-blue-800',    bg: 'bg-blue-100',      ring: 'ring-blue-400' },
+  em_standby:      { icon: Pause,          color: 'text-slate-600',   bg: 'bg-slate-100',     ring: 'ring-slate-300' },
   confirmado:      { icon: Check,          color: 'text-green-600',   bg: 'bg-green-100',     ring: 'ring-green-300' },
   assinou:         { icon: PenLine,        color: 'text-green-700',   bg: 'bg-green-100',     ring: 'ring-green-400' },
   rejeitado:       { icon: XCircle,        color: 'text-red-600',     bg: 'bg-red-100',       ring: 'ring-red-300' },
@@ -40,6 +41,7 @@ export function statusDescription(status: RecruitmentStatus | null): string {
     vir_treinar: 'Convidado a treinar connosco para avaliação.',
     reuniao_marcada: 'Reunião agendada com jogador ou representante.',
     a_decidir: 'Processo avançado, aguarda decisão do departamento.',
+    em_standby: 'Em espera — aprovado mas sem vaga ou a aguardar condições.',
     confirmado: 'Jogador confirmado, a preparar assinatura.',
     assinou: 'Processo concluído — jogador assinou.',
     rejeitado: 'Jogador rejeitou a proposta ou não quer vir.',

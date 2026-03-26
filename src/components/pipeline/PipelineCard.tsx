@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { Building2, Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, GraduationCap, Phone, Trash2, User, Users, X } from 'lucide-react';
+import { Building2, Calendar, Check, ChevronsUpDown, EllipsisVertical, FileSignature, GraduationCap, Pause, Pencil, Phone, Trash2, User, Users, X } from 'lucide-react';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateDecisionDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao } from '@/actions/pipeline';
+import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateDecisionDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao, updateStandbyReason } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
@@ -39,7 +39,7 @@ interface PipelineCardProps {
   /** Club-scoped profiles for contact assignment */
   clubMembers?: { id: string; fullName: string }[];
   /** Mobile: dropdown to move card between columns (replaces drag-and-drop) */
-  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onStatusChange?: (playerId: number, newStatus: RecruitmentStatus, decisionSide?: DecisionSide) => void;
   /** Change decision side within a_decidir column */
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
   /** Contact purpose label for em_contacto cards */
@@ -300,6 +300,11 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
         {/* Signing attendees — shown on "Confirmado" for signing responsibility */}
         {player.recruitmentStatus === 'confirmado' && (
           <SigningAttendeesButton player={player} clubMembers={clubMembers} />
+        )}
+
+        {/* Standby reason — shown on "Em Stand-by" cards, editable inline */}
+        {player.recruitmentStatus === 'em_standby' && (
+          <StandbyReasonButton playerId={player.id} currentReason={player.standbyReason} />
         )}
 
         {/* Scheduled date button — for "Vir treinar", "Reunião Marcada", "Confirmado" */}
@@ -708,7 +713,7 @@ function CardActionsMenu({
   playerId: number;
   currentStatus: RecruitmentStatus;
   currentDecisionSide?: DecisionSide | null;
-  onStatusChange: (playerId: number, newStatus: RecruitmentStatus) => void;
+  onStatusChange: (playerId: number, newStatus: RecruitmentStatus, decisionSide?: DecisionSide) => void;
   onRemove?: (playerId: number) => void;
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
 }) {
@@ -747,8 +752,7 @@ function CardActionsMenu({
               <button
                 type="button"
                 onClick={() => {
-                  onStatusChange(playerId, 'a_decidir');
-                  onDecisionSideChange?.(playerId, 'club');
+                  onStatusChange(playerId, 'a_decidir', 'club');
                   handleClose();
                 }}
                 className="flex items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-neutral-50"
@@ -759,8 +763,7 @@ function CardActionsMenu({
               <button
                 type="button"
                 onClick={() => {
-                  onStatusChange(playerId, 'a_decidir');
-                  onDecisionSideChange?.(playerId, 'player');
+                  onStatusChange(playerId, 'a_decidir', 'player');
                   handleClose();
                 }}
                 className="flex items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-neutral-50"
@@ -957,5 +960,79 @@ function ContactPurposeButton({
         </CommandList>
       </CommandDialog>
     </>
+  );
+}
+
+/* ───────────── Standby Reason Button for Em Stand-by cards ───────────── */
+
+function StandbyReasonButton({
+  playerId,
+  currentReason,
+}: {
+  playerId: number;
+  currentReason: string | null;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(currentReason ?? '');
+  const [isSaving, startSave] = useTransition();
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local draft when server state updates via realtime
+  useEffect(() => { setDraft(currentReason ?? ''); }, [currentReason]);
+
+  function handleSave() {
+    if (!draft.trim()) return;
+    setEditing(false);
+    startSave(async () => {
+      await updateStandbyReason(playerId, draft.trim());
+    });
+  }
+
+  if (editing) {
+    return (
+      <div data-no-navigate className="mt-1.5 space-y-1" onClick={(e) => e.stopPropagation()}>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          className="w-full resize-none rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:border-slate-500 focus:outline-none"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave(); }
+            if (e.key === 'Escape') { setEditing(false); setDraft(currentReason ?? ''); }
+          }}
+        />
+        <div className="flex justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => { setEditing(false); setDraft(currentReason ?? ''); }}
+            className="rounded p-0.5 text-muted-foreground hover:bg-neutral-100"
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            disabled={!draft.trim()}
+            onClick={handleSave}
+            className="rounded p-0.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+          >
+            <Check className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      data-no-navigate
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      disabled={isSaving}
+      className="mt-1 flex w-full items-center gap-1.5 rounded bg-slate-50 px-2 py-1 text-left text-[10px] text-slate-600 hover:bg-slate-100"
+    >
+      <Pause className="h-2.5 w-2.5 shrink-0 text-slate-400" />
+      <span className="flex-1">{currentReason || 'Motivo…'}</span>
+      <Pencil className="h-2.5 w-2.5 shrink-0 opacity-40" />
+    </button>
   );
 }

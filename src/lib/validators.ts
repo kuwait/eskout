@@ -25,7 +25,7 @@ const OPINION_VALUES = [
 ] as const;
 const RECRUITMENT_VALUES = [
   'por_tratar', 'em_contacto', 'vir_treinar',
-  'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou', 'rejeitado',
+  'reuniao_marcada', 'a_decidir', 'em_standby', 'confirmado', 'assinou', 'rejeitado',
 ] as const;
 
 export const playerFormSchema = z.object({
@@ -138,7 +138,7 @@ export const recruitmentStatusChangeSchema = z.object({
   playerId: z.number().int().positive('ID de jogador inválido'),
   newStatus: z.enum([
     'por_tratar', 'em_contacto', 'vir_treinar',
-    'reuniao_marcada', 'a_decidir', 'confirmado', 'assinou', 'rejeitado',
+    'reuniao_marcada', 'a_decidir', 'em_standby', 'confirmado', 'assinou', 'rejeitado',
   ], {
     message: 'Estado de recrutamento inválido',
   }),

@@ -145,6 +145,10 @@ export async function updateRecruitmentStatus(
   contactPurposeCustom?: string | null,
   /** Assign contact responsibility when moving to em_contacto */
   contactAssignedTo?: string | null,
+  /** Explicit decision side when moving to a_decidir (avoids race condition with separate updateDecisionSide call) */
+  decisionSide?: DecisionSide | null,
+  /** Mandatory reason text when moving to em_standby */
+  standbyReason?: string | null,
 ): Promise<ActionResponse> {
   // Validate only when setting a status (null means removing from abordagens)
   if (newStatus) {
@@ -190,11 +194,18 @@ export async function updateRecruitmentStatus(
     updatePayload.contact_assigned_to = contactAssignedTo;
   }
   // Auto-set decision_side when entering a_decidir, auto-clear when leaving
+  // If caller provides explicit decisionSide, use it; otherwise default to 'club'
   if (newStatus === 'a_decidir') {
-    updatePayload.decision_side = 'club';
+    updatePayload.decision_side = decisionSide ?? 'club';
   } else if (oldStatus === 'a_decidir') {
     updatePayload.decision_side = null;
     updatePayload.decision_date = null;
+  }
+  // Set standby_reason when entering em_standby, auto-clear when leaving
+  if (newStatus === 'em_standby') {
+    updatePayload.standby_reason = standbyReason ?? null;
+  } else if (oldStatus === 'em_standby') {
+    updatePayload.standby_reason = null;
   }
   if (oldStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
     updatePayload.training_date = null;
@@ -843,6 +854,52 @@ export async function updateDecisionSide(
   revalidatePath('/pipeline');
   revalidatePath(`/jogadores/${playerId}`);
 
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+
+  return { success: true };
+}
+
+/* ───────────── Standby Reason (update on existing em_standby cards) ───────────── */
+
+/** Update the standby reason text for a player in em_standby status */
+export async function updateStandbyReason(
+  playerId: number,
+  reason: string
+): Promise<ActionResponse> {
+  if (!reason.trim()) {
+    return { success: false, error: 'Motivo é obrigatório' };
+  }
+
+  const { clubId, userId, role } = await getActiveClub();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para alterar pipeline' };
+  }
+  const supabase = await createClient();
+
+  // Verify player is in em_standby
+  const { data: player } = await supabase
+    .from('players')
+    .select('recruitment_status, standby_reason')
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+    .single();
+
+  if (!player || player.recruitment_status !== 'em_standby') {
+    return { success: false, error: 'Jogador não está em Stand-by' };
+  }
+
+  const { error } = await supabase
+    .from('players')
+    .update({ standby_reason: reason.trim() })
+    .eq('id', playerId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar motivo: ${error.message}` };
+  }
+
+  revalidatePath('/pipeline');
+  revalidatePath(`/jogadores/${playerId}`);
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
 
   return { success: true };
