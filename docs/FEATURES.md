@@ -433,9 +433,9 @@ Sidebar items: Dashboard, Clubes, Utilizadores, Online. Bottom links: Trocar Clu
 
 ## 30. Training Feedback
 
-Presence tracking and coach feedback after a player trains at the club. Displayed as a section in the player profile.
+Structured evaluation for `vir_treinar` stage. Presence tracking, physical assessment, decision, dual rating, and tagged observations. Displayed as a section in the player profile.
 
-**Data model:** `training_feedback` table with `club_id`, `player_id`, `author_id`, `training_date`, `escalao`, `presence`, `feedback` (text), `rating` (1-5).
+**Data model:** `training_feedback` table with `club_id`, `player_id`, `author_id`, `training_date`, `escalao`, `presence`, `feedback` (text), `rating_performance` (1-5), `rating_potential` (1-5), `decision`, physical scales, and `tags` (JSONB by category).
 
 **Presence values:**
 
@@ -445,12 +445,64 @@ Presence tracking and coach feedback after a player trains at the club. Displaye
 | `missed` | Faltou | Red badge |
 | `rescheduled` | Reagendado | Amber badge |
 
+**Decision values:**
+
+| Value | Label (PT) | Color |
+|-------|-----------|-------|
+| `assinar` | Assinar | Green |
+| `repetir` | Repetir treino | Blue |
+| `duvidas` | Dúvidas | Amber |
+| `descartar` | Descartar | Red |
+| `sem_decisao` | Sem decisão | Gray |
+
+**Physical scales:**
+
+| Field | Values |
+|-------|--------|
+| `height` | `alto`, `normal`, `baixo` |
+| `build` | `ectomorfo`, `mesomorfo`, `endomorfo` |
+| `speed` | `rapido`, `normal`, `lento` |
+| `intensity` | `intenso`, `pouco_intenso` |
+| `maturation` | `nada_maturado`, `a_iniciar`, `maturado`, `super_maturado` |
+
+**Tags by category (JSONB):**
+
+| Category | Count | Examples |
+|----------|-------|---------|
+| `tecnica` | 10 tags | Bom passe, Finalização, Drible, etc. |
+| `tatico` | 8 tags | Posicionamento, Leitura de jogo, etc. |
+| `mental` | 10 tags | Atitude, Comunicação, Liderança, etc. |
+| `adaptacao` | 6 tags | Adaptou-se bem, Difícil integração, etc. |
+
+**Dual rating:** `rating_performance` (how the player performed) + `rating_potential` (perceived ceiling). Both 1-5 scale, replace the original single `rating` field.
+
 **Permissions:**
 - Create: admin, editor, recruiter (scouts cannot)
 - Update: author or admin
 - Delete: author or admin
 
-**UI:** Inline add form in player profile with date picker, escalao pre-fill, presence selector, optional feedback text, optional 1-5 rating. Entries listed chronologically. Zod validation on server.
+**UI:** Dialog form with segmented rating bars, colored decision buttons, info popovers for each section. Entries listed chronologically in player profile. Zod validation on server.
+
+### 30.1 External Coach Feedback
+
+Share a feedback form with an external coach (e.g. the coach running the training session) via a unique link. The coach fills in the same structured form without needing an account.
+
+**Share link system:**
+- `feedback_share_tokens` table — UUID token, 7-day expiry, single use
+- Admin/editor generates link from training feedback entry ("Pedir a treinador" button)
+- Link copied to clipboard or opened directly (WhatsApp-friendly with OG meta tags)
+
+**Public page:** `/feedback/[token]` — shows player photo, name, club, position, and the full feedback form.
+
+**Public API:** `/api/feedback/[token]` — GET returns player context, POST submits with Zod validation.
+
+**Coach-specific fields:** `coach_feedback`, `coach_rating_performance`, `coach_rating_potential`, `coach_decision`, `coach_observed_position`, `coach_name`, `coach_tags`, and all `coach_*` physical scales. Stored on the same `training_feedback` row.
+
+**Security:** UUID tokens, payload size limit, Zod input validation, Supabase service role client (public page has no auth).
+
+**UI states:**
+- Before coach submits: stub card with "Aguarda feedback do treinador", copy link and open link buttons
+- After coach submits: full card with coach name, decision, ratings, tags, and physical assessment
 
 ## 31. Feature Toggles
 

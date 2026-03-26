@@ -244,9 +244,23 @@ Side-by-side comparison of 2-3 players at `/comparar?ids=123,456,789`. Mobile sw
 
 ---
 
-## Phase 13 — Training Feedback
+## Phase 13 — Training Feedback ✅ DONE
 
-Structured evaluation forms for `vir_treinar` stage. 5 dimensions (technical, tactical, physical, attitude, adaptation) + overall + decision (assinar/repetir/descartar).
+Structured evaluation for `vir_treinar` stage with decision, dual rating, physical scales, tagged observations, and external coach feedback.
+
+**Implemented:**
+- [x] Decision field: assinar, repetir, duvidas, descartar, sem_decisao
+- [x] Physical scales: height, build, speed, intensity, maturation
+- [x] Dual rating: ratingPerformance + ratingPotential (replace single rating)
+- [x] Tags by category: técnica (10), tático (8), mental (10), adaptação (6)
+- [x] Dialog form with segmented rating bars, colored decision buttons, info popovers
+- [x] External coach feedback via share link (`feedback_share_tokens` table, 7-day expiry, single use)
+- [x] Public page `/feedback/[token]` — player photo, name, club, position, same form
+- [x] Public API `/api/feedback/[token]` — GET context, POST submit with Zod validation
+- [x] Coach-specific fields: coach_name, coach_feedback, coach_decision, coach_ratings, coach_tags, coach_* scales
+- [x] OG meta tags for WhatsApp preview
+- [x] Security: UUID tokens, payload size limit, Zod validation, service role client
+- [x] Migrations 091-095
 
 ---
 

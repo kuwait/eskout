@@ -267,7 +267,7 @@ sikout/
 │       ├── usePlayerProfilePopup.tsx  # Quick player preview popup
 │       └── useResizableColumns.ts    # Resizable table columns
 ├── scripts/                           # Python scrapers + TS import
-├── supabase/migrations/               # 001-072 SQL migrations
+├── supabase/migrations/               # 001-095 SQL migrations
 ├── e2e/                               # Playwright E2E tests
 ├── data/all_players.json
 └── docs/
@@ -784,9 +784,43 @@ CREATE TABLE training_feedback (
   presence TEXT NOT NULL DEFAULT 'attended'
     CHECK (presence IN ('attended', 'missed', 'rescheduled')),
   feedback TEXT,
-  rating INT CHECK (rating IS NULL OR (rating BETWEEN 1 AND 5)),
+  rating_performance INT CHECK (rating_performance IS NULL OR (rating_performance BETWEEN 1 AND 5)),
+  rating_potential INT CHECK (rating_potential IS NULL OR (rating_potential BETWEEN 1 AND 5)),
+  decision TEXT CHECK (decision IS NULL OR decision IN ('assinar', 'repetir', 'duvidas', 'descartar', 'sem_decisao')),
+  height TEXT,                                        -- alto/normal/baixo
+  build TEXT,                                         -- ectomorfo/mesomorfo/endomorfo
+  speed TEXT,                                         -- rapido/normal/lento
+  intensity TEXT,                                     -- intenso/pouco_intenso
+  maturation TEXT,                                    -- nada_maturado/a_iniciar/maturado/super_maturado
+  tags JSONB,                                         -- { tecnica: [], tatico: [], mental: [], adaptacao: [] }
+  -- Coach feedback (filled via external share link)
+  coach_name TEXT,
+  coach_feedback TEXT,
+  coach_rating_performance INT CHECK (coach_rating_performance IS NULL OR (coach_rating_performance BETWEEN 1 AND 5)),
+  coach_rating_potential INT CHECK (coach_rating_potential IS NULL OR (coach_rating_potential BETWEEN 1 AND 5)),
+  coach_decision TEXT CHECK (coach_decision IS NULL OR coach_decision IN ('assinar', 'repetir', 'duvidas', 'descartar', 'sem_decisao')),
+  coach_observed_position TEXT,
+  coach_tags JSONB,
+  coach_height TEXT,
+  coach_build TEXT,
+  coach_speed TEXT,
+  coach_intensity TEXT,
+  coach_maturation TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================
+-- TABLE: feedback_share_tokens (external coach feedback links)
+-- ============================================
+CREATE TABLE feedback_share_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  training_feedback_id BIGINT NOT NULL REFERENCES training_feedback(id) ON DELETE CASCADE,
+  club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL REFERENCES profiles(id),
+  expires_at TIMESTAMPTZ NOT NULL,                    -- 7-day expiry
+  used_at TIMESTAMPTZ,                                -- NULL until coach submits
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================
@@ -1119,7 +1153,7 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 
 ## 13. Migrations
 
-78 SQL migrations in `supabase/migrations/` (001-078). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
+95 SQL migrations in `supabase/migrations/` (001-095). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
 
 | # | File | Description |
 |---|------|-------------|
@@ -1213,3 +1247,8 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 088 | `088_squad_panel_rpc.sql` | Squad panel RPC |
 | 089 | `089_players_page_rpc.sql` | Players page RPC |
 | 090 | `090_em_standby_status.sql` | Add `em_standby` recruitment status + `standby_reason` column |
+| 091 | `091_training_feedback_structured.sql` | Training feedback: decision, physical scales, tags |
+| 092 | `092_feedback_share_tokens.sql` | External coach feedback: share tokens table + coach_* columns |
+| 093 | `093_training_feedback_dual_rating.sql` | Build scale rename (ecto/meso/endo), maturation, dual rating (performance + potential) |
+| 094 | `094_training_feedback_duvidas.sql` | Add 'duvidas' to decision CHECK constraint |
+| 095 | `095_coach_observed_position.sql` | Add coach_observed_position to training_feedback |
