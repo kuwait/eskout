@@ -681,9 +681,11 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
           {/* Tags by category */}
           {TRAINING_TAG_CATEGORIES.map((cat) => {
-            const catColor = cat.category === 'tecnica' ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-100 text-blue-700 border-blue-300' }
-              : cat.category === 'mental' ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-100 text-purple-700 border-purple-300' }
-              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-100 text-amber-700 border-amber-300' };
+            const catColor = cat.category === 'tecnica'
+              ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500', unselected: 'bg-blue-50 text-blue-500 border-blue-200 hover:bg-blue-100' }
+              : cat.category === 'mental'
+              ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-purple-50 text-purple-500 border-purple-200 hover:bg-purple-100' }
+              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500', unselected: 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100' };
             return (
               <div key={cat.category}>
                 <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
@@ -696,10 +698,10 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
                         type="button"
                         onClick={() => toggleTag(tag.value)}
                         className={cn(
-                          'rounded-full px-3 py-1.5 text-xs font-medium transition',
+                          'rounded-full border px-3 py-1.5 text-xs font-medium transition',
                           selected
-                            ? catColor.selected + ' border shadow-sm'
-                            : 'border border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300 hover:text-neutral-500',
+                            ? catColor.selected + ' shadow-sm'
+                            : catColor.unselected,
                         )}
                       >
                         {tag.labelPt}
@@ -736,10 +738,11 @@ function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: 
   onChange: (v: string | null) => void;
   color?: 'neutral' | 'cyan';
 }) {
-  const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white' : 'bg-neutral-800 text-white';
+  const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white shadow-sm' : 'bg-neutral-800 text-white shadow-sm';
+  const inactiveClass = color === 'cyan' ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200';
   return (
     <div className="flex items-center gap-2">
-      <p className="w-20 shrink-0 text-[10px] font-medium text-neutral-500">{label}</p>
+      <p className="w-20 shrink-0 text-[10px] font-semibold text-neutral-500">{label}</p>
       <div className="flex flex-1 h-7 gap-0.5 rounded-lg overflow-hidden">
         {options.map((opt, i) => (
           <button
@@ -750,7 +753,7 @@ function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: 
               'flex-1 flex items-center justify-center text-[11px] font-semibold transition-all active:scale-95',
               value === opt.value
                 ? activeClass
-                : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
+                : inactiveClass,
               i === 0 && 'rounded-l-lg',
               i === options.length - 1 && 'rounded-r-lg',
             )}
