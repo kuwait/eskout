@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   TRAINING_PRESENCE,
   TRAINING_DECISIONS,
@@ -739,25 +740,31 @@ function ScaleBlock({ label, options, value, onChange, info }: {
   onChange: (v: string | null) => void;
   info?: string;
 }) {
-  const [showInfo, setShowInfo] = useState(false);
   return (
     <div>
       <div className="mb-1 flex items-center gap-1">
         <p className="text-[10px] font-medium text-neutral-500">{label}</p>
         {info && (
-          <button
-            type="button"
-            onClick={() => setShowInfo(!showInfo)}
-            className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-neutral-200 text-[8px] font-bold text-neutral-500 hover:bg-neutral-300"
-            title={info}
-          >
-            i
-          </button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-neutral-200 text-[8px] font-bold text-neutral-500 hover:bg-neutral-300"
+              >
+                i
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="top" align="start" className="w-52 rounded-lg border-neutral-200 bg-neutral-900 p-2.5 text-[11px] leading-relaxed text-neutral-200 shadow-lg">
+              {info.split(' · ').map((item) => (
+                <p key={item} className="flex items-start gap-1.5">
+                  <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-cyan-400" />
+                  {item}
+                </p>
+              ))}
+            </PopoverContent>
+          </Popover>
         )}
       </div>
-      {showInfo && info && (
-        <p className="mb-1 text-[10px] leading-snug text-neutral-400">{info}</p>
-      )}
       <div className="flex h-8 gap-0.5 rounded-lg overflow-hidden">
         {options.map((opt, i) => (
           <button
