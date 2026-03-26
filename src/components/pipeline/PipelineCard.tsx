@@ -933,24 +933,26 @@ function CardActionsMenu({
 
               {/* Note */}
               <div className="border-t" />
-              <button
-                type="button"
-                onClick={() => { setShowNoteEditor(true); setNoteDraft(currentNote ?? ''); }}
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-amber-50"
-              >
-                <StickyNote className="h-3.5 w-3.5 text-amber-500" />
-                {currentNote ? 'Editar nota' : 'Adicionar nota'}
-              </button>
-              {currentNote && (
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => { onNoteSaved?.(''); handleClose(); }}
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                  onClick={() => { setShowNoteEditor(true); setNoteDraft(currentNote ?? ''); }}
+                  className="flex flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-amber-50"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Remover nota
+                  <StickyNote className="h-3.5 w-3.5 text-amber-500" />
+                  {currentNote ? 'Editar nota' : 'Adicionar nota'}
                 </button>
-              )}
+                {currentNote && (
+                  <button
+                    type="button"
+                    onClick={() => { onNoteSaved?.(''); handleClose(); }}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-red-400 hover:bg-red-50 hover:text-red-600"
+                    aria-label="Remover nota"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
 
               {/* Remove from pipeline */}
               {onRemove && (
