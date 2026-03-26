@@ -930,16 +930,14 @@ function CardActionsMenu({
                       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNote(); }
                     }}
                   />
-                  {noteDraft !== (currentNote ?? '') && (
-                    <button
-                      type="button"
-                      onClick={handleSaveNote}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center self-end rounded-md text-amber-600 hover:bg-amber-100"
-                      aria-label="Guardar nota"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveNote}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center self-end rounded-md text-amber-600 hover:bg-amber-100"
+                    aria-label="Guardar nota"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
                   {currentNote && (
                     <button
                       type="button"
