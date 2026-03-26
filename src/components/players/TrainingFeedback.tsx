@@ -5,9 +5,9 @@
 
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Calendar, Check, ChevronDown, GraduationCap, Loader2, Plus, Share2, Star, Trash2 } from 'lucide-react';
+import { Calendar, Check, Copy, ExternalLink, GraduationCap, Loader2, Plus, Share2, Star, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -58,6 +58,31 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
   const [entries, setEntries] = useState(initialEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [coachDialogOpen, setCoachDialogOpen] = useState(false);
+  // Map of feedbackId → { url, expiresAt } (for "Aguarda treinador" entries)
+  const [shareLinks, setShareLinks] = useState<Record<number, { url: string; expiresAt?: string }>>({});
+
+  // Fetch existing share tokens for stub entries (no feedback, no rating, no coach data)
+  useEffect(() => {
+    const stubIds = entries
+      .filter((e) => e.presence === 'attended' && !e.feedback && !e.ratingPerformance && !e.coachSubmittedAt)
+      .map((e) => e.id);
+    if (stubIds.length === 0) return;
+    import('@/actions/training-feedback').then(({ getShareTokensForFeedbacks }) =>
+      getShareTokensForFeedbacks(stubIds).then((tokens) => {
+        const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const map: Record<number, { url: string; expiresAt?: string }> = {};
+        for (const t of tokens) {
+          if (!t.usedAt && !t.revokedAt && new Date(t.expiresAt) > new Date()) {
+            map[t.feedbackId] = { url: `${appUrl}/feedback/${t.token}`, expiresAt: t.expiresAt };
+          }
+        }
+        if (Object.keys(map).length > 0) {
+          setShareLinks((prev) => ({ ...prev, ...map }));
+        }
+      })
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
+  }, []);
   const [isPending, startTransition] = useTransition();
 
   const canAdd = userRole === 'admin' || userRole === 'editor' || userRole === 'recruiter';
@@ -67,8 +92,8 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
   const latest = attended[0];
   const summaryParts: string[] = [];
   if (attended.length > 0) summaryParts.push(`${attended.length} treino${attended.length > 1 ? 's' : ''}`);
-  if (latest?.ratingPerformance) summaryParts.push(`R:${'★'.repeat(latest.ratingPerformance)} ${RATING_LABELS[latest.ratingPerformance]}`);
-  if (latest?.ratingPotential) summaryParts.push(`P:${'★'.repeat(latest.ratingPotential)}`);
+  if (latest?.ratingPerformance) summaryParts.push(`Rend. ${latest.ratingPerformance}/5`);
+  if (latest?.ratingPotential) summaryParts.push(`Pot. ${latest.ratingPotential}/5`);
   if (latest?.decision && latest.decision !== 'sem_decisao') {
     const dc = TRAINING_DECISIONS.find((d) => d.value === latest.decision);
     if (dc) summaryParts.push(dc.labelPt);
@@ -135,17 +160,18 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
 
       {/* Coach feedback link dialog */}
       <Dialog open={coachDialogOpen} onOpenChange={setCoachDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Pedir feedback ao treinador</DialogTitle>
           </DialogHeader>
           <CoachLinkForm
             playerId={playerId}
             defaultEscalao={defaultEscalao}
-            onCreated={(entry) => {
+            onCreated={(entry, url) => {
               setEntries((prev) => [entry, ...prev]);
-              setCoachDialogOpen(false);
+              if (url) setShareLinks((prev) => ({ ...prev, [entry.id]: { url } }));
             }}
+            onClose={() => setCoachDialogOpen(false)}
           />
         </DialogContent>
       </Dialog>
@@ -161,6 +187,7 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
           canDelete={userRole === 'admin' || entry.authorId === currentUserId}
           onDelete={() => handleDelete(entry.id)}
           isPending={isPending}
+          shareLink={shareLinks[entry.id]}
         />
       ))}
     </div>
@@ -169,153 +196,205 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
 
 /* ───────────── Feedback Entry Card ───────────── */
 
-function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
+function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
   entry: TFeedback;
   canDelete: boolean;
   onDelete: () => void;
   isPending: boolean;
+  shareLink?: { url: string; expiresAt?: string };
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const presenceConfig = TRAINING_PRESENCE.find((p) => p.value === entry.presence);
-  const decisionConfig = TRAINING_DECISIONS.find((d) => d.value === entry.decision);
   const dateLabel = new Date(entry.trainingDate).toLocaleDateString('pt-PT', {
     day: '2-digit', month: 'short', year: 'numeric',
   });
 
-  // Physical: category + value pairs for readable display
-  const physicalPairs: { category: string; label: string }[] = [];
-  if (entry.heightScale) { const o = HEIGHT_SCALE_OPTIONS.find((x) => x.value === entry.heightScale); if (o) physicalPairs.push({ category: 'Estatura', label: o.labelPt }); }
-  if (entry.buildScale) { const o = BUILD_SCALE_OPTIONS.find((x) => x.value === entry.buildScale); if (o) physicalPairs.push({ category: 'Corpo', label: o.labelPt }); }
-  if (entry.speedScale) { const o = SPEED_SCALE_OPTIONS.find((x) => x.value === entry.speedScale); if (o) physicalPairs.push({ category: 'Velocidade', label: o.labelPt }); }
-  if (entry.intensityScale) { const o = INTENSITY_SCALE_OPTIONS.find((x) => x.value === entry.intensityScale); if (o) physicalPairs.push({ category: 'Intensidade', label: o.labelPt }); }
-  if (entry.maturation) { const o = MATURATION_SCALE_OPTIONS.find((x) => x.value === entry.maturation); if (o) physicalPairs.push({ category: 'Maturação', label: o.labelPt }); }
+  // Determine if this is a stub awaiting coach
+  const isStub = entry.presence === 'attended' && !entry.feedback && !entry.ratingPerformance && !entry.coachSubmittedAt;
+  // Compute days remaining for share link
+  const daysRemaining = shareLink?.expiresAt
+    ? Math.max(0, Math.ceil((new Date(shareLink.expiresAt).getTime() - new Date().getTime()) / 86400000))
+    : 7;
+  // Has any content to display (internal or coach)
+  const hasCoach = !!entry.coachSubmittedAt;
 
-  // Tags: resolve category for coloring
-  const tagsByCategory = entry.tags.map((tag) => {
+  // Merge internal + coach data for display (coach data takes priority on stubs)
+  const feedback = entry.coachFeedback ?? entry.feedback;
+  const rPerf = entry.coachRatingPerformance ?? entry.ratingPerformance;
+  const rPot = entry.coachRatingPotential ?? entry.ratingPotential;
+  const decision = entry.coachDecision ?? (entry.decision !== 'sem_decisao' ? entry.decision : null);
+  const decisionConfig = decision ? [...TRAINING_DECISIONS, ...COACH_DECISIONS].find((d) => d.value === decision) : null;
+  const authorName = hasCoach ? entry.coachName : (entry.feedback || entry.ratingPerformance) ? entry.authorName : null;
+
+  // Physical (merge coach + internal)
+  const physicalPairs: { category: string; label: string }[] = [];
+  const hs = entry.coachHeightScale ?? entry.heightScale;
+  const bs = entry.coachBuildScale ?? entry.buildScale;
+  const ss = entry.coachSpeedScale ?? entry.speedScale;
+  const is_ = entry.coachIntensityScale ?? entry.intensityScale;
+  const ms = entry.coachMaturation ?? entry.maturation;
+  if (hs) { const o = HEIGHT_SCALE_OPTIONS.find((x) => x.value === hs); if (o) physicalPairs.push({ category: 'Estatura', label: o.labelPt }); }
+  if (bs) { const o = BUILD_SCALE_OPTIONS.find((x) => x.value === bs); if (o) physicalPairs.push({ category: 'Corpo', label: o.labelPt }); }
+  if (ss) { const o = SPEED_SCALE_OPTIONS.find((x) => x.value === ss); if (o) physicalPairs.push({ category: 'Velocidade', label: o.labelPt }); }
+  if (is_) { const o = INTENSITY_SCALE_OPTIONS.find((x) => x.value === is_); if (o) physicalPairs.push({ category: 'Intensidade', label: o.labelPt }); }
+  if (ms) { const o = MATURATION_SCALE_OPTIONS.find((x) => x.value === ms); if (o) physicalPairs.push({ category: 'Maturação', label: o.labelPt }); }
+
+  // Tags (merge)
+  const allTags = entry.coachTags.length > 0 ? entry.coachTags : entry.tags;
+  const tagsByCategory = allTags.map((tag) => {
     const cat = TRAINING_TAG_CATEGORIES.find((c) => c.tags.some((t) => t.value === tag));
     return { value: tag, label: TRAINING_TAG_LABEL_MAP[tag] ?? tag, category: cat?.category ?? '' };
   });
 
-  return (
-    <div className="rounded-xl border bg-card px-3 py-2.5">
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-          <span className="text-xs font-medium text-neutral-600">{dateLabel}</span>
-          {entry.escalao && (
-            <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
-              {entry.escalao}
-            </span>
-          )}
-          {presenceConfig && (
-            <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold', presenceConfig.color)}>
-              {presenceConfig.icon} {presenceConfig.labelPt}
-            </span>
-          )}
-          {decisionConfig && entry.decision !== 'sem_decisao' && (
-            <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold', decisionConfig.color)}>
-              {decisionConfig.icon} {decisionConfig.labelPt}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {entry.ratingPerformance && (() => {
-            const c = RATING_COLORS[entry.ratingPerformance] ?? DEFAULT_COLORS;
-            return (
-              <span className={cn('flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)} title="Rendimento">
-                R{'★'.repeat(entry.ratingPerformance)}
-              </span>
-            );
-          })()}
-          {entry.ratingPotential && (() => {
-            const c = RATING_COLORS[entry.ratingPotential] ?? DEFAULT_COLORS;
-            return (
-              <span className={cn('flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)} title="Potencial">
-                P{'★'.repeat(entry.ratingPotential)}
-              </span>
-            );
-          })()}
+  // ── Stub card: awaiting coach feedback ──
+  if (isStub) {
+    return (
+      <div className="rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-100/50 px-4 py-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-neutral-400">{dateLabel}</span>
+              {entry.escalao && (
+                <span className="rounded-full bg-neutral-200/60 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
+                  {entry.escalao}
+                </span>
+              )}
+            </div>
+            <p className="mt-1.5 text-xs text-neutral-400">
+              Aguarda <span className="font-semibold text-neutral-600">feedback</span> por parte do treinador
+            </p>
+            <p className="mt-0.5 text-[10px] text-neutral-400/70">
+              Válido por {daysRemaining} dia{daysRemaining !== 1 ? 's' : ''}
+            </p>
+          </div>
           {canDelete && (
             confirmDelete ? (
-              <button
-                type="button"
-                onClick={() => { onDelete(); setConfirmDelete(false); }}
-                disabled={isPending}
-                onBlur={() => setConfirmDelete(false)}
-                className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white transition hover:bg-red-600 disabled:opacity-30"
-              >
-                Confirmar
-              </button>
+              <button type="button" onClick={() => { onDelete(); setConfirmDelete(false); }} disabled={isPending} onBlur={() => setConfirmDelete(false)} className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">Confirmar</button>
             ) : (
-              <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="rounded p-0.5 text-neutral-400 hover:text-red-500 transition disabled:opacity-30" title="Eliminar">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
             )
           )}
         </div>
+        {shareLink && (
+          <div className="mt-3">
+            <ShareLinkButtons url={shareLink.url} />
+          </div>
+        )}
       </div>
+    );
+  }
 
-      {/* Physical (compact single line) + tags (colored pills) */}
-      {(physicalPairs.length > 0 || tagsByCategory.length > 0) && (
-        <div className="mt-2 space-y-1.5">
-          {physicalPairs.length > 0 && (
-            <p className="text-[11px] text-neutral-500">
-              {physicalPairs.map((p, i) => (
-                <span key={p.category}>
-                  {i > 0 && <span className="mx-1 text-neutral-300">·</span>}
-                  <span className="text-neutral-400">{p.category}</span>{' '}
-                  <span className="font-semibold text-neutral-700">{p.label}</span>
-                </span>
-              ))}
-            </p>
-          )}
-          {tagsByCategory.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {tagsByCategory.map((t) => {
-                const colorClass = t.category === 'tecnica' ? 'bg-blue-100 text-blue-700 border-blue-200'
-                  : t.category === 'tatico' ? 'bg-teal-100 text-teal-700 border-teal-200'
-                  : t.category === 'mental' ? 'bg-purple-100 text-purple-700 border-purple-200'
-                  : 'bg-amber-100 text-amber-700 border-amber-200';
-                return (
-                  <span key={t.value} className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold', colorClass)}>
-                    {t.label}
-                  </span>
-                );
-              })}
-            </div>
-          )}
+  // ── Normal card ──
+  const mainRating = rPerf ?? 0;
+  const dotBg = mainRating >= 4 ? 'bg-emerald-500' : mainRating === 3 ? 'bg-blue-500' : mainRating === 2 ? 'bg-orange-500' : mainRating >= 1 ? 'bg-red-500' : 'bg-neutral-300';
+
+  return (
+    <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+      {/* Header strip */}
+      <div className="flex items-start gap-3 border-b border-neutral-100 px-4 py-3">
+        {/* Rating circle */}
+        <div className={cn('mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black text-white', dotBg)}>
+          {mainRating || '–'}
         </div>
-      )}
 
-      {entry.feedback && (
-        <p className="mt-2 text-sm leading-snug text-neutral-700">{entry.feedback}</p>
-      )}
+        <div className="min-w-0 flex-1">
+          {/* Date + escalão */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-neutral-800">{dateLabel}</span>
+            {entry.escalao && (
+              <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500">{entry.escalao}</span>
+            )}
+          </div>
+          {/* Badges: decision + ratings */}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {decisionConfig && (
+              <span className={cn('rounded-md border px-1.5 py-0.5 text-[10px] font-bold', decisionConfig.color)}>
+                {decisionConfig.icon} {decisionConfig.labelPt}
+              </span>
+            )}
+            {rPerf && (() => {
+              const c = RATING_COLORS[rPerf] ?? DEFAULT_COLORS;
+              return <span className={cn('rounded-md px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)}>Rend. {rPerf}/5</span>;
+            })()}
+            {rPot && (() => {
+              const c = RATING_COLORS[rPot] ?? DEFAULT_COLORS;
+              return <span className={cn('rounded-md px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)}>Pot. {rPot}/5</span>;
+            })()}
+          </div>
+        </div>
 
-      {/* Author + coach status */}
-      <div className="mt-1.5 flex items-center justify-between">
-        <p className="text-[10px] text-muted-foreground">por {entry.authorName}</p>
-        {/* Show "awaiting coach" if no internal feedback but also no coach feedback (stub entry) */}
-        {entry.presence === 'attended' && !entry.feedback && !entry.ratingPerformance && !entry.coachSubmittedAt && (
-          <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-600 border border-cyan-200">
-            Aguarda treinador
-          </span>
+        {/* Delete */}
+        {canDelete && (
+          confirmDelete ? (
+            <button type="button" onClick={() => { onDelete(); setConfirmDelete(false); }} disabled={isPending} onBlur={() => setConfirmDelete(false)} className="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-bold text-white">Confirmar</button>
+          ) : (
+            <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="shrink-0 rounded-md p-1.5 text-neutral-300 hover:text-red-500 hover:bg-red-50 transition"><Trash2 className="h-3.5 w-3.5" /></button>
+          )
         )}
       </div>
 
-      {/* Coach feedback section */}
-      {entry.coachSubmittedAt && (
-        <CoachFeedbackDisplay entry={entry} />
-      )}
+      {/* Body */}
+      <div className="px-4 py-3 space-y-3">
+        {/* Title */}
+        {hasCoach && (
+          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Feedback do treinador</p>
+        )}
+
+        {/* Quote-style feedback text */}
+        {feedback && (
+          <blockquote className="border-l-2 border-neutral-200 pl-3 text-[13px] italic leading-relaxed text-neutral-600">
+            &ldquo;{feedback}&rdquo;
+          </blockquote>
+        )}
+
+        {/* Physical + tags in a subtle box */}
+        {(physicalPairs.length > 0 || tagsByCategory.length > 0) && (
+          <div className="rounded-lg bg-neutral-50 px-3 py-2 space-y-2">
+            {physicalPairs.length > 0 && (
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                {physicalPairs.map((p) => (
+                  <span key={p.category} className="text-[10px]">
+                    <span className="text-neutral-400">{p.category}</span>{' '}
+                    <span className="font-semibold text-neutral-600">{p.label}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {tagsByCategory.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {tagsByCategory.map((t) => {
+                  const colorClass = t.category === 'tecnica' ? 'bg-blue-100/70 text-blue-600'
+                    : t.category === 'tatico' ? 'bg-teal-100/70 text-teal-600'
+                    : t.category === 'mental' ? 'bg-purple-100/70 text-purple-600'
+                    : 'bg-amber-100/70 text-amber-600';
+                  return (
+                    <span key={t.value} className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', colorClass)}>
+                      {t.label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Author */}
+        {authorName && (
+          <p className="text-[10px] text-neutral-400">
+            por {hasCoach ? <span className="font-semibold text-neutral-500">Mister {authorName}</span> : authorName}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
 /* ───────────── Coach Link Form (generates link for external coach) ───────────── */
 
-function CoachLinkForm({ playerId, defaultEscalao, onCreated }: {
+function CoachLinkForm({ playerId, defaultEscalao, onCreated, onClose }: {
   playerId: number;
   defaultEscalao?: string | null;
-  onCreated: (entry: TFeedback) => void;
+  onCreated: (entry: TFeedback, url?: string) => void;
+  onClose: () => void;
 }) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [escalao, setEscalao] = useState(defaultEscalao ?? '');
@@ -341,12 +420,14 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated }: {
           coachSpeedScale: null, coachIntensityScale: null, coachMaturation: null,
           coachTags: [], coachName: null, coachSubmittedAt: null,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-        });
+        }, res.data.url);
       } else {
         toast.error(res.error ?? 'Erro ao gerar link');
       }
     });
   }
+
+  const [linkCopied, setLinkCopied] = useState(false);
 
   if (generatedUrl) {
     return (
@@ -357,17 +438,42 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated }: {
           </div>
         </div>
         <p className="text-center text-sm font-medium text-neutral-700">Link gerado e copiado!</p>
-        <div className="flex items-center gap-1.5 rounded-lg border bg-neutral-50 px-3 py-2">
-          <p className="flex-1 truncate text-xs text-neutral-500">{generatedUrl}</p>
+        <div className="flex gap-2">
           <button
             type="button"
-            onClick={async () => { await navigator.clipboard.writeText(generatedUrl); toast.success('Copiado!'); }}
-            className="shrink-0 rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+            onClick={async () => {
+              await navigator.clipboard.writeText(generatedUrl);
+              setLinkCopied(true);
+              setTimeout(() => setLinkCopied(false), 2000);
+            }}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-medium transition',
+              linkCopied
+                ? 'border-green-300 bg-green-50 text-green-600'
+                : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50',
+            )}
           >
-            <Share2 className="h-3.5 w-3.5" />
+            {linkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {linkCopied ? 'Copiado!' : 'Copiar link'}
           </button>
+          <a
+            href={generatedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-2.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Abrir
+          </a>
         </div>
-        <p className="text-center text-[10px] text-neutral-400">Envie este link ao treinador. Válido por 7 dias.</p>
+        <p className="text-center text-[10px] text-neutral-400">Envie ao treinador. Válido por 7 dias.</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full rounded-xl border border-neutral-200 py-2.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+        >
+          Fechar
+        </button>
       </div>
     );
   }
@@ -409,90 +515,6 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated }: {
 
 /* ───────────── Coach Feedback Display ───────────── */
 
-function CoachFeedbackDisplay({ entry }: { entry: TFeedback }) {
-  const [expanded, setExpanded] = useState(false);
-  const coachDecisionConfig = COACH_DECISIONS.find((d) => d.value === entry.coachDecision);
-
-  // Coach physical pairs
-  const coachPhysical: { category: string; label: string }[] = [];
-  if (entry.coachHeightScale) { const o = HEIGHT_SCALE_OPTIONS.find((x) => x.value === entry.coachHeightScale); if (o) coachPhysical.push({ category: 'Estatura', label: o.labelPt }); }
-  if (entry.coachBuildScale) { const o = BUILD_SCALE_OPTIONS.find((x) => x.value === entry.coachBuildScale); if (o) coachPhysical.push({ category: 'Corpo', label: o.labelPt }); }
-  if (entry.coachSpeedScale) { const o = SPEED_SCALE_OPTIONS.find((x) => x.value === entry.coachSpeedScale); if (o) coachPhysical.push({ category: 'Velocidade', label: o.labelPt }); }
-  if (entry.coachIntensityScale) { const o = INTENSITY_SCALE_OPTIONS.find((x) => x.value === entry.coachIntensityScale); if (o) coachPhysical.push({ category: 'Intensidade', label: o.labelPt }); }
-
-  const coachTags = entry.coachTags.map((tag) => {
-    const cat = TRAINING_TAG_CATEGORIES.find((c) => c.tags.some((t) => t.value === tag));
-    return { value: tag, label: TRAINING_TAG_LABEL_MAP[tag] ?? tag, category: cat?.category ?? '' };
-  });
-
-  return (
-    <div className="mt-2 rounded-lg border border-cyan-200 bg-cyan-50/50 px-2.5 py-2">
-      {/* Header: coach name + rating + expand toggle */}
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between gap-2"
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[10px] font-bold text-cyan-700">Treinador</span>
-          {entry.coachName && (
-            <span className="text-[10px] text-cyan-600">{entry.coachName}</span>
-          )}
-          {coachDecisionConfig && (
-            <span className={cn('shrink-0 rounded-full border px-1.5 py-px text-[9px] font-bold', coachDecisionConfig.color)}>
-              {coachDecisionConfig.icon} {coachDecisionConfig.labelPt}
-            </span>
-          )}
-          {entry.coachRating && (() => {
-            const c = RATING_COLORS[entry.coachRating] ?? DEFAULT_COLORS;
-            return (
-              <span className={cn('flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-bold', c.bg, c.text)}>
-                {'★'.repeat(entry.coachRating)}{'☆'.repeat(5 - entry.coachRating)}
-                <span className="ml-0.5">{RATING_LABELS[entry.coachRating]}</span>
-              </span>
-            );
-          })()}
-        </div>
-        <ChevronDown className={cn('h-3 w-3 shrink-0 text-cyan-400 transition-transform', expanded && 'rotate-180')} />
-      </button>
-
-      {/* Expanded: full feedback */}
-      {expanded && (
-        <div className="mt-2 space-y-1.5">
-          {entry.coachFeedback && (
-            <p className="text-xs leading-snug text-neutral-700">{entry.coachFeedback}</p>
-          )}
-          {coachPhysical.length > 0 && (
-            <p className="text-[10px] text-neutral-500">
-              {coachPhysical.map((p, i) => (
-                <span key={p.category}>
-                  {i > 0 && <span className="mx-1 text-neutral-300">·</span>}
-                  <span className="text-neutral-400">{p.category}</span>{' '}
-                  <span className="font-semibold text-neutral-700">{p.label}</span>
-                </span>
-              ))}
-            </p>
-          )}
-          {coachTags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {coachTags.map((t) => {
-                const colorClass = t.category === 'tecnica' ? 'bg-blue-100 text-blue-700 border-blue-200'
-                  : t.category === 'tatico' ? 'bg-teal-100 text-teal-700 border-teal-200'
-                  : t.category === 'mental' ? 'bg-purple-100 text-purple-700 border-purple-200'
-                  : 'bg-amber-100 text-amber-700 border-amber-200';
-                return (
-                  <span key={t.value} className={cn('rounded-full border px-1.5 py-px text-[9px] font-semibold', colorClass)}>
-                    {t.label}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ───────────── Add Form (inside Dialog) ───────────── */
 
@@ -733,6 +755,46 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
       >
         {isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A guardar...</> : 'Guardar Feedback'}
       </button>
+    </div>
+  );
+}
+
+/* ───────────── Share Link Buttons (copy + open in new tab) ───────────── */
+
+function ShareLinkButtons({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast.success('Link copiado!');
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className={cn(
+          'flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border transition',
+          copied
+            ? 'bg-green-50 text-green-600 border-green-200'
+            : 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-neutral-200',
+        )}
+      >
+        {copied ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5" />}
+        {copied ? 'Copiado!' : 'Copiar'}
+      </button>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600 border border-neutral-200 hover:bg-neutral-200 transition"
+      >
+        <ExternalLink className="h-2.5 w-2.5" />
+        Abrir
+      </a>
     </div>
   );
 }
