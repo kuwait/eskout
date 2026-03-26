@@ -192,6 +192,9 @@ function SortablePipelineCard({
       {...attributes}
       {...listeners}
       onPointerDown={(e: React.PointerEvent) => {
+        // Don't start drag when interacting with text inputs (note editing, etc.)
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dnd-kit listeners type doesn't expose onPointerDown
         (listeners as any)?.onPointerDown?.(e);
         handlePointerDown(e);
