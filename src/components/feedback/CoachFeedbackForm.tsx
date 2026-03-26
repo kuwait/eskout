@@ -165,10 +165,13 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
       {/* ── Tags (optional) ── */}
       {TRAINING_TAG_CATEGORIES.map((cat) => {
-        const borderColor = cat.category === 'tecnica' ? 'border-l-blue-400' : cat.category === 'mental' ? 'border-l-purple-400' : 'border-l-amber-400';
+        const catStyle = cat.category === 'tecnica' ? { border: 'border-l-blue-400', label: 'text-blue-600', emoji: '⚽' }
+          : cat.category === 'tatico' ? { border: 'border-l-teal-400', label: 'text-teal-600', emoji: '🧩' }
+          : cat.category === 'mental' ? { border: 'border-l-purple-400', label: 'text-purple-600', emoji: '🧠' }
+          : { border: 'border-l-amber-400', label: 'text-amber-600', emoji: '🔄' };
         return (
-          <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', borderColor)}>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500">{cat.labelPt} <span className="font-normal text-neutral-400">(opcional)</span></p>
+          <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', catStyle.border)}>
+            <p className={cn('mb-2 text-[11px] font-bold uppercase tracking-widest', catStyle.label)}>{catStyle.emoji} {cat.labelPt} <span className="font-normal text-neutral-400">(opcional)</span></p>
             <div className="flex flex-wrap gap-1.5">
               {cat.tags.map((tag) => {
                 const selected = tags.includes(tag.value);

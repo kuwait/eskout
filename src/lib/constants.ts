@@ -577,7 +577,19 @@ export const TRAINING_TAG_CATEGORIES: { category: string; labelPt: string; tags:
       { value: 'bom_drible', labelPt: 'Bom drible' },
       { value: 'bom_pe_esquerdo', labelPt: 'Bom pé esquerdo' },
       { value: 'bom_pe_direito', labelPt: 'Bom pé direito' },
+      { value: 'bom_cabeceamento', labelPt: 'Bom cabeceamento' },
+      { value: 'bom_primeiro_toque', labelPt: 'Bom 1º toque' },
       { value: 'fraco_com_bola', labelPt: 'Fraco com bola' },
+    ],
+  },
+  {
+    category: 'tatico',
+    labelPt: 'Tático',
+    tags: [
+      { value: 'bom_posicionamento', labelPt: 'Bom posicionamento' },
+      { value: 'leitura_jogo', labelPt: 'Leitura de jogo' },
+      { value: 'desorientado', labelPt: 'Desorientado' },
+      { value: 'disciplinado', labelPt: 'Disciplinado' },
     ],
   },
   {
@@ -586,11 +598,13 @@ export const TRAINING_TAG_CATEGORIES: { category: string; labelPt: string; tags:
     tags: [
       { value: 'boa_atitude', labelPt: 'Boa atitude' },
       { value: 'comunicativo', labelPt: 'Comunicativo' },
+      { value: 'competitivo', labelPt: 'Competitivo' },
       { value: 'timido', labelPt: 'Tímido' },
       { value: 'nervoso', labelPt: 'Nervoso' },
       { value: 'agressivo', labelPt: 'Agressivo' },
       { value: 'inteligente', labelPt: 'Inteligente' },
       { value: 'lider', labelPt: 'Líder' },
+      { value: 'desligado', labelPt: 'Desligado' },
     ],
   },
   {
@@ -599,8 +613,10 @@ export const TRAINING_TAG_CATEGORIES: { category: string; labelPt: string; tags:
     tags: [
       { value: 'adaptou_se_bem', labelPt: 'Adaptou-se bem' },
       { value: 'dificuldade_contexto', labelPt: 'Dificuldade no contexto' },
+      { value: 'precisa_tempo', labelPt: 'Precisa de tempo' },
       { value: 'nivel_acima', labelPt: 'Nível acima' },
       { value: 'nivel_abaixo', labelPt: 'Nível abaixo' },
+      { value: 'resistente', labelPt: 'Resistente' },
     ],
   },
 ];

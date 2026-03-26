@@ -272,6 +272,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
             <div className="flex flex-wrap gap-1">
               {tagsByCategory.map((t) => {
                 const colorClass = t.category === 'tecnica' ? 'bg-blue-100 text-blue-700 border-blue-200'
+                  : t.category === 'tatico' ? 'bg-teal-100 text-teal-700 border-teal-200'
                   : t.category === 'mental' ? 'bg-purple-100 text-purple-700 border-purple-200'
                   : 'bg-amber-100 text-amber-700 border-amber-200';
                 return (
@@ -475,6 +476,7 @@ function CoachFeedbackDisplay({ entry }: { entry: TFeedback }) {
             <div className="flex flex-wrap gap-1">
               {coachTags.map((t) => {
                 const colorClass = t.category === 'tecnica' ? 'bg-blue-100 text-blue-700 border-blue-200'
+                  : t.category === 'tatico' ? 'bg-teal-100 text-teal-700 border-teal-200'
                   : t.category === 'mental' ? 'bg-purple-100 text-purple-700 border-purple-200'
                   : 'bg-amber-100 text-amber-700 border-amber-200';
                 return (
@@ -681,11 +683,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
           {/* Tags by category */}
           {TRAINING_TAG_CATEGORIES.map((cat) => {
-            const catColor = cat.category === 'tecnica'
-              ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300' }
-              : cat.category === 'mental'
-              ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-300' }
-              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300' };
+            const catColor = TAG_CATEGORY_COLORS[cat.category] ?? TAG_CATEGORY_COLORS.adaptacao;
             return (
               <div key={cat.category}>
                 <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
@@ -821,6 +819,15 @@ function TrainingDateInput({ value, onChange }: { value: string; onChange: (v: s
 function SectionLabel({ children, inline }: { children: React.ReactNode; inline?: boolean }) {
   return <p className={cn('text-[11px] font-bold uppercase tracking-widest text-neutral-500', !inline && 'mb-1.5')}>{children}</p>;
 }
+
+/* ───────────── Tag Category Colors ───────────── */
+
+const TAG_CATEGORY_COLORS: Record<string, { label: string; emoji: string; selected: string; unselected: string }> = {
+  tecnica:   { label: 'text-blue-600',   emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500',     unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300' },
+  tatico:    { label: 'text-teal-600',   emoji: '🧩', selected: 'bg-teal-500 text-white border-teal-500',     unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-300' },
+  mental:    { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-300' },
+  adaptacao: { label: 'text-amber-600',  emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500',   unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300' },
+};
 
 /* ───────────── Rating Colors & Labels ───────────── */
 
