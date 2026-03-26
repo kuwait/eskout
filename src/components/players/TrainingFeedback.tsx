@@ -666,23 +666,27 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
       {/* ── Characteristics (only when attended) ── */}
       {showStructured && (
-        <>
-          {/* Physical scales — compact inline rows */}
-          <div className="rounded-xl border border-l-[3px] border-l-neutral-400 bg-neutral-50/50 p-3 space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Físico</p>
-            <InlineScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} />
-            <InlineScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} />
-            <InlineScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
-            <InlineScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
-            <InlineScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} />
+        <div className="space-y-3 rounded-xl border bg-neutral-50/30 p-3">
+          {/* Physical scales */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">⚡ Físico</p>
+            <InlineScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} color="cyan" />
+            <InlineScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} color="cyan" />
+            <InlineScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} color="cyan" />
+            <InlineScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} color="cyan" />
+            <InlineScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} color="cyan" />
           </div>
+
+          <div className="border-t" />
 
           {/* Tags by category */}
           {TRAINING_TAG_CATEGORIES.map((cat) => {
-            const borderColor = cat.category === 'tecnica' ? 'border-l-blue-400' : cat.category === 'mental' ? 'border-l-purple-400' : 'border-l-amber-400';
+            const catColor = cat.category === 'tecnica' ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-100 text-blue-700 border-blue-300' }
+              : cat.category === 'mental' ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-100 text-purple-700 border-purple-300' }
+              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-100 text-amber-700 border-amber-300' };
             return (
-              <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', borderColor)}>
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500">{cat.labelPt}</p>
+              <div key={cat.category}>
+                <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {cat.tags.map((tag) => {
                     const selected = tags.includes(tag.value);
@@ -694,8 +698,8 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
                         className={cn(
                           'rounded-full px-3 py-1.5 text-xs font-medium transition',
                           selected
-                            ? 'bg-blue-100 text-blue-700 border border-blue-300 shadow-sm'
-                            : 'border border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400',
+                            ? catColor.selected + ' border shadow-sm'
+                            : 'border border-neutral-200 bg-white text-neutral-400 hover:border-neutral-300 hover:text-neutral-500',
                         )}
                       >
                         {tag.labelPt}
@@ -706,7 +710,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
               </div>
             );
           })}
-        </>
+        </div>
       )}
 
       {/* ── Submit ── */}
@@ -724,13 +728,15 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
 /* ───────────── Scale Row (label + segmented bar) ───────────── */
 
-/** Inline scale: label left, segmented buttons right — single row */
-function InlineScaleRow({ label, options, value, onChange }: {
+/** Inline scale: label left, segmented buttons right — single row, with accent color */
+function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: {
   label: string;
   options: { value: string; labelPt: string }[];
   value: string | null;
   onChange: (v: string | null) => void;
+  color?: 'neutral' | 'cyan';
 }) {
+  const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white' : 'bg-neutral-800 text-white';
   return (
     <div className="flex items-center gap-2">
       <p className="w-20 shrink-0 text-[10px] font-medium text-neutral-500">{label}</p>
@@ -743,7 +749,7 @@ function InlineScaleRow({ label, options, value, onChange }: {
             className={cn(
               'flex-1 flex items-center justify-center text-[11px] font-semibold transition-all active:scale-95',
               value === opt.value
-                ? 'bg-neutral-800 text-white'
+                ? activeClass
                 : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
               i === 0 && 'rounded-l-lg',
               i === options.length - 1 && 'rounded-r-lg',
