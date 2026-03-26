@@ -136,7 +136,7 @@ export function RecruitmentCard({ status, daysInStatus, contactAssignedToName, t
           <div className="flex items-baseline gap-2">
             <span className={`text-sm font-bold ${vis.color}`}>{label}</span>
             {daysInStatus !== null && daysInStatus > 0 && (
-              <span className="text-[10px] text-muted-foreground/50">há {daysInStatus}d</span>
+              <span className="text-[10px] text-muted-foreground/50" suppressHydrationWarning>há {daysInStatus}d</span>
             )}
           </div>
           {desc && <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground/60">{desc}</p>}
