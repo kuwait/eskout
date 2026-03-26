@@ -108,18 +108,18 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
       {/* ── Dual Rating (required) ── */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <SectionLabel required>Rendimento</SectionLabel>
+          <SectionLabel required info="Jogador de rendimento — pronto para contribuir já">Rendimento</SectionLabel>
           <RatingBarCoach rating={ratingPerformance} onChange={setRatingPerformance} />
         </div>
         <div>
-          <SectionLabel required>Potencial</SectionLabel>
+          <SectionLabel required info="Jogador de potencial — pode evoluir muito com tempo e contexto">Potencial</SectionLabel>
           <RatingBarCoach rating={ratingPotential} onChange={setRatingPotential} />
         </div>
       </div>
 
       {/* ── Decision (required) ── */}
       <div>
-        <SectionLabel required>Decisão</SectionLabel>
+        <SectionLabel required info="Assinar = queremos · Repetir = outro treino · Dúvidas = precisa avaliar · Descartar = não interessa">Decisão</SectionLabel>
         <div className="grid grid-cols-2 gap-2">
           {COACH_DECISIONS.map((opt) => (
             <button
@@ -289,12 +289,29 @@ function ScaleRow({ label, options, value, onChange, info }: {
 
 /* ───────────── Section Label ───────────── */
 
-function SectionLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+function SectionLabel({ children, required, info }: { children: React.ReactNode; required?: boolean; info?: string }) {
   return (
-    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">
-      {children}
-      {required && <span className="ml-1 text-red-400">*</span>}
-    </p>
+    <div className="mb-1.5 flex items-center gap-1">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
+        {children}
+        {required && <span className="ml-1 text-red-400">*</span>}
+      </p>
+      {info && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-neutral-200 text-[8px] font-bold text-neutral-500 hover:bg-neutral-300">i</button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="start" className="w-52 rounded-lg border-neutral-200 bg-neutral-900 p-2.5 text-[11px] leading-relaxed text-neutral-200 shadow-lg">
+            {info.split(' · ').map((item) => (
+              <p key={item} className="flex items-start gap-1.5">
+                <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-cyan-400" />
+                {item}
+              </p>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
   );
 }
 
