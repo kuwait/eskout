@@ -35,7 +35,7 @@ import type {
   TrainingPresence,
   UserRole,
 } from '@/lib/types';
-import { createTrainingFeedback, deleteTrainingFeedback, shareTrainingFeedback } from '@/actions/training-feedback';
+import { createTrainingFeedback, deleteTrainingFeedback, createCoachFeedbackLink } from '@/actions/training-feedback';
 import { cn } from '@/lib/utils';
 
 /* ───────────── Props ───────────── */
@@ -54,6 +54,7 @@ interface TrainingFeedbackProps {
 export function TrainingFeedbackList({ playerId, entries: initialEntries, userRole, defaultEscalao, currentUserName, currentUserId }: TrainingFeedbackProps) {
   const [entries, setEntries] = useState(initialEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [coachDialogOpen, setCoachDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const canAdd = userRole === 'admin' || userRole === 'editor' || userRole === 'recruiter';
@@ -93,16 +94,27 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
       )}
 
       {canAdd && (
-        <button
-          type="button"
-          onClick={() => setDialogOpen(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 py-2 text-xs font-medium text-neutral-500 transition hover:border-neutral-400 hover:text-neutral-700"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Adicionar Feedback de Treino
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 py-2 text-xs font-medium text-neutral-500 transition hover:border-neutral-400 hover:text-neutral-700"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Adicionar Feedback
+          </button>
+          <button
+            type="button"
+            onClick={() => setCoachDialogOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-cyan-300 px-3 py-2 text-xs font-medium text-cyan-600 transition hover:border-cyan-400 hover:bg-cyan-50"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Pedir a treinador
+          </button>
+        </div>
       )}
 
+      {/* Internal feedback dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
@@ -113,6 +125,23 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
             defaultEscalao={defaultEscalao}
             currentUserName={currentUserName}
             onCreated={handleCreated}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Coach feedback link dialog */}
+      <Dialog open={coachDialogOpen} onOpenChange={setCoachDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Pedir feedback ao treinador</DialogTitle>
+          </DialogHeader>
+          <CoachLinkForm
+            playerId={playerId}
+            defaultEscalao={defaultEscalao}
+            onCreated={(entry) => {
+              setEntries((prev) => [entry, ...prev]);
+              setCoachDialogOpen(false);
+            }}
           />
         </DialogContent>
       </Dialog>
@@ -251,11 +280,14 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
         <p className="mt-2 text-sm leading-snug text-neutral-700">{entry.feedback}</p>
       )}
 
-      {/* Author + share button */}
+      {/* Author + coach status */}
       <div className="mt-1.5 flex items-center justify-between">
         <p className="text-[10px] text-muted-foreground">por {entry.authorName}</p>
-        {entry.presence === 'attended' && !entry.coachSubmittedAt && (
-          <ShareButton feedbackId={entry.id} />
+        {/* Show "awaiting coach" if no internal feedback but also no coach feedback (stub entry) */}
+        {entry.presence === 'attended' && !entry.feedback && !entry.rating && !entry.coachSubmittedAt && (
+          <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-600 border border-cyan-200">
+            Aguarda treinador
+          </span>
         )}
       </div>
 
@@ -267,36 +299,99 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
   );
 }
 
-/* ───────────── Share Button ───────────── */
+/* ───────────── Coach Link Form (generates link for external coach) ───────────── */
 
-function ShareButton({ feedbackId }: { feedbackId: number }) {
-  const [isSharing, startShare] = useTransition();
-  const [copied, setCopied] = useState(false);
+function CoachLinkForm({ playerId, defaultEscalao, onCreated }: {
+  playerId: number;
+  defaultEscalao?: string | null;
+  onCreated: (entry: TFeedback) => void;
+}) {
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [escalao, setEscalao] = useState(defaultEscalao ?? '');
+  const [isPending, startTransition] = useTransition();
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
 
-  function handleShare() {
-    startShare(async () => {
-      const res = await shareTrainingFeedback(feedbackId);
+  function handleGenerate() {
+    if (!date) { toast.error('Data obrigatória'); return; }
+    startTransition(async () => {
+      const res = await createCoachFeedbackLink(playerId, date, escalao || undefined);
       if (res.success && res.data) {
+        setGeneratedUrl(res.data.url);
         await navigator.clipboard.writeText(res.data.url);
-        setCopied(true);
-        toast.success('Link copiado!');
-        setTimeout(() => setCopied(false), 3000);
+        toast.success('Link copiado para a área de transferência!');
+        // Create optimistic stub entry for the list
+        onCreated({
+          id: Date.now(), clubId: '', playerId, authorId: '', authorName: 'Eu',
+          trainingDate: date, escalao: escalao || null, presence: 'attended',
+          feedback: null, rating: null, decision: 'sem_decisao',
+          heightScale: null, buildScale: null, speedScale: null, intensityScale: null, tags: [],
+          coachFeedback: null, coachRating: null, coachDecision: null,
+          coachHeightScale: null, coachBuildScale: null, coachSpeedScale: null, coachIntensityScale: null,
+          coachTags: [], coachName: null, coachSubmittedAt: null,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        });
       } else {
         toast.error(res.error ?? 'Erro ao gerar link');
       }
     });
   }
 
+  if (generatedUrl) {
+    return (
+      <div className="space-y-3 py-2">
+        <div className="flex items-center justify-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+            <Check className="h-5 w-5 text-green-600" />
+          </div>
+        </div>
+        <p className="text-center text-sm font-medium text-neutral-700">Link gerado e copiado!</p>
+        <div className="flex items-center gap-1.5 rounded-lg border bg-neutral-50 px-3 py-2">
+          <p className="flex-1 truncate text-xs text-neutral-500">{generatedUrl}</p>
+          <button
+            type="button"
+            onClick={async () => { await navigator.clipboard.writeText(generatedUrl); toast.success('Copiado!'); }}
+            className="shrink-0 rounded p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <p className="text-center text-[10px] text-neutral-400">Envie este link ao treinador. Válido por 7 dias.</p>
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={handleShare}
-      disabled={isSharing}
-      className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-50"
-    >
-      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Share2 className="h-3 w-3" />}
-      {isSharing ? 'A gerar...' : copied ? 'Copiado!' : 'Enviar a treinador'}
-    </button>
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Gera um link para o treinador preencher a avaliação do jogador. Sem necessidade de conta.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <SectionLabel>Data do Treino</SectionLabel>
+          <TrainingDateInput value={date} onChange={setDate} />
+        </div>
+        <div>
+          <SectionLabel>Escalão</SectionLabel>
+          <div className="flex items-center gap-2 rounded-xl border bg-background px-3 py-2.5">
+            <GraduationCap className="h-4 w-4 shrink-0 text-neutral-400" />
+            <input
+              value={escalao}
+              onChange={(e) => setEscalao(e.target.value)}
+              placeholder="Ex: Sub-15"
+              className="w-full bg-transparent text-sm text-neutral-700 placeholder:text-muted-foreground outline-none"
+            />
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={handleGenerate}
+        disabled={isPending || !date}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:bg-neutral-300 disabled:text-neutral-500"
+      >
+        {isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A gerar...</> : <><Share2 className="h-4 w-4" /> Gerar link</>}
+      </button>
+    </div>
   );
 }
 

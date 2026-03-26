@@ -180,57 +180,63 @@ export async function deleteTrainingFeedback(
 
 /* ───────────── Share with External Coach ───────────── */
 
-/** Generate a shareable link for an external coach to fill in feedback */
-export async function shareTrainingFeedback(
-  feedbackId: number,
-): Promise<ActionResponse<{ token: string; url: string }>> {
+/** Create a feedback stub (attended, no data) + shareable link for an external coach */
+export async function createCoachFeedbackLink(
+  playerId: number,
+  trainingDate: string,
+  escalao?: string,
+): Promise<ActionResponse<{ url: string }>> {
   const { clubId, userId, role } = await getActiveClub();
   if (role === 'scout') {
-    return { success: false, error: 'Sem permissão para partilhar feedback' };
+    return { success: false, error: 'Sem permissão para pedir feedback externo' };
+  }
+  if (!trainingDate) {
+    return { success: false, error: 'Data é obrigatória' };
   }
   const supabase = await createClient();
 
-  // Verify the feedback exists and belongs to this club
-  const { data: fb } = await supabase
+  // Create a stub feedback entry (presence=attended, everything else empty — coach fills in)
+  const { data: fb, error: fbError } = await supabase
     .from('training_feedback')
+    .insert({
+      club_id: clubId,
+      player_id: playerId,
+      author_id: userId,
+      training_date: trainingDate,
+      escalao: escalao || null,
+      presence: 'attended',
+    })
     .select('id')
-    .eq('id', feedbackId)
-    .eq('club_id', clubId)
     .single();
 
-  if (!fb) {
-    return { success: false, error: 'Feedback não encontrado' };
+  if (fbError || !fb) {
+    return { success: false, error: `Erro ao criar feedback: ${fbError?.message}` };
   }
 
-  // Revoke any existing active tokens for this feedback
-  await supabase
-    .from('feedback_share_tokens')
-    .update({ revoked_at: new Date().toISOString() })
-    .eq('feedback_id', feedbackId)
-    .is('used_at', null)
-    .is('revoked_at', null);
-
-  // Create new token — expires in 7 days
+  // Create share token — expires in 7 days
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: token, error } = await supabase
+  const { data: token, error: tokenError } = await supabase
     .from('feedback_share_tokens')
     .insert({
       club_id: clubId,
-      feedback_id: feedbackId,
+      feedback_id: fb.id,
       created_by: userId,
       expires_at: expiresAt,
     })
     .select('token')
     .single();
 
-  if (error || !token) {
-    return { success: false, error: `Erro ao criar link: ${error?.message}` };
+  if (tokenError || !token) {
+    return { success: false, error: `Erro ao criar link: ${tokenError?.message}` };
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const url = `${appUrl}/feedback/${token.token}`;
 
-  return { success: true, data: { token: token.token, url } };
+  revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'training_feedback', 'INSERT', userId, fb.id);
+
+  return { success: true, data: { url } };
 }
 
 /** Revoke an active share token */
