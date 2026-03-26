@@ -173,6 +173,12 @@ function mapFeedback(rows: any[]): TrainingFeedback[] {
     presence: row.presence as TrainingFeedback['presence'],
     feedback: row.feedback,
     rating: row.rating,
+    decision: (row.decision as TrainingFeedback['decision']) ?? 'sem_decisao',
+    heightScale: (row.height_scale as TrainingFeedback['heightScale']) ?? null,
+    buildScale: (row.build_scale as TrainingFeedback['buildScale']) ?? null,
+    speedScale: (row.speed_scale as TrainingFeedback['speedScale']) ?? null,
+    intensityScale: (row.intensity_scale as TrainingFeedback['intensityScale']) ?? null,
+    tags: Array.isArray(row.tags) ? row.tags : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));

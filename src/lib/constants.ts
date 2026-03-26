@@ -3,7 +3,7 @@
 // Single source of truth for all domain enums and their display properties
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/utils/positions.ts, src/lib/validators.ts
 
-import type { CalendarEventType, DecisionSide, DepartmentOpinion, ObservationTier, Player, PositionCode, RecruitmentStatus, TrainingPresence } from '@/lib/types';
+import type { BuildScale, CalendarEventType, DecisionSide, DepartmentOpinion, HeightScale, IntensityScale, ObservationTier, Player, PositionCode, RecruitmentStatus, SpeedScale, TrainingDecision, TrainingPresence } from '@/lib/types';
 
 /* ───────────── Positions ───────────── */
 
@@ -515,6 +515,85 @@ export const TRAINING_PRESENCE: { value: TrainingPresence; labelPt: string; icon
   { value: 'missed', labelPt: 'Faltou', icon: '✗', color: 'bg-red-50 text-red-700 border-red-200' },
   { value: 'rescheduled', labelPt: 'Reagendado', icon: '↻', color: 'bg-amber-50 text-amber-700 border-amber-200' },
 ];
+
+/* ───────────── Training Decision (Decisão Pós-Treino) ───────────── */
+
+export const TRAINING_DECISIONS: { value: TrainingDecision; labelPt: string; icon: string; color: string }[] = [
+  { value: 'assinar', labelPt: 'Assinar', icon: '✓', color: 'bg-green-50 text-green-700 border-green-200' },
+  { value: 'repetir', labelPt: 'Repetir', icon: '↻', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { value: 'descartar', labelPt: 'Descartar', icon: '✗', color: 'bg-red-50 text-red-700 border-red-200' },
+];
+
+/* ───────────── Training Physical Scales ───────────── */
+
+export const HEIGHT_SCALE_OPTIONS: { value: HeightScale; labelPt: string }[] = [
+  { value: 'alto', labelPt: 'Alto' },
+  { value: 'normal', labelPt: 'Normal' },
+  { value: 'baixo', labelPt: 'Baixo' },
+];
+
+export const BUILD_SCALE_OPTIONS: { value: BuildScale; labelPt: string }[] = [
+  { value: 'gordo', labelPt: 'Gordo' },
+  { value: 'fit', labelPt: 'Fit' },
+  { value: 'magro', labelPt: 'Magro' },
+];
+
+export const SPEED_SCALE_OPTIONS: { value: SpeedScale; labelPt: string }[] = [
+  { value: 'rapido', labelPt: 'Rápido' },
+  { value: 'normal', labelPt: 'Normal' },
+  { value: 'lento', labelPt: 'Lento' },
+];
+
+export const INTENSITY_SCALE_OPTIONS: { value: IntensityScale; labelPt: string }[] = [
+  { value: 'intenso', labelPt: 'Intenso' },
+  { value: 'pouco_intenso', labelPt: 'Pouco intenso' },
+];
+
+/* ───────────── Training Tags (multi-select per category) ───────────── */
+
+export const TRAINING_TAG_CATEGORIES: { category: string; labelPt: string; tags: { value: string; labelPt: string }[] }[] = [
+  {
+    category: 'tecnica',
+    labelPt: 'Técnica',
+    tags: [
+      { value: 'boa_qualidade', labelPt: 'Boa qualidade' },
+      { value: 'bom_passe', labelPt: 'Bom passe' },
+      { value: 'bom_remate', labelPt: 'Bom remate' },
+      { value: 'bom_drible', labelPt: 'Bom drible' },
+      { value: 'bom_pe_esquerdo', labelPt: 'Bom pé esquerdo' },
+      { value: 'bom_pe_direito', labelPt: 'Bom pé direito' },
+      { value: 'fraco_com_bola', labelPt: 'Fraco com bola' },
+    ],
+  },
+  {
+    category: 'mental',
+    labelPt: 'Mental',
+    tags: [
+      { value: 'boa_atitude', labelPt: 'Boa atitude' },
+      { value: 'comunicativo', labelPt: 'Comunicativo' },
+      { value: 'timido', labelPt: 'Tímido' },
+      { value: 'nervoso', labelPt: 'Nervoso' },
+      { value: 'agressivo', labelPt: 'Agressivo' },
+      { value: 'inteligente', labelPt: 'Inteligente' },
+      { value: 'lider', labelPt: 'Líder' },
+    ],
+  },
+  {
+    category: 'adaptacao',
+    labelPt: 'Adaptação',
+    tags: [
+      { value: 'adaptou_se_bem', labelPt: 'Adaptou-se bem' },
+      { value: 'dificuldade_contexto', labelPt: 'Dificuldade no contexto' },
+      { value: 'nivel_acima', labelPt: 'Nível acima' },
+      { value: 'nivel_abaixo', labelPt: 'Nível abaixo' },
+    ],
+  },
+];
+
+/** Flat lookup: tag value → label */
+export const TRAINING_TAG_LABEL_MAP: Record<string, string> = Object.fromEntries(
+  TRAINING_TAG_CATEGORIES.flatMap((c) => c.tags.map((t) => [t.value, t.labelPt]))
+);
 
 /* ───────────── Observation Tier (Estado de Observação) ───────────── */
 

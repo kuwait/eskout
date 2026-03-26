@@ -1,5 +1,5 @@
 // src/components/players/TrainingFeedback.tsx
-// Training feedback list + inline add form — shows presence, feedback, rating per training session
+// Training feedback list + dialog form — presence, rating, decision, physical scales, tags, text
 // Used in the player profile page to track when a player comes to train at the club
 // RELEVANT FILES: src/actions/training-feedback.ts, src/lib/types/index.ts, src/components/players/PlayerProfile.tsx
 
@@ -7,9 +7,33 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Calendar, GraduationCap, Plus, Star, Trash2 } from 'lucide-react';
-import { TRAINING_PRESENCE } from '@/lib/constants';
-import type { TrainingFeedback as TFeedback, TrainingPresence, UserRole } from '@/lib/types';
+import { Calendar, GraduationCap, Loader2, Plus, Star, Trash2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  TRAINING_PRESENCE,
+  TRAINING_DECISIONS,
+  HEIGHT_SCALE_OPTIONS,
+  BUILD_SCALE_OPTIONS,
+  SPEED_SCALE_OPTIONS,
+  INTENSITY_SCALE_OPTIONS,
+  TRAINING_TAG_CATEGORIES,
+  TRAINING_TAG_LABEL_MAP,
+} from '@/lib/constants';
+import type {
+  BuildScale,
+  HeightScale,
+  IntensityScale,
+  SpeedScale,
+  TrainingDecision,
+  TrainingFeedback as TFeedback,
+  TrainingPresence,
+  UserRole,
+} from '@/lib/types';
 import { createTrainingFeedback, deleteTrainingFeedback } from '@/actions/training-feedback';
 import { cn } from '@/lib/utils';
 
@@ -19,22 +43,30 @@ interface TrainingFeedbackProps {
   playerId: number;
   entries: TFeedback[];
   userRole: UserRole;
-  /** Player's training escalão (pre-fill for new entries) */
   defaultEscalao?: string | null;
-  /** Current user's display name for optimistic entries */
   currentUserName?: string | null;
-  /** Current user ID — to check ownership for delete */
   currentUserId?: string | null;
 }
 
-/* ───────────── Component ───────────── */
+/* ───────────── Main List Component ───────────── */
 
 export function TrainingFeedbackList({ playerId, entries: initialEntries, userRole, defaultEscalao, currentUserName, currentUserId }: TrainingFeedbackProps) {
   const [entries, setEntries] = useState(initialEntries);
-  const [showForm, setShowForm] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const canAdd = userRole === 'admin' || userRole === 'editor' || userRole === 'recruiter';
+
+  // Summary
+  const attended = entries.filter((e) => e.presence === 'attended');
+  const latest = attended[0];
+  const summaryParts: string[] = [];
+  if (attended.length > 0) summaryParts.push(`${attended.length} treino${attended.length > 1 ? 's' : ''}`);
+  if (latest?.rating) summaryParts.push(`${'★'.repeat(latest.rating)}${'☆'.repeat(5 - latest.rating)} ${RATING_LABELS[latest.rating]}`);
+  if (latest?.decision && latest.decision !== 'sem_decisao') {
+    const dc = TRAINING_DECISIONS.find((d) => d.value === latest.decision);
+    if (dc) summaryParts.push(dc.labelPt);
+  }
 
   function handleDelete(feedbackId: number) {
     startTransition(async () => {
@@ -50,16 +82,19 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
 
   function handleCreated(entry: TFeedback) {
     setEntries((prev) => [entry, ...prev]);
-    setShowForm(false);
+    setDialogOpen(false);
   }
 
   return (
     <div className="space-y-3">
-      {/* Add button */}
-      {canAdd && !showForm && (
+      {summaryParts.length > 0 && (
+        <p className="text-xs text-muted-foreground">{summaryParts.join(' · ')}</p>
+      )}
+
+      {canAdd && (
         <button
           type="button"
-          onClick={() => setShowForm(true)}
+          onClick={() => setDialogOpen(true)}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 py-2 text-xs font-medium text-neutral-500 transition hover:border-neutral-400 hover:text-neutral-700"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -67,19 +102,21 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
         </button>
       )}
 
-      {/* Inline form */}
-      {showForm && (
-        <AddTrainingFeedbackForm
-          playerId={playerId}
-          defaultEscalao={defaultEscalao}
-          currentUserName={currentUserName}
-          onCreated={handleCreated}
-          onCancel={() => setShowForm(false)}
-        />
-      )}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Feedback de Treino</DialogTitle>
+          </DialogHeader>
+          <AddTrainingFeedbackForm
+            playerId={playerId}
+            defaultEscalao={defaultEscalao}
+            currentUserName={currentUserName}
+            onCreated={handleCreated}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {/* Entry list */}
-      {entries.length === 0 && !showForm && (
+      {entries.length === 0 && (
         <p className="py-2 text-center text-xs text-muted-foreground">Sem feedback de treino registado.</p>
       )}
 
@@ -104,30 +141,49 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
   onDelete: () => void;
   isPending: boolean;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const presenceConfig = TRAINING_PRESENCE.find((p) => p.value === entry.presence);
+  const decisionConfig = TRAINING_DECISIONS.find((d) => d.value === entry.decision);
   const dateLabel = new Date(entry.trainingDate).toLocaleDateString('pt-PT', {
     day: '2-digit', month: 'short', year: 'numeric',
   });
 
+  // Physical: category + value pairs for readable display
+  const physicalPairs: { category: string; label: string }[] = [];
+  if (entry.heightScale) { const o = HEIGHT_SCALE_OPTIONS.find((x) => x.value === entry.heightScale); if (o) physicalPairs.push({ category: 'Estatura', label: o.labelPt }); }
+  if (entry.buildScale) { const o = BUILD_SCALE_OPTIONS.find((x) => x.value === entry.buildScale); if (o) physicalPairs.push({ category: 'Corpo', label: o.labelPt }); }
+  if (entry.speedScale) { const o = SPEED_SCALE_OPTIONS.find((x) => x.value === entry.speedScale); if (o) physicalPairs.push({ category: 'Velocidade', label: o.labelPt }); }
+  if (entry.intensityScale) { const o = INTENSITY_SCALE_OPTIONS.find((x) => x.value === entry.intensityScale); if (o) physicalPairs.push({ category: 'Intensidade', label: o.labelPt }); }
+
+  // Tags: resolve category for coloring
+  const tagsByCategory = entry.tags.map((tag) => {
+    const cat = TRAINING_TAG_CATEGORIES.find((c) => c.tags.some((t) => t.value === tag));
+    return { value: tag, label: TRAINING_TAG_LABEL_MAP[tag] ?? tag, category: cat?.category ?? '' };
+  });
+
   return (
-    <div className="rounded-lg border bg-card px-3 py-2.5">
-      {/* Header: date + presence badge + delete */}
+    <div className="rounded-xl border bg-card px-3 py-2.5">
+      {/* Header row */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span className="text-xs font-medium text-neutral-600">{dateLabel}</span>
           {entry.escalao && (
-            <span className="shrink-0 rounded bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-700 border border-amber-200">
+            <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
               {entry.escalao}
             </span>
           )}
           {presenceConfig && (
-            <span className={cn('shrink-0 rounded border px-1.5 py-px text-[10px] font-bold', presenceConfig.color)}>
+            <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold', presenceConfig.color)}>
               {presenceConfig.icon} {presenceConfig.labelPt}
+            </span>
+          )}
+          {decisionConfig && entry.decision !== 'sem_decisao' && (
+            <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold', decisionConfig.color)}>
+              {decisionConfig.icon} {decisionConfig.labelPt}
             </span>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Rating stars */}
           {entry.rating && (() => {
             const c = RATING_COLORS[entry.rating] ?? DEFAULT_COLORS;
             return (
@@ -140,40 +196,72 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
             );
           })()}
           {canDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={isPending}
-              className="rounded p-0.5 text-neutral-400 hover:text-red-500 transition disabled:opacity-30"
-              title="Eliminar"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            confirmDelete ? (
+              <button
+                type="button"
+                onClick={() => { onDelete(); setConfirmDelete(false); }}
+                disabled={isPending}
+                onBlur={() => setConfirmDelete(false)}
+                className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white transition hover:bg-red-600 disabled:opacity-30"
+              >
+                Confirmar
+              </button>
+            ) : (
+              <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="rounded p-0.5 text-neutral-400 hover:text-red-500 transition disabled:opacity-30" title="Eliminar">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )
           )}
         </div>
       </div>
 
-      {/* Feedback text */}
-      {entry.feedback && (
-        <p className="mt-1.5 text-sm text-neutral-700 leading-snug">{entry.feedback}</p>
+      {/* Physical (compact single line) + tags (colored pills) */}
+      {(physicalPairs.length > 0 || tagsByCategory.length > 0) && (
+        <div className="mt-2 space-y-1.5">
+          {physicalPairs.length > 0 && (
+            <p className="text-[11px] text-neutral-500">
+              {physicalPairs.map((p, i) => (
+                <span key={p.category}>
+                  {i > 0 && <span className="mx-1 text-neutral-300">·</span>}
+                  <span className="text-neutral-400">{p.category}</span>{' '}
+                  <span className="font-semibold text-neutral-700">{p.label}</span>
+                </span>
+              ))}
+            </p>
+          )}
+          {tagsByCategory.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {tagsByCategory.map((t) => {
+                const colorClass = t.category === 'tecnica' ? 'bg-blue-100 text-blue-700 border-blue-200'
+                  : t.category === 'mental' ? 'bg-purple-100 text-purple-700 border-purple-200'
+                  : 'bg-amber-100 text-amber-700 border-amber-200';
+                return (
+                  <span key={t.value} className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold', colorClass)}>
+                    {t.label}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Author */}
-      <p className="mt-1 text-[10px] text-muted-foreground">
-        por {entry.authorName}
-      </p>
+      {entry.feedback && (
+        <p className="mt-2 text-sm leading-snug text-neutral-700">{entry.feedback}</p>
+      )}
+
+      <p className="mt-1.5 text-[10px] text-muted-foreground">por {entry.authorName}</p>
     </div>
   );
 }
 
-/* ───────────── Add Form ───────────── */
+/* ───────────── Add Form (inside Dialog) ───────────── */
 
-function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, onCreated, onCancel }: {
+function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, onCreated }: {
   playerId: number;
   defaultEscalao?: string | null;
   currentUserName?: string | null;
   onCreated: (entry: TFeedback) => void;
-  onCancel: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -181,35 +269,42 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
   const [presence, setPresence] = useState<TrainingPresence>('attended');
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState<number | null>(null);
+  const [decision, setDecision] = useState<TrainingDecision>('sem_decisao');
+  const [heightScale, setHeightScale] = useState<HeightScale | null>(null);
+  const [buildScale, setBuildScale] = useState<BuildScale | null>(null);
+  const [speedScale, setSpeedScale] = useState<SpeedScale | null>(null);
+  const [intensityScale, setIntensityScale] = useState<IntensityScale | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+
+  const showStructured = presence === 'attended';
+
+  function handlePresenceChange(p: TrainingPresence) {
+    setPresence(p);
+    if (p !== 'attended') {
+      setDecision('sem_decisao');
+      setHeightScale(null); setBuildScale(null); setSpeedScale(null); setIntensityScale(null);
+      setTags([]);
+    }
+  }
+
+  function toggleTag(tag: string) {
+    setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+  }
 
   function handleSubmit() {
-    if (!date) {
-      toast.error('Data obrigatória');
-      return;
-    }
-
+    if (!date) { toast.error('Data obrigatória'); return; }
     startTransition(async () => {
       const res = await createTrainingFeedback(
         playerId, date, presence, feedback || undefined, rating ?? undefined, escalao || undefined,
+        decision, heightScale, buildScale, speedScale, intensityScale, tags,
       );
-
       if (res.success) {
-        // Build optimistic entry for instant UI update
-        const optimistic: TFeedback = {
-          id: Date.now(), // temporary ID, replaced on next server fetch
-          clubId: '',
-          playerId,
-          authorId: '',
-          authorName: currentUserName || 'Eu',
-          trainingDate: date,
-          escalao: escalao || null,
-          presence,
-          feedback: feedback || null,
-          rating,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        onCreated(optimistic);
+        onCreated({
+          id: Date.now(), clubId: '', playerId, authorId: '', authorName: currentUserName || 'Eu',
+          trainingDate: date, escalao: escalao || null, presence, feedback: feedback || null, rating,
+          decision, heightScale, buildScale, speedScale, intensityScale, tags,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        });
         toast.success('Feedback registado');
       } else {
         toast.error(res.error);
@@ -218,87 +313,222 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
   }
 
   return (
-    <div className="space-y-3">
-      {/* Data + Escalão — side by side */}
+    <div className="space-y-4">
+      {/* ── Data + Escalão ── */}
       <div className="grid grid-cols-2 gap-3">
-        <FieldLabel label="Data do Treino">
+        <div>
+          <SectionLabel>Data do Treino</SectionLabel>
           <TrainingDateInput value={date} onChange={setDate} />
-        </FieldLabel>
-        <FieldLabel label="Escalão">
-          <div className="relative flex items-center gap-2 rounded-md border border-input bg-background px-2.5 py-2 shadow-sm">
-            <GraduationCap className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+        </div>
+        <div>
+          <SectionLabel>Escalão</SectionLabel>
+          <div className="flex items-center gap-2 rounded-xl border bg-background px-3 py-2.5">
+            <GraduationCap className="h-4 w-4 shrink-0 text-neutral-400" />
             <input
               value={escalao}
               onChange={(e) => setEscalao(e.target.value)}
               placeholder="Ex: Sub-15"
-              className="w-full bg-transparent text-xs font-medium tracking-wide text-neutral-600 placeholder:text-muted-foreground outline-none"
+              className="w-full bg-transparent text-sm text-neutral-700 placeholder:text-muted-foreground outline-none"
             />
           </div>
-        </FieldLabel>
+        </div>
       </div>
 
-      {/* Presença + Avaliação — side by side */}
-      <div className="grid grid-cols-2 gap-3">
-        <FieldLabel label="Presença">
-          <div className="flex gap-1.5">
-            {TRAINING_PRESENCE.map((opt) => (
+      {/* ── Presença ── */}
+      <div>
+        <SectionLabel>Presença</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {TRAINING_PRESENCE.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handlePresenceChange(opt.value)}
+              className={cn(
+                'rounded-xl py-2.5 text-sm font-semibold transition text-center',
+                presence === opt.value
+                  ? opt.color + ' shadow-sm border'
+                  : 'border border-neutral-200 text-neutral-400 hover:border-neutral-400',
+              )}
+            >
+              {presence === opt.value && <span className="mr-1">{opt.icon}</span>}
+              {opt.labelPt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Avaliação ── */}
+      <div>
+        <SectionLabel>Avaliação</SectionLabel>
+        <RatingBar rating={rating} onChange={setRating} />
+      </div>
+
+      {/* ── Decisão (only when attended) ── */}
+      {showStructured && (
+        <div>
+          <SectionLabel>Decisão</SectionLabel>
+          <div className="grid grid-cols-3 gap-2">
+            {TRAINING_DECISIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setPresence(opt.value)}
+                onClick={() => setDecision(decision === opt.value ? 'sem_decisao' : opt.value)}
                 className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-medium transition',
-                  presence === opt.value
+                  'rounded-xl py-2.5 text-sm font-semibold transition text-center',
+                  decision === opt.value
                     ? opt.color + ' shadow-sm border'
-                    : 'border border-dashed border-neutral-300 text-neutral-400 hover:border-neutral-400 hover:text-neutral-500',
+                    : 'border border-neutral-200 text-neutral-400 hover:border-neutral-400',
                 )}
               >
-                {presence === opt.value && <span className="mr-1">{opt.icon}</span>}
+                {decision === opt.value && <span className="mr-1">{opt.icon}</span>}
                 {opt.labelPt}
               </button>
             ))}
           </div>
-        </FieldLabel>
-        <FieldLabel label="Avaliação">
-          <TrainingRatingStars rating={rating} onChange={setRating} />
-        </FieldLabel>
-      </div>
+        </div>
+      )}
 
-      {/* Feedback */}
-      <FieldLabel label="Feedback">
+      {/* ── Feedback text ── */}
+      <div>
+        <SectionLabel>Feedback</SectionLabel>
         <textarea
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
           placeholder="Como correu o treino..."
-          rows={2}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium tracking-wide text-neutral-600 placeholder:font-normal placeholder:tracking-wide placeholder:text-neutral-400 outline-none"
+          rows={3}
+          className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-neutral-700 placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-neutral-300"
         />
-      </FieldLabel>
+      </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-between pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isPending}
-          className="rounded-md border border-dashed border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-400 hover:border-neutral-400 hover:text-neutral-500 transition"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isPending || !date}
-          className="inline-flex items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 transition disabled:border-neutral-200 disabled:bg-neutral-50 disabled:text-neutral-400"
-        >
-          {isPending ? 'A guardar...' : 'Guardar'}
-        </button>
+      {/* ── Characteristics (only when attended) ── */}
+      {showStructured && (
+        <>
+          {/* Physical scales — segmented bars */}
+          <div className="rounded-xl border border-l-[3px] border-l-neutral-400 bg-neutral-50/50 p-3 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Físico</p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <ScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} />
+              <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} />
+              <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
+              <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
+            </div>
+          </div>
+
+          {/* Tags by category */}
+          {TRAINING_TAG_CATEGORIES.map((cat) => {
+            const borderColor = cat.category === 'tecnica' ? 'border-l-blue-400' : cat.category === 'mental' ? 'border-l-purple-400' : 'border-l-amber-400';
+            return (
+              <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', borderColor)}>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500">{cat.labelPt}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cat.tags.map((tag) => {
+                    const selected = tags.includes(tag.value);
+                    return (
+                      <button
+                        key={tag.value}
+                        type="button"
+                        onClick={() => toggleTag(tag.value)}
+                        className={cn(
+                          'rounded-full px-3 py-1.5 text-xs font-medium transition',
+                          selected
+                            ? 'bg-blue-100 text-blue-700 border border-blue-300 shadow-sm'
+                            : 'border border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400',
+                        )}
+                      >
+                        {tag.labelPt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {/* ── Submit ── */}
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={isPending || !date}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:bg-neutral-300 disabled:text-neutral-500"
+      >
+        {isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A guardar...</> : 'Guardar Feedback'}
+      </button>
+    </div>
+  );
+}
+
+/* ───────────── Scale Row (label + segmented bar) ───────────── */
+
+function ScaleRow({ label, options, value, onChange }: {
+  label: string;
+  options: { value: string; labelPt: string }[];
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-medium text-neutral-500">{label}</p>
+      <div className="flex h-8 gap-0.5 rounded-lg overflow-hidden">
+        {options.map((opt, i) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(value === opt.value ? null : opt.value)}
+            className={cn(
+              'flex-1 flex items-center justify-center text-xs font-semibold transition-all active:scale-95',
+              value === opt.value
+                ? 'bg-neutral-800 text-white'
+                : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
+              i === 0 && 'rounded-l-lg',
+              i === options.length - 1 && 'rounded-r-lg',
+            )}
+          >
+            {opt.labelPt}
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
-/* ───────────── Date Input (mirrors DateInput from PlayerProfile) ───────────── */
+/* ───────────── Rating Bar (segmented 1-5, like QSR overall) ───────────── */
+
+function RatingBar({ rating, onChange }: { rating: number | null; onChange: (v: number | null) => void }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex h-10 gap-0.5 rounded-xl overflow-hidden">
+        {[1, 2, 3, 4, 5].map((n) => {
+          const active = rating !== null && n <= rating;
+          const c = RATING_COLORS[rating ?? 0] ?? DEFAULT_COLORS;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(rating === n ? null : n)}
+              className={cn(
+                'flex-1 flex items-center justify-center text-xs font-bold transition-all active:scale-95',
+                active ? `${c.bg} ${c.text}` : 'bg-neutral-100 text-neutral-300 hover:bg-neutral-200',
+                n === 1 && 'rounded-l-xl',
+                n === 5 && 'rounded-r-xl',
+              )}
+            >
+              <Star className={cn('h-4 w-4', active ? c.star : 'text-neutral-300')} fill={active ? 'currentColor' : 'none'} strokeWidth={1.5} />
+            </button>
+          );
+        })}
+      </div>
+      {rating && (
+        <p className={cn('text-center text-xs font-bold', (RATING_COLORS[rating] ?? DEFAULT_COLORS).text)}>
+          {RATING_LABELS[rating]}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ───────────── Date Input ───────────── */
 
 function TrainingDateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const ref = useRef<HTMLInputElement>(null);
@@ -308,25 +538,23 @@ function TrainingDateInput({ value, onChange }: { value: string; onChange: (v: s
 
   return (
     <div
-      className="relative flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-2.5 py-2 shadow-sm transition-colors hover:bg-accent"
+      className="relative flex cursor-pointer items-center gap-2 rounded-xl border bg-background px-3 py-2.5 transition-colors hover:bg-accent"
       onClick={() => ref.current?.showPicker?.()}
     >
-      <input
-        ref={ref}
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 h-full w-full opacity-0"
-      />
-      <Calendar className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-      <span className={value ? 'text-xs font-medium tracking-wide text-neutral-600' : 'text-xs text-muted-foreground'}>
-        {display}
-      </span>
+      <input ref={ref} type="date" value={value} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 h-full w-full opacity-0" />
+      <Calendar className="h-4 w-4 shrink-0 text-neutral-400" />
+      <span className={value ? 'text-sm font-medium text-neutral-700' : 'text-sm text-muted-foreground'}>{display}</span>
     </div>
   );
 }
 
-/* ───────────── Rating Colors & Labels (same as ScoutEvaluations) ───────────── */
+/* ───────────── Section Label ───────────── */
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">{children}</p>;
+}
+
+/* ───────────── Rating Colors & Labels ───────────── */
 
 const RATING_COLORS: Record<number, { star: string; text: string; bg: string }> = {
   1: { star: 'text-red-500', text: 'text-red-600', bg: 'bg-red-50' },
@@ -344,59 +572,3 @@ const RATING_LABELS: Record<number, string> = {
   4: 'Muito Bom',
   5: 'Excelente',
 };
-
-/* ───────────── Interactive Rating Stars ───────────── */
-
-function TrainingRatingStars({ rating, onChange }: { rating: number | null; onChange: (v: number | null) => void }) {
-  const [hover, setHover] = useState(0);
-  const active = hover || rating || 0;
-  const colors = RATING_COLORS[active] ?? DEFAULT_COLORS;
-
-  return (
-    <div className="flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1 shadow-sm">
-      <div className="flex gap-0.5">
-        {[1, 2, 3, 4, 5].map((n) => {
-          const filled = hover > 0 ? n <= hover : (rating ? n <= rating : false);
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onChange(rating === n ? null : n)}
-              onMouseEnter={() => setHover(n)}
-              onMouseLeave={() => setHover(0)}
-              className="p-0.5 transition-transform hover:scale-125"
-              title={RATING_LABELS[n]}
-            >
-              <Star
-                className={cn('h-5 w-5', filled ? colors.star : 'text-neutral-200')}
-                fill={filled ? 'currentColor' : 'none'}
-                strokeWidth={1.5}
-              />
-            </button>
-          );
-        })}
-      </div>
-      {rating && (() => {
-        const c = RATING_COLORS[rating] ?? DEFAULT_COLORS;
-        return <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', c.bg, c.text)}>{RATING_LABELS[rating]}</span>;
-      })()}
-      {!rating && hover > 0 && (
-        <span className={cn('text-[10px] font-medium', colors.text)}>{RATING_LABELS[hover]}</span>
-      )}
-      {!rating && hover === 0 && (
-        <span className="shrink-0 text-[10px] text-muted-foreground/60">Opcional</span>
-      )}
-    </div>
-  );
-}
-
-/* ───────────── Field Label (mirrors EditField from PlayerProfile) ───────────── */
-
-function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
-      {children}
-    </div>
-  );
-}

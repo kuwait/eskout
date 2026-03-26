@@ -19,6 +19,12 @@ export async function createTrainingFeedback(
   feedback?: string,
   rating?: number,
   escalao?: string,
+  decision?: string,
+  heightScale?: string | null,
+  buildScale?: string | null,
+  speedScale?: string | null,
+  intensityScale?: string | null,
+  tags?: string[],
 ): Promise<ActionResponse> {
   const parsed = trainingFeedbackSchema.safeParse({
     playerId,
@@ -27,6 +33,12 @@ export async function createTrainingFeedback(
     feedback,
     rating,
     escalao,
+    decision,
+    heightScale,
+    buildScale,
+    speedScale,
+    intensityScale,
+    tags,
   });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
@@ -46,6 +58,12 @@ export async function createTrainingFeedback(
       presence: parsed.data.presence,
       feedback: parsed.data.feedback || null,
       rating: parsed.data.rating ?? null,
+      decision: parsed.data.decision,
+      height_scale: parsed.data.heightScale ?? null,
+      build_scale: parsed.data.buildScale ?? null,
+      speed_scale: parsed.data.speedScale ?? null,
+      intensity_scale: parsed.data.intensityScale ?? null,
+      tags: parsed.data.tags,
     })
     .select('id')
     .single();
@@ -68,6 +86,12 @@ export async function updateTrainingFeedback(
     rating?: number | null;
     escalao?: string;
     trainingDate?: string;
+    decision?: string;
+    heightScale?: string | null;
+    buildScale?: string | null;
+    speedScale?: string | null;
+    intensityScale?: string | null;
+    tags?: string[];
   },
 ): Promise<ActionResponse> {
   const { clubId, userId } = await getActiveClub();
@@ -96,6 +120,12 @@ export async function updateTrainingFeedback(
   if (updates.rating !== undefined) dbUpdates.rating = updates.rating;
   if (updates.escalao !== undefined) dbUpdates.escalao = updates.escalao || null;
   if (updates.trainingDate) dbUpdates.training_date = updates.trainingDate;
+  if (updates.decision !== undefined) dbUpdates.decision = updates.decision;
+  if (updates.heightScale !== undefined) dbUpdates.height_scale = updates.heightScale;
+  if (updates.buildScale !== undefined) dbUpdates.build_scale = updates.buildScale;
+  if (updates.speedScale !== undefined) dbUpdates.speed_scale = updates.speedScale;
+  if (updates.intensityScale !== undefined) dbUpdates.intensity_scale = updates.intensityScale;
+  if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
 
   const { error } = await supabase
     .from('training_feedback')

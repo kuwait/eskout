@@ -596,6 +596,11 @@ export interface CalendarEventRow {
 /* ───────────── Training Feedback ───────────── */
 
 export type TrainingPresence = 'attended' | 'missed' | 'rescheduled';
+export type TrainingDecision = 'assinar' | 'repetir' | 'descartar' | 'sem_decisao';
+export type HeightScale = 'alto' | 'normal' | 'baixo';
+export type BuildScale = 'gordo' | 'fit' | 'magro';
+export type SpeedScale = 'rapido' | 'normal' | 'lento';
+export type IntensityScale = 'intenso' | 'pouco_intenso';
 
 export interface TrainingFeedback {
   id: number;
@@ -608,6 +613,12 @@ export interface TrainingFeedback {
   presence: TrainingPresence;
   feedback: string | null;
   rating: number | null;
+  decision: TrainingDecision;
+  heightScale: HeightScale | null;
+  buildScale: BuildScale | null;
+  speedScale: SpeedScale | null;
+  intensityScale: IntensityScale | null;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -622,6 +633,12 @@ export interface TrainingFeedbackRow {
   presence: string;
   feedback: string | null;
   rating: number | null;
+  decision: string;
+  height_scale: string | null;
+  build_scale: string | null;
+  speed_scale: string | null;
+  intensity_scale: string | null;
+  tags: string[] | null;
   created_at: string;
   updated_at: string;
   profiles?: { full_name: string } | null;
