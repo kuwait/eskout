@@ -667,16 +667,14 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
       {/* ── Characteristics (only when attended) ── */}
       {showStructured && (
         <>
-          {/* Physical scales — segmented bars */}
-          <div className="rounded-xl border border-l-[3px] border-l-neutral-400 bg-neutral-50/50 p-3 space-y-3">
+          {/* Physical scales — compact inline rows */}
+          <div className="rounded-xl border border-l-[3px] border-l-neutral-400 bg-neutral-50/50 p-3 space-y-2">
             <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Físico</p>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <ScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} />
-              <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} />
-              <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
-              <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
-              <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} />
-            </div>
+            <InlineScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} />
+            <InlineScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} />
+            <InlineScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
+            <InlineScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
+            <InlineScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} />
           </div>
 
           {/* Tags by category */}
@@ -726,23 +724,24 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
 /* ───────────── Scale Row (label + segmented bar) ───────────── */
 
-function ScaleRow({ label, options, value, onChange }: {
+/** Inline scale: label left, segmented buttons right — single row */
+function InlineScaleRow({ label, options, value, onChange }: {
   label: string;
   options: { value: string; labelPt: string }[];
   value: string | null;
   onChange: (v: string | null) => void;
 }) {
   return (
-    <div>
-      <p className="mb-1 text-[10px] font-medium text-neutral-500">{label}</p>
-      <div className="flex h-8 gap-0.5 rounded-lg overflow-hidden">
+    <div className="flex items-center gap-2">
+      <p className="w-20 shrink-0 text-[10px] font-medium text-neutral-500">{label}</p>
+      <div className="flex flex-1 h-7 gap-0.5 rounded-lg overflow-hidden">
         {options.map((opt, i) => (
           <button
             key={opt.value}
             type="button"
             onClick={() => onChange(value === opt.value ? null : opt.value)}
             className={cn(
-              'flex-1 flex items-center justify-center text-xs font-semibold transition-all active:scale-95',
+              'flex-1 flex items-center justify-center text-[11px] font-semibold transition-all active:scale-95',
               value === opt.value
                 ? 'bg-neutral-800 text-white'
                 : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
