@@ -196,6 +196,16 @@ Custom squad system replacing hardcoded real/shadow booleans. Clubs can create u
 - [x] Zod validators with conditional refinements in `src/lib/validators.ts`
 - [x] 4 tables added to REALTIME_TABLES
 
+### 16B. Scouting Round Management ✅ DONE
+- [x] Server actions: `getScoutingRounds`, `createScoutingRound`, `updateScoutingRound`, `updateRoundStatus`, `deleteScoutingRound`
+- [x] Mapper: `mapScoutingRoundRow` in `src/lib/supabase/mappers.ts`
+- [x] Page: `/observacoes` — server component + `ObservacoesClient` client component
+- [x] Round cards: name, date range, status badge (draft/published/closed), notes
+- [x] CRUD: create dialog (auto-name from dates), edit dialog, delete with confirmation
+- [x] Status transitions: draft → published → closed (reopen: closed → published)
+- [x] Permissions: admin/editor manage, admin-only delete, scouts read-only
+- [x] Nav: "Observações" (Binoculars icon) between Calendário and Tarefas, visible to admin/editor/scout, hidden from recruiter
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view

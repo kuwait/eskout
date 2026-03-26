@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
 import { detectPlayingUp } from '@/lib/utils/playing-up';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
@@ -268,6 +268,24 @@ export function mapTrainingFeedbackRow(row: TrainingFeedbackRow): TrainingFeedba
     coachRatingPotential: row.coach_rating_potential ?? null,
     coachMaturation: (row.coach_maturation as TrainingFeedback['coachMaturation']) ?? null,
     coachObservedPosition: row.coach_observed_position ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Scouting Round Mapper ───────────── */
+
+/** Map a Supabase ScoutingRoundRow (snake_case) to the domain ScoutingRound type (camelCase) */
+export function mapScoutingRoundRow(row: ScoutingRoundRow): ScoutingRound {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    name: row.name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    status: row.status as ScoutingRound['status'],
+    notes: row.notes ?? '',
+    createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
