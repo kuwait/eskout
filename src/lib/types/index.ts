@@ -1127,3 +1127,138 @@ export interface FpfPlayerStats {
   actualEscalao: string | null;
   yearsAbove: number | null;
 }
+
+/* ───────────── Scouting Map: Rounds ───────────── */
+
+export type ScoutingRoundStatus = 'draft' | 'published' | 'closed';
+
+export interface ScoutingRoundRow {
+  id: number;
+  club_id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoutingRound {
+  id: number;
+  clubId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: ScoutingRoundStatus;
+  notes: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ───────────── Scouting Map: Games ───────────── */
+
+export interface ScoutingGameRow {
+  id: number;
+  club_id: string;
+  round_id: number;
+  fpf_match_id: number | null;
+  home_team: string;
+  away_team: string;
+  match_date: string;
+  match_time: string | null;
+  venue: string | null;
+  competition_name: string | null;
+  escalao: string | null;
+  priority: number;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoutingGame {
+  id: number;
+  clubId: string;
+  roundId: number;
+  fpfMatchId: number | null;
+  homeTeam: string;
+  awayTeam: string;
+  matchDate: string;
+  matchTime: string | null;
+  venue: string | null;
+  competitionName: string | null;
+  escalao: string | null;
+  priority: number;
+  notes: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ───────────── Scouting Map: Assignments ───────────── */
+
+export type ScoutAssignmentStatus = 'assigned' | 'confirmed' | 'completed' | 'cancelled';
+
+export interface ScoutAssignmentRow {
+  id: number;
+  club_id: string;
+  game_id: number;
+  scout_id: string;
+  assigned_by: string;
+  status: string;
+  coordinator_notes: string | null;
+  scout_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoutAssignment {
+  id: number;
+  clubId: string;
+  gameId: number;
+  scoutId: string;
+  assignedBy: string;
+  status: ScoutAssignmentStatus;
+  coordinatorNotes: string;
+  scoutNotes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ───────────── Scouting Map: Availability ───────────── */
+
+export type AvailabilityType = 'always' | 'full_day' | 'period' | 'time_range';
+export type AvailabilityPeriod = 'morning' | 'afternoon' | 'evening';
+
+export interface ScoutAvailabilityRow {
+  id: number;
+  club_id: string;
+  round_id: number;
+  scout_id: string;
+  availability_type: string;
+  available_date: string | null;
+  period: string | null;
+  time_start: string | null;
+  time_end: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoutAvailability {
+  id: number;
+  clubId: string;
+  roundId: number;
+  scoutId: string;
+  availabilityType: AvailabilityType;
+  availableDate: string | null;
+  period: AvailabilityPeriod | null;
+  timeStart: string | null;
+  timeEnd: string | null;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}

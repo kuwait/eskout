@@ -187,6 +187,15 @@ Custom squad system replacing hardcoded real/shadow booleans. Clubs can create u
 - [x] Fix Portuguese date parsing (`\w` → accented char class for month names like "março")
 - [x] Search error feedback in UI
 
+### 16A. Scouting Map Data Model ✅ DONE
+- [x] Migration 100: `scouting_rounds`, `scouting_games`, `scout_assignments`, `scout_availability`
+- [x] Games: FPF link (optional FK to `fpf_matches`) + manual (tournaments, friendlies)
+- [x] Availability: flexible model — always/full_day/period/time_range with CHECK constraints
+- [x] RLS: admin/editor manage, scouts see own assignments + declare availability, recruiters excluded
+- [x] TypeScript types (Row + domain) in `src/lib/types/index.ts`
+- [x] Zod validators with conditional refinements in `src/lib/validators.ts`
+- [x] 4 tables added to REALTIME_TABLES
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view

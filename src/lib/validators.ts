@@ -326,3 +326,68 @@ export const quickScoutReportSchema = z.object({
 });
 
 export type QuickScoutReportData = z.infer<typeof quickScoutReportSchema>;
+
+/* ───────────── Scouting Map ───────────── */
+
+const SCOUTING_ROUND_STATUSES = ['draft', 'published', 'closed'] as const;
+
+export const scoutingRoundSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório').max(100, 'Máximo 100 caracteres'),
+  startDate: z.string().min(1, 'Data de início é obrigatória'),
+  endDate: z.string().min(1, 'Data de fim é obrigatória'),
+  status: z.enum(SCOUTING_ROUND_STATUSES).default('draft'),
+  notes: z.string().default(''),
+});
+
+export type ScoutingRoundFormData = z.infer<typeof scoutingRoundSchema>;
+
+export const scoutingGameSchema = z.object({
+  roundId: z.number().int().positive('Ronda inválida'),
+  fpfMatchId: z.number().int().positive().optional(),
+  homeTeam: z.string().min(1, 'Equipa da casa é obrigatória'),
+  awayTeam: z.string().min(1, 'Equipa visitante é obrigatória'),
+  matchDate: z.string().min(1, 'Data do jogo é obrigatória'),
+  matchTime: z.string().optional(),
+  venue: z.string().optional(),
+  competitionName: z.string().optional(),
+  escalao: z.string().optional(),
+  priority: z.number().int().min(0).max(5).default(0),
+  notes: z.string().default(''),
+});
+
+export type ScoutingGameFormData = z.infer<typeof scoutingGameSchema>;
+
+const ASSIGNMENT_STATUSES = ['assigned', 'confirmed', 'completed', 'cancelled'] as const;
+
+export const scoutAssignmentSchema = z.object({
+  gameId: z.number().int().positive('Jogo inválido'),
+  scoutId: z.string().uuid('ID de scout inválido'),
+  status: z.enum(ASSIGNMENT_STATUSES).default('assigned'),
+  coordinatorNotes: z.string().default(''),
+});
+
+export type ScoutAssignmentFormData = z.infer<typeof scoutAssignmentSchema>;
+
+const AVAILABILITY_TYPES = ['always', 'full_day', 'period', 'time_range'] as const;
+const AVAILABILITY_PERIODS = ['morning', 'afternoon', 'evening'] as const;
+
+export const scoutAvailabilitySchema = z.object({
+  roundId: z.number().int().positive('Ronda inválida'),
+  availabilityType: z.enum(AVAILABILITY_TYPES),
+  availableDate: z.string().optional(),
+  period: z.enum(AVAILABILITY_PERIODS).optional(),
+  timeStart: z.string().optional(),
+  timeEnd: z.string().optional(),
+  notes: z.string().default(''),
+}).refine(
+  (data) => data.availabilityType === 'always' || !!data.availableDate,
+  { message: 'Data é obrigatória para este tipo de disponibilidade', path: ['availableDate'] }
+).refine(
+  (data) => data.availabilityType !== 'period' || !!data.period,
+  { message: 'Período é obrigatório', path: ['period'] }
+).refine(
+  (data) => data.availabilityType !== 'time_range' || (!!data.timeStart && !!data.timeEnd),
+  { message: 'Hora início e fim são obrigatórias', path: ['timeStart'] }
+);
+
+export type ScoutAvailabilityFormData = z.infer<typeof scoutAvailabilitySchema>;
