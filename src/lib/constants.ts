@@ -541,9 +541,9 @@ export const HEIGHT_SCALE_OPTIONS: { value: HeightScale; labelPt: string }[] = [
 ];
 
 export const BUILD_SCALE_OPTIONS: { value: BuildScale; labelPt: string }[] = [
-  { value: 'ectomorfo', labelPt: 'Ectomorfo' },
-  { value: 'mesomorfo', labelPt: 'Mesomorfo' },
-  { value: 'endomorfo', labelPt: 'Endomorfo' },
+  { value: 'ectomorfo', labelPt: 'Ecto' },
+  { value: 'mesomorfo', labelPt: 'Meso' },
+  { value: 'endomorfo', labelPt: 'Endo' },
 ];
 
 export const SPEED_SCALE_OPTIONS: { value: SpeedScale; labelPt: string }[] = [
