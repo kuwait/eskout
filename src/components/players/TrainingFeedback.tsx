@@ -668,9 +668,9 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
       {/* ── Characteristics (only when attended) ── */}
       {showStructured && (
-        <div className="space-y-3 rounded-xl border bg-neutral-50/30 p-3">
+        <>
           {/* Physical scales */}
-          <div className="space-y-1.5">
+          <div className="rounded-xl border border-l-[3px] border-l-cyan-400 bg-neutral-50/50 p-3 space-y-2">
             <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">⚡ Físico</p>
             <InlineScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} color="cyan" />
             <InlineScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} color="cyan" />
@@ -679,14 +679,16 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
             <InlineScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} color="cyan" />
           </div>
 
-          <div className="border-t" />
-
-          {/* Tags by category */}
+          {/* Tags by category — each in its own colored card */}
           {TRAINING_TAG_CATEGORIES.map((cat) => {
             const catColor = TAG_CATEGORY_COLORS[cat.category] ?? TAG_CATEGORY_COLORS.adaptacao;
+            const borderColor = cat.category === 'tecnica' ? 'border-l-blue-400'
+              : cat.category === 'tatico' ? 'border-l-teal-400'
+              : cat.category === 'mental' ? 'border-l-purple-400'
+              : 'border-l-amber-400';
             return (
-              <div key={cat.category}>
-                <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
+              <div key={cat.category} className={cn('rounded-xl border border-l-[3px] bg-neutral-50/50 p-3', borderColor)}>
+                <p className={cn('mb-2 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {cat.tags.map((tag) => {
                     const selected = tags.includes(tag.value);
@@ -710,7 +712,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
               </div>
             );
           })}
-        </div>
+        </>
       )}
 
       {/* ── Submit ── */}
