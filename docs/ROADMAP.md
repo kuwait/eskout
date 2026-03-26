@@ -149,6 +149,21 @@ Personal TODO workspace per user with auto-generated tasks from pipeline actions
 - [x] New pipeline column: "Em Stand-by" (slate) between A Decidir and Confirmado — mandatory reason text (`standby_reason`, migration 090)
 - [x] Pipeline card notes — inline editable via ⋮ menu, amber badge display, uses existing `recruitment_notes` column
 
+### 5B-7. Feedback Treinos Admin View ✅ DONE
+- [x] Admin/editor page listing all training feedbacks for the club, ordered by submission date (most recent first)
+- [x] Route: `/definicoes/feedback-treinos` — server component + client list
+- [x] Player photo (square), name (links to profile), position, club on each card
+- [x] Rating dot + escalão + decision badge on the right of each card header
+- [x] Filters: search by player/club, escalão, decision — with page reset on filter change
+- [x] Pagination: 50 per page with numbered page buttons (same pattern as PlayersView)
+- [x] Full feedback display: ratings, decision, physical scales, tags, notes
+- [x] Stubs (awaiting coach) excluded from list
+- [x] Nav: sub-item under Abordagens (pipeline), visible to admin + editor
+- [x] "New feedbacks" badge (cyan): migration 099 adds `training_feedback_seen_at` on `club_memberships`
+- [x] Badge updates via Realtime (`training_feedback` table in `useRealtimeBadges`)
+- [x] `markTrainingFeedbacksSeen()` action called on page visit to clear badge
+- [x] Badge shown in both Sidebar and MobileDrawer
+
 ### 5B-5. Custom Squads ✅ DONE
 Custom squad system replacing hardcoded real/shadow booleans. Clubs can create unlimited squads per age group.
 - [x] Migration 059: `squads` + `squad_players` tables with RLS

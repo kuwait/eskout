@@ -6,7 +6,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClub, getActiveClubId } from '@/lib/supabase/club-context';
 import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow, mapTrainingFeedbackRow, mapSquadRow, mapSquadPlayerRow } from '@/lib/supabase/mappers';
-import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, SquadType, SquadWithPlayers, StatusHistoryEntry, ObservationNote, TrainingFeedback, TrainingFeedbackRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, SquadType, SquadWithPlayers, StatusHistoryEntry, ObservationNote, TrainingFeedback, TrainingFeedbackRow, TrainingFeedbackWithPlayer } from '@/lib/types';
 
 /* ───────────── Players ───────────── */
 
@@ -376,6 +376,82 @@ export async function getTrainingFeedback(playerId: number): Promise<TrainingFee
   }
 
   return (data ?? []).map((row) => mapTrainingFeedbackRow(row as TrainingFeedbackRow));
+}
+
+/** Fetch all training feedbacks for the club, enriched with player info, ordered by most recent.
+ *  Excludes stub entries (awaiting coach feedback) that have no actual content. */
+export async function getAllTrainingFeedbacks(): Promise<TrainingFeedbackWithPlayer[]> {
+  const clubId = await getActiveClubId();
+  const supabase = await createClient();
+
+  const PAGE_SIZE = 1000;
+  let allRows: TrainingFeedbackRow[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('training_feedback')
+      .select('*, profiles:author_id(full_name)')
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('[getAllTrainingFeedbacks] Failed to fetch:', error.message, error);
+      break;
+    }
+
+    allRows = allRows.concat((data ?? []) as TrainingFeedbackRow[]);
+    hasMore = (data?.length ?? 0) === PAGE_SIZE;
+    offset += PAGE_SIZE;
+  }
+
+  // Filter out stubs awaiting coach feedback (no content)
+  allRows = allRows.filter((row) => {
+    const isStub = row.presence === 'attended' && !row.feedback && !row.rating_performance && !row.coach_submitted_at;
+    return !isStub;
+  });
+
+  if (allRows.length === 0) return [];
+
+  // Fetch player info for all unique player IDs
+  const playerIds = [...new Set(allRows.map((r) => r.player_id))];
+  const playerMap: Record<number, { name: string; club: string | null; position: string | null; photo: string | null }> = {};
+
+  for (let i = 0; i < playerIds.length; i += PAGE_SIZE) {
+    const batch = playerIds.slice(i, i + PAGE_SIZE);
+    const { data: players, error: playerError } = await supabase
+      .from('players')
+      .select('id, name, club, position_normalized, photo_url')
+      .eq('club_id', clubId)
+      .in('id', batch);
+
+    if (playerError) {
+      console.error('[getAllTrainingFeedbacks] Failed to fetch players:', playerError.message, playerError);
+    }
+
+    for (const p of players ?? []) {
+      playerMap[p.id] = {
+        name: p.name,
+        club: p.club,
+        position: p.position_normalized,
+        photo: p.photo_url,
+      };
+    }
+  }
+
+  return allRows.map((row) => {
+    const fb = mapTrainingFeedbackRow(row);
+    const player = playerMap[row.player_id];
+    return {
+      ...fb,
+      playerName: player?.name ?? 'Jogador desconhecido',
+      playerClub: player?.club ?? null,
+      playerPosition: player?.position ?? null,
+      playerPhotoUrl: player?.photo ?? null,
+    };
+  });
 }
 
 /* ───────────── Calendar Events ───────────── */

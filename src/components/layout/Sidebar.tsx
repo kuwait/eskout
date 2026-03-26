@@ -9,7 +9,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown, Trophy, FileText, Download } from 'lucide-react';
+import { UserPlus, LogOut, Palette, ArrowLeftRight, Building2, List, Columns2, LayoutGrid, ChevronDown, Trophy, FileText, Download, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
@@ -100,6 +100,26 @@ export function Sidebar({
                     </span>
                   )}
                 </Link>
+                {/* Sub-item: Feedback Treinos — under Abordagens, admin/editor only */}
+                {item.href === '/pipeline' && (userRole === 'admin' || userRole === 'editor') && (
+                  <Link
+                    href="/definicoes/feedback-treinos"
+                    className={cn(
+                      'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                      pathname.startsWith('/definicoes/feedback-treinos')
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Feedback Treinos
+                    {alertCounts.newFeedbacks > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-500 px-1.5 text-[10px] font-bold text-white">
+                        {alertCounts.newFeedbacks}
+                      </span>
+                    )}
+                  </Link>
+                )}
                 {/* Sub-item: Adicionados (pending players) — under Jogadores, admin/editor only */}
                 {item.href === '/' && !isScout && !isRecruiter && (userRole === 'admin' || userRole === 'editor') && (
                   <Link

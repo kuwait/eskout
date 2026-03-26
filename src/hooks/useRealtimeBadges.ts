@@ -22,6 +22,7 @@ const TABLE_TO_BADGES: Record<string, (keyof AlertCounts)[]> = {
   user_tasks: ['pendingTasks'],
   player_lists: ['observationCount'],
   player_list_items: ['observationCount'],
+  training_feedback: ['newFeedbacks'],
 };
 
 const BADGE_TABLES = new Set(Object.keys(TABLE_TO_BADGES));
@@ -38,7 +39,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
   const listIdsRef = useRef<number[]>([]);
 
   /* Sync with server-rendered counts when they change (e.g. after router.refresh()) */
-  const initialKey = `${initialCounts.pendingTasks}-${initialCounts.pendingReports}-${initialCounts.pendingPlayers}-${initialCounts.urgente}-${initialCounts.importante}-${initialCounts.observationCount}`;
+  const initialKey = `${initialCounts.pendingTasks}-${initialCounts.pendingReports}-${initialCounts.pendingPlayers}-${initialCounts.urgente}-${initialCounts.importante}-${initialCounts.observationCount}-${initialCounts.newFeedbacks}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- stable key comparison
   useEffect(() => { setCounts(initialCounts); }, [initialKey]);
 
@@ -95,6 +96,32 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
     setCounts((prev) => ({ ...prev, observationCount: count ?? 0 }));
   }, [clubId, userId]);
 
+  const fetchNewFeedbacks = useCallback(async () => {
+    if (!clubId) return;
+    const supabase = createClient();
+    // Get user's last seen timestamp from club_memberships
+    const { data: membership } = await supabase
+      .from('club_memberships')
+      .select('training_feedback_seen_at')
+      .eq('club_id', clubId)
+      .eq('user_id', userId)
+      .single();
+
+    const seenAt = membership?.training_feedback_seen_at;
+    let query = supabase
+      .from('training_feedback')
+      .select('id', { count: 'exact', head: true })
+      .eq('club_id', clubId)
+      .or('feedback.neq.,rating_performance.not.is.null,coach_submitted_at.not.is.null');
+
+    if (seenAt) {
+      query = query.gt('created_at', seenAt);
+    }
+
+    const { count } = await query;
+    setCounts((prev) => ({ ...prev, newFeedbacks: count ?? 0 }));
+  }, [clubId, userId]);
+
   /* ───────────── Dispatch map ───────────── */
 
   const fetcherMap: Record<keyof AlertCounts, () => Promise<void>> = {
@@ -104,6 +131,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
     pendingPlayers: fetchPlayers,
     pendingTasks: fetchTasks,
     observationCount: fetchObservationCount,
+    newFeedbacks: fetchNewFeedbacks,
   };
 
   const handleEvent = useCallback((event: MutationEvent) => {
@@ -118,7 +146,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
       fetcher().catch((err) => console.error('[Realtime] badge refetch failed:', err));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fetcherMap is stable via its callbacks
-  }, [fetchNotes, fetchReports, fetchPlayers, fetchTasks, fetchObservationCount]);
+  }, [fetchNotes, fetchReports, fetchPlayers, fetchTasks, fetchObservationCount, fetchNewFeedbacks]);
 
   useRealtimeAny(handleEvent);
 

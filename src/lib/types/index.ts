@@ -644,6 +644,14 @@ export interface TrainingFeedback {
   updatedAt: string;
 }
 
+/** TrainingFeedback enriched with player info — used in the admin feedback list view */
+export interface TrainingFeedbackWithPlayer extends TrainingFeedback {
+  playerName: string;
+  playerClub: string | null;
+  playerPosition: string | null;
+  playerPhotoUrl: string | null;
+}
+
 export interface TrainingFeedbackRow {
   id: number;
   club_id: string;

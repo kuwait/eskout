@@ -193,6 +193,25 @@ export async function deleteTrainingFeedback(
   return { success: true };
 }
 
+/* ───────────── Mark feedbacks as seen (for badge count) ───────────── */
+
+/** Update training_feedback_seen_at on club_memberships to clear the "new" badge */
+export async function markTrainingFeedbacksSeen(): Promise<ActionResponse> {
+  const { clubId, userId } = await getActiveClub();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('club_memberships')
+    .update({ training_feedback_seen_at: new Date().toISOString() })
+    .eq('club_id', clubId)
+    .eq('user_id', userId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  return { success: true };
+}
+
 /* ───────────── Share with External Coach ───────────── */
 
 /** Create a feedback stub (attended, no data) + shareable link for an external coach */
