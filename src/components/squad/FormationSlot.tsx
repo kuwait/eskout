@@ -31,6 +31,7 @@ interface FormationSlotProps {
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
+  onToggleSigned?: (playerId: number, isSigned: boolean) => void;
   /** Move player to a special section (Dúvida / Possibilidades) — real squads only */
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
 }
@@ -66,6 +67,7 @@ function DraggablePlayerCard({
   squadType,
   onRemove,
   onToggleDoubt,
+  onToggleSigned,
   onMoveToSection,
 }: {
   player: Player;
@@ -73,6 +75,7 @@ function DraggablePlayerCard({
   squadType: 'real' | 'shadow';
   onRemove: () => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
+  onToggleSigned?: (playerId: number, isSigned: boolean) => void;
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
 }) {
   const dragId = `player-${player.id}`;
@@ -126,6 +129,12 @@ function DraggablePlayerCard({
       {player.isDoubt && (
         <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-amber-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Dúvida">
           Dúvida
+        </span>
+      )}
+      {/* Signed flag — bottom-right corner (green) */}
+      {!player.isDoubt && player.recruitmentStatus === 'assinou' && (
+        <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-green-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Assinou">
+          Assinou
         </span>
       )}
 
@@ -196,6 +205,19 @@ function DraggablePlayerCard({
                 {player.isDoubt ? '✓ Dúvida' : '? Dúvida'}
               </button>
             )}
+            {onToggleSigned && (
+              <button
+                className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${
+                  player.recruitmentStatus === 'assinou'
+                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                    : 'text-green-600 hover:bg-green-50'
+                }`}
+                onClick={(e) => { e.stopPropagation(); onToggleSigned(player.id, player.recruitmentStatus !== 'assinou'); }}
+                aria-label={player.recruitmentStatus === 'assinou' ? 'Remover assinatura' : 'Marcar como assinou'}
+              >
+                {player.recruitmentStatus === 'assinou' ? '✓ Assinou' : '✍ Assinou'}
+              </button>
+            )}
             <Link
               href={`/jogadores/${player.id}`}
               className="flex-1 rounded px-1.5 py-0.5 text-center text-[9px] font-medium text-blue-600 hover:bg-blue-50"
@@ -238,7 +260,7 @@ function DraggablePlayerCard({
 /* ───────────── Formation Slot (droppable + sortable container) ───────────── */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- onPlayerClick kept in interface for backward compat, Link replaced onClick
-export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onMoveToSection }: FormationSlotProps) {
+export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onToggleSigned, onMoveToSection }: FormationSlotProps) {
   const label = positionLabel ?? ((POSITION_LABELS as Record<string, string>)[position] ?? position);
   const displayCode = positionLabel ?? position;
   const dndId = slotId ?? position;
@@ -271,6 +293,7 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
             squadType={squadType}
             onRemove={() => onRemovePlayer(p.id)}
             onToggleDoubt={onToggleDoubt}
+            onToggleSigned={onToggleSigned}
             onMoveToSection={onMoveToSection}
           />
         ))}

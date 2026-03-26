@@ -159,6 +159,9 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                           {player.isDoubt && (
                             <span className="rounded bg-amber-100 px-1 py-0 text-[9px] font-medium text-amber-700">DÚVIDA</span>
                           )}
+                          {!player.isDoubt && player.recruitmentStatus === 'assinou' && (
+                            <span className="rounded bg-green-100 px-1 py-0 text-[9px] font-medium text-green-700">ASSINOU</span>
+                          )}
                         </div>
                       </div>
 
