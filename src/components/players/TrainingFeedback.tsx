@@ -682,10 +682,10 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
           {/* Tags by category */}
           {TRAINING_TAG_CATEGORIES.map((cat) => {
             const catColor = cat.category === 'tecnica'
-              ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500', unselected: 'bg-white text-neutral-500 border-neutral-200 hover:border-blue-300 hover:text-blue-500' }
+              ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300' }
               : cat.category === 'mental'
-              ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-white text-neutral-500 border-neutral-200 hover:border-purple-300 hover:text-purple-500' }
-              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500', unselected: 'bg-white text-neutral-500 border-neutral-200 hover:border-amber-300 hover:text-amber-600' };
+              ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-300' }
+              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500', unselected: 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-300' };
             return (
               <div key={cat.category}>
                 <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
@@ -738,8 +738,8 @@ function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: 
   onChange: (v: string | null) => void;
   color?: 'neutral' | 'cyan';
 }) {
-  const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white shadow-sm' : 'bg-neutral-800 text-white shadow-sm';
-  const inactiveClass = 'bg-white text-neutral-500 hover:bg-neutral-50';
+  const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white' : 'bg-neutral-800 text-white';
+  const inactiveClass = 'bg-neutral-200/60 text-neutral-500 hover:bg-neutral-200';
   return (
     <div className="flex items-center gap-2">
       <p className="w-20 shrink-0 text-[10px] font-semibold text-neutral-500">{label}</p>
