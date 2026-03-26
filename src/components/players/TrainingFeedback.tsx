@@ -682,10 +682,10 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
           {/* Tags by category */}
           {TRAINING_TAG_CATEGORIES.map((cat) => {
             const catColor = cat.category === 'tecnica'
-              ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500', unselected: 'bg-blue-50 text-blue-500 border-blue-200 hover:bg-blue-100' }
+              ? { label: 'text-blue-600', emoji: '⚽', selected: 'bg-blue-500 text-white border-blue-500', unselected: 'bg-white text-neutral-500 border-neutral-200 hover:border-blue-300 hover:text-blue-500' }
               : cat.category === 'mental'
-              ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-purple-50 text-purple-500 border-purple-200 hover:bg-purple-100' }
-              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500', unselected: 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100' };
+              ? { label: 'text-purple-600', emoji: '🧠', selected: 'bg-purple-500 text-white border-purple-500', unselected: 'bg-white text-neutral-500 border-neutral-200 hover:border-purple-300 hover:text-purple-500' }
+              : { label: 'text-amber-600', emoji: '🔄', selected: 'bg-amber-500 text-white border-amber-500', unselected: 'bg-white text-neutral-500 border-neutral-200 hover:border-amber-300 hover:text-amber-600' };
             return (
               <div key={cat.category}>
                 <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-widest', catColor.label)}>{catColor.emoji} {cat.labelPt}</p>
@@ -739,7 +739,7 @@ function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: 
   color?: 'neutral' | 'cyan';
 }) {
   const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white shadow-sm' : 'bg-neutral-800 text-white shadow-sm';
-  const inactiveClass = color === 'cyan' ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200';
+  const inactiveClass = 'bg-white text-neutral-500 hover:bg-neutral-50';
   return (
     <div className="flex items-center gap-2">
       <p className="w-20 shrink-0 text-[10px] font-semibold text-neutral-500">{label}</p>
