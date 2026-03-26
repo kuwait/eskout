@@ -784,14 +784,11 @@ function CardActionsMenu({
   const [open, setOpen] = useState(false);
   // Follow-up: when user picks "A decidir", show side picker instead of closing
   const [showDecisionPicker, setShowDecisionPicker] = useState(false);
-  // Note editing inside the dialog
-  const [showNoteEditor, setShowNoteEditor] = useState(false);
   const [noteDraft, setNoteDraft] = useState(currentNote ?? '');
 
   function handleClose() {
     setOpen(false);
     setShowDecisionPicker(false);
-    setShowNoteEditor(false);
     setNoteDraft(currentNote ?? '');
   }
 
@@ -817,27 +814,11 @@ function CardActionsMenu({
         <DialogContent className="max-w-xs">
           <DialogHeader>
             <DialogTitle className="text-sm">
-              {showNoteEditor ? 'Nota' : showDecisionPicker ? 'Quem está a decidir?' : 'Ações'}
+              {showDecisionPicker ? 'Quem está a decidir?' : 'Ações'}
             </DialogTitle>
           </DialogHeader>
 
-          {showNoteEditor ? (
-            /* Note editor */
-            <div className="space-y-2">
-              <textarea
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                rows={3}
-                className="w-full resize-none rounded-md border px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
-                autoFocus
-                placeholder="Ex: Ligar dia 3 para marcar reunião…"
-              />
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={handleClose}>Cancelar</Button>
-                <Button size="sm" onClick={handleSaveNote}>Guardar</Button>
-              </div>
-            </div>
-          ) : showDecisionPicker ? (
+          {showDecisionPicker ? (
             /* Decision side picker — shown after selecting "A decidir" */
             <div className="flex flex-col gap-1.5">
               <button
@@ -931,27 +912,45 @@ function CardActionsMenu({
                 </>
               )}
 
-              {/* Note */}
+              {/* Note — inline editable */}
               <div className="border-t" />
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => { setShowNoteEditor(true); setNoteDraft(currentNote ?? ''); }}
-                  className="flex flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-amber-50"
-                >
+              <div className="px-3 py-1.5">
+                <div className="flex items-center gap-1.5 pb-1">
                   <StickyNote className="h-3.5 w-3.5 text-amber-500" />
-                  {currentNote ? 'Editar nota' : 'Adicionar nota'}
-                </button>
-                {currentNote && (
-                  <button
-                    type="button"
-                    onClick={() => { onNoteSaved?.(''); handleClose(); }}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-red-400 hover:bg-red-50 hover:text-red-600"
-                    aria-label="Remover nota"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
+                  <span className="text-xs font-medium text-muted-foreground">Nota</span>
+                </div>
+                <div className="flex gap-1">
+                  <textarea
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    rows={2}
+                    className="flex-1 resize-none rounded-md border bg-amber-50/50 px-2 py-1.5 text-sm placeholder:text-muted-foreground/50 focus:border-amber-400 focus:outline-none"
+                    placeholder="Nota rápida…"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveNote(); }
+                    }}
+                  />
+                  {noteDraft !== (currentNote ?? '') && (
+                    <button
+                      type="button"
+                      onClick={handleSaveNote}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center self-end rounded-md text-amber-600 hover:bg-amber-100"
+                      aria-label="Guardar nota"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {currentNote && (
+                    <button
+                      type="button"
+                      onClick={() => { setNoteDraft(''); onNoteSaved?.(''); handleClose(); }}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center self-end rounded-md text-red-400 hover:bg-red-50 hover:text-red-600"
+                      aria-label="Remover nota"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Remove from pipeline */}
