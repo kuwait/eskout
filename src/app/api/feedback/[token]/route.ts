@@ -104,8 +104,11 @@ export async function POST(
     .from('training_feedback')
     .update({
       coach_feedback: data.feedback,
-      coach_rating: data.rating,
+      coach_rating: data.ratingPerformance,
       coach_decision: data.decision,
+      coach_rating_performance: data.ratingPerformance,
+      coach_rating_potential: data.ratingPotential,
+      coach_maturation: data.maturation ?? null,
       coach_height_scale: data.heightScale ?? null,
       coach_build_scale: data.buildScale ?? null,
       coach_speed_scale: data.speedScale ?? null,

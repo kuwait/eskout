@@ -22,6 +22,7 @@ import {
   BUILD_SCALE_OPTIONS,
   SPEED_SCALE_OPTIONS,
   INTENSITY_SCALE_OPTIONS,
+  MATURATION_SCALE_OPTIONS,
   TRAINING_TAG_CATEGORIES,
   TRAINING_TAG_LABEL_MAP,
 } from '@/lib/constants';
@@ -29,6 +30,7 @@ import type {
   BuildScale,
   HeightScale,
   IntensityScale,
+  MaturationScale,
   SpeedScale,
   TrainingDecision,
   TrainingFeedback as TFeedback,
@@ -64,7 +66,8 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
   const latest = attended[0];
   const summaryParts: string[] = [];
   if (attended.length > 0) summaryParts.push(`${attended.length} treino${attended.length > 1 ? 's' : ''}`);
-  if (latest?.rating) summaryParts.push(`${'★'.repeat(latest.rating)}${'☆'.repeat(5 - latest.rating)} ${RATING_LABELS[latest.rating]}`);
+  if (latest?.ratingPerformance) summaryParts.push(`R:${'★'.repeat(latest.ratingPerformance)} ${RATING_LABELS[latest.ratingPerformance]}`);
+  if (latest?.ratingPotential) summaryParts.push(`P:${'★'.repeat(latest.ratingPotential)}`);
   if (latest?.decision && latest.decision !== 'sem_decisao') {
     const dc = TRAINING_DECISIONS.find((d) => d.value === latest.decision);
     if (dc) summaryParts.push(dc.labelPt);
@@ -184,6 +187,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
   if (entry.buildScale) { const o = BUILD_SCALE_OPTIONS.find((x) => x.value === entry.buildScale); if (o) physicalPairs.push({ category: 'Corpo', label: o.labelPt }); }
   if (entry.speedScale) { const o = SPEED_SCALE_OPTIONS.find((x) => x.value === entry.speedScale); if (o) physicalPairs.push({ category: 'Velocidade', label: o.labelPt }); }
   if (entry.intensityScale) { const o = INTENSITY_SCALE_OPTIONS.find((x) => x.value === entry.intensityScale); if (o) physicalPairs.push({ category: 'Intensidade', label: o.labelPt }); }
+  if (entry.maturation) { const o = MATURATION_SCALE_OPTIONS.find((x) => x.value === entry.maturation); if (o) physicalPairs.push({ category: 'Maturação', label: o.labelPt }); }
 
   // Tags: resolve category for coloring
   const tagsByCategory = entry.tags.map((tag) => {
@@ -214,14 +218,19 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {entry.rating && (() => {
-            const c = RATING_COLORS[entry.rating] ?? DEFAULT_COLORS;
+          {entry.ratingPerformance && (() => {
+            const c = RATING_COLORS[entry.ratingPerformance] ?? DEFAULT_COLORS;
             return (
-              <span className={cn('flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className={cn('h-2.5 w-2.5', i < entry.rating! ? c.star : 'text-neutral-200')} fill="currentColor" strokeWidth={i < entry.rating! ? 1.5 : 0} />
-                ))}
-                <span className="ml-0.5">{RATING_LABELS[entry.rating]}</span>
+              <span className={cn('flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)} title="Rendimento">
+                R{'★'.repeat(entry.ratingPerformance)}
+              </span>
+            );
+          })()}
+          {entry.ratingPotential && (() => {
+            const c = RATING_COLORS[entry.ratingPotential] ?? DEFAULT_COLORS;
+            return (
+              <span className={cn('flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold', c.bg, c.text)} title="Potencial">
+                P{'★'.repeat(entry.ratingPotential)}
               </span>
             );
           })()}
@@ -284,7 +293,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending }: {
       <div className="mt-1.5 flex items-center justify-between">
         <p className="text-[10px] text-muted-foreground">por {entry.authorName}</p>
         {/* Show "awaiting coach" if no internal feedback but also no coach feedback (stub entry) */}
-        {entry.presence === 'attended' && !entry.feedback && !entry.rating && !entry.coachSubmittedAt && (
+        {entry.presence === 'attended' && !entry.feedback && !entry.ratingPerformance && !entry.coachSubmittedAt && (
           <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-600 border border-cyan-200">
             Aguarda treinador
           </span>
@@ -323,10 +332,11 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated }: {
         onCreated({
           id: Date.now(), clubId: '', playerId, authorId: '', authorName: 'Eu',
           trainingDate: date, escalao: escalao || null, presence: 'attended',
-          feedback: null, rating: null, decision: 'sem_decisao',
-          heightScale: null, buildScale: null, speedScale: null, intensityScale: null, tags: [],
-          coachFeedback: null, coachRating: null, coachDecision: null,
-          coachHeightScale: null, coachBuildScale: null, coachSpeedScale: null, coachIntensityScale: null,
+          feedback: null, rating: null, ratingPerformance: null, ratingPotential: null, decision: 'sem_decisao',
+          heightScale: null, buildScale: null, speedScale: null, intensityScale: null, maturation: null, tags: [],
+          coachFeedback: null, coachRating: null, coachRatingPerformance: null, coachRatingPotential: null,
+          coachDecision: null, coachHeightScale: null, coachBuildScale: null,
+          coachSpeedScale: null, coachIntensityScale: null, coachMaturation: null,
           coachTags: [], coachName: null, coachSubmittedAt: null,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         });
@@ -494,12 +504,14 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
   const [escalao, setEscalao] = useState(defaultEscalao ?? '');
   const [presence, setPresence] = useState<TrainingPresence>('attended');
   const [feedback, setFeedback] = useState('');
-  const [rating, setRating] = useState<number | null>(null);
+  const [ratingPerformance, setRatingPerformance] = useState<number | null>(null);
+  const [ratingPotential, setRatingPotential] = useState<number | null>(null);
   const [decision, setDecision] = useState<TrainingDecision>('sem_decisao');
   const [heightScale, setHeightScale] = useState<HeightScale | null>(null);
   const [buildScale, setBuildScale] = useState<BuildScale | null>(null);
   const [speedScale, setSpeedScale] = useState<SpeedScale | null>(null);
   const [intensityScale, setIntensityScale] = useState<IntensityScale | null>(null);
+  const [maturation, setMaturation] = useState<MaturationScale | null>(null);
   const [tags, setTags] = useState<string[]>([]);
 
   const showStructured = presence === 'attended';
@@ -508,7 +520,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
     setPresence(p);
     if (p !== 'attended') {
       setDecision('sem_decisao');
-      setHeightScale(null); setBuildScale(null); setSpeedScale(null); setIntensityScale(null);
+      setHeightScale(null); setBuildScale(null); setSpeedScale(null); setIntensityScale(null); setMaturation(null);
       setTags([]);
     }
   }
@@ -521,16 +533,19 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
     if (!date) { toast.error('Data obrigatória'); return; }
     startTransition(async () => {
       const res = await createTrainingFeedback(
-        playerId, date, presence, feedback || undefined, rating ?? undefined, escalao || undefined,
+        playerId, date, presence, feedback || undefined, undefined, escalao || undefined,
         decision, heightScale, buildScale, speedScale, intensityScale, tags,
+        ratingPerformance ?? undefined, ratingPotential ?? undefined, maturation,
       );
       if (res.success) {
         onCreated({
           id: Date.now(), clubId: '', playerId, authorId: '', authorName: currentUserName || 'Eu',
-          trainingDate: date, escalao: escalao || null, presence, feedback: feedback || null, rating,
-          decision, heightScale, buildScale, speedScale, intensityScale, tags,
-          coachFeedback: null, coachRating: null, coachDecision: null,
-          coachHeightScale: null, coachBuildScale: null, coachSpeedScale: null, coachIntensityScale: null,
+          trainingDate: date, escalao: escalao || null, presence, feedback: feedback || null,
+          rating: ratingPerformance, ratingPerformance, ratingPotential,
+          decision, heightScale, buildScale, speedScale, intensityScale, maturation, tags,
+          coachFeedback: null, coachRating: null, coachRatingPerformance: null, coachRatingPotential: null,
+          coachDecision: null, coachHeightScale: null, coachBuildScale: null,
+          coachSpeedScale: null, coachIntensityScale: null, coachMaturation: null,
           coachTags: [], coachName: null, coachSubmittedAt: null,
           createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         });
@@ -586,17 +601,30 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
         </div>
       </div>
 
-      {/* ── Avaliação ── */}
-      <div>
-        <div className="mb-1.5 flex items-baseline gap-2">
-          <SectionLabel inline>Avaliação</SectionLabel>
-          {rating && (
-            <span className={cn('text-xs font-bold', (RATING_COLORS[rating] ?? DEFAULT_COLORS).text)}>
-              {RATING_LABELS[rating]}
-            </span>
-          )}
+      {/* ── Avaliação dupla: Rendimento + Potencial ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="mb-1.5 flex items-baseline gap-2">
+            <SectionLabel inline>Rendimento</SectionLabel>
+            {ratingPerformance && (
+              <span className={cn('text-xs font-bold', (RATING_COLORS[ratingPerformance] ?? DEFAULT_COLORS).text)}>
+                {RATING_LABELS[ratingPerformance]}
+              </span>
+            )}
+          </div>
+          <RatingBar rating={ratingPerformance} onChange={setRatingPerformance} />
         </div>
-        <RatingBar rating={rating} onChange={setRating} />
+        <div>
+          <div className="mb-1.5 flex items-baseline gap-2">
+            <SectionLabel inline>Potencial</SectionLabel>
+            {ratingPotential && (
+              <span className={cn('text-xs font-bold', (RATING_COLORS[ratingPotential] ?? DEFAULT_COLORS).text)}>
+                {RATING_LABELS[ratingPotential]}
+              </span>
+            )}
+          </div>
+          <RatingBar rating={ratingPotential} onChange={setRatingPotential} />
+        </div>
       </div>
 
       {/* ── Decisão (only when attended) ── */}
@@ -647,6 +675,7 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
               <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} />
               <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
               <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
+              <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} />
             </div>
           </div>
 

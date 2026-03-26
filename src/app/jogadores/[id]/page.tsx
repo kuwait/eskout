@@ -189,6 +189,12 @@ function mapFeedback(rows: any[]): TrainingFeedback[] {
     coachTags: Array.isArray(row.coach_tags) ? row.coach_tags : [],
     coachName: row.coach_name ?? null,
     coachSubmittedAt: row.coach_submitted_at ?? null,
+    ratingPerformance: row.rating_performance ?? null,
+    ratingPotential: row.rating_potential ?? null,
+    maturation: (row.maturation as TrainingFeedback['maturation']) ?? null,
+    coachRatingPerformance: row.coach_rating_performance ?? null,
+    coachRatingPotential: row.coach_rating_potential ?? null,
+    coachMaturation: (row.coach_maturation as TrainingFeedback['coachMaturation']) ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));

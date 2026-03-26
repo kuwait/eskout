@@ -175,9 +175,10 @@ export type CalendarEventFormData = z.infer<typeof calendarEventSchema>;
 const TRAINING_PRESENCE_VALUES = ['attended', 'missed', 'rescheduled'] as const;
 const TRAINING_DECISION_VALUES = ['assinar', 'repetir', 'descartar', 'sem_decisao'] as const;
 const HEIGHT_SCALE_VALUES = ['alto', 'normal', 'baixo'] as const;
-const BUILD_SCALE_VALUES = ['gordo', 'fit', 'magro'] as const;
+const BUILD_SCALE_VALUES = ['ectomorfo', 'mesomorfo', 'endomorfo'] as const;
 const SPEED_SCALE_VALUES = ['rapido', 'normal', 'lento'] as const;
 const INTENSITY_SCALE_VALUES = ['intenso', 'pouco_intenso'] as const;
+const MATURATION_SCALE_VALUES = ['nada_maturado', 'a_iniciar', 'maturado', 'super_maturado'] as const;
 
 export const trainingFeedbackSchema = z.object({
   playerId: z.number().int().positive('ID de jogador inválido'),
@@ -185,12 +186,14 @@ export const trainingFeedbackSchema = z.object({
   escalao: z.string().optional(),
   presence: z.enum(TRAINING_PRESENCE_VALUES, { message: 'Presença inválida' }),
   feedback: z.string().optional(),
-  rating: z.number().int().min(1).max(5).optional(),
+  ratingPerformance: z.number().int().min(1).max(5).optional(),
+  ratingPotential: z.number().int().min(1).max(5).optional(),
   decision: z.enum(TRAINING_DECISION_VALUES).default('sem_decisao'),
   heightScale: z.enum(HEIGHT_SCALE_VALUES).nullable().optional(),
   buildScale: z.enum(BUILD_SCALE_VALUES).nullable().optional(),
   speedScale: z.enum(SPEED_SCALE_VALUES).nullable().optional(),
   intensityScale: z.enum(INTENSITY_SCALE_VALUES).nullable().optional(),
+  maturation: z.enum(MATURATION_SCALE_VALUES).nullable().optional(),
   tags: z.array(z.string()).default([]),
 });
 
@@ -202,12 +205,14 @@ const COACH_DECISION_VALUES = ['assinar', 'repetir', 'descartar', 'duvidas'] as 
 
 export const coachFeedbackSchema = z.object({
   feedback: z.string().min(1, 'Feedback é obrigatório'),
-  rating: z.number().int().min(1, 'Avaliação é obrigatória').max(5),
+  ratingPerformance: z.number().int().min(1, 'Avaliação de rendimento é obrigatória').max(5),
+  ratingPotential: z.number().int().min(1, 'Avaliação de potencial é obrigatória').max(5),
   decision: z.enum(COACH_DECISION_VALUES, { message: 'Decisão é obrigatória' }),
   heightScale: z.enum(HEIGHT_SCALE_VALUES).nullable().optional(),
   buildScale: z.enum(BUILD_SCALE_VALUES).nullable().optional(),
   speedScale: z.enum(SPEED_SCALE_VALUES).nullable().optional(),
   intensityScale: z.enum(INTENSITY_SCALE_VALUES).nullable().optional(),
+  maturation: z.enum(MATURATION_SCALE_VALUES).nullable().optional(),
   tags: z.array(z.string()).default([]),
   coachName: z.string().min(1, 'Nome é obrigatório'),
 });

@@ -25,6 +25,9 @@ export async function createTrainingFeedback(
   speedScale?: string | null,
   intensityScale?: string | null,
   tags?: string[],
+  ratingPerformance?: number,
+  ratingPotential?: number,
+  maturation?: string | null,
 ): Promise<ActionResponse> {
   const parsed = trainingFeedbackSchema.safeParse({
     playerId,
@@ -39,6 +42,9 @@ export async function createTrainingFeedback(
     speedScale,
     intensityScale,
     tags,
+    ratingPerformance,
+    ratingPotential,
+    maturation,
   });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
@@ -57,13 +63,16 @@ export async function createTrainingFeedback(
       escalao: parsed.data.escalao || null,
       presence: parsed.data.presence,
       feedback: parsed.data.feedback || null,
-      rating: parsed.data.rating ?? null,
+      rating: parsed.data.ratingPerformance ?? null,
+      rating_performance: parsed.data.ratingPerformance ?? null,
+      rating_potential: parsed.data.ratingPotential ?? null,
       decision: parsed.data.decision,
       height_scale: parsed.data.heightScale ?? null,
       build_scale: parsed.data.buildScale ?? null,
       speed_scale: parsed.data.speedScale ?? null,
       intensity_scale: parsed.data.intensityScale ?? null,
       tags: parsed.data.tags,
+      maturation: parsed.data.maturation ?? null,
     })
     .select('id')
     .single();
@@ -92,6 +101,9 @@ export async function updateTrainingFeedback(
     speedScale?: string | null;
     intensityScale?: string | null;
     tags?: string[];
+    ratingPerformance?: number | null;
+    ratingPotential?: number | null;
+    maturation?: string | null;
   },
 ): Promise<ActionResponse> {
   const { clubId, userId } = await getActiveClub();
@@ -126,6 +138,9 @@ export async function updateTrainingFeedback(
   if (updates.speedScale !== undefined) dbUpdates.speed_scale = updates.speedScale;
   if (updates.intensityScale !== undefined) dbUpdates.intensity_scale = updates.intensityScale;
   if (updates.tags !== undefined) dbUpdates.tags = updates.tags;
+  if (updates.ratingPerformance !== undefined) dbUpdates.rating_performance = updates.ratingPerformance;
+  if (updates.ratingPotential !== undefined) dbUpdates.rating_potential = updates.ratingPotential;
+  if (updates.maturation !== undefined) dbUpdates.maturation = updates.maturation;
 
   const { error } = await supabase
     .from('training_feedback')

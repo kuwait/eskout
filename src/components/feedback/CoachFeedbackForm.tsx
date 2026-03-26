@@ -13,6 +13,7 @@ import {
   BUILD_SCALE_OPTIONS,
   SPEED_SCALE_OPTIONS,
   INTENSITY_SCALE_OPTIONS,
+  MATURATION_SCALE_OPTIONS,
   TRAINING_TAG_CATEGORIES,
 } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -31,7 +32,8 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   // Required fields
-  const [rating, setRating] = useState<number | null>(null);
+  const [ratingPerformance, setRatingPerformance] = useState<number | null>(null);
+  const [ratingPotential, setRatingPotential] = useState<number | null>(null);
   const [decision, setDecision] = useState<string | null>(null);
   const [feedback, setFeedback] = useState('');
 
@@ -40,6 +42,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
   const [buildScale, setBuildScale] = useState<string | null>(null);
   const [speedScale, setSpeedScale] = useState<string | null>(null);
   const [intensityScale, setIntensityScale] = useState<string | null>(null);
+  const [maturation, setMaturation] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [coachName, setCoachName] = useState('');
 
@@ -47,8 +50,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
     setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
   }
 
-  // Validation: rating + decision + feedback all required
-  const canSubmit = rating !== null && decision !== null && feedback.trim().length > 0 && coachName.trim().length > 0;
+  const canSubmit = ratingPerformance !== null && ratingPotential !== null && decision !== null && feedback.trim().length > 0 && coachName.trim().length > 0;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -60,13 +62,15 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rating,
+          ratingPerformance,
+          ratingPotential,
           decision,
           feedback: feedback.trim(),
           heightScale,
           buildScale,
           speedScale,
           intensityScale,
+          maturation,
           tags,
           coachName: coachName.trim(),
         }),
@@ -100,35 +104,16 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
   return (
     <div className="space-y-5">
-      {/* ── Rating (required) ── */}
-      <div>
-        <SectionLabel required>Avaliação</SectionLabel>
-        <div className="flex h-11 gap-0.5 rounded-xl overflow-hidden">
-          {[1, 2, 3, 4, 5].map((n) => {
-            const active = rating !== null && n <= rating;
-            const c = RATING_COLORS[rating ?? 0] ?? DEFAULT_COLORS;
-            return (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setRating(rating === n ? null : n)}
-                className={cn(
-                  'flex-1 flex items-center justify-center text-xs font-bold transition-all active:scale-95',
-                  active ? `${c.bg} ${c.text}` : 'bg-neutral-100 text-neutral-300 hover:bg-neutral-200',
-                  n === 1 && 'rounded-l-xl',
-                  n === 5 && 'rounded-r-xl',
-                )}
-              >
-                <Star className={cn('h-5 w-5', active ? c.star : 'text-neutral-300')} fill={active ? 'currentColor' : 'none'} strokeWidth={1.5} />
-              </button>
-            );
-          })}
+      {/* ── Dual Rating (required) ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <SectionLabel required>Rendimento</SectionLabel>
+          <RatingBarCoach rating={ratingPerformance} onChange={setRatingPerformance} />
         </div>
-        {rating && (
-          <p className={cn('mt-1 text-center text-xs font-bold', (RATING_COLORS[rating] ?? DEFAULT_COLORS).text)}>
-            {RATING_LABELS[rating]}
-          </p>
-        )}
+        <div>
+          <SectionLabel required>Potencial</SectionLabel>
+          <RatingBarCoach rating={ratingPotential} onChange={setRatingPotential} />
+        </div>
       </div>
 
       {/* ── Decision (required) ── */}
@@ -174,6 +159,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
           <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={setBuildScale} />
           <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={setSpeedScale} />
           <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={setIntensityScale} />
+          <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={setMaturation} />
         </div>
       </div>
 
@@ -235,7 +221,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
       {!canSubmit && (
         <p className="text-center text-[10px] text-neutral-400">
-          Preencha o nome, avaliação, decisão e feedback para submeter.
+          Preencha o nome, avaliações, decisão e feedback para submeter.
         </p>
       )}
     </div>
@@ -299,3 +285,38 @@ const DEFAULT_COLORS = { star: 'text-neutral-300', text: 'text-neutral-500', bg:
 const RATING_LABELS: Record<number, string> = {
   1: 'Fraco', 2: 'Dúvida', 3: 'Bom', 4: 'Muito Bom', 5: 'Excelente',
 };
+
+/* ───────────── Rating Bar (segmented 1-5) ───────────── */
+
+function RatingBarCoach({ rating, onChange }: { rating: number | null; onChange: (v: number | null) => void }) {
+  return (
+    <div>
+      <div className="flex h-10 gap-0.5 rounded-xl overflow-hidden">
+        {[1, 2, 3, 4, 5].map((n) => {
+          const active = rating !== null && n <= rating;
+          const c = RATING_COLORS[rating ?? 0] ?? DEFAULT_COLORS;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(rating === n ? null : n)}
+              className={cn(
+                'flex-1 flex items-center justify-center text-xs font-bold transition-all active:scale-95',
+                active ? `${c.bg} ${c.text}` : 'bg-neutral-100 text-neutral-300 hover:bg-neutral-200',
+                n === 1 && 'rounded-l-xl',
+                n === 5 && 'rounded-r-xl',
+              )}
+            >
+              <Star className={cn('h-4 w-4', active ? c.star : 'text-neutral-300')} fill={active ? 'currentColor' : 'none'} strokeWidth={1.5} />
+            </button>
+          );
+        })}
+      </div>
+      {rating && (
+        <p className={cn('mt-1 text-center text-xs font-bold', (RATING_COLORS[rating] ?? DEFAULT_COLORS).text)}>
+          {RATING_LABELS[rating]}
+        </p>
+      )}
+    </div>
+  );
+}

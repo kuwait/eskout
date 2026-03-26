@@ -3,7 +3,7 @@
 // Single source of truth for all domain enums and their display properties
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/utils/positions.ts, src/lib/validators.ts
 
-import type { BuildScale, CalendarEventType, DecisionSide, DepartmentOpinion, HeightScale, IntensityScale, ObservationTier, Player, PositionCode, RecruitmentStatus, SpeedScale, TrainingDecision, TrainingPresence } from '@/lib/types';
+import type { BuildScale, CalendarEventType, DecisionSide, DepartmentOpinion, HeightScale, IntensityScale, MaturationScale, ObservationTier, Player, PositionCode, RecruitmentStatus, SpeedScale, TrainingDecision, TrainingPresence } from '@/lib/types';
 
 /* ───────────── Positions ───────────── */
 
@@ -541,9 +541,9 @@ export const HEIGHT_SCALE_OPTIONS: { value: HeightScale; labelPt: string }[] = [
 ];
 
 export const BUILD_SCALE_OPTIONS: { value: BuildScale; labelPt: string }[] = [
-  { value: 'gordo', labelPt: 'Gordo' },
-  { value: 'fit', labelPt: 'Fit' },
-  { value: 'magro', labelPt: 'Magro' },
+  { value: 'ectomorfo', labelPt: 'Ectomorfo' },
+  { value: 'mesomorfo', labelPt: 'Mesomorfo' },
+  { value: 'endomorfo', labelPt: 'Endomorfo' },
 ];
 
 export const SPEED_SCALE_OPTIONS: { value: SpeedScale; labelPt: string }[] = [
@@ -555,6 +555,13 @@ export const SPEED_SCALE_OPTIONS: { value: SpeedScale; labelPt: string }[] = [
 export const INTENSITY_SCALE_OPTIONS: { value: IntensityScale; labelPt: string }[] = [
   { value: 'intenso', labelPt: 'Intenso' },
   { value: 'pouco_intenso', labelPt: 'Pouco intenso' },
+];
+
+export const MATURATION_SCALE_OPTIONS: { value: MaturationScale; labelPt: string }[] = [
+  { value: 'nada_maturado', labelPt: 'Nada maturado' },
+  { value: 'a_iniciar', labelPt: 'A iniciar' },
+  { value: 'maturado', labelPt: 'Maturado' },
+  { value: 'super_maturado', labelPt: 'Super maturado' },
 ];
 
 /* ───────────── Training Tags (multi-select per category) ───────────── */

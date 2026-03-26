@@ -341,15 +341,16 @@ describe('trainingFeedbackSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts rating 1–5', () => {
+  it('accepts ratingPerformance and ratingPotential 1–5', () => {
     for (const r of [1, 2, 3, 4, 5]) {
-      expect(trainingFeedbackSchema.safeParse({ ...validFeedback, rating: r }).success).toBe(true);
+      expect(trainingFeedbackSchema.safeParse({ ...validFeedback, ratingPerformance: r }).success).toBe(true);
+      expect(trainingFeedbackSchema.safeParse({ ...validFeedback, ratingPotential: r }).success).toBe(true);
     }
   });
 
   it('rejects rating outside 1–5', () => {
-    expect(trainingFeedbackSchema.safeParse({ ...validFeedback, rating: 0 }).success).toBe(false);
-    expect(trainingFeedbackSchema.safeParse({ ...validFeedback, rating: 6 }).success).toBe(false);
+    expect(trainingFeedbackSchema.safeParse({ ...validFeedback, ratingPerformance: 0 }).success).toBe(false);
+    expect(trainingFeedbackSchema.safeParse({ ...validFeedback, ratingPerformance: 6 }).success).toBe(false);
   });
 
   it('rejects missing trainingDate', () => {

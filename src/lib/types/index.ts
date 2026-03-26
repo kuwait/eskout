@@ -598,9 +598,10 @@ export interface CalendarEventRow {
 export type TrainingPresence = 'attended' | 'missed' | 'rescheduled';
 export type TrainingDecision = 'assinar' | 'repetir' | 'descartar' | 'sem_decisao';
 export type HeightScale = 'alto' | 'normal' | 'baixo';
-export type BuildScale = 'gordo' | 'fit' | 'magro';
+export type BuildScale = 'ectomorfo' | 'mesomorfo' | 'endomorfo';
 export type SpeedScale = 'rapido' | 'normal' | 'lento';
 export type IntensityScale = 'intenso' | 'pouco_intenso';
+export type MaturationScale = 'nada_maturado' | 'a_iniciar' | 'maturado' | 'super_maturado';
 
 export interface TrainingFeedback {
   id: number;
@@ -613,20 +614,26 @@ export interface TrainingFeedback {
   presence: TrainingPresence;
   feedback: string | null;
   rating: number | null;
+  ratingPerformance: number | null;
+  ratingPotential: number | null;
   decision: TrainingDecision;
   heightScale: HeightScale | null;
   buildScale: BuildScale | null;
   speedScale: SpeedScale | null;
   intensityScale: IntensityScale | null;
+  maturation: MaturationScale | null;
   tags: string[];
   /** Coach feedback (external, via share link) */
   coachFeedback: string | null;
   coachRating: number | null;
+  coachRatingPerformance: number | null;
+  coachRatingPotential: number | null;
   coachDecision: TrainingDecision | null;
   coachHeightScale: HeightScale | null;
   coachBuildScale: BuildScale | null;
   coachSpeedScale: SpeedScale | null;
   coachIntensityScale: IntensityScale | null;
+  coachMaturation: MaturationScale | null;
   coachTags: string[];
   coachName: string | null;
   coachSubmittedAt: string | null;
@@ -644,19 +651,25 @@ export interface TrainingFeedbackRow {
   presence: string;
   feedback: string | null;
   rating: number | null;
+  rating_performance: number | null;
+  rating_potential: number | null;
   decision: string;
   height_scale: string | null;
   build_scale: string | null;
   speed_scale: string | null;
   intensity_scale: string | null;
+  maturation: string | null;
   tags: string[] | null;
   coach_feedback: string | null;
   coach_rating: number | null;
+  coach_rating_performance: number | null;
+  coach_rating_potential: number | null;
   coach_decision: string | null;
   coach_height_scale: string | null;
   coach_build_scale: string | null;
   coach_speed_scale: string | null;
   coach_intensity_scale: string | null;
+  coach_maturation: string | null;
   coach_tags: string[] | null;
   coach_name: string | null;
   coach_submitted_at: string | null;
