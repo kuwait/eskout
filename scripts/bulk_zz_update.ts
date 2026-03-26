@@ -930,6 +930,7 @@ async function runScrapeData() {
 /* ───────────── Phase DDG: Find ZZ links via DuckDuckGo only (zero ZZ requests) ───────────── */
 
 /** Extract ZZ profile URLs from DDG Lite HTML */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for future DDG-based ZZ link discovery
 function extractZzUrlsFromDdg(html: string): string[] {
   const seen = new Set<string>();
   const urls: string[] = [];

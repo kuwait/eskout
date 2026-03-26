@@ -129,7 +129,6 @@ function computeLegacyByPosition(players: Player[], squadType: SquadType): Recor
 }
 
 /** RPC result shape from get_squad_panel */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC returns untyped JSON
 interface SquadPanelData {
   squads: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   squad_players: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
