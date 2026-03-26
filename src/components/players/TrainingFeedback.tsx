@@ -9,6 +9,16 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Calendar, Check, Copy, ExternalLink, GraduationCap, Loader2, Plus, Share2, Star, Trash2 } from 'lucide-react';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -267,11 +277,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
             </p>
           </div>
           {canDelete && (
-            confirmDelete ? (
-              <button type="button" onClick={() => { onDelete(); setConfirmDelete(false); }} disabled={isPending} onBlur={() => setConfirmDelete(false)} className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">Confirmar</button>
-            ) : (
-              <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
-            )
+            <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
           )}
         </div>
         {shareLink && (
@@ -317,11 +323,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
         </div>
 
         {canDelete && (
-          confirmDelete ? (
-            <button type="button" onClick={() => { onDelete(); setConfirmDelete(false); }} disabled={isPending} onBlur={() => setConfirmDelete(false)} className="shrink-0 rounded bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">Apagar</button>
-          ) : (
-            <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="shrink-0 rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
-          )
+          <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="shrink-0 rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
         )}
       </div>
 
@@ -393,6 +395,24 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar feedback?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser revertida.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={onDelete} className="bg-red-600 text-white hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
