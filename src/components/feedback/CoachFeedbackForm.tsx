@@ -48,7 +48,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
   }
 
   // Validation: rating + decision + feedback all required
-  const canSubmit = rating !== null && decision !== null && feedback.trim().length > 0;
+  const canSubmit = rating !== null && decision !== null && feedback.trim().length > 0 && coachName.trim().length > 0;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -68,7 +68,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
           speedScale,
           intensityScale,
           tags,
-          coachName: coachName.trim() || undefined,
+          coachName: coachName.trim(),
         }),
       });
 
@@ -209,7 +209,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
       {/* ── Coach name (optional) ── */}
       <div>
-        <SectionLabel>O seu nome <span className="font-normal text-neutral-400">(opcional)</span></SectionLabel>
+        <SectionLabel required>O seu nome</SectionLabel>
         <input
           value={coachName}
           onChange={(e) => setCoachName(e.target.value)}
@@ -235,7 +235,7 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
       {!canSubmit && (
         <p className="text-center text-[10px] text-neutral-400">
-          Preencha a avaliação, decisão e feedback para submeter.
+          Preencha o nome, avaliação, decisão e feedback para submeter.
         </p>
       )}
     </div>

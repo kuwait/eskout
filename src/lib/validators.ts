@@ -209,7 +209,7 @@ export const coachFeedbackSchema = z.object({
   speedScale: z.enum(SPEED_SCALE_VALUES).nullable().optional(),
   intensityScale: z.enum(INTENSITY_SCALE_VALUES).nullable().optional(),
   tags: z.array(z.string()).default([]),
-  coachName: z.string().optional(),
+  coachName: z.string().min(1, 'Nome é obrigatório'),
 });
 
 export type CoachFeedbackFormData = z.infer<typeof coachFeedbackSchema>;
