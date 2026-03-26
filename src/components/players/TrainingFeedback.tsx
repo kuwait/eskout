@@ -669,14 +669,16 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
       {/* ── Characteristics (only when attended) ── */}
       {showStructured && (
         <>
-          {/* Physical scales */}
-          <div className="rounded-xl border border-l-[3px] border-l-cyan-400 bg-neutral-50/50 p-3 space-y-2">
+          {/* Physical scales — same layout as coach page */}
+          <div className="rounded-xl border border-l-[3px] border-l-cyan-400 bg-neutral-50/50 p-3 space-y-3">
             <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">⚡ Físico</p>
-            <InlineScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} color="cyan" />
-            <InlineScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} color="cyan" />
-            <InlineScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} color="cyan" />
-            <InlineScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} color="cyan" />
-            <InlineScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} color="cyan" />
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <ScaleBlock label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} />
+              <ScaleBlock label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} />
+              <ScaleBlock label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
+              <ScaleBlock label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
+            </div>
+            <ScaleBlock label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} />
           </div>
 
           {/* Tags by category — each in its own colored card */}
@@ -728,22 +730,18 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
   );
 }
 
-/* ───────────── Scale Row (label + segmented bar) ───────────── */
+/* ───────────── Scale Block (label on top, buttons below — matches coach page) ───────────── */
 
-/** Inline scale: label left, segmented buttons right — single row, with accent color */
-function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: {
+function ScaleBlock({ label, options, value, onChange }: {
   label: string;
   options: { value: string; labelPt: string }[];
   value: string | null;
   onChange: (v: string | null) => void;
-  color?: 'neutral' | 'cyan';
 }) {
-  const activeClass = color === 'cyan' ? 'bg-cyan-600 text-white' : 'bg-neutral-800 text-white';
-  const inactiveClass = 'bg-neutral-200/60 text-neutral-500 hover:bg-neutral-200';
   return (
-    <div className="flex items-center gap-2">
-      <p className="w-20 shrink-0 text-[10px] font-semibold text-neutral-500">{label}</p>
-      <div className="flex flex-1 h-7 gap-0.5 rounded-lg overflow-hidden">
+    <div>
+      <p className="mb-1 text-[10px] font-medium text-neutral-500">{label}</p>
+      <div className="flex h-8 gap-0.5 rounded-lg overflow-hidden">
         {options.map((opt, i) => (
           <button
             key={opt.value}
@@ -752,8 +750,8 @@ function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: 
             className={cn(
               'flex-1 flex items-center justify-center text-[11px] font-semibold transition-all active:scale-95',
               value === opt.value
-                ? activeClass
-                : inactiveClass,
+                ? 'bg-cyan-600 text-white'
+                : 'bg-neutral-200/60 text-neutral-500 hover:bg-neutral-200',
               i === 0 && 'rounded-l-lg',
               i === options.length - 1 && 'rounded-r-lg',
             )}
@@ -765,6 +763,8 @@ function InlineScaleRow({ label, options, value, onChange, color = 'neutral' }: 
     </div>
   );
 }
+
+
 
 /* ───────────── Rating Bar (segmented 1-5, like QSR overall) ───────────── */
 
