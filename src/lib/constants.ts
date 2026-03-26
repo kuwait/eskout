@@ -559,7 +559,7 @@ export const INTENSITY_SCALE_OPTIONS: { value: IntensityScale; labelPt: string }
 
 export const MATURATION_SCALE_OPTIONS: { value: MaturationScale; labelPt: string }[] = [
   { value: 'nada_maturado', labelPt: 'Nada' },
-  { value: 'a_iniciar', labelPt: 'Iniciar' },
+  { value: 'a_iniciar', labelPt: 'Início' },
   { value: 'maturado', labelPt: 'Maturado' },
   { value: 'super_maturado', labelPt: 'Super' },
 ];
