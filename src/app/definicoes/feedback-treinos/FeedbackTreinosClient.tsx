@@ -48,9 +48,9 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
   const [decisionFilter, setDecisionFilter] = useState<TrainingDecision | 'all'>('all');
   const [page, setPage] = useState(0);
 
-  // Mark feedbacks as seen on mount (clears badge)
+  // Mark feedbacks as seen when leaving the page (clears badge on next render)
   useEffect(() => {
-    markTrainingFeedbacksSeen();
+    return () => { markTrainingFeedbacksSeen(); };
   }, []);
 
   // Extract unique escalões from the data
