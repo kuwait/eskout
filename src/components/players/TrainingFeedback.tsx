@@ -674,11 +674,11 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
             <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">⚡ Físico</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <ScaleBlock label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={(v) => setHeightScale(v as HeightScale | null)} />
-              <ScaleBlock label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} />
+              <ScaleBlock label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={(v) => setBuildScale(v as BuildScale | null)} info="Ecto = magro/longilíneo · Meso = atlético/musculado · Endo = largo/robusto" />
               <ScaleBlock label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={(v) => setSpeedScale(v as SpeedScale | null)} />
               <ScaleBlock label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={(v) => setIntensityScale(v as IntensityScale | null)} />
             </div>
-            <ScaleBlock label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} />
+            <ScaleBlock label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={(v) => setMaturation(v as MaturationScale | null)} info="Desenvolvimento físico relativo à idade: Nada = pré-pubertário · Início = início do pico · Maturado = pico atingido · Super = muito avançado para a idade" />
           </div>
 
           {/* Tags by category — each in its own colored card */}
@@ -732,15 +732,32 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
 /* ───────────── Scale Block (label on top, buttons below — matches coach page) ───────────── */
 
-function ScaleBlock({ label, options, value, onChange }: {
+function ScaleBlock({ label, options, value, onChange, info }: {
   label: string;
   options: { value: string; labelPt: string }[];
   value: string | null;
   onChange: (v: string | null) => void;
+  info?: string;
 }) {
+  const [showInfo, setShowInfo] = useState(false);
   return (
     <div>
-      <p className="mb-1 text-[10px] font-medium text-neutral-500">{label}</p>
+      <div className="mb-1 flex items-center gap-1">
+        <p className="text-[10px] font-medium text-neutral-500">{label}</p>
+        {info && (
+          <button
+            type="button"
+            onClick={() => setShowInfo(!showInfo)}
+            className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-neutral-200 text-[8px] font-bold text-neutral-500 hover:bg-neutral-300"
+            title={info}
+          >
+            i
+          </button>
+        )}
+      </div>
+      {showInfo && info && (
+        <p className="mb-1 text-[10px] leading-snug text-neutral-400">{info}</p>
+      )}
       <div className="flex h-8 gap-0.5 rounded-lg overflow-hidden">
         {options.map((opt, i) => (
           <button

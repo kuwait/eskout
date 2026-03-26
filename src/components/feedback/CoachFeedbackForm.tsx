@@ -156,10 +156,10 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
         <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Físico <span className="font-normal text-neutral-400">(opcional)</span></p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           <ScaleRow label="Estatura" options={HEIGHT_SCALE_OPTIONS} value={heightScale} onChange={setHeightScale} />
-          <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={setBuildScale} />
+          <ScaleRow label="Corpo" options={BUILD_SCALE_OPTIONS} value={buildScale} onChange={setBuildScale} info="Ecto = magro/longilíneo · Meso = atlético/musculado · Endo = largo/robusto" />
           <ScaleRow label="Velocidade" options={SPEED_SCALE_OPTIONS} value={speedScale} onChange={setSpeedScale} />
           <ScaleRow label="Intensidade" options={INTENSITY_SCALE_OPTIONS} value={intensityScale} onChange={setIntensityScale} />
-          <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={setMaturation} />
+          <ScaleRow label="Maturação" options={MATURATION_SCALE_OPTIONS} value={maturation} onChange={setMaturation} info="Nada = pré-pubertário · Início = início do pico · Maturado = pico atingido · Super = muito avançado para a idade" />
         </div>
       </div>
 
@@ -233,15 +233,32 @@ export function CoachFeedbackForm({ token }: CoachFeedbackFormProps) {
 
 /* ───────────── Scale Row ───────────── */
 
-function ScaleRow({ label, options, value, onChange }: {
+function ScaleRow({ label, options, value, onChange, info }: {
   label: string;
   options: { value: string; labelPt: string }[];
   value: string | null;
   onChange: (v: string | null) => void;
+  info?: string;
 }) {
+  const [showInfo, setShowInfo] = useState(false);
   return (
     <div>
-      <p className="mb-1 text-[10px] font-medium text-neutral-500">{label}</p>
+      <div className="mb-1 flex items-center gap-1">
+        <p className="text-[10px] font-medium text-neutral-500">{label}</p>
+        {info && (
+          <button
+            type="button"
+            onClick={() => setShowInfo(!showInfo)}
+            className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-neutral-200 text-[8px] font-bold text-neutral-500 hover:bg-neutral-300"
+            title={info}
+          >
+            i
+          </button>
+        )}
+      </div>
+      {showInfo && info && (
+        <p className="mb-1 text-[10px] leading-snug text-neutral-400">{info}</p>
+      )}
       <div className="flex h-8 gap-0.5 rounded-lg overflow-hidden">
         {options.map((opt, i) => (
           <button
