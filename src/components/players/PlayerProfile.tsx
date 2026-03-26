@@ -1299,7 +1299,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                                   <span className={`h-2 w-2 rounded-full ${isReal ? 'bg-green-500' : 'bg-purple-500'}`} />
                                   <span className={`text-sm font-semibold ${isReal ? 'text-green-800' : 'text-purple-800'}`}>
                                     {isReal
-                                      ? `Plantel${sp.squad.ageGroupName ? ` - ${sp.squad.ageGroupName}` : ''}`
+                                      ? `Plantel - ${sp.squad.name}`
                                       : `Plantel Sombra${sp.squad.ageGroupName ? ` - ${sp.squad.ageGroupName}` : ''} ${sp.squad.name}`
                                     }
                                   </span>
