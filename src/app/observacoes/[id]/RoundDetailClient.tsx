@@ -19,6 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { addAvailability, removeAvailability } from '@/actions/scout-availability';
 import { addManualGame, deleteGame, updateGame, getFpfMatchesForImport, addFpfGame } from '@/actions/scouting-games';
 import { assignScout, removeAssignment } from '@/actions/scout-assignments';
@@ -76,6 +81,7 @@ export function RoundDetailClient({
   const [targets, setTargets] = useState<Record<number, GameObservationTarget[]>>(initialTargets ?? {});
   const router = useRouter();
   const [editRoundOpen, setEditRoundOpen] = useState(false);
+  const [deleteRoundConfirm, setDeleteRoundConfirm] = useState(false);
   const [roundDraft, setRoundDraft] = useState({ name: round.name, startDate: round.startDate, endDate: round.endDate, notes: round.notes });
   const [addOpen, setAddOpen] = useState(false);
   const [addGameOpen, setAddGameOpen] = useState(false);
@@ -484,6 +490,9 @@ export function RoundDetailClient({
                       Reabrir jornada
                     </button>
                   )}
+                  <button type="button" onClick={() => setDeleteRoundConfirm(true)} disabled={isPending} className="text-xs text-red-500 hover:text-red-700 transition">
+                    Eliminar
+                  </button>
                 </div>
                 <Button type="submit" disabled={isPending} size="sm">Guardar</Button>
               </div>
@@ -491,6 +500,37 @@ export function RoundDetailClient({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete round confirmation */}
+      <AlertDialog open={deleteRoundConfirm} onOpenChange={setDeleteRoundConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar jornada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A jornada &quot;{roundDraft.name || 'sem nome'}&quot; e todos os jogos, atribuições e pedidos de observação serão eliminados permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                startTransition(async () => {
+                  const res = await deleteScoutingRound(round.id);
+                  if (res.success) {
+                    toast.success('Jornada eliminada');
+                    router.push('/observacoes');
+                  } else {
+                    toast.error(res.error ?? 'Erro');
+                  }
+                });
+              }}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Add availability dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
