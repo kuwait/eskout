@@ -42,6 +42,69 @@ export async function getAssignmentsForRound(roundId: number): Promise<ScoutAssi
   return (data ?? []).map((row) => mapScoutAssignmentRow(row as ScoutAssignmentRow));
 }
 
+/** Assigned game with round and game details — used for /meus-jogos */
+export interface AssignedGame {
+  assignmentId: number;
+  assignmentStatus: ScoutAssignmentStatus;
+  roundId: number;
+  roundName: string;
+  gameId: number;
+  homeTeam: string;
+  awayTeam: string;
+  matchDate: string;
+  matchTime: string | null;
+  venue: string | null;
+  competitionName: string | null;
+  escalao: string | null;
+}
+
+/** Fetch all assigned games for the current user across published rounds */
+export async function getMyAssignedGames(): Promise<AssignedGame[]> {
+  const { userId } = await getActiveClub();
+  const supabase = await createClient();
+
+  // Fetch assignments with joined game + round data
+  const { data, error } = await supabase
+    .from('scout_assignments')
+    .select(`
+      id, status, game_id,
+      scouting_games!inner(id, round_id, home_team, away_team, match_date, match_time, venue, competition_name, escalao,
+        scouting_rounds!inner(id, name, status)
+      )
+    `)
+    .eq('scout_id', userId)
+    .neq('status', 'cancelled');
+
+  if (error) {
+    console.error('[getMyAssignedGames] Failed:', error.message);
+    return [];
+  }
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  return (data ?? []).filter((row: any) => {
+    // Only published rounds
+    return row.scouting_games?.scouting_rounds?.status === 'published';
+  }).map((row: any) => {
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+    const game = row.scouting_games;
+    const round = game.scouting_rounds;
+    return {
+      assignmentId: row.id,
+      assignmentStatus: row.status as ScoutAssignmentStatus,
+      roundId: round.id,
+      roundName: round.name,
+      gameId: game.id,
+      homeTeam: game.home_team,
+      awayTeam: game.away_team,
+      matchDate: game.match_date,
+      matchTime: game.match_time,
+      venue: game.venue,
+      competitionName: game.competition_name,
+      escalao: game.escalao,
+    };
+  }).sort((a: AssignedGame, b: AssignedGame) => a.matchDate.localeCompare(b.matchDate));
+}
+
 /* ───────────── Conflict Detection ───────────── */
 
 export interface AssignmentConflict {

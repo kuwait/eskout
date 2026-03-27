@@ -27,6 +27,12 @@ interface QuickReportFormProps {
   onCancel?: () => void;
   /** Called when form dirty state changes (has any data filled) */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Pre-fill match context from scouting assignment */
+  initialMatchContext?: {
+    competition?: string;
+    opponent?: string;
+    matchDate?: string;
+  };
 }
 
 interface FormState {
@@ -152,8 +158,16 @@ function isDirty(form: FormState): boolean {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- playerName kept for future use
-export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess, onCancel, onDirtyChange }: QuickReportFormProps) {
-  const [form, setForm] = useState<FormState>(EMPTY_STATE);
+export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess, onCancel, onDirtyChange, initialMatchContext }: QuickReportFormProps) {
+  const [form, setForm] = useState<FormState>(() => {
+    if (!initialMatchContext) return EMPTY_STATE;
+    return {
+      ...EMPTY_STATE,
+      competition: initialMatchContext.competition ?? '',
+      opponent: initialMatchContext.opponent ?? '',
+      matchDate: initialMatchContext.matchDate ?? '',
+    };
+  });
   const [showContext, setShowContext] = useState(false);
   const [showObsContext, setShowObsContext] = useState(false);
   const [showRec, setShowRec] = useState(false);

@@ -226,6 +226,13 @@ Custom squad system replacing hardcoded real/shadow booleans. Clubs can create u
 - [x] Assign scout dialog: list of available scouts, click to assign
 - [x] Recruiter access: migration 101 updates RLS SELECT on all 4 tables, nav visible, published-only filter
 
+### 16E. Scout View (/meus-jogos) + QSR Pre-fill ✅ DONE
+- [x] Server action: `getMyAssignedGames()` — all assignments across published rounds
+- [x] Page: `/meus-jogos` — scout-only, grouped by round, game cards with match details
+- [x] "Observar" button → navigates to player list with QSR match context as query params
+- [x] `QuickReportForm`: new `initialMatchContext` prop pre-fills competition, opponent, matchDate
+- [x] Nav: "Meus Jogos" (CalendarDays icon), scout-only, in middleware SCOUT_ALLOWED_ROUTES
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view
