@@ -8,7 +8,7 @@
 import { useState, useTransition, useMemo } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Binoculars, Calendar, Check, Clock, MapPin, Plus, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Binoculars, Calendar, Check, Clock, MapPin, Pencil, Plus, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { addAvailability, removeAvailability } from '@/actions/scout-availability';
-import { addManualGame, deleteGame, getFpfMatchesForImport, addFpfGame } from '@/actions/scouting-games';
+import { addManualGame, deleteGame, updateGame, getFpfMatchesForImport, addFpfGame } from '@/actions/scouting-games';
 import { assignScout, removeAssignment } from '@/actions/scout-assignments';
 import type { AvailabilityPeriod, AvailabilityType, ScoutAssignment, ScoutAvailability, ScoutingGame, ScoutingRound } from '@/lib/types';
 
@@ -67,6 +67,7 @@ export function RoundDetailClient({
   const [assignments, setAssignments] = useState(initialAssignments);
   const [addOpen, setAddOpen] = useState(false);
   const [addGameOpen, setAddGameOpen] = useState(false);
+  const [editGameTarget, setEditGameTarget] = useState<ScoutingGame | null>(null);
   const [assignDialogGameId, setAssignDialogGameId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -203,6 +204,7 @@ export function RoundDetailClient({
                   canManage={canManage}
                   isClosed={round.status === 'closed'}
                   isPending={isPending}
+                  onEdit={() => setEditGameTarget(game)}
                   onDelete={() => {
                     startTransition(async () => {
                       const res = await deleteGame(game.id, round.id);
@@ -269,6 +271,33 @@ export function RoundDetailClient({
               });
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit game dialog */}
+      <Dialog open={!!editGameTarget} onOpenChange={(open) => !open && setEditGameTarget(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Jogo</DialogTitle>
+          </DialogHeader>
+          {editGameTarget && (
+            <EditGameForm
+              game={editGameTarget}
+              isPending={isPending}
+              onSubmit={(updates) => {
+                startTransition(async () => {
+                  const res = await updateGame(editGameTarget.id, round.id, updates);
+                  if (res.success) {
+                    setGames((prev) => prev.map((g) => g.id === editGameTarget.id ? { ...g, ...updates } : g));
+                    setEditGameTarget(null);
+                    toast.success('Jogo atualizado');
+                  } else {
+                    toast.error(res.error);
+                  }
+                });
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -634,7 +663,8 @@ function formatShortLabel(slot: ScoutAvailability): string {
 /* ───────────── Scout Game Card (read-only, with Observar link) ───────────── */
 
 function ScoutGameCard({ game }: { game: ScoutingGame }) {
-  const dateLabel = new Date(game.matchDate).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' });
+  const [sy, sm, sd] = game.matchDate.split('-').map(Number);
+  const dateLabel = new Date(sy, sm - 1, sd).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' });
 
   // QSR pre-fill params
   const qsrParams = new URLSearchParams();
@@ -655,6 +685,9 @@ function ScoutGameCard({ game }: { game: ScoutingGame }) {
           {game.escalao && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium">{game.escalao}</span>}
           {game.competitionName && <span className="text-muted-foreground/60">{game.competitionName}</span>}
         </div>
+        {game.notes && (
+          <p className="mt-1.5 rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-800">{game.notes}</p>
+        )}
       </div>
       <div className="border-t bg-neutral-50/50 px-4 py-2 flex justify-end">
         <Link
@@ -671,13 +704,14 @@ function ScoutGameCard({ game }: { game: ScoutingGame }) {
 
 /* ───────────── Admin Game Card ───────────── */
 
-function GameCard({ game, assignments, scouts, canManage, isClosed, isPending, onDelete, onAssign, onRemoveAssignment }: {
+function GameCard({ game, assignments, scouts, canManage, isClosed, isPending, onEdit, onDelete, onAssign, onRemoveAssignment }: {
   game: ScoutingGame;
   assignments: ScoutAssignment[];
   scouts: { id: string; name: string; role: string }[];
   canManage: boolean;
   isClosed: boolean;
   isPending: boolean;
+  onEdit: () => void;
   onDelete: () => void;
   onAssign: () => void;
   onRemoveAssignment: (id: number) => void;
@@ -700,10 +734,16 @@ function GameCard({ game, assignments, scouts, canManage, isClosed, isPending, o
             {game.competitionName && <span className="text-muted-foreground/60">{game.competitionName}</span>}
             {game.fpfMatchId && <span className="rounded bg-blue-50 px-1 py-0.5 text-[9px] font-medium text-blue-600">FPF</span>}
           </div>
+          {game.notes && (
+            <p className="mt-1.5 rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-800">{game.notes}</p>
+          )}
         </div>
 
         {canManage && !isClosed && (
           <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={onEdit} disabled={isPending} className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" title="Editar jogo">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
             <button type="button" onClick={onAssign} disabled={isPending} className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" title="Atribuir scout">
               <UserPlus className="h-4 w-4" />
             </button>
@@ -741,7 +781,7 @@ function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, o
   startDate: string;
   endDate: string;
   isPending: boolean;
-  onManualSubmit: (data: { roundId: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime?: string; venue?: string; competitionName?: string; escalao?: string }) => void;
+  onManualSubmit: (data: { roundId: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime?: string; venue?: string; competitionName?: string; escalao?: string; notes?: string }) => void;
   onFpfImport: (fpfMatchId: number) => void;
 }) {
   const [tab, setTab] = useState<'manual' | 'fpf'>('manual');
@@ -752,6 +792,7 @@ function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, o
   const [venue, setVenue] = useState('');
   const [competitionName, setCompetitionName] = useState('');
   const [escalao, setEscalao] = useState('');
+  const [notes, setNotes] = useState('');
 
   // FPF tab state
   const [fpfMatches, setFpfMatches] = useState<{ id: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime: string | null; venue: string | null; competitionName: string | null; escalao: string | null }[]>([]);
@@ -779,7 +820,7 @@ function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, o
       </div>
 
       {tab === 'manual' && (
-        <form onSubmit={(e) => { e.preventDefault(); onManualSubmit({ roundId, homeTeam, awayTeam, matchDate, matchTime: matchTime || undefined, venue: venue || undefined, competitionName: competitionName || undefined, escalao: escalao || undefined }); }} className="space-y-3">
+        <form onSubmit={(e) => { e.preventDefault(); onManualSubmit({ roundId, homeTeam, awayTeam, matchDate, matchTime: matchTime || undefined, venue: venue || undefined, competitionName: competitionName || undefined, escalao: escalao || undefined, notes: notes || undefined }); }} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Casa</label>
@@ -813,6 +854,10 @@ function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, o
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Competição</label>
             <input type="text" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} placeholder="Torneio X" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Nota / Objectivo</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ex: Relatório jogador X, mapear equipa toda..." className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400 resize-none" />
           </div>
           <Button type="submit" disabled={isPending || !homeTeam || !awayTeam} className="w-full">Adicionar</Button>
         </form>
@@ -848,6 +893,69 @@ function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, o
         </div>
       )}
     </div>
+  );
+}
+
+/* ───────────── Assign Scout Form ───────────── */
+
+/* ───────────── Edit Game Form ───────────── */
+
+function EditGameForm({ game, isPending, onSubmit }: {
+  game: ScoutingGame;
+  isPending: boolean;
+  onSubmit: (updates: { homeTeam?: string; awayTeam?: string; matchDate?: string; matchTime?: string; venue?: string; competitionName?: string; escalao?: string; notes?: string }) => void;
+}) {
+  const [homeTeam, setHomeTeam] = useState(game.homeTeam);
+  const [awayTeam, setAwayTeam] = useState(game.awayTeam);
+  const [matchDate, setMatchDate] = useState(game.matchDate);
+  const [matchTime, setMatchTime] = useState(game.matchTime ?? '');
+  const [venue, setVenue] = useState(game.venue ?? '');
+  const [competitionName, setCompetitionName] = useState(game.competitionName ?? '');
+  const [escalao, setEscalao] = useState(game.escalao ?? '');
+  const [notes, setNotes] = useState(game.notes ?? '');
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ homeTeam, awayTeam, matchDate, matchTime: matchTime || undefined, venue: venue || undefined, competitionName: competitionName || undefined, escalao: escalao || undefined, notes }); }} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Casa</label>
+          <input type="text" value={homeTeam} onChange={(e) => setHomeTeam(e.target.value)} required className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Fora</label>
+          <input type="text" value={awayTeam} onChange={(e) => setAwayTeam(e.target.value)} required className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Data</label>
+          <input type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} required className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Hora</label>
+          <input type="time" value={matchTime} onChange={(e) => setMatchTime(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Local</label>
+          <input type="text" value={venue} onChange={(e) => setVenue(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Escalão</label>
+          <input type="text" value={escalao} onChange={(e) => setEscalao(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-600">Competição</label>
+        <input type="text" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-600">Nota / Objectivo</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ex: Relatório jogador X, mapear equipa toda..." className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400 resize-none" />
+      </div>
+      <Button type="submit" disabled={isPending || !homeTeam || !awayTeam} className="w-full">Guardar</Button>
+    </form>
   );
 }
 

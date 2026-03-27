@@ -193,6 +193,54 @@ export async function addFpfGame(
   return { success: true, data: mapScoutingGameRow(created as ScoutingGameRow) };
 }
 
+/* ───────────── Update ───────────── */
+
+export async function updateGame(
+  gameId: number,
+  roundId: number,
+  updates: {
+    homeTeam?: string;
+    awayTeam?: string;
+    matchDate?: string;
+    matchTime?: string;
+    venue?: string;
+    competitionName?: string;
+    escalao?: string;
+    notes?: string;
+  },
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') {
+    return { success: false, error: 'Sem permissão' };
+  }
+
+  const supabase = await createClient();
+
+  const dbUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.homeTeam !== undefined) dbUpdates.home_team = updates.homeTeam;
+  if (updates.awayTeam !== undefined) dbUpdates.away_team = updates.awayTeam;
+  if (updates.matchDate !== undefined) dbUpdates.match_date = updates.matchDate;
+  if (updates.matchTime !== undefined) dbUpdates.match_time = updates.matchTime || null;
+  if (updates.venue !== undefined) dbUpdates.venue = updates.venue || null;
+  if (updates.competitionName !== undefined) dbUpdates.competition_name = updates.competitionName || null;
+  if (updates.escalao !== undefined) dbUpdates.escalao = updates.escalao || null;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+
+  const { error } = await supabase
+    .from('scouting_games')
+    .update(dbUpdates)
+    .eq('id', gameId)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar: ${error.message}` };
+  }
+
+  revalidatePath(`/observacoes/${roundId}`);
+  await broadcastRowMutation(clubId, 'scouting_games', 'UPDATE', userId, gameId);
+  return { success: true };
+}
+
 /* ───────────── Delete ───────────── */
 
 export async function deleteGame(
