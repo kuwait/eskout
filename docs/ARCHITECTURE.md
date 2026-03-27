@@ -267,7 +267,7 @@ sikout/
 │       ├── usePlayerProfilePopup.tsx  # Quick player preview popup
 │       └── useResizableColumns.ts    # Resizable table columns
 ├── scripts/                           # Python scrapers + TS import
-├── supabase/migrations/               # 001-095 SQL migrations
+├── supabase/migrations/               # 001-103 SQL migrations
 ├── e2e/                               # Playwright E2E tests
 ├── data/all_players.json
 └── docs/
@@ -360,6 +360,10 @@ Roles are **per-club** (stored in `club_memberships.role`), not global. A user c
 | Capability | Admin | Editor | Scout | Recruiter |
 |-----------|-------|--------|-------|-----------|
 | Read all players | Yes | Yes | Limited | Yes (no scouting data) |
+| Scouting map (read) | Yes | Yes | Published only | Published only |
+| Scouting map (manage) | Yes | Yes | No | No |
+| Observation targets | Yes | Yes | Read only | Read only |
+| Player lists | Yes | Yes | Yes | Yes |
 | Create players | Yes | Yes | Via submission | Yes |
 | Edit players | Yes | Yes | Own created only | Pipeline fields only |
 | Delete players | Yes | No | No | No |
@@ -390,7 +394,8 @@ Global flag `profiles.is_superadmin` grants access to `/master` panel (club mana
 PUBLIC_ROUTES         = /login, /auth/confirm, /definir-password
 ADMIN_ONLY_ROUTES     = /admin
 SCOUT_ALLOWED_ROUTES  = /meus-relatorios, /submeter, /mais, /preferencias,
-                        /jogadores/novo, /meus-jogadores, /jogadores/[id]
+                        /jogadores/novo, /meus-jogadores, /meus-jogos,
+                        /observacoes, /listas, /jogadores/[id]
 RECRUITER_BLOCKED     = /exportar, /meus-relatorios, /submeter, /admin, /alertas
 NO_CLUB_ROUTES        = /escolher-clube, /preferencias
 SUPERADMIN_ROUTES     = /master
@@ -438,7 +443,7 @@ Client (RealtimeProvider) → event bus → useRealtimeTable callbacks → page 
 
 ### Tables with Realtime
 
-`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`, `player_list_shares`, `saved_comparisons`, `player_videos`, `squads`, `squad_players`
+`players`, `observation_notes`, `scouting_reports`, `scout_evaluations`, `status_history`, `calendar_events`, `club_memberships`, `player_added_dismissals`, `user_tasks`, `training_feedback`, `player_lists`, `player_list_items`, `player_list_shares`, `saved_comparisons`, `player_videos`, `squads`, `squad_players`, `scouting_rounds`, `scouting_games`, `scout_assignments`, `scout_availability`, `game_observation_targets`
 
 ---
 
@@ -899,6 +904,93 @@ CREATE TABLE player_list_shares (
   shared_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================
+-- TABLE: scouting_rounds (weekly observation rounds)
+-- ============================================
+CREATE TABLE scouting_rounds (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  club_id       UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  start_date    DATE NOT NULL,
+  end_date      DATE NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'draft'
+                CHECK (status IN ('draft', 'published', 'closed')),
+  notes         TEXT DEFAULT '',
+  created_by    UUID NOT NULL REFERENCES profiles(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT scouting_rounds_date_range CHECK (end_date >= start_date)
+);
+
+-- ============================================
+-- TABLE: scouting_games (games within a round)
+-- ============================================
+CREATE TABLE scouting_games (
+  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  club_id           UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  round_id          BIGINT NOT NULL REFERENCES scouting_rounds(id) ON DELETE CASCADE,
+  fpf_match_id      INTEGER REFERENCES fpf_matches(id) ON DELETE SET NULL,
+  home_team         TEXT NOT NULL,
+  away_team         TEXT NOT NULL,
+  match_date        DATE NOT NULL,
+  match_time        TEXT,
+  venue             TEXT,
+  competition_name  TEXT,
+  escalao           TEXT,
+  priority          SMALLINT DEFAULT 0,
+  notes             TEXT DEFAULT '',
+  created_by        UUID NOT NULL REFERENCES profiles(id),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================
+-- TABLE: scout_assignments (scout → game mapping)
+-- ============================================
+CREATE TABLE scout_assignments (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  club_id     UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  game_id     BIGINT NOT NULL REFERENCES scouting_games(id) ON DELETE CASCADE,
+  scout_id    UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  status      TEXT NOT NULL DEFAULT 'assigned'
+              CHECK (status IN ('assigned', 'confirmed', 'declined', 'completed')),
+  notes       TEXT DEFAULT '',
+  assigned_by UUID NOT NULL REFERENCES profiles(id),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(game_id, scout_id)
+);
+
+-- ============================================
+-- TABLE: scout_availability (availability declarations)
+-- ============================================
+CREATE TABLE scout_availability (
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  club_id         UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  round_id        BIGINT NOT NULL REFERENCES scouting_rounds(id) ON DELETE CASCADE,
+  scout_id        UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  availability_type TEXT NOT NULL CHECK (availability_type IN ('always', 'full_day', 'period', 'time_range')),
+  specific_date   DATE,
+  period          TEXT CHECK (period IN ('morning', 'afternoon', 'evening')),
+  time_start      TIME,
+  time_end        TIME,
+  notes           TEXT DEFAULT '',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ============================================
+-- TABLE: game_observation_targets (player targets per game)
+-- ============================================
+CREATE TABLE game_observation_targets (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  club_id     UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  game_id     BIGINT NOT NULL REFERENCES scouting_games(id) ON DELETE CASCADE,
+  player_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  added_by    UUID NOT NULL REFERENCES profiles(id),
+  notes       TEXT DEFAULT '',
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (game_id, player_id)
+);
 ```
 
 ---
@@ -952,6 +1044,22 @@ CREATE INDEX idx_squads_age_group ON squads(club_id, age_group_id);
 CREATE INDEX idx_squad_players_squad ON squad_players(squad_id);
 CREATE INDEX idx_squad_players_player ON squad_players(player_id);
 CREATE INDEX idx_squad_players_club ON squad_players(club_id);
+
+-- Scouting map
+CREATE INDEX idx_scouting_rounds_club ON scouting_rounds(club_id);
+CREATE INDEX idx_scouting_rounds_dates ON scouting_rounds(club_id, start_date, end_date);
+CREATE INDEX idx_scouting_rounds_status ON scouting_rounds(club_id, status);
+CREATE INDEX idx_scouting_games_round ON scouting_games(round_id);
+CREATE INDEX idx_scouting_games_club ON scouting_games(club_id);
+CREATE INDEX idx_scouting_games_date ON scouting_games(match_date);
+CREATE INDEX idx_scouting_games_fpf ON scouting_games(fpf_match_id) WHERE fpf_match_id IS NOT NULL;
+
+-- Game observation targets
+CREATE INDEX idx_game_targets_game ON game_observation_targets(game_id);
+CREATE INDEX idx_game_targets_player ON game_observation_targets(player_id);
+
+-- QSR game link
+CREATE INDEX idx_qsr_game ON quick_scout_reports(game_id) WHERE game_id IS NOT NULL;
 ```
 
 ---
@@ -1011,6 +1119,17 @@ CREATE POLICY "Members read own club" ON clubs FOR SELECT
 -- ── SQUAD_PLAYERS ──
 -- Read: club members see squad players in their club
 -- Insert/Update/Delete: admin/editor/recruiter (not scout)
+
+-- ── SCOUTING MAP (rounds, games, assignments, availability) ──
+-- Read: admin/editor/scout/recruiter (club members)
+-- Insert/Update/Delete: admin/editor (coordinators)
+-- Scout: own availability only (insert/delete)
+-- Recruiter: read-only (published rounds only via migration 101)
+
+-- ── GAME_OBSERVATION_TARGETS ──
+-- Read: all club members (admin, editor, scout, recruiter)
+-- Insert: admin/editor
+-- Delete: admin/editor or the person who added the target
 ```
 
 ### Column-Level Trigger
@@ -1153,7 +1272,7 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 
 ## 13. Migrations
 
-95 SQL migrations in `supabase/migrations/` (001-095). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
+103 SQL migrations in `supabase/migrations/` (001-103). There is also a `029_030_031_combined.sql` convenience file that bundles three migrations for single-pass execution.
 
 | # | File | Description |
 |---|------|-------------|
@@ -1252,3 +1371,8 @@ See `src/lib/types/index.ts` for full type definitions including `ScoutingReport
 | 093 | `093_training_feedback_dual_rating.sql` | Build scale rename (ecto/meso/endo), maturation, dual rating (performance + potential) |
 | 094 | `094_training_feedback_duvidas.sql` | Add 'duvidas' to decision CHECK constraint |
 | 095 | `095_coach_observed_position.sql` | Add coach_observed_position to training_feedback |
+| 096-099 | *(various)* | Feedback treinos admin view, badge tracking, minor fixes |
+| 100 | `100_scouting_map.sql` | Scouting map: `scouting_rounds`, `scouting_games`, `scout_assignments`, `scout_availability` tables with RLS |
+| 101 | `101_scouting_map_recruiter.sql` | Recruiter read access on scouting map tables (SELECT on all 4 tables) |
+| 102 | `102_game_observation_targets.sql` | Game observation targets: `game_observation_targets` table + `quick_scout_reports.game_id` FK to `scouting_games` |
+| 103 | `103_qsr_physical_scales.sql` | QSR physical scale alignment: add `height_scale`, `build_scale`, `speed_scale`, `intensity_scale`, `maturation_scale` columns; migrate data from old fields; drop `height_impression`, `build_impression` |

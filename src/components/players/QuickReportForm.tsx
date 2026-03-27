@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef } from 'react';
-import { ChevronDown, Send, Loader2 } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';

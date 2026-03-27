@@ -262,7 +262,7 @@ export async function getAllLists(): Promise<PlayerList[]> {
 
 /** Get items in a specific list (with joined player data) — service client for shared list support */
 export async function getListItems(listId: number): Promise<PlayerListItem[]> {
-  const { role } = await getActiveClub();
+  await getActiveClub();
   // Scouts have full access to lists
 
   // Service client to bypass player_list_items RLS for shared lists
@@ -281,7 +281,7 @@ export async function getListItems(listId: number): Promise<PlayerListItem[]> {
 
 /** Get list metadata by id — uses service client to support shared lists (RLS blocks non-owner reads) */
 export async function getListById(listId: number): Promise<PlayerList | null> {
-  const { role } = await getActiveClub();
+  await getActiveClub();
   // Scouts have full access to lists
 
   // Use service client — player_lists RLS only allows owner/admin reads,
@@ -664,7 +664,7 @@ export async function updateListItemNote(
   playerId: number,
   note: string | null,
 ): Promise<ActionResponse> {
-  const { role } = await getActiveClub();
+  await getActiveClub();
   // Scouts have full access to lists
 
   const supabase = await createClient();
@@ -686,7 +686,7 @@ export async function toggleListItemSeen(
   playerId: number,
   seen: boolean,
 ): Promise<ActionResponse> {
-  const { role } = await getActiveClub();
+  await getActiveClub();
   // Scouts have full access to lists
 
   const supabase = await createClient();
@@ -733,8 +733,7 @@ export async function reorderListItems(
 
 /** Fetch lightweight player data for the add-to-list search dialog. Paginated to bypass Supabase 1000-row limit. */
 export async function getPickerPlayers(): Promise<PickerPlayer[]> {
-  const { clubId, role } = await getActiveClub();
-  // Scouts have full access to lists
+  const { clubId } = await getActiveClub();
 
   const supabase = await createClient();
   const PAGE_SIZE = 1000;
@@ -876,8 +875,7 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
  * Get distinct club names for filter dropdowns.
  */
 export async function getPickerClubs(): Promise<string[]> {
-  const { clubId, role } = await getActiveClub();
-  // Scouts have full access to lists
+  const { clubId } = await getActiveClub();
 
   const supabase = await createClient();
   const { data } = await supabase

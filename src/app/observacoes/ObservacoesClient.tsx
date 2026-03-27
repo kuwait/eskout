@@ -8,7 +8,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Binoculars, Calendar, Check, ChevronRight, Crosshair, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Binoculars, Calendar, Check, ChevronRight, Crosshair, Pencil, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,16 +28,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   createScoutingRound,
   updateScoutingRound,
-  updateRoundStatus,
   deleteScoutingRound,
 } from '@/actions/scouting-rounds';
 import type { GameObservationTarget, ScoutAvailability, ScoutingRound, ScoutingRoundStatus, UserRole } from '@/lib/types';
@@ -72,19 +64,6 @@ export function ObservacoesClient({ rounds: initialRounds, userRole, scoutGames 
   const [isPending, startTransition] = useTransition();
 
   const canManage = userRole === 'admin' || userRole === 'editor';
-  const canDelete = userRole === 'admin';
-
-  function handleStatusChange(round: ScoutingRound, newStatus: ScoutingRoundStatus) {
-    startTransition(async () => {
-      const res = await updateRoundStatus(round.id, newStatus);
-      if (res.success) {
-        setRounds((prev) => prev.map((r) => r.id === round.id ? { ...r, status: newStatus } : r));
-        toast.success(`Jornada ${STATUS_CONFIG[newStatus].label.toLowerCase()}`);
-      } else {
-        toast.error(res.error);
-      }
-    });
-  }
 
   function handleDelete(round: ScoutingRound) {
     startTransition(async () => {
@@ -138,11 +117,6 @@ export function ObservacoesClient({ rounds: initialRounds, userRole, scoutGames 
                 targets={scoutTargets}
                 initialAvailability={scoutAvailability[round.id] ?? []}
                 canManage={canManage}
-                canDelete={canDelete}
-                isPending={isPending}
-                onEdit={() => setEditRound(round)}
-                onDelete={() => setDeleteTarget(round)}
-                onStatusChange={(status) => handleStatusChange(round, status)}
               />
             );
           })}
@@ -299,7 +273,7 @@ function InlineAvailForm({ roundId, roundDays, isPending, onSubmit, onClose }: {
           <select value={date} onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-lg border border-neutral-200 px-2.5 py-2 text-xs outline-none focus:border-neutral-400">
             {roundDays.map((day) => {
-              const [y, m, d] = day.split('-');
+              const [, m, d] = day.split('-');
               return <option key={day} value={day}>{d}/{m}</option>;
             })}
           </select>
@@ -362,17 +336,12 @@ function InlineAvailForm({ roundId, roundDays, isPending, onSubmit, onClose }: {
 
 /* ───────────── Scout Round Card (collapsible inline with games) ───────────── */
 
-function ScoutRoundCard({ round, games, targets, initialAvailability, canManage = false, canDelete = false, isPending = false, onEdit, onDelete, onStatusChange }: {
+function ScoutRoundCard({ round, games, targets, initialAvailability, canManage = false }: {
   round: ScoutingRound;
   games: AssignedGame[];
   targets: Record<number, GameObservationTarget[]>;
   initialAvailability: ScoutAvailability[];
   canManage?: boolean;
-  canDelete?: boolean;
-  isPending?: boolean;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  onStatusChange?: (status: ScoutingRoundStatus) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const router = useRouter();
@@ -684,103 +653,6 @@ function ScoutRoundCard({ round, games, targets, initialAvailability, canManage 
   );
 }
 
-/* ───────────── Admin Round Card ───────────── */
-
-function RoundCard({
-  round,
-  canManage,
-  canDelete,
-  isPending,
-  onEdit,
-  onDelete,
-  onStatusChange,
-}: {
-  round: ScoutingRound;
-  canManage: boolean;
-  canDelete: boolean;
-  isPending: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-  onStatusChange: (status: ScoutingRoundStatus) => void;
-}) {
-  const statusCfg = STATUS_CONFIG[round.status];
-  const startLabel = new Date(round.startDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
-  const endLabel = new Date(round.endDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
-
-  return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition hover:bg-accent/30">
-      {/* Clickable area — icon + info navigate to detail */}
-      <Link href={`/observacoes/${round.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-        {/* Icon */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
-          <Calendar className="h-5 w-5" />
-        </div>
-
-        {/* Info */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold text-neutral-900">{round.name}</p>
-            <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>
-              {statusCfg.label}
-            </span>
-          </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {startLabel} — {endLabel}
-          </p>
-          {round.notes && (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground/70">{round.notes}</p>
-          )}
-        </div>
-      </Link>
-
-      {/* Actions — outside the Link to avoid navigation conflicts */}
-      {canManage ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" disabled={isPending}>
-              <MoreVertical className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil className="mr-2 h-3.5 w-3.5" />
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {round.status === 'draft' && (
-              <DropdownMenuItem onClick={() => onStatusChange('published')}>
-                Publicar
-              </DropdownMenuItem>
-            )}
-            {round.status === 'published' && (
-              <DropdownMenuItem onClick={() => onStatusChange('closed')}>
-                Fechar
-              </DropdownMenuItem>
-            )}
-            {round.status === 'closed' && (
-              <DropdownMenuItem onClick={() => onStatusChange('published')}>
-                Reabrir
-              </DropdownMenuItem>
-            )}
-            {canDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onDelete} className="text-red-600 focus:text-red-600">
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  Eliminar
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        <Link href={`/observacoes/${round.id}`}>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </Link>
-      )}
-    </div>
-  );
-}
 
 /* ───────────── Round Form ───────────── */
 

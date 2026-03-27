@@ -34,7 +34,7 @@ import {
   searchPickerPlayers,
   getPickerClubs,
 } from '@/actions/player-lists';
-import { POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
+import { POSITIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { extractSearchWords, matchesPickerSearch } from '@/lib/utils/search';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';

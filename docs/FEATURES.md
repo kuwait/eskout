@@ -12,7 +12,7 @@ Detailed specifications for every feature in the application.
 - Four roles: `admin`, `editor`, `scout`, `recruiter`
 - Admin: full access — create/edit/delete users, assign roles, approve/reject scout reports, delete players
 - Editor: can edit players, manage squads/pipeline, approve/reject scout reports — cannot delete players or manage users. Can access `/admin/pendentes`.
-- Scout: can only access `/submeter` (report submission), `/meus-relatorios` (own reports), `/meus-jogadores`, `/preferencias`, individual player profiles — redirected away from all other routes
+- Scout: can only access `/submeter` (report submission), `/meus-relatorios` (own reports), `/meus-jogadores`, `/observacoes` (read-only, inline games per round), `/meus-jogos`, `/listas`, `/preferencias`, individual player profiles — redirected away from all other routes
 - Recruiter: see Section 1.1 below
 - User management: invite via email (Supabase Auth), set password on first login, soft delete (deactivate/reactivate)
 - Session persistence across browser sessions
@@ -21,7 +21,7 @@ Detailed specifications for every feature in the application.
 - Role-based route protection via middleware:
   - **Admin only:** `/admin/*` (utilizadores, relatórios) — exception: editors can access `/admin/pendentes`
   - **Admin + Editor:** All main pages (dashboard, campo, jogadores, pipeline, posições, calendário, alertas)
-  - **Scout:** Only `/submeter`, `/meus-relatorios`, `/meus-jogadores`, `/mais`, `/preferencias`, `/jogadores/{id}` — all other routes redirect to `/meus-relatorios`
+  - **Scout:** Only `/submeter`, `/meus-relatorios`, `/meus-jogadores`, `/meus-jogos`, `/observacoes`, `/listas`, `/mais`, `/preferencias`, `/jogadores/{id}` — all other routes redirect to `/meus-relatorios`
   - **Recruiter:** Blocked from `/exportar`, `/meus-relatorios`, `/submeter`, `/admin`, `/alertas` — redirected to `/campo/real`
 
 ### 1.1 Recruiter Role
@@ -780,7 +780,21 @@ Mobile-first tap-based evaluation form for live game scouting. All roles can sub
 
 **Files:** `src/actions/quick-scout-reports.ts`, `src/components/players/QuickReportForm.tsx`, `src/components/players/QuickReportCard.tsx`, `src/lib/constants/quick-report-tags.ts`
 
-**Migrations:** 073 (base table), 074 (overall half-stars), 076 (maturation + foot), 077 (observation context), 078 (morphology + opponent level)
+**Physical scales (aligned with training feedback, migration 103):**
+
+| Field | Values |
+|-------|--------|
+| `height_scale` | `alto`, `normal`, `baixo` |
+| `build_scale` | `ectomorfo`, `mesomorfo`, `endomorfo` |
+| `speed_scale` | `rapido`, `normal`, `lento` |
+| `intensity_scale` | `intenso`, `pouco_intenso` |
+| `maturation_scale` | `nada_maturado`, `a_iniciar`, `maturado`, `super_maturado` |
+
+Replaces the old QSR-specific fields (`height_impression`, `build_impression`) with the same scale system used in training feedback for consistency. Data migrated automatically.
+
+**Game linkage (migration 102):** `game_id` FK on `quick_scout_reports` links a QSR to a scouting game. Auto-set when submitting a QSR from a game's observation targets. Enables tracking which QSRs were submitted per game.
+
+**Migrations:** 073 (base table), 074 (overall half-stars), 076 (maturation + foot), 077 (observation context), 078 (morphology + opponent level), 103 (physical scale alignment + game_id)
 
 ---
 
@@ -810,3 +824,72 @@ Public demo mode for potential clients to explore the app without creating an ac
 - Idempotent: safe to re-run (cleans existing demo data first)
 
 **Files:** `supabase/migrations/062_demo_club.sql`, `scripts/seed_demo.ts`, `src/app/demo/page.tsx`, `src/app/api/demo/route.ts`, `src/lib/demo-context.tsx`, `src/components/layout/DemoBanner.tsx`, `src/lib/supabase/club-context.ts` (demoGuard)
+
+---
+
+## 39. FPF Live Match Browser
+
+Browse FPF matches by date for quick game import into scouting rounds. Used in the "Adicionar jogo" dialog's FPF tab.
+
+**Browse-by-date endpoint:** Server action fetches FPF matches for a given date range, returning match details (teams, competition, escalão, venue, time).
+
+**Filters:**
+- Competition name (text search)
+- Escalão (dropdown)
+- Date (within round's date range)
+
+**Multi-select:** Checkbox selection of multiple FPF matches, batch-add all selected to the current round in a single action. Prevents duplicate imports (same `fpf_match_id` in the same round).
+
+**Integration:** FPF tab in AddGameDialog. Matches displayed as compact cards with home vs away, competition, escalão, date/time. Selected matches highlighted.
+
+---
+
+## 40. Game Observation Targets
+
+Coordinators (admin/editor) can request specific player observations per scouting game. Scouts see the target list when viewing their assigned games.
+
+**Data model:** `game_observation_targets` table (migration 102) — `id`, `club_id`, `game_id` (FK to `scouting_games`), `player_id` (FK to `players`), `added_by`, `notes`, `created_at`. Unique constraint on `(game_id, player_id)`.
+
+**Coordinator workflow:**
+- Open a game in the round detail page
+- Add target players from the club's player database
+- Optional notes per target (e.g. "Verificar pé esquerdo", "Observar posicionamento defensivo")
+- Remove targets before or after the game
+
+**Scout workflow:**
+- View assigned games with target player list
+- "Observar" button on each target → opens QSR form for that player, pre-filled with match context + `game_id`
+- QSR auto-linked to the game via `game_id` FK on `quick_scout_reports`
+- Completion tracking: targets with linked QSRs shown as completed
+
+**Permissions:**
+- Read: all club members (admin, editor, scout, recruiter)
+- Insert/Delete: admin, editor, or the person who added the target
+
+**RLS:** Club-scoped via `user_club_role()` function.
+
+---
+
+## 41. Scout Role — Scouting Map Access
+
+Scouts participate in the scouting map workflow with restricted permissions.
+
+**What scouts CAN do:**
+- View `/observacoes` — see published rounds with inline game cards (read-only)
+- View `/meus-jogos` — see their assigned games across all published rounds
+- Declare availability per round (add/remove availability slots)
+- View observation targets for their assigned games
+- Submit QSRs linked to games (via "Observar" button on targets)
+- Access `/listas` — view and manage personal player lists
+
+**What scouts CANNOT do:**
+- Create, edit, or delete rounds
+- Add or remove games from rounds
+- Assign or unassign scouts to games
+- Add or remove observation targets
+- See other scouts' assignments (only their own)
+- Access admin/editor-only pages (pipeline, squads, export, etc.)
+
+**Unified round view:** All roles (admin, editor, scout, recruiter) see the same `/observacoes` page with inline game cards per round. Admin/editor have edit controls (add game, assign scout, manage targets). Scouts and recruiters see a read-only view. Admin/editor can navigate to a dedicated round detail page for full management.
+
+**Middleware:** `/observacoes`, `/meus-jogos`, `/listas` added to `SCOUT_ALLOWED_ROUTES`.

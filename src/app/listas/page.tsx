@@ -4,7 +4,6 @@
 // RELEVANT FILES: src/app/listas/ListsPageClient.tsx, src/actions/player-lists.ts, src/lib/types/index.ts
 
 import { getActiveClub } from '@/lib/supabase/club-context';
-import { redirect } from 'next/navigation';
 import { getMyLists, getAllLists } from '@/actions/player-lists';
 import { ListsPageClient } from './ListsPageClient';
 

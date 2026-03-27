@@ -6,7 +6,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Shield, ShieldCheck, Users, GitBranch, CalendarDays,
-  FileText, PlusCircle, ListTodo, DatabaseZap, Binoculars,
+  FileText, ListTodo, DatabaseZap, Binoculars,
 } from 'lucide-react';
 
 /* ───────────── Types ───────────── */

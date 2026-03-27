@@ -233,6 +233,13 @@ Custom squad system replacing hardcoded real/shadow booleans. Clubs can create u
 - [x] `QuickReportForm`: new `initialMatchContext` prop pre-fills competition, opponent, matchDate
 - [x] Nav: "Meus Jogos" (CalendarDays icon), scout-only, in middleware SCOUT_ALLOWED_ROUTES
 
+### 16F. FPF Live Browse, Observation Targets, QSR Redesign & Scout Overhaul ✅ DONE
+- [x] FPF live match browser: browse-by-date endpoint, competition/escalão filters, multi-select, batch add to round
+- [x] Game observation targets: coordinators request specific player observations per game, auto-link QSR on submit (migration 102: `game_observation_targets` table + `quick_scout_reports.game_id` FK)
+- [x] QSR form redesign: physical scales aligned with training feedback (height/build/speed/intensity/maturation), all sections start open, training-feedback-style layout (migration 103: new scale columns, data migration, old columns dropped)
+- [x] Scout role overhaul: scouts see `/observacoes` with inline game cards per round, access `/listas`, restricted permissions (no round/game CRUD, no assignment management)
+- [x] Unified round view: all roles see inline games in round detail page, admin/editor edit via dedicated detail page, scouts see read-only game cards with observation targets
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view
@@ -347,7 +354,7 @@ Weekly scouting coordination replacing the Excel "Mapa de Observacoes Semanais".
 - **16C:** Scout availability declaration + matrix
 - **16D:** Assignments + conflict detection + table view
 - **16E:** Scout view (`/meus-jogos`) + report pre-fill
-- **16F:** FPF competition integration + auto-tagging
+- **16F:** FPF live browse, observation targets, QSR redesign, scout role overhaul, unified round view
 - **16G:** Timeline view + round summary
 - **16H:** In-app notification system
 - **16I:** FPF match data + player list pre-fill

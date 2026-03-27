@@ -16,10 +16,6 @@ import type { GameObservationTarget } from '@/lib/types';
 export default async function ObservacoesPage() {
   const { role, userId } = await getActiveClub();
   const rounds = await getScoutingRounds();
-  const isScout = role === 'scout';
-  const isRecruiter = role === 'recruiter';
-  const isFieldRole = isScout || isRecruiter;
-
   // Fetch assigned games + targets for ALL roles (everyone sees their assignments inline)
   let scoutGames: AssignedGame[] = [];
   const scoutTargets: Record<number, GameObservationTarget[]> = {};

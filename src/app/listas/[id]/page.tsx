@@ -4,7 +4,7 @@
 // RELEVANT FILES: src/app/listas/[id]/ListDetailClient.tsx, src/actions/player-lists.ts, src/lib/types/index.ts
 
 import { getActiveClub } from '@/lib/supabase/club-context';
-import { redirect, notFound } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { getListById, getListItems, getListShares } from '@/actions/player-lists';
 import { getClubMembers } from '@/actions/users';
 import { ListDetailClient } from './ListDetailClient';

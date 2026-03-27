@@ -10,7 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Binoculars, Calendar, Check, ChevronRight, Clock, Crosshair, Globe, MapPin, Pencil, Plus, Search, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, ChevronRight, Clock, Crosshair, Globe, MapPin, Pencil, Plus, Search, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -397,8 +397,9 @@ export function RoundDetailClient({
                 startTransition(async () => {
                   const res = await assignScout(assignDialogGameId, scoutId, round.id);
                   if (res.success && res.data) {
-                    // Replace optimistic with real data (res.data is the assignment + conflicts)
-                    const { conflicts: _, ...realAssignment } = res.data;
+                    // Replace optimistic with real data (strip conflicts from assignment object)
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { conflicts: _conflicts, ...realAssignment } = res.data;
                     setAssignments((prev) => prev.map((a) => a.id === tempId ? realAssignment : a));
                     if (res.data.conflicts.length > 0) {
                       toast.warning(res.data.conflicts.map((c) => c.message).join('. '));
