@@ -129,23 +129,14 @@ export function ObservacoesClient({ rounds: initialRounds, userRole, scoutGames 
       ) : (
         <div className="space-y-2">
           {rounds.map((round) => {
-            if (!canManage) {
-              // Scout view — collapsible inline with assigned games
-              const roundGames = scoutGames.filter((g) => g.roundId === round.id);
-              return (
-                <ScoutRoundCard
-                  key={round.id}
-                  round={round}
-                  games={roundGames}
-                  targets={scoutTargets}
-                  initialAvailability={scoutAvailability[round.id] ?? []}
-                />
-              );
-            }
+            const roundGames = scoutGames.filter((g) => g.roundId === round.id);
             return (
-              <RoundCard
+              <ScoutRoundCard
                 key={round.id}
                 round={round}
+                games={roundGames}
+                targets={scoutTargets}
+                initialAvailability={scoutAvailability[round.id] ?? []}
                 canManage={canManage}
                 canDelete={canDelete}
                 isPending={isPending}
@@ -371,11 +362,17 @@ function InlineAvailForm({ roundId, roundDays, isPending, onSubmit, onClose }: {
 
 /* ───────────── Scout Round Card (collapsible inline with games) ───────────── */
 
-function ScoutRoundCard({ round, games, targets, initialAvailability }: {
+function ScoutRoundCard({ round, games, targets, initialAvailability, canManage = false, canDelete = false, isPending = false, onEdit, onDelete, onStatusChange }: {
   round: ScoutingRound;
   games: AssignedGame[];
   targets: Record<number, GameObservationTarget[]>;
   initialAvailability: ScoutAvailability[];
+  canManage?: boolean;
+  canDelete?: boolean;
+  isPending?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onStatusChange?: (status: ScoutingRoundStatus) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const router = useRouter();
@@ -417,33 +414,48 @@ function ScoutRoundCard({ round, games, targets, initialAvailability }: {
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
-      {/* Header — click to expand/collapse */}
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-accent/30"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
-          <Calendar className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">{startLabel} — {endLabel}</span>
-            <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>{statusCfg.label}</span>
-            {hasGames && (
-              <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">{games.length}</span>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left transition hover:opacity-80"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+            <Calendar className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">{round.name || `${startLabel} — ${endLabel}`}</span>
+              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>{statusCfg.label}</span>
+              {hasGames && (
+                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">{games.length}</span>
+              )}
+            </div>
+            {round.name && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{startLabel} — {endLabel}</p>
             )}
           </div>
-          {round.name && round.name !== `${startLabel} — ${endLabel}` && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{round.name}</p>
-          )}
-        </div>
-        <ChevronRight className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90')} />
-      </button>
+          <ChevronRight className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90')} />
+        </button>
 
-      {/* Expanded: assigned games + targets */}
+        {/* Admin: edit round (pencil opens detail page with games/availability matrix) */}
+        {canManage && (
+          <Link href={`/observacoes/${round.id}`} className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" title="Editar jornada">
+            <Pencil className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
+
+      {/* Expanded: notes + assigned games + targets */}
       {expanded && (
         <div className="border-t">
+          {/* Round notes — info from coordinator */}
+          {round.notes && (
+            <div className="border-b bg-amber-50/50 px-4 py-2">
+              <p className="text-xs text-amber-800">{round.notes}</p>
+            </div>
+          )}
           {!hasGames ? (
             <div className="px-4 py-4 text-center text-xs text-muted-foreground">Sem jogos atribuídos nesta jornada</div>
           ) : (

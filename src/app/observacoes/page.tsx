@@ -18,14 +18,15 @@ export default async function ObservacoesPage() {
   const rounds = await getScoutingRounds();
   const isScout = role === 'scout';
   const isRecruiter = role === 'recruiter';
-  const isFieldRole = isScout || isRecruiter; // Roles that see inline games (not admin/editor)
+  const isFieldRole = isScout || isRecruiter;
 
-  // For scouts/recruiters: fetch assigned games + targets for inline display
+  // Fetch assigned games + targets for ALL roles (everyone sees their assignments inline)
   let scoutGames: AssignedGame[] = [];
   const scoutTargets: Record<number, GameObservationTarget[]> = {};
   const scoutAvailability: Record<number, ScoutAvailability[]> = {};
 
-  if (isFieldRole) {
+  // Always fetch — admins/editors also see their assigned games inline
+  {
     scoutGames = await getMyAssignedGames();
     // Fetch availability for each published round
     const publishedRounds = rounds.filter(r => r.status === 'published');

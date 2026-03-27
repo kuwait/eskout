@@ -23,6 +23,7 @@ import { addAvailability, removeAvailability } from '@/actions/scout-availabilit
 import { addManualGame, deleteGame, updateGame, getFpfMatchesForImport, addFpfGame } from '@/actions/scouting-games';
 import { assignScout, removeAssignment } from '@/actions/scout-assignments';
 import { addGameTarget, removeGameTarget } from '@/actions/game-targets';
+import { updateScoutingRound, updateRoundStatus, deleteScoutingRound } from '@/actions/scouting-rounds';
 import { QuickReportForm } from '@/components/players/QuickReportForm';
 import { searchPickerPlayers } from '@/actions/player-lists';
 import type { AvailabilityPeriod, AvailabilityType, GameObservationTarget, PickerPlayer, ScoutAssignment, ScoutAvailability, ScoutingGame, ScoutingRound } from '@/lib/types';
@@ -73,6 +74,9 @@ export function RoundDetailClient({
   const [games, setGames] = useState(initialGames);
   const [assignments, setAssignments] = useState(initialAssignments);
   const [targets, setTargets] = useState<Record<number, GameObservationTarget[]>>(initialTargets ?? {});
+  const router = useRouter();
+  const [editRoundOpen, setEditRoundOpen] = useState(false);
+  const [roundDraft, setRoundDraft] = useState({ name: round.name, startDate: round.startDate, endDate: round.endDate, notes: round.notes });
   const [addOpen, setAddOpen] = useState(false);
   const [addGameOpen, setAddGameOpen] = useState(false);
   const [editGameTarget, setEditGameTarget] = useState<ScoutingGame | null>(null);
@@ -121,18 +125,32 @@ export function RoundDetailClient({
       </Link>
 
       <div className="mb-6">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold text-neutral-900 sm:text-xl">{round.name}</h1>
-          <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>
-            {statusCfg.label}
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-neutral-900 sm:text-xl">
+              {roundDraft.name || `${new Date(roundDraft.startDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })} — ${new Date(roundDraft.endDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })}`}
+            </h1>
+            <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>
+              {statusCfg.label}
+            </span>
+          </div>
+          {canManage && (
+            <Button onClick={() => setEditRoundOpen(true)} size="sm" variant="outline" className="gap-1.5">
+              <Pencil className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Editar</span>
+            </Button>
+          )}
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {new Date(round.startDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })}
+        {roundDraft.name && <p className="mt-1 text-sm text-muted-foreground">
+          {new Date(roundDraft.startDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })}
           {' — '}
-          {new Date(round.endDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
-        </p>
-        {round.notes && <p className="mt-1 text-xs text-muted-foreground/70">{round.notes}</p>}
+          {new Date(roundDraft.endDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
+        </p>}
+        {roundDraft.notes && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-2">
+            <p className="text-xs text-amber-800">{roundDraft.notes}</p>
+          </div>
+        )}
       </div>
 
       {/* Scout/recruiter: show assigned games FIRST (before availability) */}
@@ -147,8 +165,8 @@ export function RoundDetailClient({
         </section>
       )}
 
-      {/* My availability section */}
-      <section className="mb-8">
+      {/* My availability section — hidden for admin/editor (they manage, not declare) */}
+      {!canManage && <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-900">A tua disponibilidade</h2>
           <Button onClick={() => setAddOpen(true)} size="sm" variant="outline" className="gap-1.5" disabled={round.status === 'closed'}>
@@ -171,7 +189,7 @@ export function RoundDetailClient({
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* Availability matrix — admin/editor only */}
       {canManage && scouts.length > 0 && (
@@ -395,6 +413,84 @@ export function RoundDetailClient({
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Edit round dialog */}
+      {canManage && (
+        <Dialog open={editRoundOpen} onOpenChange={setEditRoundOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Editar Jornada</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              startTransition(async () => {
+                const res = await updateScoutingRound(round.id, roundDraft);
+                if (res.success) {
+                  setEditRoundOpen(false);
+                  toast.success('Jornada atualizada');
+                  router.refresh();
+                } else {
+                  toast.error(res.error ?? 'Erro');
+                }
+              });
+            }} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-600">Nome</label>
+                <input value={roundDraft.name} onChange={(e) => setRoundDraft(d => ({ ...d, name: e.target.value }))}
+                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-neutral-600">Início</label>
+                  <input type="date" value={roundDraft.startDate} onChange={(e) => setRoundDraft(d => ({ ...d, startDate: e.target.value }))}
+                    className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-neutral-600">Fim</label>
+                  <input type="date" value={roundDraft.endDate} onChange={(e) => setRoundDraft(d => ({ ...d, endDate: e.target.value }))}
+                    className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-600">Notas <span className="font-normal text-neutral-400">(visíveis para todos)</span></label>
+                <textarea value={roundDraft.notes} onChange={(e) => setRoundDraft(d => ({ ...d, notes: e.target.value }))}
+                  placeholder="Ex: Localização do torneio, instruções, etc."
+                  rows={3}
+                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400 placeholder:text-neutral-400" />
+              </div>
+              <div className="flex items-center justify-between border-t pt-3">
+                <div className="flex gap-2">
+                  {round.status === 'published' && (
+                    <button type="button" onClick={() => {
+                      startTransition(async () => {
+                        await updateRoundStatus(round.id, 'closed');
+                        toast.success('Jornada fechada');
+                        router.refresh();
+                        setEditRoundOpen(false);
+                      });
+                    }} disabled={isPending} className="text-xs text-muted-foreground hover:text-foreground transition">
+                      Fechar jornada
+                    </button>
+                  )}
+                  {round.status === 'closed' && (
+                    <button type="button" onClick={() => {
+                      startTransition(async () => {
+                        await updateRoundStatus(round.id, 'published');
+                        toast.success('Jornada reaberta');
+                        router.refresh();
+                        setEditRoundOpen(false);
+                      });
+                    }} disabled={isPending} className="text-xs text-muted-foreground hover:text-foreground transition">
+                      Reabrir jornada
+                    </button>
+                  )}
+                </div>
+                <Button type="submit" disabled={isPending} size="sm">Guardar</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Add availability dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
