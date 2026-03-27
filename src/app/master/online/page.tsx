@@ -20,7 +20,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/alertas': 'Alertas',
   '/exportar': 'Exportar',
   '/submeter': 'Submeter Relatório',
-  '/meus-relatorios': 'Meus Relatórios',
+  '/avaliacoes': 'Meus Relatórios',
   '/meus-jogadores': 'Meus Jogadores',
   '/preferencias': 'Preferências',
   '/definicoes': 'Definições',

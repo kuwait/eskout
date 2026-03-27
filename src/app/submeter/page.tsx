@@ -1,7 +1,7 @@
 // src/app/submeter/page.tsx
 // Scout report submission form — mobile-first, used at the field during matches
 // FPF link auto-fetches player data, scout fills in observation and evaluation
-// RELEVANT FILES: src/actions/scout-reports.ts, src/actions/scraping.ts, src/app/meus-relatorios/page.tsx
+// RELEVANT FILES: src/actions/scout-reports.ts, src/actions/scraping.ts, src/app/avaliacoes/page.tsx
 
 'use client';
 
@@ -292,7 +292,7 @@ export default function SubmeterPage() {
       const result = await submitScoutReport(form);
       if (result.success) {
         showFeedback('success', 'Relatório submetido com sucesso!');
-        setTimeout(() => router.push('/meus-relatorios'), 1500);
+        setTimeout(() => router.push('/avaliacoes'), 1500);
       } else {
         showFeedback('error', result.error ?? 'Erro ao submeter');
       }

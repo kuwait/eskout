@@ -117,7 +117,7 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
   }
 
   revalidatePath(`/jogadores/${d.playerId}`);
-  revalidatePath('/meus-relatorios');
+  revalidatePath('/avaliacoes');
   revalidatePath('/observacoes');
   await broadcastRowMutation(clubId, 'quick_scout_reports' as never, 'INSERT', userId, data.id);
 
@@ -256,6 +256,79 @@ export async function getMyQuickReports(page = 0, pageSize = 20): Promise<{ repo
   return { reports, total: count ?? reports.length };
 }
 
+/** Get ALL quick reports for the club (admin/editor view), paginated, with player + author info */
+export async function getAllClubQuickReports(page = 0, pageSize = 50): Promise<{ reports: QuickScoutReport[]; total: number }> {
+  const { clubId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') return { reports: [], total: 0 };
+
+  const supabase = await createClient();
+  const from = page * pageSize;
+
+  const { data, error, count } = await supabase
+    .from('quick_scout_reports')
+    .select('*, players(name, club, position_normalized, photo_url, zz_photo_url)', { count: 'exact' })
+    .eq('club_id', clubId)
+    .order('created_at', { ascending: false })
+    .range(from, from + pageSize - 1);
+
+  if (error || !data) return { reports: [], total: 0 };
+
+  // Resolve ALL author names in one query
+  const authorIds = [...new Set(data.map((r: { author_id: string }) => r.author_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', authorIds);
+  const nameMap = new Map((profiles ?? []).map((p: { id: string; full_name: string }) => [p.id, p.full_name]));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reports = data.map((row: any) => ({
+    id: row.id,
+    clubId: row.club_id,
+    playerId: row.player_id,
+    playerName: row.players?.name ?? '',
+    playerClub: row.players?.club ?? '',
+    playerPosition: row.players?.position_normalized ?? null,
+    playerPhotoUrl: row.players?.photo_url || row.players?.zz_photo_url || null,
+    authorId: row.author_id,
+    authorName: nameMap.get(row.author_id) ?? 'Desconhecido',
+    ratingTecnica: row.rating_tecnica,
+    ratingTatica: row.rating_tatica,
+    ratingFisico: row.rating_fisico,
+    ratingMentalidade: row.rating_mentalidade,
+    ratingPotencial: row.rating_potencial,
+    ratingOverall: row.rating_overall,
+    recommendation: row.recommendation,
+    tagsTecnica: row.tags_tecnica ?? [],
+    tagsTatica: row.tags_tatica ?? [],
+    tagsFisico: row.tags_fisico ?? [],
+    tagsMentalidade: row.tags_mentalidade ?? [],
+    tagsPotencial: row.tags_potencial ?? [],
+    maturation: row.maturation,
+    observedFoot: row.observed_foot,
+    heightScale: row.height_scale ?? null,
+    buildScale: row.build_scale ?? null,
+    speedScale: row.speed_scale ?? null,
+    intensityScale: row.intensity_scale ?? null,
+    maturationScale: row.maturation_scale ?? null,
+    opponentLevel: row.opponent_level,
+    observedPosition: row.observed_position,
+    minutesObserved: row.minutes_observed,
+    standoutLevel: row.standout_level,
+    starter: row.starter,
+    subMinute: row.sub_minute,
+    conditions: row.conditions ?? [],
+    competition: row.competition,
+    opponent: row.opponent,
+    matchDate: row.match_date,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+
+  return { reports, total: count ?? reports.length };
+}
+
 /* ───────────── Delete ───────────── */
 
 /** Delete a quick report — author or admin */
@@ -281,7 +354,7 @@ export async function deleteQuickReport(reportId: number): Promise<ActionRespons
   if (error) return { success: false, error: `Erro ao eliminar: ${error.message}` };
 
   if (report) revalidatePath(`/jogadores/${report.player_id}`);
-  revalidatePath('/meus-relatorios');
+  revalidatePath('/avaliacoes');
   await broadcastRowMutation(clubId, 'quick_scout_reports' as never, 'DELETE', userId, reportId);
 
   return { success: true };

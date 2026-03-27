@@ -1,7 +1,7 @@
 // src/actions/scout-reports.ts
 // Server Actions for scouting reports — submission, listing, admin review
 // All reports (PDF extractions + scout submissions) live in scouting_reports table
-// RELEVANT FILES: src/app/submeter/page.tsx, src/app/meus-relatorios/page.tsx, src/app/admin/relatorios/page.tsx
+// RELEVANT FILES: src/app/submeter/page.tsx, src/app/avaliacoes/page.tsx, src/app/admin/relatorios/page.tsx
 
 'use server';
 
@@ -224,7 +224,7 @@ export async function submitScoutReport(
 
     if (error) return { success: false, error: error.message };
 
-    revalidatePath('/meus-relatorios');
+    revalidatePath('/avaliacoes');
     await broadcastRowMutation(clubId, 'scouting_reports', 'INSERT', userId, inserted!.id);
     return { success: true };
   } catch (e) {
@@ -451,7 +451,7 @@ export async function approveScoutReport(
         }).eq('id', reportId).eq('club_id', clubId);
 
         revalidatePath('/admin/relatorios');
-        revalidatePath('/meus-relatorios');
+        revalidatePath('/avaliacoes');
         revalidatePath(`/jogadores/${existing.id}`);
         await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
         return { success: true, playerId: existing.id };
@@ -529,7 +529,7 @@ export async function approveScoutReport(
     }).eq('id', reportId).eq('club_id', clubId);
 
     revalidatePath('/admin/relatorios');
-    revalidatePath('/meus-relatorios');
+    revalidatePath('/avaliacoes');
     revalidatePath('/jogadores');
     await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
     await broadcastRowMutation(clubId, 'players', 'INSERT', userId, player!.id);
@@ -559,7 +559,7 @@ export async function rejectScoutReport(reportId: number): Promise<{ success: bo
     if (error) return { success: false, error: error.message };
 
     revalidatePath('/admin/relatorios');
-    revalidatePath('/meus-relatorios');
+    revalidatePath('/avaliacoes');
     await broadcastRowMutation(clubId, 'scouting_reports', 'UPDATE', userId, reportId);
     return { success: true };
   } catch (e) {

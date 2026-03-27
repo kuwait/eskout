@@ -25,7 +25,7 @@ describe('filterNavItems — admin', () => {
   });
 
   it('does NOT see scout-only pages', () => {
-    expect(hrefs(items)).not.toContain('/meus-relatorios');
+    expect(hrefs(items)).not.toContain('/avaliacoes');
     expect(hrefs(items)).not.toContain('/submeter');
   });
 
@@ -47,7 +47,7 @@ describe('filterNavItems — editor', () => {
   });
 
   it('does NOT see scout-only or recruiter-only pages', () => {
-    expect(hrefs(items)).not.toContain('/meus-relatorios');
+    expect(hrefs(items)).not.toContain('/avaliacoes');
     expect(hrefs(items)).not.toContain('/submeter');
     expect(hrefs(items)).not.toContain('/meus-jogadores');
   });
@@ -61,7 +61,7 @@ describe('filterNavItems — scout', () => {
   it('sees Jogadores and Observações', () => {
     expect(hrefs(items)).toContain('/');
     expect(hrefs(items)).toContain('/observacoes');
-    // /meus-relatorios is now a sub-item of Observações (rendered in Sidebar, not in NAV_ITEMS)
+    // /avaliacoes is now a sub-item of Observações (rendered in Sidebar, not in NAV_ITEMS)
   });
 
   it('does NOT see admin/editor-only pages', () => {
@@ -95,7 +95,7 @@ describe('filterNavItems — recruiter', () => {
   });
 
   it('does NOT see scout-only pages', () => {
-    expect(hrefs(items)).not.toContain('/meus-relatorios');
+    expect(hrefs(items)).not.toContain('/avaliacoes');
     expect(hrefs(items)).not.toContain('/submeter');
   });
 });
@@ -120,7 +120,7 @@ describe('filterNavItems — feature toggles', () => {
 
   it('hides scout submissions when feature disabled', () => {
     const items = filterNavItems('scout', { scout_submissions: false });
-    expect(hrefs(items)).not.toContain('/meus-relatorios');
+    expect(hrefs(items)).not.toContain('/avaliacoes');
   });
 
   it('keeps items when feature not explicitly disabled', () => {

@@ -39,7 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, feature: 'calendar' },
   { href: '/observacoes', label: 'Observações', icon: Binoculars, scoutHidden: false, feature: null },
   { href: '/tarefas', label: 'Tarefas', icon: ListTodo, scoutHidden: true, feature: null },
-  // /meus-relatorios moved to sub-item of Observações in Sidebar/MobileDrawer
+  // /avaliacoes moved to sub-item of Observações in Sidebar/MobileDrawer
   // /meus-jogadores removed — scouts now use the main Jogadores page
 ];
 

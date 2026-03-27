@@ -379,3 +379,15 @@ Mobile-first tap-based evaluation form. All roles can submit. Compact single-row
 **Not implemented (deprioritized):**
 - Offline draft support (localStorage + sync)
 - Integration with Mapa de Observações (pre-fill match context)
+
+---
+
+## Phase 18 — Legacy Report Migration
+
+Convert ~1000+ imported scouting reports (`scouting_reports` table, PDF-extracted data) into QSR format (`quick_scout_reports`) so all evaluations live in a single system.
+
+**Sub-phases:**
+- **18A:** Mapping — define field correspondence (PDF rating → QSR dimensions, decision → recommendation, strengths/weaknesses → tags/notes)
+- **18B:** Migration script — batch convert scouting_reports → quick_scout_reports, preserve author + dates
+- **18C:** Validation — compare migrated QSRs with original data, flag mismatches
+- **18D:** Cleanup — archive/deprecate scouting_reports table, remove dual-display code from PlayerProfile

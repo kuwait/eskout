@@ -12,9 +12,9 @@ const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/demo', 
 // Routes that require admin role — editors and scouts are redirected
 const ADMIN_ONLY_ROUTES = ['/admin'];
 // Scouts can ONLY access these routes — everything else is blocked
-const SCOUT_ALLOWED_ROUTES = ['/', '/meus-relatorios', '/submeter', '/mais', '/preferencias', '/jogadores/novo', '/meus-jogos', '/observacoes', '/listas'];
+const SCOUT_ALLOWED_ROUTES = ['/', '/avaliacoes', '/submeter', '/mais', '/preferencias', '/jogadores/novo', '/meus-jogos', '/observacoes', '/listas'];
 // Recruiters are blocked from these routes (scouting data, export, admin)
-const RECRUITER_BLOCKED_ROUTES = ['/exportar', '/meus-relatorios', '/submeter', '/admin', '/alertas'];
+const RECRUITER_BLOCKED_ROUTES = ['/exportar', '/avaliacoes', '/submeter', '/admin', '/alertas'];
 // Club picker — no club required
 const NO_CLUB_ROUTES = ['/escolher-clube', '/preferencias'];
 // Superadmin panel — only superadmins
@@ -189,10 +189,10 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Scout — redirect to /meus-relatorios if accessing any non-allowed route
+    // Scout — redirect to /avaliacoes if accessing any non-allowed route
     if (role === 'scout' && !isScoutAllowed) {
       const url = request.nextUrl.clone();
-      url.pathname = '/meus-relatorios';
+      url.pathname = '/avaliacoes';
       return NextResponse.redirect(url);
     }
 
