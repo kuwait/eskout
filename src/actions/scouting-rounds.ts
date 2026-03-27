@@ -17,16 +17,23 @@ const REVALIDATE_PATH = '/observacoes';
 
 /* ───────────── Read ───────────── */
 
-/** Fetch all scouting rounds for the active club, ordered by start_date desc */
+/** Fetch scouting rounds for the active club. Scouts only see published rounds. */
 export async function getScoutingRounds(): Promise<ScoutingRound[]> {
-  const { clubId } = await getActiveClub();
+  const { clubId, role } = await getActiveClub();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('scouting_rounds')
     .select('*')
     .eq('club_id', clubId)
     .order('start_date', { ascending: false });
+
+  // Scouts only see published rounds
+  if (role === 'scout') {
+    query = query.eq('status', 'published');
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[getScoutingRounds] Failed:', error.message);
