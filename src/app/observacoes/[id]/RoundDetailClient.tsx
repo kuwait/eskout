@@ -8,7 +8,7 @@
 import { useState, useTransition, useMemo } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Check, Clock, Plus, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, Clock, MapPin, Plus, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +18,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { addAvailability, removeAvailability } from '@/actions/scout-availability';
-import type { AvailabilityPeriod, AvailabilityType, ScoutAvailability, ScoutingRound, UserRole } from '@/lib/types';
+import { addManualGame, deleteGame, getFpfMatchesForImport, addFpfGame } from '@/actions/scouting-games';
+import { assignScout, removeAssignment } from '@/actions/scout-assignments';
+import type { AvailabilityPeriod, AvailabilityType, ScoutAssignment, ScoutAvailability, ScoutingGame, ScoutingRound } from '@/lib/types';
 
 /* ───────────── Constants ───────────── */
 
@@ -47,20 +49,27 @@ export function RoundDetailClient({
   round,
   availability: initialAvailability,
   scouts,
-  userRole,
+  games: initialGames,
+  assignments: initialAssignments,
+  canManage,
   userId,
 }: {
   round: ScoutingRound;
   availability: ScoutAvailability[];
   scouts: { id: string; name: string; role: string }[];
-  userRole: UserRole;
+  games: ScoutingGame[];
+  assignments: ScoutAssignment[];
+  canManage: boolean;
   userId: string;
 }) {
   const [availability, setAvailability] = useState(initialAvailability);
+  const [games, setGames] = useState(initialGames);
+  const [assignments, setAssignments] = useState(initialAssignments);
   const [addOpen, setAddOpen] = useState(false);
+  const [addGameOpen, setAddGameOpen] = useState(false);
+  const [assignDialogGameId, setAssignDialogGameId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const canManage = userRole === 'admin' || userRole === 'editor';
   const myAvailability = availability.filter((a) => a.scoutId === userId);
   const statusCfg = STATUS_CONFIG[round.status];
 
@@ -150,6 +159,139 @@ export function RoundDetailClient({
           <AvailabilityMatrix scouts={scouts} availability={availability} days={roundDays} />
         </section>
       )}
+
+      {/* ───────────── Games Section ───────────── */}
+      <section className="mb-8 mt-12 border-t border-neutral-200 pt-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-neutral-900">
+            Jogos ({games.length})
+          </h2>
+          {canManage && round.status !== 'closed' && (
+            <Button onClick={() => setAddGameOpen(true)} size="sm" variant="outline" className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar Jogo
+            </Button>
+          )}
+        </div>
+
+        {games.length === 0 ? (
+          <div className="rounded-lg border-2 border-dashed border-neutral-200 py-6 text-center">
+            <p className="text-sm text-muted-foreground">{canManage ? 'Sem jogos adicionados' : 'Sem jogos atribuídos'}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {games.map((game) => {
+              const gameAssignments = assignments.filter((a) => a.gameId === game.id && a.status !== 'cancelled');
+              return (
+                <GameCard
+                  key={game.id}
+                  game={game}
+                  assignments={gameAssignments}
+                  scouts={scouts}
+                  canManage={canManage}
+                  isClosed={round.status === 'closed'}
+                  isPending={isPending}
+                  onDelete={() => {
+                    startTransition(async () => {
+                      const res = await deleteGame(game.id, round.id);
+                      if (res.success) {
+                        setGames((prev) => prev.filter((g) => g.id !== game.id));
+                        setAssignments((prev) => prev.filter((a) => a.gameId !== game.id));
+                        toast.success('Jogo eliminado');
+                      } else {
+                        toast.error(res.error);
+                      }
+                    });
+                  }}
+                  onAssign={() => setAssignDialogGameId(game.id)}
+                  onRemoveAssignment={(assignmentId) => {
+                    startTransition(async () => {
+                      const res = await removeAssignment(assignmentId, round.id);
+                      if (res.success) {
+                        setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+                        toast.success('Atribuição removida');
+                      } else {
+                        toast.error(res.error);
+                      }
+                    });
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Add game dialog */}
+      <Dialog open={addGameOpen} onOpenChange={setAddGameOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adicionar Jogo</DialogTitle>
+          </DialogHeader>
+          <AddGameForm
+            roundId={round.id}
+            startDate={round.startDate}
+            endDate={round.endDate}
+            isPending={isPending}
+            onManualSubmit={(data) => {
+              startTransition(async () => {
+                const res = await addManualGame(data);
+                if (res.success && res.data) {
+                  setGames((prev) => [...prev, res.data!].sort((a, b) => a.matchDate.localeCompare(b.matchDate)));
+                  setAddGameOpen(false);
+                  toast.success('Jogo adicionado');
+                } else {
+                  toast.error(res.error);
+                }
+              });
+            }}
+            onFpfImport={(fpfMatchId) => {
+              startTransition(async () => {
+                const res = await addFpfGame(round.id, fpfMatchId);
+                if (res.success && res.data) {
+                  setGames((prev) => [...prev, res.data!].sort((a, b) => a.matchDate.localeCompare(b.matchDate)));
+                  toast.success('Jogo FPF importado');
+                } else {
+                  toast.error(res.error);
+                }
+              });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign scout dialog */}
+      <Dialog open={!!assignDialogGameId} onOpenChange={(open) => !open && setAssignDialogGameId(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Atribuir Scout</DialogTitle>
+          </DialogHeader>
+          {assignDialogGameId && (
+            <AssignScoutForm
+              game={games.find((g) => g.id === assignDialogGameId)!}
+              scouts={scouts}
+              availability={availability}
+              existingAssignments={assignments.filter((a) => a.gameId === assignDialogGameId && a.status !== 'cancelled')}
+              isPending={isPending}
+              onAssign={(scoutId) => {
+                startTransition(async () => {
+                  const res = await assignScout(assignDialogGameId, scoutId, round.id);
+                  if (res.success && res.data) {
+                    setAssignments((prev) => [...prev, res.data!]);
+                    if (res.data.conflicts.length > 0) {
+                      toast.warning(res.data.conflicts.map((c) => c.message).join('. '));
+                    } else {
+                      toast.success('Scout atribuído');
+                    }
+                  } else {
+                    toast.error(res.error);
+                  }
+                });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add availability dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -473,4 +615,316 @@ function formatShortLabel(slot: ScoutAvailability): string {
     return `${slot.timeStart}–${slot.timeEnd}`;
   }
   return '✓';
+}
+
+/* ───────────── Game Card ───────────── */
+
+function GameCard({ game, assignments, scouts, canManage, isClosed, isPending, onDelete, onAssign, onRemoveAssignment }: {
+  game: ScoutingGame;
+  assignments: ScoutAssignment[];
+  scouts: { id: string; name: string; role: string }[];
+  canManage: boolean;
+  isClosed: boolean;
+  isPending: boolean;
+  onDelete: () => void;
+  onAssign: () => void;
+  onRemoveAssignment: (id: number) => void;
+}) {
+  const dateLabel = new Date(game.matchDate).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  const scoutMap = Object.fromEntries(scouts.map((s) => [s.id, s.name]));
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      {/* Game header */}
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-neutral-900">
+            {game.homeTeam} <span className="font-normal text-muted-foreground">vs</span> {game.awayTeam}
+          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+            <span>{dateLabel}{game.matchTime ? ` · ${game.matchTime}` : ''}</span>
+            {game.venue && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{game.venue}</span>}
+            {game.escalao && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium">{game.escalao}</span>}
+            {game.competitionName && <span className="text-muted-foreground/60">{game.competitionName}</span>}
+            {game.fpfMatchId && <span className="rounded bg-blue-50 px-1 py-0.5 text-[9px] font-medium text-blue-600">FPF</span>}
+          </div>
+        </div>
+
+        {canManage && !isClosed && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={onAssign} disabled={isPending} className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" title="Atribuir scout">
+              <UserPlus className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={onDelete} disabled={isPending} className="rounded p-1.5 text-muted-foreground hover:text-red-500 transition" title="Eliminar jogo">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Assigned scouts */}
+      {assignments.length > 0 && (
+        <div className="border-t bg-neutral-50/50 px-3 py-2 flex flex-wrap gap-1.5">
+          {assignments.map((a) => (
+            <span key={a.id} className="inline-flex items-center gap-1 rounded-full bg-white border px-2 py-0.5 text-[11px] font-medium text-neutral-700">
+              <Users className="h-3 w-3 text-muted-foreground" />
+              {scoutMap[a.scoutId] ?? 'Scout'}
+              {canManage && !isClosed && (
+                <button type="button" onClick={() => onRemoveAssignment(a.id)} disabled={isPending} className="ml-0.5 rounded-full hover:bg-red-100 hover:text-red-500 transition p-0.5">
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────────── Add Game Form ───────────── */
+
+function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, onFpfImport }: {
+  roundId: number;
+  startDate: string;
+  endDate: string;
+  isPending: boolean;
+  onManualSubmit: (data: { roundId: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime?: string; venue?: string; competitionName?: string; escalao?: string }) => void;
+  onFpfImport: (fpfMatchId: number) => void;
+}) {
+  const [tab, setTab] = useState<'manual' | 'fpf'>('manual');
+  const [homeTeam, setHomeTeam] = useState('');
+  const [awayTeam, setAwayTeam] = useState('');
+  const [matchDate, setMatchDate] = useState(startDate);
+  const [matchTime, setMatchTime] = useState('');
+  const [venue, setVenue] = useState('');
+  const [competitionName, setCompetitionName] = useState('');
+  const [escalao, setEscalao] = useState('');
+
+  // FPF tab state
+  const [fpfMatches, setFpfMatches] = useState<{ id: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime: string | null; venue: string | null; competitionName: string | null; escalao: string | null }[]>([]);
+  const [fpfLoading, setFpfLoading] = useState(false);
+  const [fpfLoaded, setFpfLoaded] = useState(false);
+
+  async function loadFpfMatches() {
+    setFpfLoading(true);
+    const matches = await getFpfMatchesForImport(roundId, startDate, endDate);
+    setFpfMatches(matches);
+    setFpfLoading(false);
+    setFpfLoaded(true);
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Tab switcher */}
+      <div className="flex rounded-lg border p-0.5">
+        <button type="button" onClick={() => setTab('manual')} className={cn('flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition', tab === 'manual' ? 'bg-neutral-900 text-white' : 'text-muted-foreground hover:text-neutral-700')}>
+          Manual
+        </button>
+        <button type="button" onClick={() => { setTab('fpf'); if (!fpfLoaded) loadFpfMatches(); }} className={cn('flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition', tab === 'fpf' ? 'bg-neutral-900 text-white' : 'text-muted-foreground hover:text-neutral-700')}>
+          FPF
+        </button>
+      </div>
+
+      {tab === 'manual' && (
+        <form onSubmit={(e) => { e.preventDefault(); onManualSubmit({ roundId, homeTeam, awayTeam, matchDate, matchTime: matchTime || undefined, venue: venue || undefined, competitionName: competitionName || undefined, escalao: escalao || undefined }); }} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Casa</label>
+              <input type="text" value={homeTeam} onChange={(e) => setHomeTeam(e.target.value)} required placeholder="Ex: Padroense" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Fora</label>
+              <input type="text" value={awayTeam} onChange={(e) => setAwayTeam(e.target.value)} required placeholder="Ex: Leixões" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Data</label>
+              <input type="date" value={matchDate} min={startDate} max={endDate} onChange={(e) => setMatchDate(e.target.value)} required className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Hora</label>
+              <input type="time" value={matchTime} onChange={(e) => setMatchTime(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Local</label>
+              <input type="text" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Escalão</label>
+              <input type="text" value={escalao} onChange={(e) => setEscalao(e.target.value)} placeholder="Sub-15" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Competição</label>
+            <input type="text" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} placeholder="Torneio X" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+          </div>
+          <Button type="submit" disabled={isPending || !homeTeam || !awayTeam} className="w-full">Adicionar</Button>
+        </form>
+      )}
+
+      {tab === 'fpf' && (
+        <div>
+          {fpfLoading && <p className="py-4 text-center text-sm text-muted-foreground">A carregar jogos FPF...</p>}
+          {fpfLoaded && fpfMatches.length === 0 && (
+            <p className="py-4 text-center text-sm text-muted-foreground">Sem jogos FPF disponíveis neste período</p>
+          )}
+          {fpfMatches.length > 0 && (
+            <div className="max-h-64 space-y-1.5 overflow-y-auto">
+              {fpfMatches.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onFpfImport(m.id)}
+                  disabled={isPending}
+                  className="w-full rounded-lg border px-3 py-2 text-left transition hover:bg-accent/50 disabled:opacity-50"
+                >
+                  <p className="text-sm font-medium">{m.homeTeam} vs {m.awayTeam}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {new Date(m.matchDate).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' })}
+                    {m.matchTime ? ` · ${m.matchTime}` : ''}
+                    {m.escalao ? ` · ${m.escalao}` : ''}
+                    {m.venue ? ` · ${m.venue}` : ''}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────────── Assign Scout Form ───────────── */
+
+function AssignScoutForm({ game, scouts, availability, existingAssignments, isPending, onAssign }: {
+  game: ScoutingGame;
+  scouts: { id: string; name: string; role: string }[];
+  availability: ScoutAvailability[];
+  existingAssignments: ScoutAssignment[];
+  isPending: boolean;
+  onAssign: (scoutId: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const assignedIds = new Set(existingAssignments.map((a) => a.scoutId));
+
+  // Check each scout's availability for this game's date + time
+  const gameHour = game.matchTime ? parseInt(game.matchTime.split(':')[0], 10) : null;
+
+  const scoutsWithAvail = scouts
+    .filter((s) => !assignedIds.has(s.id))
+    .map((s) => {
+      const scoutAvail = availability.filter((a) => a.scoutId === s.id);
+      const hasAlways = scoutAvail.some((a) => a.availabilityType === 'always');
+      const dateSlots = scoutAvail.filter((a) => a.availableDate === game.matchDate);
+
+      // Check time overlap for each date slot
+      const matchingSlots = dateSlots.filter((a) => {
+        if (a.availabilityType === 'full_day') return true;
+        if (a.availabilityType === 'period' && gameHour !== null) {
+          // morning: before 13h, afternoon: 13h-19h, evening: 19h+
+          if (a.period === 'morning') return gameHour < 13;
+          if (a.period === 'afternoon') return gameHour >= 13 && gameHour < 19;
+          if (a.period === 'evening') return gameHour >= 19;
+        }
+        if (a.availabilityType === 'time_range' && gameHour !== null && a.timeStart && a.timeEnd) {
+          const startH = parseInt(a.timeStart.split(':')[0], 10);
+          const endH = parseInt(a.timeEnd.split(':')[0], 10);
+          return gameHour >= startH && gameHour < endH;
+        }
+        // If no game time, any date match counts
+        if (gameHour === null) return true;
+        return false;
+      });
+
+      const isAvailable = hasAlways || matchingSlots.length > 0;
+      const hasDeclaredForDate = dateSlots.length > 0;
+
+      // Build label
+      let availLabel = '';
+      if (hasAlways) {
+        availLabel = 'Sempre disponível';
+      } else if (isAvailable) {
+        availLabel = matchingSlots.map((a) => formatShortLabel(a)).join(', ');
+      } else if (hasDeclaredForDate) {
+        // Has availability for this day but NOT for this time
+        availLabel = `Disponível: ${dateSlots.map((a) => formatShortLabel(a)).join(', ')} — jogo às ${game.matchTime ?? '?'}`;
+      }
+
+      return { ...s, isAvailable, availLabel, hasDeclared: scoutAvail.length > 0, hasDeclaredForDate };
+    })
+    // Sort: available first, then undeclared, then unavailable
+    .sort((a, b) => {
+      if (a.isAvailable && !b.isAvailable) return -1;
+      if (!a.isAvailable && b.isAvailable) return 1;
+      if (a.hasDeclared && !b.hasDeclared) return -1;
+      if (!a.hasDeclared && b.hasDeclared) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const q = search.toLowerCase().trim();
+  const filtered = q ? scoutsWithAvail.filter((s) => s.name.toLowerCase().includes(q)) : scoutsWithAvail;
+
+  if (scoutsWithAvail.length === 0) {
+    return <p className="py-4 text-center text-sm text-muted-foreground">Todos os scouts já estão atribuídos a este jogo</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Search — show if 5+ scouts */}
+      {scoutsWithAvail.length >= 5 && (
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Pesquisar scout..."
+          className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400"
+        />
+      )}
+
+      <div className="max-h-72 space-y-1.5 overflow-y-auto">
+        {filtered.map((scout) => (
+          <button
+            key={scout.id}
+            type="button"
+            onClick={() => onAssign(scout.id)}
+            disabled={isPending}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition disabled:opacity-50',
+              scout.isAvailable
+                ? 'border-green-200 bg-green-50/50 hover:bg-green-50'
+                : 'hover:bg-accent/50'
+            )}
+          >
+            {/* Availability indicator */}
+            <div className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+              scout.isAvailable ? 'bg-green-100 text-green-600' : (scout.hasDeclaredForDate || scout.hasDeclared) ? 'bg-red-100 text-red-500' : 'bg-neutral-100 text-neutral-400'
+            )}>
+              {scout.isAvailable ? <Check className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{scout.name}</p>
+              <p className={cn('text-[11px]', scout.isAvailable ? 'text-green-600' : (scout.hasDeclaredForDate || scout.hasDeclared) ? 'text-red-500' : 'text-muted-foreground')}>
+                {scout.isAvailable
+                  ? scout.availLabel
+                  : scout.hasDeclaredForDate
+                    ? scout.availLabel
+                    : scout.hasDeclared
+                      ? 'Sem disponibilidade para este dia'
+                      : 'Não declarou disponibilidade'}
+              </p>
+            </div>
+          </button>
+        ))}
+        {filtered.length === 0 && (
+          <p className="py-3 text-center text-sm text-muted-foreground">Nenhum scout encontrado</p>
+        )}
+      </div>
+    </div>
+  );
 }

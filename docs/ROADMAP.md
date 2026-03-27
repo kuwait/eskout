@@ -216,6 +216,16 @@ Custom squad system replacing hardcoded real/shadow booleans. Clubs can create u
 - [x] Round cards now clickable (Link to detail page)
 - [x] Closed rounds: add button disabled, no delete on slots
 
+### 16D. Games, Assignments & Conflict Detection ✅ DONE
+- [x] Server actions: `addManualGame`, `addFpfGame`, `deleteGame`, `getFpfMatchesForImport` (scouting-games.ts)
+- [x] Server actions: `assignScout`, `removeAssignment`, `updateAssignmentStatus`, `checkAssignmentConflicts` (scout-assignments.ts)
+- [x] Conflict detection: warns on same-time assignment + no availability (non-blocking)
+- [x] Mappers: `mapScoutingGameRow`, `mapScoutAssignmentRow`
+- [x] Game cards: home vs away, date/time, venue, escalão, FPF badge, assigned scout chips
+- [x] Add game dialog: Manual tab (form) + FPF tab (import from scraped matches in date range)
+- [x] Assign scout dialog: list of available scouts, click to assign
+- [x] Recruiter access: migration 101 updates RLS SELECT on all 4 tables, nav visible, published-only filter
+
 ### 5C. Tactical Formations per Age Group
 - [ ] Formation data on `club_age_groups` + slot definitions
 - [ ] Formation selector dropdown in squad view

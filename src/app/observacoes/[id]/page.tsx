@@ -1,7 +1,7 @@
 // src/app/observacoes/[id]/page.tsx
-// Round detail page — shows availability matrix (admin/editor) or own availability (scout)
-// Server component that fetches round, availability, and club scouts
-// RELEVANT FILES: src/actions/scouting-rounds.ts, src/actions/scout-availability.ts, src/app/observacoes/[id]/RoundDetailClient.tsx
+// Round detail page — availability, games, assignments
+// Server component that fetches round, availability, games, assignments, and club scouts
+// RELEVANT FILES: src/actions/scouting-rounds.ts, src/actions/scout-availability.ts, src/actions/scouting-games.ts, src/actions/scout-assignments.ts
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +10,8 @@ import { getActiveClub } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 import { mapScoutingRoundRow } from '@/lib/supabase/mappers';
 import { getScoutAvailability, getClubScouts } from '@/actions/scout-availability';
+import { getGamesForRound } from '@/actions/scouting-games';
+import { getAssignmentsForRound } from '@/actions/scout-assignments';
 import { RoundDetailClient } from './RoundDetailClient';
 import type { ScoutingRoundRow } from '@/lib/types';
 
@@ -32,19 +34,36 @@ export default async function RoundDetailPage({ params }: { params: Promise<{ id
   if (!roundRow) notFound();
 
   const round = mapScoutingRoundRow(roundRow as ScoutingRoundRow);
+  const canManage = role === 'admin' || role === 'editor';
 
-  // Fetch availability + scouts in parallel
-  const [availability, scouts] = await Promise.all([
+  // Scouts and recruiters can only see published rounds
+  if (!canManage && round.status !== 'published') notFound();
+
+  // Fetch all data in parallel
+  const [availability, scouts, games, assignments] = await Promise.all([
     getScoutAvailability(roundId),
-    (role === 'admin' || role === 'editor') ? getClubScouts() : Promise.resolve([]),
+    getClubScouts(),
+    getGamesForRound(roundId),
+    getAssignmentsForRound(roundId),
   ]);
+
+  // Scouts/recruiters only see games they're assigned to
+  const myAssignedGameIds = new Set(
+    assignments.filter((a) => a.scoutId === userId && a.status !== 'cancelled').map((a) => a.gameId)
+  );
+  const visibleGames = canManage ? games : games.filter((g) => myAssignedGameIds.has(g.id));
+  const visibleAssignments = canManage
+    ? assignments
+    : assignments.filter((a) => myAssignedGameIds.has(a.gameId));
 
   return (
     <RoundDetailClient
       round={round}
       availability={availability}
       scouts={scouts}
-      userRole={role}
+      games={visibleGames}
+      assignments={visibleAssignments}
+      canManage={canManage}
       userId={userId}
     />
   );

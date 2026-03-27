@@ -28,8 +28,8 @@ export async function getScoutingRounds(): Promise<ScoutingRound[]> {
     .eq('club_id', clubId)
     .order('start_date', { ascending: false });
 
-  // Scouts only see published rounds
-  if (role === 'scout') {
+  // Scouts and recruiters only see published rounds
+  if (role === 'scout' || role === 'recruiter') {
     query = query.eq('status', 'published');
   }
 

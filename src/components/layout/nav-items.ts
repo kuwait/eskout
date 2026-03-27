@@ -37,7 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/campo/sombra', label: 'Planteis Sombra', icon: Shield, scoutHidden: true, feature: 'shadow_squad' },
   { href: '/pipeline', label: 'Abordagens', icon: GitBranch, scoutHidden: true, feature: 'pipeline' },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays, scoutHidden: true, feature: 'calendar' },
-  { href: '/observacoes', label: 'Observações', icon: Binoculars, scoutHidden: false, recruiterHidden: true, feature: null },
+  { href: '/observacoes', label: 'Observações', icon: Binoculars, scoutHidden: false, feature: null },
   { href: '/tarefas', label: 'Tarefas', icon: ListTodo, scoutHidden: true, feature: null },
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },

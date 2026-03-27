@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutAvailability, ScoutAvailabilityRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutAssignment, ScoutAssignmentRow, ScoutAvailability, ScoutAvailabilityRow, ScoutingGame, ScoutingGameRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
 import { detectPlayingUp } from '@/lib/utils/playing-up';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
@@ -286,6 +286,48 @@ export function mapScoutingRoundRow(row: ScoutingRoundRow): ScoutingRound {
     status: row.status as ScoutingRound['status'],
     notes: row.notes ?? '',
     createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Scouting Game Mapper ───────────── */
+
+/** Map a Supabase ScoutingGameRow (snake_case) to the domain ScoutingGame type (camelCase) */
+export function mapScoutingGameRow(row: ScoutingGameRow): ScoutingGame {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    roundId: row.round_id,
+    fpfMatchId: row.fpf_match_id,
+    homeTeam: row.home_team,
+    awayTeam: row.away_team,
+    matchDate: row.match_date,
+    matchTime: row.match_time,
+    venue: row.venue,
+    competitionName: row.competition_name,
+    escalao: row.escalao,
+    priority: row.priority,
+    notes: row.notes ?? '',
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Scout Assignment Mapper ───────────── */
+
+/** Map a Supabase ScoutAssignmentRow (snake_case) to the domain ScoutAssignment type (camelCase) */
+export function mapScoutAssignmentRow(row: ScoutAssignmentRow): ScoutAssignment {
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    gameId: row.game_id,
+    scoutId: row.scout_id,
+    assignedBy: row.assigned_by,
+    status: row.status as ScoutAssignment['status'],
+    coordinatorNotes: row.coordinator_notes ?? '',
+    scoutNotes: row.scout_notes ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
