@@ -188,7 +188,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   useRealtimeTable('status_history', { onAny: () => router.refresh() });
 
   /* ───────────── Lists bookmark ───────────── */
-  const canObserve = !isScout;
+  const canObserve = true; // All roles can submit QSRs and bookmark
+  const canManagePipeline = !isScout; // Scouts can't add to pipeline
 
   /* ───────────── Add to Pipeline ───────────── */
   function handleAddToPipeline() {
@@ -469,7 +470,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             )}
             {!isScout && <RefreshPlayerButton player={player} />}
             {/* Add to pipeline — only when player is NOT already in pipeline */}
-            {canObserve && !p.recruitmentStatus && (
+            {canManagePipeline && !p.recruitmentStatus && (
               <>
                 <div className="mx-0.5 h-4 w-px bg-neutral-200" />
                 <button
@@ -1042,23 +1043,59 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               />
             </Section>}
 
-            {/* Scout's own QSRs — visible even when hideScoutingData is true */}
+            {/* Scout's own QSRs + add button — visible even when hideScoutingData is true */}
             {hideScoutingData && (() => {
               const myQsrs = quickReports.filter(qr => qr.authorId === currentUserId);
-              if (myQsrs.length === 0) return null;
               return (
-                <Section title="As minhas avaliações">
-                  <div className="space-y-1.5">
-                    {myQsrs.map(qr => (
-                      <QuickReportCard
-                        key={`qr-${qr.id}`}
-                        report={qr}
-                        canDelete={true}
-                        onDelete={() => router.refresh()}
-                        defaultExpanded
+                <Section
+                  title="As minhas avaliações"
+                  action={
+                    <button type="button" onClick={() => setShowQuickReportForm(true)} className="text-xs font-medium text-primary hover:underline">
+                      + Avaliar
+                    </button>
+                  }
+                >
+                  {myQsrs.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {myQsrs.map(qr => (
+                        <QuickReportCard
+                          key={`qr-${qr.id}`}
+                          report={qr}
+                          canDelete={true}
+                          onDelete={() => router.refresh()}
+                          defaultExpanded
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="py-2 text-center text-xs text-muted-foreground">Sem avaliações. Clica em &quot;+ Avaliar&quot; para adicionar.</p>
+                  )}
+                  {/* QSR Dialog for scouts */}
+                  <Dialog
+                    open={showQuickReportForm}
+                    onOpenChange={(open) => {
+                      if (!open && quickReportDirty) { setShowDiscardConfirm(true); }
+                      else { setShowQuickReportForm(open); if (!open) setQuickReportDirty(false); }
+                    }}
+                  >
+                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" onInteractOutside={(e) => { if (quickReportDirty) e.preventDefault(); }}>
+                      <DialogHeader>
+                        <DialogTitle>Avaliar {p.name.split(' ').slice(0, 2).join(' ')}</DialogTitle>
+                      </DialogHeader>
+                      <QuickReportForm
+                        playerId={p.id}
+                        playerName={p.name}
+                        isGoalkeeper={p.positionNormalized === 'GR'}
+                        initialMatchContext={qsrAutoOpen}
+                        onSuccess={() => { setShowQuickReportForm(false); setQuickReportDirty(false); router.refresh(); }}
+                        onCancel={() => {
+                          if (quickReportDirty) { setShowDiscardConfirm(true); }
+                          else { setShowQuickReportForm(false); }
+                        }}
+                        onDirtyChange={setQuickReportDirty}
                       />
-                    ))}
-                  </div>
+                    </DialogContent>
+                  </Dialog>
                 </Section>
               );
             })()}

@@ -35,9 +35,10 @@ function parseEvalLabel(value: string): string {
 interface PlayerCardProps {
   player: Player;
   hideEvaluations?: boolean;
+  hideScoutingData?: boolean;
 }
 
-export function PlayerCard({ player, hideEvaluations = false }: PlayerCardProps) {
+export function PlayerCard({ player, hideEvaluations = false, hideScoutingData = false }: PlayerCardProps) {
   const primary = getPrimaryRating(player);
   const ratingInt = primary ? (Math.ceil(primary.value) || 1) : 0;
 
@@ -77,8 +78,8 @@ export function PlayerCard({ player, hideEvaluations = false }: PlayerCardProps)
         <div className="min-w-0 flex-1">
           {/* Line 1: name + observation badge */}
           <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-            <ObservationBadge player={player} />
-            <PlayingUpBadge player={player} />
+            {!hideScoutingData && <ObservationBadge player={player} />}
+            {!hideScoutingData && <PlayingUpBadge player={player} />}
             <span className="truncate">{player.name}</span>
           </p>
 

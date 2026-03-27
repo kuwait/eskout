@@ -95,7 +95,7 @@ function mapListItem(row: PlayerListItemRow): PlayerListItem {
 /** Get all lists for the current user (with item counts). Auto-creates "A Observar" if missing. */
 export async function getMyLists(): Promise<PlayerList[]> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return [];
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -264,7 +264,7 @@ export async function getAllLists(): Promise<PlayerList[]> {
 /** Get items in a specific list (with joined player data) — service client for shared list support */
 export async function getListItems(listId: number): Promise<PlayerListItem[]> {
   const { role } = await getActiveClub();
-  if (role === 'scout') return [];
+  // Scouts have full access to lists
 
   // Service client to bypass player_list_items RLS for shared lists
   const service = await createServiceClient();
@@ -283,7 +283,7 @@ export async function getListItems(listId: number): Promise<PlayerListItem[]> {
 /** Get list metadata by id — uses service client to support shared lists (RLS blocks non-owner reads) */
 export async function getListById(listId: number): Promise<PlayerList | null> {
   const { role } = await getActiveClub();
-  if (role === 'scout') return null;
+  // Scouts have full access to lists
 
   // Use service client — player_lists RLS only allows owner/admin reads,
   // but shared users also need access. Access is verified in the page via shares check.
@@ -329,7 +329,7 @@ export async function getListById(listId: number): Promise<PlayerList | null> {
 /** Get which of the user's lists contain a specific player (for profile bookmark dropdown) */
 export async function getPlayerListMemberships(playerId: number): Promise<number[]> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return [];
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -357,7 +357,7 @@ export async function getPlayerListMemberships(playerId: number): Promise<number
 /** Total count of items across all user lists (for nav badge) */
 export async function getListsItemCount(): Promise<number> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return 0;
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -383,7 +383,7 @@ export async function getListsItemCount(): Promise<number> {
 /** Create a new custom list */
 export async function createList(input: { name: string; emoji?: string }): Promise<ActionResponse<{ id: number }>> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const parsed = createListSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
@@ -411,7 +411,7 @@ export async function createList(input: { name: string; emoji?: string }): Promi
 /** Rename a custom list (system lists cannot be renamed) */
 export async function renameList(input: { listId: number; name: string; emoji?: string }): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const parsed = renameListSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
@@ -447,7 +447,7 @@ export async function renameList(input: { listId: number; name: string; emoji?: 
 /** Delete a custom list and all its items (system lists cannot be deleted) */
 export async function deleteList(listId: number): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -478,7 +478,7 @@ export async function deleteList(listId: number): Promise<ActionResponse> {
 /** Clear all items from a list (keeps the list itself) */
 export async function clearList(listId: number): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -498,7 +498,7 @@ export async function clearList(listId: number): Promise<ActionResponse> {
 /** Duplicate a list — creates a copy with all players and notes */
 export async function duplicateList(listId: number, newName?: string): Promise<ActionResponse<{ id: number }>> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -564,7 +564,7 @@ export async function addPlayerToList(
   note?: string | null,
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const parsed = addToListSchema.safeParse({ listId, playerId, note });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
@@ -587,7 +587,7 @@ export async function addPlayerToList(
 /** Remove a player from a specific list */
 export async function removePlayerFromList(listId: number, playerId: number): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -609,7 +609,7 @@ export async function updatePlayerListMemberships(
   listIds: number[],
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -676,7 +676,7 @@ export async function updateListItemNote(
   note: string | null,
 ): Promise<ActionResponse> {
   const { role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -698,7 +698,7 @@ export async function toggleListItemSeen(
   seen: boolean,
 ): Promise<ActionResponse> {
   const { role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -719,7 +719,7 @@ export async function reorderListItems(
   orderedPlayerIds: number[],
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 
@@ -746,7 +746,7 @@ export async function reorderListItems(
 /** Fetch lightweight player data for the add-to-list search dialog. Paginated to bypass Supabase 1000-row limit. */
 export async function getPickerPlayers(): Promise<PickerPlayer[]> {
   const { clubId, role } = await getActiveClub();
-  if (role === 'scout') return [];
+  // Scouts have full access to lists
 
   const supabase = await createClient();
   const PAGE_SIZE = 1000;
@@ -889,7 +889,7 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
  */
 export async function getPickerClubs(): Promise<string[]> {
   const { clubId, role } = await getActiveClub();
-  if (role === 'scout') return [];
+  // Scouts have full access to lists
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -998,7 +998,7 @@ export async function isPlayerObserved(playerId: number): Promise<boolean> {
 /** Share a list with another club member */
 export async function shareList(listId: number, targetUserId: string): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   if (targetUserId === userId) return { success: false, error: 'Não podes partilhar contigo próprio' };
 
@@ -1035,7 +1035,7 @@ export async function shareList(listId: number, targetUserId: string): Promise<A
 /** Remove a share — owner revokes or shared user leaves */
 export async function unshareList(listId: number, targetUserId: string): Promise<ActionResponse> {
   const { clubId, userId, role } = await getActiveClub();
-  if (role === 'scout') return { success: false, error: 'Sem permissão' };
+  // Scouts have full access to lists
 
   const supabase = await createClient();
 

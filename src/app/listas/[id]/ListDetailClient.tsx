@@ -87,6 +87,7 @@ export function ListDetailClient({
   const [exporting, setExporting] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [duplicateConfirm, setDuplicateConfirm] = useState(false);
   const [localShares, setLocalShares] = useState(shares);
   const [groupByClub, setGroupByClub] = useState(false);
   // Read persisted preference after mount to avoid hydration mismatch
@@ -279,16 +280,7 @@ export function ListDetailClient({
           {items.length > 0 && (
             <button
               type="button"
-              onClick={async () => {
-                const { duplicateList } = await import('@/actions/player-lists');
-                const result = await duplicateList(list.id);
-                if (result.success && result.data) {
-                  toast.success('Lista duplicada');
-                  router.push(`/listas/${result.data.id}`);
-                } else {
-                  toast.error(result.error ?? 'Erro ao duplicar');
-                }
-              }}
+              onClick={() => setDuplicateConfirm(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-neutral-300 hover:text-neutral-600"
             >
               <Copy className="h-3.5 w-3.5" />
@@ -546,6 +538,36 @@ export function ListDetailClient({
               className="bg-red-600 text-white hover:bg-red-700"
             >
               Limpar tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate confirmation */}
+      <AlertDialog open={duplicateConfirm} onOpenChange={setDuplicateConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Duplicar lista?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Será criada uma cópia de &quot;{list.name}&quot; com os mesmos {items.length} jogador{items.length !== 1 ? 'es' : ''}. A nova lista será independente — alterações numa não afetam a outra.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                const { duplicateList } = await import('@/actions/player-lists');
+                const result = await duplicateList(list.id);
+                if (result.success && result.data) {
+                  toast.success('Lista duplicada');
+                  router.push(`/listas/${result.data.id}`);
+                } else {
+                  toast.error(result.error ?? 'Erro ao duplicar');
+                }
+                setDuplicateConfirm(false);
+              }}
+            >
+              Duplicar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -862,16 +884,6 @@ function AddPlayerDialog({
               <SelectItem value="all">Clube</SelectItem>
               {clubs.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={filters.opinion || 'all'} onValueChange={(v) => updateFilter('opinion', v === 'all' ? '' : v)}>
-            <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Opinião" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Opinião</SelectItem>
-              {DEPARTMENT_OPINIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.value}</SelectItem>
               ))}
             </SelectContent>
           </Select>

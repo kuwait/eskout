@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 export default async function HomePage() {
   const ctx = await getActiveClub();
   const hideEvaluations = ctx.role === 'recruiter';
+  const isScout = ctx.role === 'scout';
   const supabase = await createClient();
 
   // Server-side: first page of 50 players + dropdown options in 1 RPC
@@ -22,14 +23,16 @@ export default async function HomePage() {
     <div className="p-4 lg:p-6">
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-xl font-bold lg:text-2xl">Jogadores</h1>
-        <Button asChild size="sm">
-          <Link href="/jogadores/novo">
-            <Plus className="mr-1 h-4 w-4" />
-            Adicionar
-          </Link>
-        </Button>
+        {!isScout && (
+          <Button asChild size="sm">
+            <Link href="/jogadores/novo">
+              <Plus className="mr-1 h-4 w-4" />
+              Adicionar
+            </Link>
+          </Button>
+        )}
       </div>
-      <PlayersView hideEvaluations={hideEvaluations} clubId={ctx.clubId} initialData={data} />
+      <PlayersView hideEvaluations={hideEvaluations || isScout} hideScoutingData={isScout} clubId={ctx.clubId} initialData={data} />
     </div>
   );
 }

@@ -12,7 +12,7 @@ const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/demo', 
 // Routes that require admin role — editors and scouts are redirected
 const ADMIN_ONLY_ROUTES = ['/admin'];
 // Scouts can ONLY access these routes — everything else is blocked
-const SCOUT_ALLOWED_ROUTES = ['/meus-relatorios', '/submeter', '/mais', '/preferencias', '/jogadores/novo', '/meus-jogadores', '/meus-jogos', '/observacoes'];
+const SCOUT_ALLOWED_ROUTES = ['/', '/meus-relatorios', '/submeter', '/mais', '/preferencias', '/jogadores/novo', '/meus-jogos', '/observacoes', '/listas'];
 // Recruiters are blocked from these routes (scouting data, export, admin)
 const RECRUITER_BLOCKED_ROUTES = ['/exportar', '/meus-relatorios', '/submeter', '/admin', '/alertas'];
 // Club picker — no club required
@@ -143,7 +143,9 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute = ADMIN_ONLY_ROUTES.some((route) => pathname.startsWith(route));
   // Scouts can also view individual player profiles (e.g., /jogadores/123)
   const isPlayerProfile = /^\/jogadores\/\d+$/.test(pathname);
-  const isScoutAllowed = isPlayerProfile || SCOUT_ALLOWED_ROUTES.some((route) => pathname.startsWith(route));
+  const isScoutAllowed = isPlayerProfile || SCOUT_ALLOWED_ROUTES.some((route) =>
+    route === '/' ? pathname === '/' : pathname.startsWith(route),
+  );
 
   if (clubId && (isAdminRoute || !isScoutAllowed)) {
     // Fetch club role from membership

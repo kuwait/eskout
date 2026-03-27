@@ -14,9 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getActiveClub();
 
-  if (ctx.role === 'scout') {
-    redirect('/');
-  }
+  // All roles can access lists
 
   const { id } = await params;
   const listId = parseInt(id, 10);

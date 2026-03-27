@@ -13,10 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function ListsPage() {
   const ctx = await getActiveClub();
 
-  // Scouts don't have access
-  if (ctx.role === 'scout') {
-    redirect('/');
-  }
+  // All roles can access lists
 
   const [myLists, allLists] = await Promise.all([
     getMyLists(),

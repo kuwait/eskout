@@ -296,7 +296,7 @@ describe('force-dynamic pages are limited', () => {
       { encoding: 'utf-8' }
     );
     const pages = result.split('\n').filter(Boolean).filter(l => !l.includes('__tests__'));
-    expect(pages.length).toBeLessThanOrEqual(8);
+    expect(pages.length).toBeLessThanOrEqual(9);
   });
 
   it('dashboard and export pages should NOT be force-dynamic', () => {

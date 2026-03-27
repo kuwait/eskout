@@ -58,14 +58,13 @@ describe('filterNavItems — editor', () => {
 describe('filterNavItems — scout', () => {
   const items = filterNavItems('scout', ALL_FEATURES);
 
-  it('sees scout-specific pages', () => {
-    expect(hrefs(items)).toContain('/meus-relatorios');
-    expect(hrefs(items)).toContain('/submeter');
-    expect(hrefs(items)).toContain('/meus-jogadores');
+  it('sees Jogadores and Observações', () => {
+    expect(hrefs(items)).toContain('/');
+    expect(hrefs(items)).toContain('/observacoes');
+    // /meus-relatorios is now a sub-item of Observações (rendered in Sidebar, not in NAV_ITEMS)
   });
 
-  it('does NOT see admin/editor pages', () => {
-    expect(hrefs(items)).not.toContain('/');
+  it('does NOT see admin/editor-only pages', () => {
     expect(hrefs(items)).not.toContain('/campo/real');
     expect(hrefs(items)).not.toContain('/campo/sombra');
     expect(hrefs(items)).not.toContain('/pipeline');
@@ -122,7 +121,6 @@ describe('filterNavItems — feature toggles', () => {
   it('hides scout submissions when feature disabled', () => {
     const items = filterNavItems('scout', { scout_submissions: false });
     expect(hrefs(items)).not.toContain('/meus-relatorios');
-    expect(hrefs(items)).not.toContain('/submeter');
   });
 
   it('keeps items when feature not explicitly disabled', () => {

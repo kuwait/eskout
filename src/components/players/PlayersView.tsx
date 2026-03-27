@@ -67,7 +67,7 @@ interface PlayersPageData {
   options: { clubs: string[]; nationalities: string[]; birth_years: number[] };
 }
 
-export function PlayersView({ hideEvaluations = false, clubId, initialData }: { hideEvaluations?: boolean; clubId: string; initialData?: PlayersPageData | null }) {
+export function PlayersView({ hideEvaluations = false, hideScoutingData = false, clubId, initialData }: { hideEvaluations?: boolean; hideScoutingData?: boolean; clubId: string; initialData?: PlayersPageData | null }) {
   const searchParams = useSearchParams();
   const initialClub = searchParams.get('clube') ?? '';
   const initialNationality = searchParams.get('nacionalidade') ?? '';
@@ -377,6 +377,7 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
           clubs={clubs}
           nationalities={nationalities}
           birthYears={birthYears}
+          hideScoutingData={hideScoutingData}
         />
       </div>
 
@@ -430,23 +431,17 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
       {/* Players + pagination */}
       {!loading && (
         <>
-          {/* Results count */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{totalCount} jogador{totalCount !== 1 ? 'es' : ''}</span>
-            {totalPages > 1 && (
-              <span>Página {page + 1} de {totalPages}</span>
-            )}
-          </div>
+          {/* Results count removed — cleaner UI */}
 
           {/* Desktop table */}
           <div className="hidden md:block">
-            <PlayerTable players={pageSlice} hideEvaluations={hideEvaluations} />
+            <PlayerTable players={pageSlice} hideEvaluations={hideEvaluations} hideScoutingData={hideScoutingData} />
           </div>
 
           {/* Mobile cards */}
           <div className="space-y-2 md:hidden">
             {pageSlice.map((player) => (
-              <PlayerCard key={player.id} player={player} hideEvaluations={hideEvaluations} />
+              <PlayerCard key={player.id} player={player} hideEvaluations={hideEvaluations} hideScoutingData={hideScoutingData} />
             ))}
             {totalCount === 0 && (
               <p className="py-8 text-center text-muted-foreground">

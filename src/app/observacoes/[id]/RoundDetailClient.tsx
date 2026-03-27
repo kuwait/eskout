@@ -859,18 +859,13 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
         {gameTargets.map((target) => {
           const done = target.hasReport || completedPlayerIds.has(target.playerId);
           return (
-            <button
+            <div
               key={target.id}
-              type="button"
-              onClick={() => done
-                ? router.push(`/jogadores/${target.playerId}`)
-                : setQsrPlayer({ id: target.playerId, name: target.playerName, isGk: target.playerPosition === 'GR', photoUrl: target.playerPhotoUrl, club: target.playerClub, position: target.playerPosition })
-              }
               className={cn(
-                'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition',
+                'flex items-center gap-2 rounded-lg px-2.5 py-2 transition',
                 done
                   ? 'bg-green-50 dark:bg-green-950/20'
-                  : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-900/30',
+                  : 'bg-amber-50 dark:bg-amber-950/20',
               )}
             >
               {done ? (
@@ -879,9 +874,12 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
                 <Crosshair className="h-4 w-4 shrink-0 text-amber-500" />
               )}
               <div className="min-w-0 flex-1">
-                <span className={cn('text-xs font-medium', done ? 'text-green-700 dark:text-green-400' : 'text-amber-800 dark:text-amber-300')}>
+                <Link
+                  href={`/jogadores/${target.playerId}`}
+                  className={cn('text-xs font-medium underline-offset-2 hover:underline', done ? 'text-green-700 dark:text-green-400' : 'text-amber-800 dark:text-amber-300')}
+                >
                   {shortName(target.playerName)}
-                </span>
+                </Link>
                 {target.playerPosition && (
                   <span className="ml-1.5 text-[10px] text-muted-foreground">{target.playerPosition}</span>
                 )}
@@ -890,12 +888,24 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
                 )}
               </div>
               {!done && (
-                <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">Avaliar →</span>
+                <button
+                  type="button"
+                  onClick={() => setQsrPlayer({ id: target.playerId, name: target.playerName, isGk: target.playerPosition === 'GR', photoUrl: target.playerPhotoUrl, club: target.playerClub, position: target.playerPosition })}
+                  className="shrink-0 text-[10px] font-medium text-amber-600 hover:text-amber-500 dark:text-amber-400"
+                >
+                  Avaliar →
+                </button>
               )}
               {done && (
-                <span className="shrink-0 text-[10px] text-green-600 dark:text-green-400">Ver avaliação →</span>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/jogadores/${target.playerId}`)}
+                  className="shrink-0 text-[10px] text-green-600 hover:text-green-500 dark:text-green-400"
+                >
+                  Ver avaliação →
+                </button>
               )}
-            </button>
+            </div>
           );
         })}
 

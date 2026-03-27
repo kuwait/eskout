@@ -25,9 +25,10 @@ interface PlayerFiltersProps {
   clubs: string[];
   nationalities: string[];
   birthYears: number[];
+  hideScoutingData?: boolean;
 }
 
-export function PlayerFilters({ filters, onFiltersChange, clubs, nationalities, birthYears }: PlayerFiltersProps) {
+export function PlayerFilters({ filters, onFiltersChange, clubs, nationalities, birthYears, hideScoutingData = false }: PlayerFiltersProps) {
   const [showDateRange, setShowDateRange] = useState(false);
 
   function update(key: keyof PlayerFilterState, value: string) {
@@ -113,18 +114,20 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, nationalities, 
           </Select>
         )}
 
-        {/* Department Opinion */}
-        <Select value={filters.opinion || 'all'} onValueChange={(v) => update('opinion', v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-[150px]" aria-label="Filtrar por opinião">
-            <SelectValue placeholder="Opinião" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Opinião</SelectItem>
-            {DEPARTMENT_OPINIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.value}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Department Opinion — hidden for scouts */}
+        {!hideScoutingData && (
+          <Select value={filters.opinion || 'all'} onValueChange={(v) => update('opinion', v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-[150px]" aria-label="Filtrar por opinião">
+              <SelectValue placeholder="Opinião" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Opinião</SelectItem>
+              {DEPARTMENT_OPINIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.value}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {/* Foot */}
         <Select value={filters.foot || 'all'} onValueChange={(v) => update('foot', v === 'all' ? '' : v)}>
@@ -139,44 +142,50 @@ export function PlayerFilters({ filters, onFiltersChange, clubs, nationalities, 
           </SelectContent>
         </Select>
 
-        {/* Recruitment Status */}
-        <Select value={filters.status || 'all'} onValueChange={(v) => update('status', v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-[150px]" aria-label="Filtrar por estado">
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Estado</SelectItem>
-            {RECRUITMENT_STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.labelPt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Recruitment Status — hidden for scouts */}
+        {!hideScoutingData && (
+          <Select value={filters.status || 'all'} onValueChange={(v) => update('status', v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-[150px]" aria-label="Filtrar por estado">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Estado</SelectItem>
+              {RECRUITMENT_STATUSES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.labelPt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
-        {/* Observation Tier */}
-        <Select value={filters.observationTier || 'all'} onValueChange={(v) => update('observationTier', v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-[150px]" aria-label="Filtrar por estado de observação">
-            <SelectValue placeholder="Observação" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Observação</SelectItem>
-            {OBSERVATION_TIERS.map((t) => (
-              <SelectItem key={t.value} value={t.value}>{t.labelPt}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Observation Tier — hidden for scouts */}
+        {!hideScoutingData && (
+          <Select value={filters.observationTier || 'all'} onValueChange={(v) => update('observationTier', v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-[150px]" aria-label="Filtrar por estado de observação">
+              <SelectValue placeholder="Observação" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Observação</SelectItem>
+              {OBSERVATION_TIERS.map((t) => (
+                <SelectItem key={t.value} value={t.value}>{t.labelPt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
-        {/* Playing Up */}
-        <Select value={filters.playingUp || 'all'} onValueChange={(v) => update('playingUp', v === 'all' ? '' : v)}>
-          <SelectTrigger className={`w-[150px] ${filters.playingUp ? 'border-orange-300 bg-orange-50 text-orange-700' : ''}`} aria-label="Filtrar por jogar acima">
-            <SelectValue placeholder="Joga acima" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Joga acima</SelectItem>
-            <SelectItem value="any">Todos</SelectItem>
-            <SelectItem value="regular">Regular</SelectItem>
-            <SelectItem value="pontual">Pontual</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Playing Up — hidden for scouts */}
+        {!hideScoutingData && (
+          <Select value={filters.playingUp || 'all'} onValueChange={(v) => update('playingUp', v === 'all' ? '' : v)}>
+            <SelectTrigger className={`w-[150px] ${filters.playingUp ? 'border-orange-300 bg-orange-50 text-orange-700' : ''}`} aria-label="Filtrar por jogar acima">
+              <SelectValue placeholder="Joga acima" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Joga acima</SelectItem>
+              <SelectItem value="any">Todos</SelectItem>
+              <SelectItem value="regular">Regular</SelectItem>
+              <SelectItem value="pontual">Pontual</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
         {/* Toggle date range filter — defaults to Jul 1 – Dec 31 of selected birth year */}
         <Button

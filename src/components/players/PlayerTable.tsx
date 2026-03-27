@@ -31,6 +31,7 @@ type SortDir = 'asc' | 'desc';
 interface PlayerTableProps {
   players: Player[];
   hideEvaluations?: boolean;
+  hideScoutingData?: boolean;
 }
 
 /* ───────────── Rating Colors (card-style badge, same palette as PlayerProfile) ───────────── */
@@ -94,13 +95,16 @@ function SortHeader({ label, sortKeyName, onSort }: {
 
 /* ───────────── Player Table ───────────── */
 
-export function PlayerTable({ players, hideEvaluations = false }: PlayerTableProps) {
+export function PlayerTable({ players, hideEvaluations = false, hideScoutingData = false }: PlayerTableProps) {
   const router = useRouter();
-  const [sortKey, setSortKey] = useState<SortKey>('eval');
+  const [sortKey, setSortKey] = useState<SortKey>(hideScoutingData ? 'name' : 'eval');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  // Filter out eval column for recruiters
-  const visibleColumns = hideEvaluations ? COLUMN_KEYS.filter((k) => k !== 'eval') : COLUMN_KEYS;
+  // Filter out columns based on role
+  const hiddenCols = new Set<SortKey>();
+  if (hideEvaluations || hideScoutingData) hiddenCols.add('eval');
+  if (hideScoutingData) { hiddenCols.add('opinion'); hiddenCols.add('status'); hiddenCols.add('notes'); }
+  const visibleColumns = COLUMN_KEYS.filter((k) => !hiddenCols.has(k));
 
   const { widths, handleMouseDown, handleDoubleClick, tableRef } = useResizableColumns({
     columnKeys: visibleColumns,
@@ -216,8 +220,8 @@ export function PlayerTable({ players, hideEvaluations = false }: PlayerTablePro
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 truncate font-medium text-neutral-900">
-                        <ObservationBadge player={player} />
-                        <PlayingUpBadge player={player} />
+                        {!hideScoutingData && <ObservationBadge player={player} />}
+                        {!hideScoutingData && <PlayingUpBadge player={player} />}
                         <span className="truncate">{player.name}</span>
                       </p>
                       {player.club && (
@@ -271,15 +275,15 @@ export function PlayerTable({ players, hideEvaluations = false }: PlayerTablePro
                     <span className="text-sm text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell style={{ width: widths.opinion }}><OpinionBadge opinion={player.departmentOpinion} /></TableCell>
-                <TableCell style={{ width: widths.status }}>
+                {!hideScoutingData && <TableCell style={{ width: widths.opinion }}><OpinionBadge opinion={player.departmentOpinion} /></TableCell>}
+                {!hideScoutingData && <TableCell style={{ width: widths.status }}>
                   {player.recruitmentStatus && (
                     <StatusBadge status={player.recruitmentStatus} />
                   )}
-                </TableCell>
-                <TableCell style={{ width: widths.notes }} className="overflow-hidden">
+                </TableCell>}
+                {!hideScoutingData && <TableCell style={{ width: widths.notes }} className="overflow-hidden">
                   <NotesCell notes={player.observationNotePreviews} fallback={player.notes} />
-                </TableCell>
+                </TableCell>}
               </TableRow>
             );
           })}

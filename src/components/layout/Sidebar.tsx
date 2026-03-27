@@ -140,8 +140,8 @@ export function Sidebar({
                     )}
                   </Link>
                 )}
-                {/* Sub-item: Listas (collapsible) — under Jogadores, admin/editor/recruiter */}
-                {item.href === '/' && !isScout && (
+                {/* Sub-item: Listas (collapsible) — under Jogadores, all roles */}
+                {item.href === '/' && (
                   <div className="mt-0.5">
                     <div className="flex items-center">
                       <Link
@@ -223,6 +223,21 @@ export function Sidebar({
                       </>
                     )}
                   </div>
+                )}
+                {/* Sub-item: Meus Relatórios — under Observações */}
+                {item.href === '/observacoes' && (
+                  <Link
+                    href="/meus-relatorios"
+                    className={cn(
+                      'mt-0.5 flex items-center gap-2.5 rounded-md py-1.5 pl-10 pr-3 text-[13px] font-medium transition-colors',
+                      pathname.startsWith('/meus-relatorios')
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground/70 hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Meus Relatórios
+                  </Link>
                 )}
                 {/* Sub-item: Comparar — under Jogadores, admin/editor/recruiter */}
                 {item.href === '/' && !isScout && (

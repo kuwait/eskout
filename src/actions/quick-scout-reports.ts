@@ -139,18 +139,19 @@ export async function getQuickReportsForPlayer(playerId: number): Promise<QuickS
 }
 
 /** Get quick reports authored by the current user */
-export async function getMyQuickReports(): Promise<QuickScoutReport[]> {
+export async function getMyQuickReports(page = 0, pageSize = 20): Promise<{ reports: QuickScoutReport[]; total: number }> {
   const { userId } = await getActiveClub();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const from = page * pageSize;
+  const { data, error, count } = await supabase
     .from('quick_scout_reports')
-    .select('*, players(name)')
+    .select('*, players(name, club, position_normalized, photo_url, zz_photo_url)', { count: 'exact' })
     .eq('author_id', userId)
     .order('created_at', { ascending: false })
-    .limit(50);
+    .range(from, from + pageSize - 1);
 
-  if (error || !data) return [];
+  if (error || !data) return { reports: [], total: 0 };
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -158,10 +159,15 @@ export async function getMyQuickReports(): Promise<QuickScoutReport[]> {
     .eq('id', userId)
     .single();
 
-  return data.map(row => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reports = data.map((row: any) => ({
     id: row.id,
     clubId: row.club_id,
     playerId: row.player_id,
+    playerName: row.players?.name ?? '',
+    playerClub: row.players?.club ?? '',
+    playerPosition: row.players?.position_normalized ?? null,
+    playerPhotoUrl: row.players?.photo_url || row.players?.zz_photo_url || null,
     authorId: row.author_id,
     authorName: profile?.full_name ?? 'Eu',
     ratingTecnica: row.rating_tecnica,
@@ -197,6 +203,8 @@ export async function getMyQuickReports(): Promise<QuickScoutReport[]> {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));
+
+  return { reports, total: count ?? reports.length };
 }
 
 /* ───────────── Delete ───────────── */
