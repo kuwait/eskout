@@ -68,8 +68,57 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
 
   if (error) return { success: false, error: `Erro ao submeter: ${error.message}` };
 
+  // Auto-link: if no gameId, find a pending target for this player assigned to this scout
+  if (!d.gameId) {
+    try {
+      // Find games where this scout is assigned
+      const { data: myAssignments } = await supabase
+        .from('scout_assignments')
+        .select('game_id')
+        .eq('scout_id', userId)
+        .neq('status', 'cancelled');
+
+      if (myAssignments?.length) {
+        const myGameIds = myAssignments.map(a => a.game_id);
+
+        // Find a pending target for this player in one of those games
+        // "Pending" = no QSR exists yet with this game_id + player_id
+        const { data: targets } = await supabase
+          .from('game_observation_targets')
+          .select('game_id')
+          .eq('player_id', d.playerId)
+          .eq('club_id', clubId)
+          .in('game_id', myGameIds);
+
+        if (targets?.length) {
+          // Check which ones don't have a QSR yet
+          for (const t of targets) {
+            const { count } = await supabase
+              .from('quick_scout_reports')
+              .select('id', { count: 'exact', head: true })
+              .eq('game_id', t.game_id)
+              .eq('player_id', d.playerId);
+
+            if (!count || count === 0) {
+              // Link this QSR to the pending target's game
+              await supabase
+                .from('quick_scout_reports')
+                .update({ game_id: t.game_id })
+                .eq('id', data.id);
+              break; // Link to first pending target only
+            }
+          }
+        }
+      }
+    } catch {
+      // Auto-link is best-effort — don't fail the QSR submission
+      console.warn('[submitQuickReport] Auto-link failed, continuing');
+    }
+  }
+
   revalidatePath(`/jogadores/${d.playerId}`);
   revalidatePath('/meus-relatorios');
+  revalidatePath('/observacoes');
   await broadcastRowMutation(clubId, 'quick_scout_reports' as never, 'INSERT', userId, data.id);
 
   return { success: true, data: { id: data.id } };
@@ -211,7 +260,11 @@ export async function getMyQuickReports(page = 0, pageSize = 20): Promise<{ repo
 
 /** Delete a quick report — author or admin */
 export async function deleteQuickReport(reportId: number): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId, role } = await getActiveClub();
+  // Scouts cannot delete reports — only admin/editor
+  if (role === 'scout') {
+    return { success: false, error: 'Scouts não podem eliminar relatórios' };
+  }
   const supabase = await createClient();
 
   const { data: report } = await supabase

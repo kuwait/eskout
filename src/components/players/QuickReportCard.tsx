@@ -167,7 +167,7 @@ export function QuickReportCard({
 
       {/* Expanded details */}
       {expanded && (
-        <div className={`relative border-t px-4 pt-4 pb-0 flex flex-col gap-4 ${rc.bgSubtle}`}>
+        <div className={`relative border-t px-4 pt-4 pb-4 flex flex-col gap-4 ${rc.bgSubtle}`}>
           {/* Delete icon — top right corner */}
           {canDelete && (
             <button

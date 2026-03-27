@@ -1061,7 +1061,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                         <QuickReportCard
                           key={`qr-${qr.id}`}
                           report={qr}
-                          canDelete={true}
+                          canDelete={false}
                           onDelete={() => router.refresh()}
                           defaultExpanded
                         />

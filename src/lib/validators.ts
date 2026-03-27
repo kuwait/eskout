@@ -342,7 +342,7 @@ export const scoutingRoundSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(100, 'Máximo 100 caracteres'),
   startDate: z.string().min(1, 'Data de início é obrigatória'),
   endDate: z.string().min(1, 'Data de fim é obrigatória'),
-  status: z.enum(SCOUTING_ROUND_STATUSES).default('draft'),
+  status: z.enum(SCOUTING_ROUND_STATUSES).default('published'),
   notes: z.string().default(''),
 });
 

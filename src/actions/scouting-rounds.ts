@@ -71,7 +71,7 @@ export async function createScoutingRound(data: {
       start_date: parsed.data.startDate,
       end_date: parsed.data.endDate,
       notes: parsed.data.notes || '',
-      status: 'draft',
+      status: 'published',
       created_by: userId,
     })
     .select('*')

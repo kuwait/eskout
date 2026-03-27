@@ -46,6 +46,7 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
   const [search, setSearch] = useState('');
   const [escalaoFilter, setEscalaoFilter] = useState('all');
   const [decisionFilter, setDecisionFilter] = useState<TrainingDecision | 'all'>('all');
+  const [authorFilter, setAuthorFilter] = useState('all');
   const [page, setPage] = useState(0);
 
   // Mark feedbacks as seen when leaving the page (clears badge on next render)
@@ -62,6 +63,16 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
     return Array.from(set).sort();
   }, [feedbacks]);
 
+  // Extract unique authors
+  const authors = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of feedbacks) {
+      if (f.authorName) map.set(f.authorId, f.authorName);
+      if (f.coachName) map.set(`coach-${f.coachName}`, f.coachName);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [feedbacks]);
+
   // Filter feedbacks
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -71,15 +82,24 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
       const effectiveDecision = f.coachDecision ?? f.decision;
       if (decisionFilter !== 'all' && effectiveDecision !== decisionFilter) return false;
       if (q && !f.playerName.toLowerCase().includes(q) && !f.playerClub?.toLowerCase().includes(q)) return false;
+      if (authorFilter !== 'all') {
+        const matchesAuthor = f.authorId === authorFilter || (authorFilter.startsWith('coach-') && f.coachName === authorFilter.slice(6));
+        if (!matchesAuthor) return false;
+      }
       return true;
+    }).sort((a, b) => {
+      // Sort by most recent activity (coach submission or creation)
+      const aDate = a.coachSubmittedAt ?? a.createdAt;
+      const bDate = b.coachSubmittedAt ?? b.createdAt;
+      return bDate.localeCompare(aDate);
     });
-  }, [feedbacks, search, escalaoFilter, decisionFilter]);
+  }, [feedbacks, search, escalaoFilter, decisionFilter, authorFilter]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   // Clamp page if filters reduce total pages below current page
   const clampedPage = Math.min(page, Math.max(0, totalPages - 1));
   const pageItems = filtered.slice(clampedPage * PAGE_SIZE, (clampedPage + 1) * PAGE_SIZE);
-  const hasActiveFilters = search || escalaoFilter !== 'all' || decisionFilter !== 'all';
+  const hasActiveFilters = search || escalaoFilter !== 'all' || decisionFilter !== 'all' || authorFilter !== 'all';
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
@@ -131,10 +151,20 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          <select
+            value={authorFilter}
+            onChange={(e) => { setAuthorFilter(e.target.value); setPage(0); }}
+            className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400"
+          >
+            <option value="all">Todos autores</option>
+            {authors.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
           {hasActiveFilters && (
             <button
               type="button"
-              onClick={() => { setSearch(''); setEscalaoFilter('all'); setDecisionFilter('all'); }}
+              onClick={() => { setSearch(''); setEscalaoFilter('all'); setDecisionFilter('all'); setAuthorFilter('all'); }}
               className="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-neutral-50"
             >
               Limpar
