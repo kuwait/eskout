@@ -381,8 +381,7 @@ export type QuickReportMaturation = 'Atrasado' | 'Normal' | 'Avançado';
 export type QuickReportFoot = 'Direito' | 'Esquerdo' | 'Ambos';
 export type QuickReportStandout = 'Acima' | 'Ao nível' | 'Abaixo';
 export type QuickReportStarter = 'Titular' | 'Suplente';
-export type QuickReportHeight = 'Baixo' | 'Médio' | 'Alto';
-export type QuickReportBuild = 'Magro' | 'Normal' | 'Robusto';
+// QuickReportHeight and QuickReportBuild removed — use HeightScale / BuildScale from training feedback
 export type QuickReportOpponentLevel = 'Forte' | 'Médio' | 'Fraco';
 
 export interface QuickScoutReport {
@@ -405,8 +404,11 @@ export interface QuickScoutReport {
   tagsPotencial: string[];
   maturation: QuickReportMaturation | null;
   observedFoot: QuickReportFoot | null;
-  heightImpression: QuickReportHeight | null;
-  buildImpression: QuickReportBuild | null;
+  heightScale: HeightScale | null;
+  buildScale: BuildScale | null;
+  speedScale: SpeedScale | null;
+  intensityScale: IntensityScale | null;
+  maturationScale: MaturationScale | null;
   opponentLevel: QuickReportOpponentLevel | null;
   observedPosition: string | null;
   minutesObserved: number | null;

@@ -204,7 +204,7 @@ export function QuickReportCard({
           </div>
 
           {/* Observation context badges */}
-          {(report.observedPosition || report.maturation || report.observedFoot || report.heightImpression || report.buildImpression || report.standoutLevel || report.opponentLevel || report.starter || report.minutesObserved || (report.conditions && report.conditions.length > 0)) && (
+          {(report.observedPosition || report.maturation || report.observedFoot || report.heightScale || report.buildScale || report.speedScale || report.intensityScale || report.maturationScale || report.standoutLevel || report.opponentLevel || report.starter || report.minutesObserved || (report.conditions && report.conditions.length > 0)) && (
             <div className="flex flex-wrap gap-1.5 pl-2">
               {report.observedPosition && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
@@ -221,9 +221,14 @@ export function QuickReportCard({
                   🦶 <span className="font-semibold">{report.observedFoot}</span>
                 </span>
               )}
-              {(report.heightImpression || report.buildImpression) && (
+              {(report.heightScale || report.buildScale || report.speedScale || report.intensityScale) && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
-                  📐 <span className="font-semibold">{[report.heightImpression, report.buildImpression].filter(Boolean).join(' · ')}</span>
+                  ⚡ <span className="font-semibold">{[report.heightScale, report.buildScale, report.speedScale, report.intensityScale].filter(Boolean).join(' · ')}</span>
+                </span>
+              )}
+              {report.maturationScale && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                  📏 <span className="font-semibold">{report.maturationScale}</span>
                 </span>
               )}
               {report.opponentLevel && (

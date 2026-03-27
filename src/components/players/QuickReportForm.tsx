@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { submitQuickReport } from '@/actions/quick-scout-reports';
 import { DIMENSIONS, RECOMMENDATIONS, getTagsForDimension, type DimensionKey, type Tag } from '@/lib/constants/quick-report-tags';
 import { POSITIONS } from '@/lib/constants';
-import type { QuickReportRecommendation, QuickReportMaturation, QuickReportFoot, QuickReportStandout, QuickReportStarter, QuickReportHeight, QuickReportBuild, QuickReportOpponentLevel } from '@/lib/types';
+import type { QuickReportRecommendation, QuickReportMaturation, QuickReportFoot, QuickReportStandout, QuickReportStarter, QuickReportOpponentLevel, HeightScale, BuildScale, SpeedScale, IntensityScale, MaturationScale } from '@/lib/types';
 
 /* ───────────── Types ───────────── */
 
@@ -43,8 +43,11 @@ interface FormState {
   recommendation: QuickReportRecommendation | '';
   maturation: QuickReportMaturation | '';
   observedFoot: QuickReportFoot | '';
-  heightImpression: QuickReportHeight | '';
-  buildImpression: QuickReportBuild | '';
+  heightScale: HeightScale | '';
+  buildScale: BuildScale | '';
+  speedScale: SpeedScale | '';
+  intensityScale: IntensityScale | '';
+  maturationScale: MaturationScale | '';
   opponentLevel: QuickReportOpponentLevel | '';
   observedPosition: string;
   minutesObserved: string;
@@ -57,12 +60,6 @@ interface FormState {
   matchDate: string;
   notes: string;
 }
-
-const MATURATION_OPTIONS: { value: QuickReportMaturation; label: string; emoji: string }[] = [
-  { value: 'Atrasado', label: 'Atrasado', emoji: '🐢' },
-  { value: 'Normal', label: 'Normal', emoji: '👤' },
-  { value: 'Avançado', label: 'Avançado', emoji: '🏋️' },
-];
 
 const FOOT_OPTIONS: { value: QuickReportFoot; label: string; emoji: string }[] = [
   { value: 'Direito', label: 'Dir', emoji: '🦶' },
@@ -81,17 +78,7 @@ const STARTER_OPTIONS: { value: QuickReportStarter; label: string }[] = [
   { value: 'Suplente', label: 'Suplente' },
 ];
 
-const HEIGHT_OPTIONS: { value: QuickReportHeight; label: string }[] = [
-  { value: 'Baixo', label: '↓ Baixo' },
-  { value: 'Médio', label: '→ Médio' },
-  { value: 'Alto', label: '↑ Alto' },
-];
-
-const BUILD_OPTIONS: { value: QuickReportBuild; label: string }[] = [
-  { value: 'Magro', label: 'Magro' },
-  { value: 'Normal', label: 'Normal' },
-  { value: 'Robusto', label: 'Robusto' },
-];
+// HEIGHT_OPTIONS + BUILD_OPTIONS removed — replaced by physical scale selectors matching training feedback
 
 const OPPONENT_LEVEL_OPTIONS: { value: QuickReportOpponentLevel; label: string; color: string }[] = [
   { value: 'Forte', label: '💪 Forte', color: 'bg-red-500 text-white' },
@@ -119,8 +106,11 @@ const EMPTY_STATE: FormState = {
   recommendation: '',
   maturation: '',
   observedFoot: '',
-  heightImpression: '',
-  buildImpression: '',
+  heightScale: '',
+  buildScale: '',
+  speedScale: '',
+  intensityScale: '',
+  maturationScale: '',
   opponentLevel: '',
   observedPosition: '',
   minutesObserved: '',
@@ -144,8 +134,11 @@ function isDirty(form: FormState): boolean {
     || form.recommendation !== ''
     || form.maturation !== ''
     || form.observedFoot !== ''
-    || form.heightImpression !== ''
-    || form.buildImpression !== ''
+    || form.heightScale !== ''
+    || form.buildScale !== ''
+    || form.speedScale !== ''
+    || form.intensityScale !== ''
+    || form.maturationScale !== ''
     || form.opponentLevel !== ''
     || form.observedPosition !== ''
     || form.minutesObserved !== ''
@@ -231,8 +224,11 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
         tagsPotencial: form.tags.potencial,
         maturation: form.maturation || undefined,
         observedFoot: form.observedFoot || undefined,
-        heightImpression: form.heightImpression || undefined,
-        buildImpression: form.buildImpression || undefined,
+        heightScale: form.heightScale || undefined,
+        buildScale: form.buildScale || undefined,
+        speedScale: form.speedScale || undefined,
+        intensityScale: form.intensityScale || undefined,
+        maturationScale: form.maturationScale || undefined,
         opponentLevel: form.opponentLevel || undefined,
         observedPosition: form.observedPosition || undefined,
         minutesObserved: form.minutesObserved ? parseInt(form.minutesObserved, 10) : undefined,
@@ -337,46 +333,26 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
         </div>
       </div>
 
-      {/* ── Contexto da Observação (all open) ── */}
+      {/* ── Físico (same layout as training feedback) ── */}
       <div className="rounded-xl border border-l-[3px] border-l-cyan-400 bg-neutral-50/50 p-3 space-y-3">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">👁️ Contexto da Observação</p>
-
-        {/* Físico: Estatura + Compleição + Maturação */}
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Estatura</p>
-            <div className="flex flex-col gap-1">
-              {HEIGHT_OPTIONS.map(opt => (
-                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, heightImpression: prev.heightImpression === opt.value ? '' : opt.value }))}
-                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.heightImpression === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Compleição</p>
-            <div className="flex flex-col gap-1">
-              {BUILD_OPTIONS.map(opt => (
-                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, buildImpression: prev.buildImpression === opt.value ? '' : opt.value }))}
-                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.buildImpression === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Maturação</p>
-            <div className="flex flex-col gap-1">
-              {MATURATION_OPTIONS.map(opt => (
-                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, maturation: prev.maturation === opt.value ? '' : opt.value }))}
-                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.maturation === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">⚡ Físico</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          <ScaleSelector label="Estatura" options={[{ value: 'alto', label: 'Alto' }, { value: 'normal', label: 'Normal' }, { value: 'baixo', label: 'Baixo' }]}
+            value={form.heightScale} onChange={(v) => setForm(prev => ({ ...prev, heightScale: prev.heightScale === v ? '' : v as HeightScale }))} />
+          <ScaleSelector label="Corpo" options={[{ value: 'ectomorfo', label: 'Ecto' }, { value: 'mesomorfo', label: 'Meso' }, { value: 'endomorfo', label: 'Endo' }]}
+            value={form.buildScale} onChange={(v) => setForm(prev => ({ ...prev, buildScale: prev.buildScale === v ? '' : v as BuildScale }))} />
+          <ScaleSelector label="Velocidade" options={[{ value: 'rapido', label: 'Rápido' }, { value: 'normal', label: 'Normal' }, { value: 'lento', label: 'Lento' }]}
+            value={form.speedScale} onChange={(v) => setForm(prev => ({ ...prev, speedScale: prev.speedScale === v ? '' : v as SpeedScale }))} />
+          <ScaleSelector label="Intensidade" options={[{ value: 'intenso', label: 'Intenso' }, { value: 'pouco_intenso', label: 'Pouco intenso' }]}
+            value={form.intensityScale} onChange={(v) => setForm(prev => ({ ...prev, intensityScale: prev.intensityScale === v ? '' : v as IntensityScale }))} />
         </div>
+        <ScaleSelector label="Maturação" options={[{ value: 'nada_maturado', label: 'Nada' }, { value: 'a_iniciar', label: 'Início' }, { value: 'maturado', label: 'Maturado' }, { value: 'super_maturado', label: 'Super' }]}
+          value={form.maturationScale} onChange={(v) => setForm(prev => ({ ...prev, maturationScale: prev.maturationScale === v ? '' : v as MaturationScale }))} />
+      </div>
+
+      {/* ── Contexto da Observação ── */}
+      <div className="rounded-xl border border-l-[3px] border-l-purple-400 bg-neutral-50/50 p-3 space-y-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-purple-600">👁️ Contexto</p>
 
         {/* Pé + Destaque + Adversário */}
         <div className="grid grid-cols-3 gap-2">
@@ -519,6 +495,40 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
             Submeter
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────── Dimension Card ───────────── */
+
+/* ───────────── Scale Selector (matches training feedback ScaleBlock) ───────────── */
+
+function ScaleSelector({ label, options, value, onChange }: {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-semibold text-neutral-500">{label}</p>
+      <div className="flex gap-1">
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              'flex-1 rounded-lg py-1.5 text-[11px] font-semibold transition',
+              value === opt.value
+                ? 'bg-neutral-800 text-white'
+                : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200',
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );

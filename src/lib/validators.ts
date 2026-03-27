@@ -290,8 +290,11 @@ const QUICK_REPORT_MATURATIONS = ['Atrasado', 'Normal', 'Avançado'] as const;
 const QUICK_REPORT_FEET = ['Direito', 'Esquerdo', 'Ambos'] as const;
 const QUICK_REPORT_STANDOUTS = ['Acima', 'Ao nível', 'Abaixo'] as const;
 const QUICK_REPORT_STARTERS = ['Titular', 'Suplente'] as const;
-const QUICK_REPORT_HEIGHTS = ['Baixo', 'Médio', 'Alto'] as const;
-const QUICK_REPORT_BUILDS = ['Magro', 'Normal', 'Robusto'] as const;
+const PHYSICAL_HEIGHTS = ['alto', 'normal', 'baixo'] as const;
+const PHYSICAL_BUILDS = ['ectomorfo', 'mesomorfo', 'endomorfo'] as const;
+const PHYSICAL_SPEEDS = ['rapido', 'normal', 'lento'] as const;
+const PHYSICAL_INTENSITIES = ['intenso', 'pouco_intenso'] as const;
+const PHYSICAL_MATURATIONS = ['nada_maturado', 'a_iniciar', 'maturado', 'super_maturado'] as const;
 const QUICK_REPORT_OPPONENT_LEVELS = ['Forte', 'Médio', 'Fraco'] as const;
 
 export const quickScoutReportSchema = z.object({
@@ -310,8 +313,11 @@ export const quickScoutReportSchema = z.object({
   tagsPotencial: z.array(z.string()).default([]),
   maturation: z.enum(QUICK_REPORT_MATURATIONS).optional(),
   observedFoot: z.enum(QUICK_REPORT_FEET).optional(),
-  heightImpression: z.enum(QUICK_REPORT_HEIGHTS).optional(),
-  buildImpression: z.enum(QUICK_REPORT_BUILDS).optional(),
+  heightScale: z.enum(PHYSICAL_HEIGHTS).optional(),
+  buildScale: z.enum(PHYSICAL_BUILDS).optional(),
+  speedScale: z.enum(PHYSICAL_SPEEDS).optional(),
+  intensityScale: z.enum(PHYSICAL_INTENSITIES).optional(),
+  maturationScale: z.enum(PHYSICAL_MATURATIONS).optional(),
   opponentLevel: z.enum(QUICK_REPORT_OPPONENT_LEVELS).optional(),
   observedPosition: z.string().optional(),
   minutesObserved: z.number().int().min(1).max(120).optional(),

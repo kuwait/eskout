@@ -745,28 +745,21 @@ describe('quickScoutReportSchema', () => {
     if (result.success) expect(result.data.conditions).toEqual([]);
   });
 
-  it('accepts valid heightImpression values', () => {
-    for (const h of ['Baixo', 'Médio', 'Alto']) {
-      const result = quickScoutReportSchema.safeParse({ ...validReport, heightImpression: h });
-      expect(result.success).toBe(true);
+  it('accepts valid physical scale values', () => {
+    for (const h of ['alto', 'normal', 'baixo']) {
+      expect(quickScoutReportSchema.safeParse({ ...validReport, heightScale: h }).success).toBe(true);
+    }
+    for (const b of ['ectomorfo', 'mesomorfo', 'endomorfo']) {
+      expect(quickScoutReportSchema.safeParse({ ...validReport, buildScale: b }).success).toBe(true);
+    }
+    for (const s of ['rapido', 'normal', 'lento']) {
+      expect(quickScoutReportSchema.safeParse({ ...validReport, speedScale: s }).success).toBe(true);
     }
   });
 
-  it('rejects invalid heightImpression value', () => {
-    const result = quickScoutReportSchema.safeParse({ ...validReport, heightImpression: 'Enorme' });
-    expect(result.success).toBe(false);
-  });
-
-  it('accepts valid buildImpression values', () => {
-    for (const b of ['Magro', 'Normal', 'Robusto']) {
-      const result = quickScoutReportSchema.safeParse({ ...validReport, buildImpression: b });
-      expect(result.success).toBe(true);
-    }
-  });
-
-  it('rejects invalid buildImpression value', () => {
-    const result = quickScoutReportSchema.safeParse({ ...validReport, buildImpression: 'Gordo' });
-    expect(result.success).toBe(false);
+  it('rejects invalid physical scale value', () => {
+    expect(quickScoutReportSchema.safeParse({ ...validReport, heightScale: 'Enorme' }).success).toBe(false);
+    expect(quickScoutReportSchema.safeParse({ ...validReport, buildScale: 'Gordo' }).success).toBe(false);
   });
 
   it('accepts valid opponentLevel values', () => {
@@ -791,8 +784,11 @@ describe('quickScoutReportSchema', () => {
       tagsPotencial: ['Alto potencial'],
       maturation: 'Normal' as const,
       observedFoot: 'Direito' as const,
-      heightImpression: 'Alto' as const,
-      buildImpression: 'Robusto' as const,
+      heightScale: 'alto' as const,
+      buildScale: 'endomorfo' as const,
+      speedScale: 'rapido' as const,
+      intensityScale: 'intenso' as const,
+      maturationScale: 'maturado' as const,
       opponentLevel: 'Forte' as const,
       observedPosition: 'DC(E)',
       minutesObserved: 70,
@@ -867,8 +863,11 @@ describe('quickScoutReportSchema', () => {
     if (result.success) {
       expect(result.data.maturation).toBeUndefined();
       expect(result.data.observedFoot).toBeUndefined();
-      expect(result.data.heightImpression).toBeUndefined();
-      expect(result.data.buildImpression).toBeUndefined();
+      expect(result.data.heightScale).toBeUndefined();
+      expect(result.data.buildScale).toBeUndefined();
+      expect(result.data.speedScale).toBeUndefined();
+      expect(result.data.intensityScale).toBeUndefined();
+      expect(result.data.maturationScale).toBeUndefined();
       expect(result.data.opponentLevel).toBeUndefined();
       expect(result.data.observedPosition).toBeUndefined();
       expect(result.data.minutesObserved).toBeUndefined();
