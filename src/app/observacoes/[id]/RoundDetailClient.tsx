@@ -793,6 +793,8 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
   const [qsrPlayer, setQsrPlayer] = useState<{ id: number; name: string; isGk: boolean; photoUrl: string | null; club: string; position: string | null } | null>(null);
   const [qsrDirty, setQsrDirty] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  // Track completed targets locally (updated after QSR submit, before server refresh)
+  const [completedPlayerIds, setCompletedPlayerIds] = useState<Set<number>>(new Set());
 
   // "Observar outro" search state
   const [searchOpen, setSearchOpen] = useState(false);
@@ -817,7 +819,10 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
     const timeout = setTimeout(async () => {
       setSearching(true);
       const results = await searchPickerPlayers({ search: searchQuery.trim() });
-      setSearchResults(results);
+      // Dedup by ID (RPC can return same player twice via name+club cross-match)
+      const seen = new Set<number>();
+      const unique = results.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+      setSearchResults(unique);
       setSearching(false);
     }, 300);
     return () => clearTimeout(timeout);
@@ -851,45 +856,48 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
         {gameTargets.length > 0 && (
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Relatórios pedidos</p>
         )}
-        {gameTargets.map((target) => (
-          <button
-            key={target.id}
-            type="button"
-            onClick={() => target.hasReport
-              ? router.push(`/jogadores/${target.playerId}`)
-              : setQsrPlayer({ id: target.playerId, name: target.playerName, isGk: target.playerPosition === 'GR', photoUrl: target.playerPhotoUrl, club: target.playerClub, position: target.playerPosition })
-            }
-            className={cn(
-              'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition',
-              target.hasReport
-                ? 'bg-green-50 dark:bg-green-950/20'
-                : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-900/30',
-            )}
-          >
-            {target.hasReport ? (
-              <Check className="h-4 w-4 shrink-0 text-green-500" />
-            ) : (
-              <Crosshair className="h-4 w-4 shrink-0 text-amber-500" />
-            )}
-            <div className="min-w-0 flex-1">
-              <span className={cn('text-xs font-medium', target.hasReport ? 'text-green-700 dark:text-green-400' : 'text-amber-800 dark:text-amber-300')}>
-                {shortName(target.playerName)}
-              </span>
-              {target.playerPosition && (
-                <span className="ml-1.5 text-[10px] text-muted-foreground">{target.playerPosition}</span>
+        {gameTargets.map((target) => {
+          const done = target.hasReport || completedPlayerIds.has(target.playerId);
+          return (
+            <button
+              key={target.id}
+              type="button"
+              onClick={() => done
+                ? router.push(`/jogadores/${target.playerId}`)
+                : setQsrPlayer({ id: target.playerId, name: target.playerName, isGk: target.playerPosition === 'GR', photoUrl: target.playerPhotoUrl, club: target.playerClub, position: target.playerPosition })
+              }
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition',
+                done
+                  ? 'bg-green-50 dark:bg-green-950/20'
+                  : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-900/30',
               )}
-              {target.playerClub && (
-                <span className="ml-1 text-[10px] text-muted-foreground/60">· {target.playerClub}</span>
+            >
+              {done ? (
+                <Check className="h-4 w-4 shrink-0 text-green-500" />
+              ) : (
+                <Crosshair className="h-4 w-4 shrink-0 text-amber-500" />
               )}
-            </div>
-            {!target.hasReport && (
-              <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">Avaliar →</span>
-            )}
-            {target.hasReport && (
-              <span className="shrink-0 text-[10px] text-green-600 dark:text-green-400">Feito ✓</span>
-            )}
-          </button>
-        ))}
+              <div className="min-w-0 flex-1">
+                <span className={cn('text-xs font-medium', done ? 'text-green-700 dark:text-green-400' : 'text-amber-800 dark:text-amber-300')}>
+                  {shortName(target.playerName)}
+                </span>
+                {target.playerPosition && (
+                  <span className="ml-1.5 text-[10px] text-muted-foreground">{target.playerPosition}</span>
+                )}
+                {target.playerClub && (
+                  <span className="ml-1 text-[10px] text-muted-foreground/60">· {target.playerClub}</span>
+                )}
+              </div>
+              {!done && (
+                <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">Avaliar →</span>
+              )}
+              {done && (
+                <span className="shrink-0 text-[10px] text-green-600 dark:text-green-400">Ver avaliação →</span>
+              )}
+            </button>
+          );
+        })}
 
         {/* Observe another player — inline search */}
         {searchOpen ? (
@@ -993,7 +1001,11 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
               playerName={qsrPlayer.name}
               isGoalkeeper={qsrPlayer.isGk}
               initialMatchContext={matchContext}
-              onSuccess={() => { setQsrPlayer(null); setQsrDirty(false); router.refresh(); }}
+              onSuccess={() => {
+                // Mark target as completed locally for instant UI update
+                if (qsrPlayer) setCompletedPlayerIds(prev => new Set(prev).add(qsrPlayer.id));
+                setQsrPlayer(null); setQsrDirty(false); router.refresh();
+              }}
               onCancel={() => {
                 if (qsrDirty) setShowDiscardConfirm(true);
                 else { setQsrPlayer(null); setQsrDirty(false); }

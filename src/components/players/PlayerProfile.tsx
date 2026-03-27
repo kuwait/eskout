@@ -159,7 +159,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
   // Both scouts and recruiters cannot see star ratings / report ratings
   const hideEvaluations = isRecruiter || isScout;
   // All roles can edit basic info; scouting fields restricted in handleSave
-  const canEdit = true;
+  const canEdit = !isScout;
 
   // Detect unsaved changes by comparing draft to original player
   const hasChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(player), [draft, player]);
@@ -284,7 +284,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
     startDelete(async () => {
       const result = await deletePlayer(player.id);
       if (result.success) {
+        toast.success('Jogador eliminado');
         router.push('/jogadores');
+      } else {
+        toast.error(result.error ?? 'Erro ao eliminar jogador');
       }
     });
   }
@@ -464,7 +467,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 <div className="mx-0.5 h-4 w-px bg-neutral-200" />
               </>
             )}
-            <RefreshPlayerButton player={player} />
+            {!isScout && <RefreshPlayerButton player={player} />}
             {/* Add to pipeline — only when player is NOT already in pipeline */}
             {canObserve && !p.recruitmentStatus && (
               <>
@@ -633,10 +636,12 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             )}
             {!hideScoutingData && <OpinionBadge opinion={p.departmentOpinion} variant="compact" />}
           </div>
-          {/* Playing up badge — own line below positions, self-start to not stretch */}
-          <div className="self-start">
-            <PlayingUpBadge player={p} showLabel fpfEntries={fpfPlayingUp} zzResult={zzPlayingUp} />
-          </div>
+          {/* Playing up badge — own line below positions, hidden for scouts */}
+          {!isScout && (
+            <div className="self-start">
+              <PlayingUpBadge player={p} showLabel fpfEntries={fpfPlayingUp} zzResult={zzPlayingUp} />
+            </div>
+          )}
           {/* Opinion badge — mobile only */}
           {!hideScoutingData && p.departmentOpinion && (Array.isArray(p.departmentOpinion) ? p.departmentOpinion.length > 0 : !!p.departmentOpinion) && (
             <div className="xl:hidden">
@@ -656,8 +661,8 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             />
           </div>
         )}
-        {/* Desktop rating widget — aggregated from all evaluation sources (hidden for recruiter) */}
-        {!editing && !isRecruiter && (() => {
+        {/* Desktop rating widget — aggregated from all evaluation sources (hidden for recruiter + scout) */}
+        {!editing && !isRecruiter && !isScout && (() => {
           const pdfReports = scoutingReports.filter(r => (r.extractionStatus === 'success' || r.extractionStatus === 'partial') && r.rating !== null);
           const allHeaderRatings = [
             ...quickReports.map(qr => qr.ratingOverall),
@@ -1001,10 +1006,10 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                 {p.birthCountry && (
                   <InfoChip icon={<span className="text-sm leading-none">{getNationalityFlag(p.birthCountry)}</span>} label="País Nasc." value={p.birthCountry} />
                 )}
-                {p.contact && (
+                {!isScout && p.contact && (
                   <InfoChip icon={<Phone className="h-3.5 w-3.5" />} label="Contacto" value={p.contact} wrap />
                 )}
-                {p.referredBy && (
+                {!isScout && p.referredBy && (
                   <InfoChip icon={<User className="h-3.5 w-3.5" />} label="Referência" value={p.referredBy} linked={!!p.referredByUserId} wrap />
                 )}
               </div>
@@ -1027,15 +1032,36 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
               </div>
             )}
 
-            {/* Media — YouTube videos, all roles can view */}
-            <Section title="Media">
+            {/* Media — YouTube videos, hidden for scouts */}
+            {!isScout && <Section title="Media">
               <PlayerVideos
                 playerId={p.id}
                 videos={playerVideos}
                 userRole={userRole}
                 currentUserId={currentUserId}
               />
-            </Section>
+            </Section>}
+
+            {/* Scout's own QSRs — visible even when hideScoutingData is true */}
+            {hideScoutingData && (() => {
+              const myQsrs = quickReports.filter(qr => qr.authorId === currentUserId);
+              if (myQsrs.length === 0) return null;
+              return (
+                <Section title="As minhas avaliações">
+                  <div className="space-y-1.5">
+                    {myQsrs.map(qr => (
+                      <QuickReportCard
+                        key={`qr-${qr.id}`}
+                        report={qr}
+                        canDelete={true}
+                        onDelete={() => router.refresh()}
+                        defaultExpanded
+                      />
+                    ))}
+                  </div>
+                </Section>
+              );
+            })()}
 
             {/* Observação — unified evaluation section */}
             {!hideScoutingData && (() => {

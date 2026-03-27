@@ -11,7 +11,7 @@ import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { getPlayingUpPlayerIds } from '@/actions/players';
-import { stripAccents } from '@/lib/utils/search';
+// stripAccents removed — text search now uses unaccent RPC server-side
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PlayerTable } from '@/components/players/PlayerTable';
@@ -170,24 +170,10 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
       else q = q.in('id', [-1]); // no matches — impossible ID to return empty
     }
 
-    // Text search — server-side ilike, up to 3 words
-    if (debouncedSearch) {
-      const words = debouncedSearch.trim().split(/\s+/).filter((w: string) => w.length >= 2);
-      let searchWords: string[];
-      if (words.length <= 3) {
-        searchWords = words;
-      } else {
-        searchWords = [words[0], words[words.length - 2], words[words.length - 1]];
-      }
-      for (const word of searchWords) {
-        // Strip accents so "Tomé" matches "Tome" in DB (ilike is accent-sensitive)
-        const w = stripAccents(word);
-        q = q.or(`name.ilike.%${w}%,club.ilike.%${w}%`);
-      }
-    }
+    // Text search now handled via RPC pre-fetch in fetchPage (accent-insensitive)
 
     return q;
-  }, [filters, debouncedSearch, playingUpIds]);
+  }, [filters, playingUpIds]);
 
   /* ───────────── Enrich players with ratings + notes ───────────── */
 
@@ -240,7 +226,30 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
     setLoading(true);
     const supabase = createClient();
 
+    // If text search active, use unaccent RPC to get matching IDs first (accent-insensitive)
+    let searchIds: number[] | null = null;
+    if (debouncedSearch) {
+      const words = debouncedSearch.trim().split(/\s+/).filter((w: string) => w.length >= 2);
+      if (words.length > 0) {
+        let searchWords: string[];
+        if (words.length <= 3) { searchWords = words; }
+        else { searchWords = [words[0], words[words.length - 2], words[words.length - 1]]; }
+        const { data: rpcData } = await supabase.rpc('search_players_unaccent', {
+          p_club_id: clubId, p_words: searchWords, p_position: null, p_club: null,
+          p_opinion: null, p_foot: null, p_exclude_ids: null, p_limit: 200,
+        });
+        searchIds = (rpcData ?? []).map((r: { id: number }) => r.id);
+        if (searchIds!.length === 0) {
+          // No matches — show empty
+          if (fetchId !== undefined && fetchId !== fetchCancelRef.current) return;
+          setPageRows([]); setTotalCount(0); setLoading(false); return;
+        }
+      }
+    }
+
     let q = supabase.from('players').select('*', { count: 'exact' }).eq('club_id', clubId).eq('pending_approval', false);
+    // Apply search IDs filter (replaces the old ilike approach)
+    if (searchIds) q = q.in('id', searchIds);
     q = applyAllFilters(q);
 
     const from = page * PAGE_SIZE;
@@ -257,7 +266,7 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [clubId, applyAllFilters, page, enrichPlayers]);
+  }, [clubId, applyAllFilters, page, enrichPlayers, debouncedSearch]);
 
   // Tracks whether the user has changed search/filter/page since mount.
   // When initialData is provided, the first render already has page 0 data — skip fetch until user acts.

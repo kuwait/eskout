@@ -164,10 +164,12 @@ export async function deletePlayer(playerId: number): Promise<ActionResponse> {
 
   const supabase = await createClient();
 
-  // Delete related records first (observation_notes, status_history, scouting_reports)
+  // Delete/nullify related records — clear all FK references before deleting player
   await supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId);
   await supabase.from('status_history').delete().eq('player_id', playerId).eq('club_id', clubId);
   await supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId);
+  // Nullify FPF match player links (SET NULL — cross-club data, not owned by club)
+  await supabase.from('fpf_match_players').update({ eskout_player_id: null }).eq('eskout_player_id', playerId);
 
   const { error } = await supabase.from('players').delete().eq('id', playerId).eq('club_id', clubId);
   if (error) {

@@ -843,7 +843,8 @@ export interface PickerSearchFilters {
  */
 export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Promise<PickerPlayer[]> {
   const { clubId, role } = await getActiveClub();
-  if (role === 'scout') return [];
+  // Scouts can search players (public info) but not browse without a search term
+  if (role === 'scout' && !filters.search?.trim()) return [];
 
   const supabase = await createClient();
 
@@ -877,7 +878,10 @@ export async function searchPickerPlayers(filters: PickerSearchFilters = {}): Pr
   if (!data) return [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[]).map(mapPickerRow);
+  const rows = (data as any[]).map(mapPickerRow);
+  // Dedup by ID — RPC can occasionally return duplicates
+  const seen = new Set<number>();
+  return rows.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
 }
 
 /**

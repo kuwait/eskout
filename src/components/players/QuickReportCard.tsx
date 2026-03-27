@@ -13,6 +13,26 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+
+/* ───────────── Physical Scale Labels ───────────── */
+
+const PHYSICAL_LABELS: Record<string, string> = {
+  // Height
+  alto: 'Alto', normal: 'Normal', baixo: 'Baixo',
+  // Build
+  ectomorfo: 'Ecto', mesomorfo: 'Meso', endomorfo: 'Endo',
+  // Speed
+  rapido: 'Rápido', lento: 'Lento',
+  // Intensity
+  intenso: 'Intenso', pouco_intenso: 'Pouco intenso',
+  // Maturation
+  nada_maturado: 'Nada', a_iniciar: 'Início', maturado: 'Maturado', super_maturado: 'Super',
+};
+
+function physLabel(value: string | null): string {
+  if (!value) return '';
+  return PHYSICAL_LABELS[value] ?? value;
+}
 import { DIMENSIONS, getTagsForDimension, type Tag } from '@/lib/constants/quick-report-tags';
 import type { QuickScoutReport } from '@/lib/types';
 
@@ -75,12 +95,14 @@ export function QuickReportCard({
   report,
   canDelete = false,
   onDelete,
+  defaultExpanded = false,
 }: {
   report: QuickScoutReport;
   canDelete?: boolean;
   onDelete?: (id: number) => void;
+  defaultExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const ratings: { key: string; label: string; value: number }[] = DIMENSIONS.map(d => ({
@@ -223,12 +245,12 @@ export function QuickReportCard({
               )}
               {(report.heightScale || report.buildScale || report.speedScale || report.intensityScale) && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
-                  ⚡ <span className="font-semibold">{[report.heightScale, report.buildScale, report.speedScale, report.intensityScale].filter(Boolean).join(' · ')}</span>
+                  ⚡ <span className="font-semibold">{[report.heightScale, report.buildScale, report.speedScale, report.intensityScale].filter(Boolean).map(physLabel).join(' · ')}</span>
                 </span>
               )}
               {report.maturationScale && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
-                  📏 <span className="font-semibold">{report.maturationScale}</span>
+                  📏 <span className="font-semibold">{physLabel(report.maturationScale)}</span>
                 </span>
               )}
               {report.opponentLevel && (
