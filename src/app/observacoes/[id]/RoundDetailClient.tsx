@@ -8,7 +8,7 @@
 import { useState, useTransition, useMemo } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Check, Clock, MapPin, Plus, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Binoculars, Calendar, Check, Clock, MapPin, Plus, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -126,6 +126,21 @@ export function RoundDetailClient({
         {round.notes && <p className="mt-1 text-xs text-muted-foreground/70">{round.notes}</p>}
       </div>
 
+      {/* Scout/recruiter: show assigned games FIRST (before availability) */}
+      {!canManage && games.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold text-neutral-900">Os teus jogos ({games.length})</h2>
+          <div className="space-y-2">
+            {games.map((game) => {
+              const gameAssignments = assignments.filter((a) => a.gameId === game.id && a.status !== 'cancelled');
+              return (
+                <ScoutGameCard key={game.id} game={game} assignments={gameAssignments} scouts={scouts} />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* My availability section */}
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
@@ -160,8 +175,8 @@ export function RoundDetailClient({
         </section>
       )}
 
-      {/* ───────────── Games Section ───────────── */}
-      <section className="mb-8 mt-12 border-t border-neutral-200 pt-8">
+      {/* ───────────── Games Section (admin/editor only — scouts see theirs above) ───────────── */}
+      {canManage && <section className="mb-8 mt-12 border-t border-neutral-200 pt-8">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-900">
             Jogos ({games.length})
@@ -220,7 +235,7 @@ export function RoundDetailClient({
             })}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* Add game dialog */}
       <Dialog open={addGameOpen} onOpenChange={setAddGameOpen}>
@@ -618,6 +633,61 @@ function formatShortLabel(slot: ScoutAvailability): string {
 }
 
 /* ───────────── Game Card ───────────── */
+
+/* ───────────── Scout Game Card (read-only, with Observar link) ───────────── */
+
+function ScoutGameCard({ game, assignments, scouts }: {
+  game: ScoutingGame;
+  assignments: ScoutAssignment[];
+  scouts: { id: string; name: string; role: string }[];
+}) {
+  const dateLabel = new Date(game.matchDate).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' });
+  const scoutMap = Object.fromEntries(scouts.map((s) => [s.id, s.name]));
+
+  // QSR pre-fill params
+  const qsrParams = new URLSearchParams();
+  qsrParams.set('qsr', '1');
+  if (game.competitionName) qsrParams.set('competition', game.competitionName);
+  qsrParams.set('opponent', `${game.homeTeam} vs ${game.awayTeam}`);
+  if (game.matchDate) qsrParams.set('matchDate', game.matchDate);
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="px-4 py-3">
+        <p className="text-sm font-semibold text-neutral-900">
+          {game.homeTeam} <span className="font-normal text-muted-foreground">vs</span> {game.awayTeam}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+          <span>{dateLabel}{game.matchTime ? ` · ${game.matchTime}` : ''}</span>
+          {game.venue && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{game.venue}</span>}
+          {game.escalao && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium">{game.escalao}</span>}
+          {game.competitionName && <span className="text-muted-foreground/60">{game.competitionName}</span>}
+        </div>
+        {/* Other scouts assigned to same game */}
+        {assignments.length > 1 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {assignments.map((a) => (
+              <span key={a.id} className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
+                {scoutMap[a.scoutId] ?? 'Scout'}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="border-t bg-neutral-50/50 px-4 py-2 flex justify-end">
+        <Link
+          href={`/?${qsrParams.toString()}`}
+          className="flex items-center gap-1 rounded-md bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-neutral-700 transition"
+        >
+          <Binoculars className="h-3 w-3" />
+          Observar
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────── Admin Game Card ───────────── */
 
 function GameCard({ game, assignments, scouts, canManage, isClosed, isPending, onDelete, onAssign, onRemoveAssignment }: {
   game: ScoutingGame;

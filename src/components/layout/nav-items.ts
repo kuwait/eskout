@@ -41,7 +41,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/tarefas', label: 'Tarefas', icon: ListTodo, scoutHidden: true, feature: null },
   { href: '/meus-relatorios', label: 'Meus Relatórios', icon: FileText, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
   { href: '/submeter', label: 'Submeter Relatório', icon: PlusCircle, scoutHidden: false, scoutOnly: true, feature: 'scout_submissions' },
-  { href: '/meus-jogos', label: 'Meus Jogos', icon: CalendarDays, scoutHidden: false, onlyRoles: ['scout'], feature: null },
   { href: '/meus-jogadores', label: 'Jogadores', icon: Users, scoutHidden: false, onlyRoles: ['scout'], feature: null },
 ];
 
