@@ -131,12 +131,9 @@ export function RoundDetailClient({
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-semibold text-neutral-900">Os teus jogos ({games.length})</h2>
           <div className="space-y-2">
-            {games.map((game) => {
-              const gameAssignments = assignments.filter((a) => a.gameId === game.id && a.status !== 'cancelled');
-              return (
-                <ScoutGameCard key={game.id} game={game} assignments={gameAssignments} scouts={scouts} />
-              );
-            })}
+            {games.map((game) => (
+              <ScoutGameCard key={game.id} game={game} />
+            ))}
           </div>
         </section>
       )}
@@ -636,13 +633,8 @@ function formatShortLabel(slot: ScoutAvailability): string {
 
 /* ───────────── Scout Game Card (read-only, with Observar link) ───────────── */
 
-function ScoutGameCard({ game, assignments, scouts }: {
-  game: ScoutingGame;
-  assignments: ScoutAssignment[];
-  scouts: { id: string; name: string; role: string }[];
-}) {
+function ScoutGameCard({ game }: { game: ScoutingGame }) {
   const dateLabel = new Date(game.matchDate).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' });
-  const scoutMap = Object.fromEntries(scouts.map((s) => [s.id, s.name]));
 
   // QSR pre-fill params
   const qsrParams = new URLSearchParams();
@@ -663,16 +655,6 @@ function ScoutGameCard({ game, assignments, scouts }: {
           {game.escalao && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium">{game.escalao}</span>}
           {game.competitionName && <span className="text-muted-foreground/60">{game.competitionName}</span>}
         </div>
-        {/* Other scouts assigned to same game */}
-        {assignments.length > 1 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {assignments.map((a) => (
-              <span key={a.id} className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600">
-                {scoutMap[a.scoutId] ?? 'Scout'}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
       <div className="border-t bg-neutral-50/50 px-4 py-2 flex justify-end">
         <Link
