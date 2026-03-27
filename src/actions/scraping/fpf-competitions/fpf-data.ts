@@ -3,7 +3,47 @@
 // Separated from browse.ts because 'use server' files can only export async functions
 // RELEVANT FILES: src/actions/scraping/fpf-competitions/browse.ts, src/lib/constants.ts
 
-/* ───────────── Types ───────────── */
+/* ───────────── Browse by Date Types ───────────── */
+
+/** A single match from the FPF daily results page (live browse, not DB) */
+export interface FpfBrowseMatch {
+  /** Composite dedup key: `${homeTeam}|${awayTeam}|${date}|${time}` */
+  key: string;
+  homeTeam: string;
+  awayTeam: string;
+  matchDate: string;        // YYYY-MM-DD
+  matchTime: string | null; // HH:mm
+  venue: string | null;
+  competitionName: string;
+  seriesName: string | null;
+  escalao: string | null;
+  fpfMatchId: number | null; // Only set for played matches (past)
+  jornada: string | null;    // "Jornada 12", "12.ª Jornada"
+}
+
+/** A competition block from the FPF daily results page */
+export interface FpfBrowseCompetition {
+  name: string;
+  competitionId: number | null;
+  jornada: string | null;
+  series: { name: string | null; matches: FpfBrowseMatch[] }[];
+}
+
+/** FootballClassId → label for filter chips in the browse UI.
+ *  FPF uses broad category names; district associations may have additional ones.
+ *  IDs sourced from FPF_CLASS_TO_ESCALAO in constants.ts. */
+export const FPF_FOOTBALL_CLASSES = [
+  { id: 10, label: 'Sub-7' },
+  { id: 9, label: 'Sub-9' },
+  { id: 8, label: 'Sub-11' },
+  { id: 6, label: 'Sub-13' },
+  { id: 5, label: 'Sub-15' },
+  { id: 4, label: 'Sub-17' },
+  { id: 3, label: 'Sub-19' },
+  { id: 2, label: 'Sénior' },
+] as const;
+
+/* ───────────── Competition Scraping Types ───────────── */
 
 export interface FpfAssociation {
   id: number;

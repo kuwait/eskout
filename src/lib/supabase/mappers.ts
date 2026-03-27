@@ -3,7 +3,7 @@
 // Pure functions with no server-side dependencies
 // RELEVANT FILES: src/lib/types/index.ts, src/lib/supabase/queries.ts, src/components/players/PlayersView.tsx
 
-import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, Player, PlayerRow, ScoutAssignment, ScoutAssignmentRow, ScoutAvailability, ScoutAvailabilityRow, ScoutingGame, ScoutingGameRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
+import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, GameObservationTarget, GameObservationTargetRow, Player, PlayerRow, ScoutAssignment, ScoutAssignmentRow, ScoutAvailability, ScoutAvailabilityRow, ScoutingGame, ScoutingGameRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
 import { detectPlayingUp } from '@/lib/utils/playing-up';
 
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
@@ -330,6 +330,30 @@ export function mapScoutAssignmentRow(row: ScoutAssignmentRow): ScoutAssignment 
     scoutNotes: row.scout_notes ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+/* ───────────── Game Observation Target Mapper ───────────── */
+
+export function mapGameObservationTargetRow(
+  row: GameObservationTargetRow,
+  hasReport = false,
+): GameObservationTarget {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const player = (row as any).players;
+  return {
+    id: row.id,
+    clubId: row.club_id,
+    gameId: row.game_id,
+    playerId: row.player_id,
+    playerName: player?.name ?? 'Desconhecido',
+    playerClub: player?.club ?? '',
+    playerPosition: player?.position_normalized ?? null,
+    playerPhotoUrl: player?.photo_url || player?.zz_photo_url || null,
+    addedBy: row.added_by,
+    notes: row.notes ?? '',
+    createdAt: row.created_at,
+    hasReport,
   };
 }
 

@@ -32,6 +32,7 @@ interface QuickReportFormProps {
     competition?: string;
     opponent?: string;
     matchDate?: string;
+    gameId?: number;
   };
 }
 
@@ -246,6 +247,7 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
         opponent: form.opponent || undefined,
         matchDate: form.matchDate || undefined,
         notes: form.notes || undefined,
+        gameId: initialMatchContext?.gameId ?? undefined,
       });
 
       if (result.success) {

@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /* ───────────── Open Graph metadata for WhatsApp/social sharing ───────────── */
@@ -219,8 +220,9 @@ function mapVideos(rows: any[]): PlayerVideo[] {
 
 /* ───────────── Page Component ───────────── */
 
-export default async function PlayerProfilePage({ params }: PageProps) {
+export default async function PlayerProfilePage({ params, searchParams: searchParamsPromise }: PageProps) {
   const { id } = await params;
+  const searchParams = await searchParamsPromise;
   const playerId = parseInt(id, 10);
 
   if (isNaN(playerId)) notFound();
@@ -307,6 +309,12 @@ export default async function PlayerProfilePage({ params }: PageProps) {
         playerSquads={playerSquads}
         fpfPlayingUp={fpfPlayingUp}
         zzPlayingUp={zzPlayingUp}
+        qsrAutoOpen={searchParams?.qsr === '1' ? {
+          competition: (searchParams.competition as string) ?? undefined,
+          opponent: (searchParams.opponent as string) ?? undefined,
+          matchDate: (searchParams.matchDate as string) ?? undefined,
+          gameId: searchParams.gameId ? parseInt(searchParams.gameId as string, 10) : undefined,
+        } : undefined}
       />
     </div>
   );

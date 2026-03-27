@@ -115,10 +115,12 @@ interface PlayerProfileProps {
   fpfPlayingUp?: { competitionEscalao: string; expectedBirthYearEnd: number; games: number; goals: number; minutes: number }[];
   /** ZZ playing-up result (computed server-side to avoid hydration mismatch) */
   zzPlayingUp?: import('@/lib/utils/playing-up').PlayingUpResult;
+  /** Auto-open QSR form with match context (from scouting game target link) */
+  qsrAutoOpen?: { competition?: string; opponent?: string; matchDate?: string; gameId?: number };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- _scoutEvaluations kept for future structured evaluations
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations: _scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [], fpfPlayingUp = [], zzPlayingUp }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations: _scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [], fpfPlayingUp = [], zzPlayingUp, qsrAutoOpen }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -137,7 +139,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
     setSavedDraft(null);
   }
   const [showNoteForm, setShowNoteForm] = useState(false);
-  const [showQuickReportForm, setShowQuickReportForm] = useState(false);
+  const [showQuickReportForm, setShowQuickReportForm] = useState(!!qsrAutoOpen);
   const [quickReportDirty, setQuickReportDirty] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [showManualReportForm, setShowManualReportForm] = useState(false);
@@ -1081,6 +1083,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                             playerId={p.id}
                             playerName={p.name}
                             isGoalkeeper={p.positionNormalized === 'GR'}
+                            initialMatchContext={qsrAutoOpen}
                             onSuccess={() => { setShowQuickReportForm(false); setQuickReportDirty(false); router.refresh(); }}
                             onCancel={() => {
                               if (quickReportDirty) { setShowDiscardConfirm(true); }

@@ -12,6 +12,7 @@ import { usePageAgeGroup } from '@/hooks/usePageAgeGroup';
 import { createClient } from '@/lib/supabase/client';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
+import { stripAccents } from '@/lib/utils/search';
 import { RECRUITMENT_STATUSES, RECRUITMENT_LABEL_MAP, POSITIONS, DEPARTMENT_OPINIONS, FOOT_OPTIONS } from '@/lib/constants';
 import { updateRecruitmentStatus, reorderPipelineCards, updateDecisionSide } from '@/actions/pipeline';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
@@ -518,7 +519,8 @@ function AddToPipelineDialog({
         if (debouncedSearch) {
           const words = debouncedSearch.trim().split(/\s+/).filter((w: string) => w.length >= 2);
           for (const word of words) {
-            query = query.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
+            const w = stripAccents(word);
+            query = query.or(`name.ilike.%${w}%,club.ilike.%${w}%`);
           }
         }
 
@@ -553,7 +555,8 @@ function AddToPipelineDialog({
             .eq('pending_approval', false);
           if (ageGroupId) pipelineQuery = pipelineQuery.eq('age_group_id', ageGroupId);
           for (const word of words) {
-            pipelineQuery = pipelineQuery.or(`name.ilike.%${word}%`);
+            const w = stripAccents(word);
+            pipelineQuery = pipelineQuery.or(`name.ilike.%${w}%`);
           }
           const { data: pipelineData } = await pipelineQuery.order('name').limit(10);
           setAlreadyInPipeline((pipelineData ?? []).map(mapPlayerRow));

@@ -58,6 +58,7 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
       opponent: d.opponent ?? null,
       match_date: d.matchDate ?? null,
       notes: d.notes ?? null,
+      game_id: d.gameId ?? null,
     })
     .select('id')
     .single();

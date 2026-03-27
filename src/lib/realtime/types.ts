@@ -28,6 +28,7 @@ export const REALTIME_TABLES = [
   'scouting_games',
   'scout_assignments',
   'scout_availability',
+  'game_observation_targets',
 ] as const;
 
 export type RealtimeTable = (typeof REALTIME_TABLES)[number];

@@ -1228,6 +1228,35 @@ export interface ScoutAssignment {
   updatedAt: string;
 }
 
+/* ───────────── Scouting Map: Game Observation Targets ───────────── */
+
+export interface GameObservationTargetRow {
+  id: number;
+  club_id: string;
+  game_id: number;
+  player_id: number;
+  added_by: string;
+  notes: string;
+  created_at: string;
+  // Joined fields
+  players?: { name: string; club: string; position_normalized: string | null; photo_url: string | null; zz_photo_url: string | null } | null;
+}
+
+export interface GameObservationTarget {
+  id: number;
+  clubId: string;
+  gameId: number;
+  playerId: number;
+  playerName: string;
+  playerClub: string;
+  playerPosition: string | null;
+  playerPhotoUrl: string | null;
+  addedBy: string;
+  notes: string;
+  createdAt: string;
+  hasReport: boolean;
+}
+
 /* ───────────── Scouting Map: Availability ───────────── */
 
 export type AvailabilityType = 'always' | 'full_day' | 'period' | 'time_range';

@@ -42,7 +42,7 @@ export async function getClubScouts(): Promise<{ id: string; name: string; role:
     .from('club_memberships')
     .select('user_id, role, profiles:user_id(full_name)')
     .eq('club_id', clubId)
-    .in('role', ['admin', 'editor', 'scout']);
+    .in('role', ['admin', 'editor', 'scout', 'recruiter']);
 
   if (error) {
     console.error('[getClubScouts] Failed:', error.message);

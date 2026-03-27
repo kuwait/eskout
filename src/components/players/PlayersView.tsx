@@ -11,6 +11,7 @@ import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-
 import { createClient } from '@/lib/supabase/client';
 import { mapPlayerRow } from '@/lib/supabase/mappers';
 import { getPlayingUpPlayerIds } from '@/actions/players';
+import { stripAccents } from '@/lib/utils/search';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PlayerTable } from '@/components/players/PlayerTable';
@@ -179,7 +180,9 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
         searchWords = [words[0], words[words.length - 2], words[words.length - 1]];
       }
       for (const word of searchWords) {
-        q = q.or(`name.ilike.%${word}%,club.ilike.%${word}%`);
+        // Strip accents so "Tomé" matches "Tome" in DB (ilike is accent-sensitive)
+        const w = stripAccents(word);
+        q = q.or(`name.ilike.%${w}%,club.ilike.%${w}%`);
       }
     }
 
@@ -265,13 +268,15 @@ export function PlayersView({ hideEvaluations = false, clubId, initialData }: { 
     fetchPage(id);
   }, [fetchPage]);
 
-  // When search, filters, or page change, mark that we need to fetch
+  // When search, filters, or page change, trigger fetch immediately
   // Skip on mount (initial values aren't user-driven)
   const mountedRef = useRef(false);
   useEffect(() => {
     if (!mountedRef.current) { mountedRef.current = true; return; }
     needsFetch.current = true;
-  }, [debouncedSearch, filters, page]);
+    const id = ++fetchCancelRef.current;
+    fetchPage(id);
+  }, [debouncedSearch, filters, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ───────────── Realtime ───────────── */
 

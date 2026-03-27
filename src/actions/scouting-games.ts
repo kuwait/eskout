@@ -193,6 +193,98 @@ export async function addFpfGame(
   return { success: true, data: mapScoutingGameRow(created as ScoutingGameRow) };
 }
 
+/* ───────────── Create — Batch from FPF Browse ───────────── */
+
+/** Batch-add games from the live FPF browse page. Deduplicates by composite key. */
+export async function addBatchGames(
+  roundId: number,
+  matches: {
+    homeTeam: string;
+    awayTeam: string;
+    matchDate: string;
+    matchTime?: string;
+    venue?: string;
+    competitionName?: string;
+    escalao?: string;
+  }[],
+): Promise<ActionResponse<{ added: number; duplicates: number }>> {
+  if (!matches.length) {
+    return { success: false, error: 'Nenhum jogo selecionado' };
+  }
+
+  const { clubId, userId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') {
+    return { success: false, error: 'Sem permissão' };
+  }
+
+  const supabase = await createClient();
+
+  // Fetch existing games for dedup
+  const { data: existing } = await supabase
+    .from('scouting_games')
+    .select('home_team, away_team, match_date, match_time')
+    .eq('round_id', roundId);
+
+  const existingKeys = new Set(
+    (existing ?? []).map((g) =>
+      `${(g.home_team ?? '').toLowerCase()}|${(g.away_team ?? '').toLowerCase()}|${g.match_date ?? ''}|${g.match_time ?? ''}`,
+    ),
+  );
+
+  // Filter out duplicates
+  const toInsert = matches.filter((m) => {
+    const key = `${m.homeTeam.toLowerCase()}|${m.awayTeam.toLowerCase()}|${m.matchDate}|${m.matchTime ?? ''}`;
+    return !existingKeys.has(key);
+  });
+
+  const duplicates = matches.length - toInsert.length;
+
+  if (!toInsert.length) {
+    return { success: true, data: { added: 0, duplicates } };
+  }
+
+  // Batch insert
+  const rows = toInsert.map((m) => ({
+    club_id: clubId,
+    round_id: roundId,
+    fpf_match_id: null,
+    home_team: m.homeTeam,
+    away_team: m.awayTeam,
+    match_date: m.matchDate,
+    match_time: m.matchTime ?? null,
+    venue: m.venue ?? null,
+    competition_name: m.competitionName ?? null,
+    escalao: m.escalao ?? null,
+    priority: 0,
+    notes: '',
+    created_by: userId,
+  }));
+
+  const { data: created, error } = await supabase
+    .from('scouting_games')
+    .insert(rows)
+    .select('id');
+
+  if (error) {
+    return { success: false, error: `Erro ao adicionar jogos: ${error.message}` };
+  }
+
+  revalidatePath(`/observacoes/${roundId}`);
+
+  // Broadcast bulk mutation for realtime
+  if (created?.length) {
+    const { broadcastBulkMutation } = await import('@/lib/realtime/broadcast');
+    await broadcastBulkMutation(
+      clubId,
+      'scouting_games',
+      userId,
+      created.map((r) => r.id),
+    );
+  }
+
+  return { success: true, data: { added: toInsert.length, duplicates } };
+}
+
 /* ───────────── Update ───────────── */
 
 export async function updateGame(

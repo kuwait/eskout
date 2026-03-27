@@ -323,6 +323,7 @@ export const quickScoutReportSchema = z.object({
   opponent: z.string().optional(),
   matchDate: z.string().optional(),
   notes: z.string().optional(),
+  gameId: z.number().int().positive().optional(),
 });
 
 export type QuickScoutReportData = z.infer<typeof quickScoutReportSchema>;

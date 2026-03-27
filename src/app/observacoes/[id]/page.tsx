@@ -12,6 +12,7 @@ import { mapScoutingRoundRow } from '@/lib/supabase/mappers';
 import { getScoutAvailability, getClubScouts } from '@/actions/scout-availability';
 import { getGamesForRound } from '@/actions/scouting-games';
 import { getAssignmentsForRound } from '@/actions/scout-assignments';
+import { getTargetsForRound } from '@/actions/game-targets';
 import { RoundDetailClient } from './RoundDetailClient';
 import type { ScoutingRoundRow } from '@/lib/types';
 
@@ -47,6 +48,13 @@ export default async function RoundDetailPage({ params }: { params: Promise<{ id
     getAssignmentsForRound(roundId),
   ]);
 
+  // Fetch observation targets for all visible games
+  const gameIds = games.map((g) => g.id);
+  const targetsMap = await getTargetsForRound(roundId, gameIds);
+  // Serialize Map to plain object for client
+  const targets: Record<number, import('@/lib/types').GameObservationTarget[]> = {};
+  for (const [gid, t] of targetsMap) targets[gid] = t;
+
   // Scouts/recruiters only see games they're assigned to
   const myAssignedGameIds = new Set(
     assignments.filter((a) => a.scoutId === userId && a.status !== 'cancelled').map((a) => a.gameId)
@@ -65,6 +73,7 @@ export default async function RoundDetailPage({ params }: { params: Promise<{ id
       assignments={visibleAssignments}
       canManage={canManage}
       userId={userId}
+      initialTargets={targets}
     />
   );
 }
