@@ -231,33 +231,36 @@ function RoundCard({
   const endLabel = new Date(round.endDate).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <Link href={`/observacoes/${round.id}`} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition hover:bg-accent/30">
-      {/* Icon */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
-        <Calendar className="h-5 w-5" />
-      </div>
-
-      {/* Info */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-semibold text-neutral-900">{round.name}</p>
-          <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>
-            {statusCfg.label}
-          </span>
+    <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 transition hover:bg-accent/30">
+      {/* Clickable area — icon + info navigate to detail */}
+      <Link href={`/observacoes/${round.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+        {/* Icon */}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+          <Calendar className="h-5 w-5" />
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {startLabel} — {endLabel}
-        </p>
-        {round.notes && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground/70">{round.notes}</p>
-        )}
-      </div>
 
-      {/* Actions */}
+        {/* Info */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-semibold text-neutral-900">{round.name}</p>
+            <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium', statusCfg.color)}>
+              {statusCfg.label}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {startLabel} — {endLabel}
+          </p>
+          {round.notes && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground/70">{round.notes}</p>
+          )}
+        </div>
+      </Link>
+
+      {/* Actions — outside the Link to avoid navigation conflicts */}
       {canManage ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" onClick={(e) => e.preventDefault()} className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" disabled={isPending}>
+            <button type="button" className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-neutral-700 transition" disabled={isPending}>
               <MoreVertical className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
@@ -294,9 +297,11 @@ function RoundCard({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <Link href={`/observacoes/${round.id}`}>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Link>
       )}
-    </Link>
+    </div>
   );
 }
 

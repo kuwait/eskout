@@ -64,13 +64,19 @@ export function RoundDetailClient({
   const myAvailability = availability.filter((a) => a.scoutId === userId);
   const statusCfg = STATUS_CONFIG[round.status];
 
-  // Days in the round range
+  // Days in the round range — use date string arithmetic to avoid timezone shifts
   const roundDays = useMemo(() => {
     const days: string[] = [];
-    const current = new Date(round.startDate);
-    const end = new Date(round.endDate);
-    while (current <= end) {
-      days.push(current.toISOString().split('T')[0]);
+    const [sy, sm, sd] = round.startDate.split('-').map(Number);
+    const end = round.endDate;
+    const current = new Date(sy, sm - 1, sd); // local date, no UTC shift
+    while (true) {
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+      if (dateStr > end) break;
+      days.push(dateStr);
       current.setDate(current.getDate() + 1);
     }
     return days;
