@@ -169,9 +169,7 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
       matchDate: initialMatchContext.matchDate ?? '',
     };
   });
-  const [showContext, setShowContext] = useState(false);
-  const [showObsContext, setShowObsContext] = useState(false);
-  const [showRec, setShowRec] = useState(false);
+  // showRec kept for expand-on-rate behavior (recommendation always visible now)
   const [isPending, startTransition] = useTransition();
   const prevDirty = useRef(false);
 
@@ -202,7 +200,6 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
 
   function setOverall(value: number) {
     setForm(prev => ({ ...prev, ratingOverall: value }));
-    if (value > 0) setShowRec(true);
   }
 
   function setRecommendation(value: QuickReportRecommendation) {
@@ -260,8 +257,32 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
   }
 
   return (
-    <div className="space-y-2 overflow-hidden px-1">
-      {/* Dimension cards — compact single-row layout */}
+    <div className="space-y-4 overflow-hidden">
+
+      {/* ── Posição Observada ── */}
+      <div>
+        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Posição observada</p>
+        <div className="flex flex-wrap gap-1.5">
+          {OBSERVED_POSITIONS.map(pos => (
+            <button
+              key={pos.code}
+              type="button"
+              onClick={() => setForm(prev => ({ ...prev, observedPosition: prev.observedPosition === pos.code ? '' : pos.code }))}
+              className={cn(
+                'rounded-md px-2.5 py-1.5 text-xs font-medium transition',
+                form.observedPosition === pos.code
+                  ? 'bg-neutral-800 text-white'
+                  : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200',
+              )}
+              title={pos.label}
+            >
+              {pos.code}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Dimension cards ── */}
       {DIMENSIONS.map(dim => (
         <DimensionCard
           key={dim.key}
@@ -274,376 +295,210 @@ export function QuickReportForm({ playerId, playerName, isGoalkeeper, onSuccess,
         />
       ))}
 
-      {/* Overall — same expand behavior as dimension cards */}
-      <div className="rounded-xl border bg-white border-l-[3px] border-l-amber-400 overflow-hidden">
-        <div className="flex items-center gap-2 px-3 py-2">
-          <span className="text-sm shrink-0">⭐</span>
-          <span className="w-[84px] shrink-0 text-left text-xs font-semibold">Global</span>
-          {/* Segmented rating bar — integer 1-5, same as dimensions */}
-          <div className="flex h-9 flex-1 gap-0.5 rounded-lg overflow-hidden">
-            {[1, 2, 3, 4, 5].map(n => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => { const newVal = form.ratingOverall === n ? 0 : n; setOverall(newVal); }}
-                className={cn(
-                  'flex-1 flex items-center justify-center text-xs font-bold transition-all active:scale-95',
-                  n <= form.ratingOverall ? 'bg-amber-500 text-white' : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
-                  n === 1 && 'rounded-l-lg',
-                  n === 5 && 'rounded-r-lg',
-                )}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          {/* Score + chevron */}
-          <button
-            type="button"
-            onClick={() => { if (form.ratingOverall > 0) setShowRec(v => !v); }}
-            className="flex items-center gap-1 shrink-0"
-          >
-            <span className={cn(
-              'text-base font-black tabular-nums w-5 text-right transition-colors',
-              form.ratingOverall > 0 ? 'text-amber-600' : 'text-neutral-300',
-            )}>
-              {form.ratingOverall > 0 ? form.ratingOverall : '—'}
-            </span>
-            <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', form.ratingOverall > 0 ? 'text-neutral-400' : 'text-transparent', showRec && 'rotate-180')} />
-          </button>
+      {/* ── Global + Recomendação ── */}
+      <div className="rounded-xl border border-l-[3px] border-l-amber-400 bg-neutral-50/50 p-3 space-y-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-amber-600">⭐ Avaliação Global</p>
+        <div className="flex h-10 gap-0.5 rounded-xl overflow-hidden">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => { const newVal = form.ratingOverall === n ? 0 : n; setOverall(newVal); }}
+              className={cn(
+                'flex-1 flex items-center justify-center text-xs font-bold transition-all active:scale-95',
+                n <= form.ratingOverall ? 'bg-amber-500 text-white' : 'bg-neutral-100 text-neutral-400 hover:bg-neutral-200',
+                n === 1 && 'rounded-l-xl',
+                n === 5 && 'rounded-r-xl',
+              )}
+            >
+              {n}
+            </button>
+          ))}
         </div>
-
-        {/* Recommendation — expands when overall is rated */}
-        {showRec && (
-          <div className="border-t px-3 py-2.5 flex gap-2">
+        <div>
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Recomendação</p>
+          <div className="flex gap-2">
             {RECOMMENDATIONS.map(rec => (
               <button
                 key={rec.value}
                 type="button"
                 onClick={() => setRecommendation(rec.value)}
-                className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
+                className={cn(
+                  'flex-1 rounded-xl border py-2.5 text-xs font-semibold transition text-center',
                   form.recommendation === rec.value
-                    ? rec.color + ' ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}
+                    ? rec.color + ' shadow-sm'
+                    : 'border-neutral-200 text-neutral-400 hover:border-neutral-400',
+                )}
               >
                 {rec.label}
               </button>
             ))}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Observation Context — collapsible, starts closed */}
-      <div className="rounded-lg border bg-white">
-        <button
-          type="button"
-          onClick={() => setShowObsContext(v => !v)}
-          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold"
-        >
-          <span className="flex items-center gap-2">👁️ Contexto da Observação <span className="text-[11px] font-normal text-muted-foreground/50">opcional</span></span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${showObsContext ? 'rotate-180' : ''}`} />
-        </button>
-        {showObsContext && (
-        <div className="border-t px-4 py-3.5 space-y-4">
+      {/* ── Contexto da Observação (all open) ── */}
+      <div className="rounded-xl border border-l-[3px] border-l-cyan-400 bg-neutral-50/50 p-3 space-y-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-600">👁️ Contexto da Observação</p>
 
-        {/* Posição Observada — DC split into DC(E) and DC(D) */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">Posição observada</span>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {OBSERVED_POSITIONS.map(pos => (
-              <button
-                key={pos.code}
-                type="button"
-                onClick={() => setForm(prev => ({ ...prev, observedPosition: prev.observedPosition === pos.code ? '' : pos.code }))}
-                className={cn(
-                  'rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all active:scale-95',
-                  form.observedPosition === pos.code
-                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200',
-                )}
-                title={pos.label}
-              >
-                {pos.code}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Maturação */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">📏 Maturação</span>
-          <div className="mt-1.5 flex gap-2">
-            {MATURATION_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setForm(prev => ({ ...prev, maturation: prev.maturation === opt.value ? '' : opt.value }))}
-                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                  form.maturation === opt.value
-                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}
-              >
-                {opt.emoji} {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Morfologia — Estatura */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">📐 Estatura <span className="text-[10px] font-normal">(para a idade)</span></span>
-          <div className="mt-1.5 flex gap-2">
-            {HEIGHT_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setForm(prev => ({ ...prev, heightImpression: prev.heightImpression === opt.value ? '' : opt.value }))}
-                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                  form.heightImpression === opt.value
-                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Morfologia — Compleição */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">🏋️ Compleição <span className="text-[10px] font-normal">(para a idade)</span></span>
-          <div className="mt-1.5 flex gap-2">
-            {BUILD_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setForm(prev => ({ ...prev, buildImpression: prev.buildImpression === opt.value ? '' : opt.value }))}
-                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                  form.buildImpression === opt.value
-                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Pé Observado */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">🦶 Pé observado</span>
-          <div className="mt-1.5 flex gap-2">
-            {FOOT_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setForm(prev => ({ ...prev, observedFoot: prev.observedFoot === opt.value ? '' : opt.value }))}
-                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                  form.observedFoot === opt.value
-                    ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Destaque no contexto */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">⚡ Destaque no contexto do jogo</span>
-          <div className="mt-1.5 flex gap-2">
-            {STANDOUT_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setForm(prev => ({ ...prev, standoutLevel: prev.standoutLevel === opt.value ? '' : opt.value }))}
-                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                  form.standoutLevel === opt.value
-                    ? opt.color + ' ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Nível do adversário */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">🏟️ Nível do adversário</span>
-          <div className="mt-1.5 flex gap-2">
-            {OPPONENT_LEVEL_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setForm(prev => ({ ...prev, opponentLevel: prev.opponentLevel === opt.value ? '' : opt.value }))}
-                className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                  form.opponentLevel === opt.value
-                    ? opt.color + ' ring-2 ring-offset-1 ring-neutral-900'
-                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Titular/Suplente + Minutos */}
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <span className="text-xs font-semibold text-muted-foreground">🏃 Titular / Suplente</span>
-            <div className="mt-1.5 flex gap-2">
-              {STARTER_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setForm(prev => ({
-                    ...prev,
-                    starter: prev.starter === opt.value ? '' : opt.value,
-                    // Clear sub minute when deselecting or switching to Titular
-                    subMinute: (prev.starter === opt.value || opt.value === 'Titular') ? '' : prev.subMinute,
-                  }))}
-                  className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ${
-                    form.starter === opt.value
-                      ? 'bg-neutral-900 text-white ring-2 ring-offset-1 ring-neutral-900'
-                      : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                  }`}
-                >
+        {/* Físico: Estatura + Compleição + Maturação */}
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Estatura</p>
+            <div className="flex flex-col gap-1">
+              {HEIGHT_OPTIONS.map(opt => (
+                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, heightImpression: prev.heightImpression === opt.value ? '' : opt.value }))}
+                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.heightImpression === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
                   {opt.label}
                 </button>
               ))}
             </div>
           </div>
-          {/* Sub entry minute — only show when Suplente selected */}
-          {form.starter === 'Suplente' && (
-            <div className="w-20 shrink-0">
-              <label className="text-[10px] text-muted-foreground">Min. entrada</label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={120}
-                value={form.subMinute}
-                onChange={e => setForm(prev => ({ ...prev, subMinute: e.target.value }))}
-                placeholder="Min"
-                className="mt-0.5 h-10 text-center text-xs"
-              />
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Compleição</p>
+            <div className="flex flex-col gap-1">
+              {BUILD_OPTIONS.map(opt => (
+                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, buildImpression: prev.buildImpression === opt.value ? '' : opt.value }))}
+                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.buildImpression === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
+                  {opt.label}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Maturação</p>
+            <div className="flex flex-col gap-1">
+              {MATURATION_OPTIONS.map(opt => (
+                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, maturation: prev.maturation === opt.value ? '' : opt.value }))}
+                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.maturation === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Minutos observados */}
-        <div>
-          <span className="text-xs font-semibold text-muted-foreground">⏱️ Minutos observados</span>
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={120}
-            value={form.minutesObserved}
-            onChange={e => setForm(prev => ({ ...prev, minutesObserved: e.target.value }))}
-            placeholder="Ex: 70"
-            className="mt-1.5 h-10 text-xs placeholder:text-muted-foreground/40"
-          />
+        {/* Pé + Destaque + Adversário */}
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Pé</p>
+            <div className="flex flex-col gap-1">
+              {FOOT_OPTIONS.map(opt => (
+                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, observedFoot: prev.observedFoot === opt.value ? '' : opt.value }))}
+                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.observedFoot === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Destaque</p>
+            <div className="flex flex-col gap-1">
+              {STANDOUT_OPTIONS.map(opt => (
+                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, standoutLevel: prev.standoutLevel === opt.value ? '' : opt.value }))}
+                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.standoutLevel === opt.value ? opt.color : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Adversário</p>
+            <div className="flex flex-col gap-1">
+              {OPPONENT_LEVEL_OPTIONS.map(opt => (
+                <button key={opt.value} type="button" onClick={() => setForm(prev => ({ ...prev, opponentLevel: prev.opponentLevel === opt.value ? '' : opt.value }))}
+                  className={cn('rounded-lg py-1.5 text-[11px] font-semibold transition', form.opponentLevel === opt.value ? opt.color : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Titular/Suplente + Minutos */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">Titular / Suplente</p>
+            <div className="flex gap-1.5">
+              {STARTER_OPTIONS.map(opt => (
+                <button key={opt.value} type="button"
+                  onClick={() => setForm(prev => ({ ...prev, starter: prev.starter === opt.value ? '' : opt.value, subMinute: (prev.starter === opt.value || opt.value === 'Titular') ? '' : prev.subMinute }))}
+                  className={cn('flex-1 rounded-lg py-1.5 text-[11px] font-semibold transition', form.starter === opt.value ? 'bg-neutral-800 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200')}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-semibold text-neutral-500">
+              {form.starter === 'Suplente' ? 'Min. entrada' : 'Min. observados'}
+            </p>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={120}
+              value={form.starter === 'Suplente' ? form.subMinute : form.minutesObserved}
+              onChange={e => setForm(prev => form.starter === 'Suplente'
+                ? { ...prev, subMinute: e.target.value }
+                : { ...prev, minutesObserved: e.target.value }
+              )}
+              placeholder={form.starter === 'Suplente' ? 'Min' : 'Ex: 70'}
+              className="h-8 text-xs"
+            />
+          </div>
         </div>
 
         {/* Condições */}
         <div>
-          <span className="text-xs font-semibold text-muted-foreground">🌤️ Condições</span>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <p className="mb-1 text-[10px] font-semibold text-neutral-500">Condições</p>
+          <div className="flex flex-wrap gap-1">
             {CONDITION_TAGS.map(tag => {
               const selected = form.conditions.includes(tag);
               return (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => setForm(prev => ({
-                    ...prev,
-                    conditions: selected
-                      ? prev.conditions.filter(c => c !== tag)
-                      : [...prev.conditions, tag],
-                  }))}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-xs font-medium transition-all active:scale-95',
-                    selected
-                      ? 'border-neutral-700 bg-neutral-800 text-white'
-                      : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100',
-                  )}
-                >
+                <button key={tag} type="button"
+                  onClick={() => setForm(prev => ({ ...prev, conditions: selected ? prev.conditions.filter(c => c !== tag) : [...prev.conditions, tag] }))}
+                  className={cn('rounded-full border px-2.5 py-1 text-[11px] font-medium transition', selected ? 'border-neutral-700 bg-neutral-800 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-100')}>
                   {tag}
                 </button>
               );
             })}
           </div>
         </div>
-        </div>
-        )}
       </div>
 
-      {/* Match context (collapsible) */}
-      <div className="rounded-lg border bg-white">
-        <button
-          type="button"
-          onClick={() => setShowContext(v => !v)}
-          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold"
-        >
-          <span className="flex items-center gap-2">Contexto do Jogo <span className="text-[11px] font-normal text-muted-foreground/50">opcional</span></span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${showContext ? 'rotate-180' : ''}`} />
-        </button>
-        {showContext && (
-          <div className="space-y-3 border-t px-4 py-3">
-            <div>
-              <label className="text-xs text-muted-foreground">Competição</label>
-              <Input
-                value={form.competition}
-                onChange={e => setForm(prev => ({ ...prev, competition: e.target.value }))}
-                placeholder="Ex: Campeonato Distrital Sub-15"
-                className="mt-1 h-10 placeholder:text-xs placeholder:text-muted-foreground/40"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Jogo</label>
-              <Input
-                value={form.opponent}
-                onChange={e => setForm(prev => ({ ...prev, opponent: e.target.value }))}
-                placeholder="Ex: Boavista vs Leixões S.C."
-                className="mt-1 h-10 placeholder:text-xs placeholder:text-muted-foreground/40"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Data do jogo</label>
-              <Input
-                type="date"
-                value={form.matchDate}
-                onChange={e => setForm(prev => ({ ...prev, matchDate: e.target.value }))}
-                className={cn('mt-1 h-10', !form.matchDate && 'text-muted-foreground/40 text-xs')}
-              />
-            </div>
+      {/* ── Contexto do Jogo (open, pre-filled if from game) ── */}
+      <div className="rounded-xl border bg-neutral-50/50 p-3 space-y-2">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">Contexto do Jogo</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-neutral-500">Competição</label>
+            <Input value={form.competition} onChange={e => setForm(prev => ({ ...prev, competition: e.target.value }))} placeholder="Campeonato Distrital" className="mt-0.5 h-8 text-xs" />
           </div>
-        )}
+          <div>
+            <label className="text-[10px] text-neutral-500">Data</label>
+            <Input type="date" value={form.matchDate} onChange={e => setForm(prev => ({ ...prev, matchDate: e.target.value }))} className="mt-0.5 h-8 text-xs" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-neutral-500">Jogo</label>
+          <Input value={form.opponent} onChange={e => setForm(prev => ({ ...prev, opponent: e.target.value }))} placeholder="Equipa A vs Equipa B" className="mt-0.5 h-8 text-xs" />
+        </div>
       </div>
 
-      {/* Notes */}
-      <div className="rounded-lg border bg-white p-4">
-        <label className="text-sm font-semibold">Notas <span className="ml-1 text-[11px] font-normal text-muted-foreground/50">opcional</span></label>
+      {/* ── Notas ── */}
+      <div>
+        <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-neutral-500">Notas</p>
         <Textarea
           value={form.notes}
           onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))}
-          placeholder="Observações adicionais sobre o jogador..."
-          className="mt-2 resize-none pt-[10px] placeholder:text-xs placeholder:text-muted-foreground/40"
+          placeholder="Observações adicionais..."
+          className="resize-none text-xs placeholder:text-muted-foreground/40"
           rows={3}
         />
       </div>
 
-      {/* Submit */}
+      {/* ── Submit ── */}
       <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pb-[env(safe-area-inset-bottom)] pt-4">
         <div className="flex gap-2">
           {onCancel && (
@@ -687,16 +542,13 @@ function DimensionCard({
   onToggleTag: (tag: string) => void;
 }) {
   const tags = getTagsForDimension(dimension.key, isGoalkeeper);
-  const [manualExpand, setManualExpand] = useState(false);
-  // Tags only visible after rating is set
-  const expanded = rating > 0 && (manualExpand || selectedTags.length > 0);
 
   return (
     <div className={cn(
       'rounded-xl border bg-white border-l-[3px] overflow-hidden',
       dimension.borderColor,
     )}>
-      {/* Compact single-row: emoji + label + bar + score + chevron */}
+      {/* Compact single-row: emoji + label + bar + score */}
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="text-sm shrink-0">{dimension.emoji}</span>
         <span className="w-[84px] shrink-0 text-left text-xs font-semibold truncate">{dimension.label}</span>
@@ -720,30 +572,21 @@ function DimensionCard({
           ))}
         </div>
 
-        {/* Score + expand chevron */}
-        <button
-          type="button"
-          onClick={() => { if (rating > 0) setManualExpand(v => !v); }}
-          className="flex items-center gap-1 shrink-0"
-        >
-          <span className={cn(
-            'text-base font-black tabular-nums w-5 text-right transition-colors',
-            rating > 0 ? dimension.textColor : 'text-neutral-300',
-          )}>
-            {rating > 0 ? rating : '—'}
-          </span>
-          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', rating > 0 ? 'text-neutral-400' : 'text-transparent', expanded && 'rotate-180')} />
-        </button>
+        {/* Score */}
+        <span className={cn(
+          'text-base font-black tabular-nums w-5 text-right shrink-0',
+          rating > 0 ? dimension.textColor : 'text-neutral-300',
+        )}>
+          {rating > 0 ? rating : '—'}
+        </span>
       </div>
 
-      {/* Tags — expand on tap or after rating */}
-      {expanded && (
-        <TagsSection
-          tags={tags}
-          selectedTags={selectedTags}
-          onToggleTag={onToggleTag}
-        />
-      )}
+      {/* Tags — always visible */}
+      <TagsSection
+        tags={tags}
+        selectedTags={selectedTags}
+        onToggleTag={onToggleTag}
+      />
     </div>
   );
 }
