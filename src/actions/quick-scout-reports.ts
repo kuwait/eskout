@@ -71,11 +71,12 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
   // Auto-link: if no gameId, find a pending target for this player assigned to this scout
   if (!d.gameId) {
     try {
-      // Find games where this scout is assigned
+      // Find games where this scout is assigned (in current club)
       const { data: myAssignments } = await supabase
         .from('scout_assignments')
         .select('game_id')
         .eq('scout_id', userId)
+        .eq('club_id', clubId)
         .neq('status', 'cancelled');
 
       if (myAssignments?.length) {
@@ -128,12 +129,14 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
 
 /** Get all quick reports for a player, with author names */
 export async function getQuickReportsForPlayer(playerId: number): Promise<QuickScoutReport[]> {
+  const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('quick_scout_reports')
     .select('*')
     .eq('player_id', playerId)
+    .eq('club_id', clubId)
     .order('created_at', { ascending: false });
 
   if (error || !data) return [];

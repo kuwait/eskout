@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Calendar, Check, ChevronRight, Clock, Crosshair, Globe, MapPin, Pencil, Plus, Search, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { addAvailability, removeAvailability } from '@/actions/scout-availability';
-import { addManualGame, deleteGame, updateGame, getFpfMatchesForImport, addFpfGame } from '@/actions/scouting-games';
+import { addManualGame, deleteGame, deleteBatchGames, updateGame } from '@/actions/scouting-games';
 import { assignScout, removeAssignment } from '@/actions/scout-assignments';
 import { addGameTarget, removeGameTarget } from '@/actions/game-targets';
 import { updateScoutingRound, updateRoundStatus, deleteScoutingRound } from '@/actions/scouting-rounds';
@@ -87,6 +88,8 @@ export function RoundDetailClient({
   const [addGameOpen, setAddGameOpen] = useState(false);
   const [editGameTarget, setEditGameTarget] = useState<ScoutingGame | null>(null);
   const [assignDialogGameId, setAssignDialogGameId] = useState<number | null>(null);
+  const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(new Set());
+  const [deleteGameConfirm, setDeleteGameConfirm] = useState<number | 'batch' | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const myAvailability = availability.filter((a) => a.scoutId === userId);
@@ -207,24 +210,53 @@ export function RoundDetailClient({
 
       {/* ───────────── Games Section (admin/editor only — scouts see theirs above) ───────────── */}
       {canManage && <section className="mb-8 mt-12 border-t border-neutral-200 pt-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-neutral-900">
-            Jogos ({games.length})
-          </h2>
-          {canManage && round.status !== 'closed' && (
-            <div className="flex items-center gap-2">
-              <Link href={`/observacoes/${round.id}/browse-fpf`}>
-                <Button size="sm" variant="outline" className="gap-1.5">
-                  <Globe className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Jogos FPF</span>
-                  <span className="sm:hidden">FPF</span>
+        <div className="mb-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-neutral-900">
+              Jogos ({games.length})
+            </h2>
+            {canManage && round.status !== 'closed' && (
+              <div className="flex items-center gap-2">
+                <Link href={`/observacoes/${round.id}/browse-fpf`}>
+                  <Button size="sm" variant="outline" className="gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Jogos FPF</span>
+                    <span className="sm:hidden">FPF</span>
+                  </Button>
+                </Link>
+                <Button onClick={() => setAddGameOpen(true)} size="sm" variant="outline" className="gap-1.5">
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Adicionar Jogo</span>
+                  <span className="sm:hidden">Manual</span>
                 </Button>
-              </Link>
-              <Button onClick={() => setAddGameOpen(true)} size="sm" variant="outline" className="gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Adicionar Jogo</span>
-                <span className="sm:hidden">Manual</span>
-              </Button>
+              </div>
+            )}
+          </div>
+          {/* Multi-select bar — visible when there are games and round is not closed */}
+          {games.length > 0 && round.status !== 'closed' && (
+            <div className="flex items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={selectedGameIds.size === games.length && games.length > 0}
+                  onCheckedChange={(checked) => {
+                    setSelectedGameIds(checked ? new Set(games.map((g) => g.id)) : new Set());
+                  }}
+                  className="h-3.5 w-3.5"
+                />
+                <span>{selectedGameIds.size > 0 ? `${selectedGameIds.size} selecionado${selectedGameIds.size !== 1 ? 's' : ''}` : 'Selecionar todos'}</span>
+              </label>
+              {selectedGameIds.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={isPending}
+                  className="h-7 gap-1 px-2 text-xs"
+                  onClick={() => setDeleteGameConfirm('batch')}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Eliminar
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -241,6 +273,15 @@ export function RoundDetailClient({
                 <GameCard
                   key={game.id}
                   game={game}
+                  selected={selectedGameIds.has(game.id)}
+                  onToggleSelect={() => {
+                    setSelectedGameIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(game.id)) next.delete(game.id);
+                      else next.add(game.id);
+                      return next;
+                    });
+                  }}
                   assignments={gameAssignments}
                   scouts={scouts}
                   gameTargets={targets[game.id] ?? []}
@@ -249,18 +290,7 @@ export function RoundDetailClient({
                   isPending={isPending}
                   roundId={round.id}
                   onEdit={() => setEditGameTarget(game)}
-                  onDelete={() => {
-                    startTransition(async () => {
-                      const res = await deleteGame(game.id, round.id);
-                      if (res.success) {
-                        setGames((prev) => prev.filter((g) => g.id !== game.id));
-                        setAssignments((prev) => prev.filter((a) => a.gameId !== game.id));
-                        toast.success('Jogo eliminado');
-                      } else {
-                        toast.error(res.error);
-                      }
-                    });
-                  }}
+                  onDelete={() => setDeleteGameConfirm(game.id)}
                   onAssign={() => setAssignDialogGameId(game.id)}
                   onRemoveAssignment={(assignmentId) => {
                     // Optimistic: remove from state immediately
@@ -303,17 +333,6 @@ export function RoundDetailClient({
                   setGames((prev) => [...prev, res.data!].sort((a, b) => a.matchDate.localeCompare(b.matchDate)));
                   setAddGameOpen(false);
                   toast.success('Jogo adicionado');
-                } else {
-                  toast.error(res.error);
-                }
-              });
-            }}
-            onFpfImport={(fpfMatchId) => {
-              startTransition(async () => {
-                const res = await addFpfGame(round.id, fpfMatchId);
-                if (res.success && res.data) {
-                  setGames((prev) => [...prev, res.data!].sort((a, b) => a.matchDate.localeCompare(b.matchDate)));
-                  toast.success('Jogo FPF importado');
                 } else {
                   toast.error(res.error);
                 }
@@ -526,6 +545,73 @@ export function RoundDetailClient({
                 });
               }}
               className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm delete game(s) */}
+      <AlertDialog open={deleteGameConfirm !== null} onOpenChange={(open) => !open && setDeleteGameConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteGameConfirm === 'batch'
+                ? `Eliminar ${selectedGameIds.size} jogo${selectedGameIds.size !== 1 ? 's' : ''}?`
+                : 'Eliminar jogo?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteGameConfirm === 'batch'
+                ? `${selectedGameIds.size} jogo${selectedGameIds.size !== 1 ? 's' : ''} e as respetivas atribuições serão eliminados permanentemente.`
+                : 'Este jogo e as respetivas atribuições serão eliminados permanentemente.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                if (deleteGameConfirm === 'batch') {
+                  // Batch delete — optimistic
+                  const ids = Array.from(selectedGameIds);
+                  const removedGames = games.filter((g) => selectedGameIds.has(g.id));
+                  const removedAssignments = assignments.filter((a) => selectedGameIds.has(a.gameId));
+                  setGames((prev) => prev.filter((g) => !selectedGameIds.has(g.id)));
+                  setAssignments((prev) => prev.filter((a) => !selectedGameIds.has(a.gameId)));
+                  setSelectedGameIds(new Set());
+                  setDeleteGameConfirm(null);
+                  startTransition(async () => {
+                    const res = await deleteBatchGames(ids, round.id);
+                    if (res.success) {
+                      toast.success(`${res.data?.deleted ?? ids.length} jogo${ids.length !== 1 ? 's' : ''} eliminado${ids.length !== 1 ? 's' : ''}`);
+                    } else {
+                      setGames((prev) => [...prev, ...removedGames].sort((a, b) => a.matchDate.localeCompare(b.matchDate)));
+                      setAssignments((prev) => [...prev, ...removedAssignments]);
+                      toast.error(res.error);
+                    }
+                  });
+                } else if (typeof deleteGameConfirm === 'number') {
+                  // Single delete — optimistic
+                  const gameId = deleteGameConfirm;
+                  const removedGame = games.find((g) => g.id === gameId);
+                  const removedAssignments = assignments.filter((a) => a.gameId === gameId);
+                  setGames((prev) => prev.filter((g) => g.id !== gameId));
+                  setAssignments((prev) => prev.filter((a) => a.gameId !== gameId));
+                  setSelectedGameIds((prev) => { const next = new Set(prev); next.delete(gameId); return next; });
+                  setDeleteGameConfirm(null);
+                  startTransition(async () => {
+                    const res = await deleteGame(gameId, round.id);
+                    if (res.success) {
+                      toast.success('Jogo eliminado');
+                    } else {
+                      if (removedGame) setGames((prev) => [...prev, removedGame].sort((a, b) => a.matchDate.localeCompare(b.matchDate)));
+                      setAssignments((prev) => [...prev, ...removedAssignments]);
+                      toast.error(res.error);
+                    }
+                  });
+                }
+              }}
             >
               Eliminar
             </AlertDialogAction>
@@ -1190,8 +1276,10 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
 
 /* ───────────── Admin Game Card ───────────── */
 
-function GameCard({ game, assignments, scouts, gameTargets, canManage, isClosed, isPending, roundId, onEdit, onDelete, onAssign, onRemoveAssignment, onTargetsChange }: {
+function GameCard({ game, selected, onToggleSelect, assignments, scouts, gameTargets, canManage, isClosed, isPending, roundId, onEdit, onDelete, onAssign, onRemoveAssignment, onTargetsChange }: {
   game: ScoutingGame;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   assignments: ScoutAssignment[];
   scouts: { id: string; name: string; role: string }[];
   gameTargets: GameObservationTarget[];
@@ -1209,9 +1297,17 @@ function GameCard({ game, assignments, scouts, gameTargets, canManage, isClosed,
   const scoutMap = Object.fromEntries(scouts.map((s) => [s.id, s.name]));
 
   return (
-    <div className="rounded-lg border bg-card overflow-hidden">
+    <div className={cn('rounded-lg border bg-card overflow-hidden', selected && 'ring-2 ring-blue-400')}>
       {/* Game header */}
       <div className="flex items-center gap-3 px-3 py-2.5">
+        {/* Checkbox for multi-select (only when round is open) */}
+        {onToggleSelect && !isClosed && (
+          <Checkbox
+            checked={selected ?? false}
+            onCheckedChange={onToggleSelect}
+            className="h-4 w-4 shrink-0"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-neutral-900">
             {game.homeTeam} <span className="font-normal text-muted-foreground">vs</span> {game.awayTeam}
@@ -1441,15 +1537,13 @@ function GameTargetsSection({ game, targets, canManage, isClosed, roundId, onTar
 
 /* ───────────── Add Game Form ───────────── */
 
-function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, onFpfImport }: {
+function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit }: {
   roundId: number;
   startDate: string;
   endDate: string;
   isPending: boolean;
   onManualSubmit: (data: { roundId: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime?: string; venue?: string; competitionName?: string; escalao?: string; notes?: string }) => void;
-  onFpfImport: (fpfMatchId: number) => void;
 }) {
-  const [tab, setTab] = useState<'manual' | 'fpf'>('manual');
   const [homeTeam, setHomeTeam] = useState('');
   const [awayTeam, setAwayTeam] = useState('');
   const [matchDate, setMatchDate] = useState(startDate);
@@ -1459,105 +1553,48 @@ function AddGameForm({ roundId, startDate, endDate, isPending, onManualSubmit, o
   const [escalao, setEscalao] = useState('');
   const [notes, setNotes] = useState('');
 
-  // FPF tab state
-  const [fpfMatches, setFpfMatches] = useState<{ id: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime: string | null; venue: string | null; competitionName: string | null; escalao: string | null }[]>([]);
-  const [fpfLoading, setFpfLoading] = useState(false);
-  const [fpfLoaded, setFpfLoaded] = useState(false);
-
-  async function loadFpfMatches() {
-    setFpfLoading(true);
-    const matches = await getFpfMatchesForImport(roundId, startDate, endDate);
-    setFpfMatches(matches);
-    setFpfLoading(false);
-    setFpfLoaded(true);
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Tab switcher */}
-      <div className="flex rounded-lg border p-0.5">
-        <button type="button" onClick={() => setTab('manual')} className={cn('flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition', tab === 'manual' ? 'bg-neutral-900 text-white' : 'text-muted-foreground hover:text-neutral-700')}>
-          Manual
-        </button>
-        <button type="button" onClick={() => { setTab('fpf'); if (!fpfLoaded) loadFpfMatches(); }} className={cn('flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition', tab === 'fpf' ? 'bg-neutral-900 text-white' : 'text-muted-foreground hover:text-neutral-700')}>
-          FPF
-        </button>
-      </div>
-
-      {tab === 'manual' && (
-        <form onSubmit={(e) => { e.preventDefault(); onManualSubmit({ roundId, homeTeam, awayTeam, matchDate, matchTime: matchTime || undefined, venue: venue || undefined, competitionName: competitionName || undefined, escalao: escalao || undefined, notes: notes || undefined }); }} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Casa</label>
-              <input type="text" value={homeTeam} onChange={(e) => setHomeTeam(e.target.value)} required placeholder="Ex: Padroense" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Fora</label>
-              <input type="text" value={awayTeam} onChange={(e) => setAwayTeam(e.target.value)} required placeholder="Ex: Leixões" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Data</label>
-              <input type="date" value={matchDate} min={startDate} max={endDate} onChange={(e) => setMatchDate(e.target.value)} required className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Hora</label>
-              <input type="time" value={matchTime} onChange={(e) => setMatchTime(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Local</label>
-              <input type="text" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Escalão</label>
-              <input type="text" value={escalao} onChange={(e) => setEscalao(e.target.value)} placeholder="Sub-15" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Competição</label>
-            <input type="text" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} placeholder="Torneio X" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Nota / Objectivo</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ex: Relatório jogador X, mapear equipa toda..." className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400 resize-none" />
-          </div>
-          <Button type="submit" disabled={isPending || !homeTeam || !awayTeam} className="w-full">Adicionar</Button>
-        </form>
-      )}
-
-      {tab === 'fpf' && (
+    <form onSubmit={(e) => { e.preventDefault(); onManualSubmit({ roundId, homeTeam, awayTeam, matchDate, matchTime: matchTime || undefined, venue: venue || undefined, competitionName: competitionName || undefined, escalao: escalao || undefined, notes: notes || undefined }); }} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          {fpfLoading && <p className="py-4 text-center text-sm text-muted-foreground">A carregar jogos FPF...</p>}
-          {fpfLoaded && fpfMatches.length === 0 && (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sem jogos FPF disponíveis neste período</p>
-          )}
-          {fpfMatches.length > 0 && (
-            <div className="max-h-64 space-y-1.5 overflow-y-auto">
-              {fpfMatches.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onFpfImport(m.id)}
-                  disabled={isPending}
-                  className="w-full rounded-lg border px-3 py-2 text-left transition hover:bg-accent/50 disabled:opacity-50"
-                >
-                  <p className="text-sm font-medium">{m.homeTeam} vs {m.awayTeam}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {new Date(m.matchDate).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' })}
-                    {m.matchTime ? ` · ${m.matchTime}` : ''}
-                    {m.escalao ? ` · ${m.escalao}` : ''}
-                    {m.venue ? ` · ${m.venue}` : ''}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Casa</label>
+          <input type="text" value={homeTeam} onChange={(e) => setHomeTeam(e.target.value)} required placeholder="Ex: Padroense" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
         </div>
-      )}
-    </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Equipa Fora</label>
+          <input type="text" value={awayTeam} onChange={(e) => setAwayTeam(e.target.value)} required placeholder="Ex: Leixões" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Data</label>
+          <input type="date" value={matchDate} min={startDate} max={endDate} onChange={(e) => setMatchDate(e.target.value)} required className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Hora</label>
+          <input type="time" value={matchTime} onChange={(e) => setMatchTime(e.target.value)} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Local</label>
+          <input type="text" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Campo" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-neutral-600">Escalão</label>
+          <input type="text" value={escalao} onChange={(e) => setEscalao(e.target.value)} placeholder="Sub-15" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-600">Competição</label>
+        <input type="text" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} placeholder="Torneio X" className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400" />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-neutral-600">Nota / Objectivo</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Ex: Relatório jogador X, mapear equipa toda..." className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-neutral-400 resize-none" />
+      </div>
+      <Button type="submit" disabled={isPending || !homeTeam || !awayTeam} className="w-full">Adicionar</Button>
+    </form>
   );
 }
 

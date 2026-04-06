@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useCallback, useTransition, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Globe, Search, Loader2, AlertCircle, RefreshCw, Plus, X, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,8 @@ import { FPF_ASSOCIATIONS, FPF_FOOTBALL_CLASSES } from '@/actions/scraping/fpf-c
 import type { FpfBrowseCompetition, FpfBrowseMatch } from '@/actions/scraping/fpf-competitions/fpf-data';
 import type { ScoutingRound, ScoutingGame } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { matchTimeInPeriod, buildGameKey as buildGameKeyFromParts, getRoundDays } from '@/lib/fpf-browse-helpers';
+import type { TimePeriod } from '@/lib/fpf-browse-helpers';
 
 /* ───────────── Types ───────────── */
 
@@ -25,8 +28,6 @@ interface BrowseSource {
   id?: number;
   label: string;
 }
-
-type TimePeriod = 'all' | 'morning' | 'afternoon' | 'evening';
 
 /* ───────────── Constants ───────────── */
 
@@ -44,23 +45,6 @@ const TIME_PERIODS: { value: TimePeriod; label: string; short: string }[] = [
 
 /* ───────────── Helpers ───────────── */
 
-/** Get day tabs for the round date range */
-function getRoundDays(startDate: string, endDate: string): string[] {
-  const days: string[] = [];
-  const [sy, sm, sd] = startDate.split('-').map(Number);
-  const current = new Date(sy, sm - 1, sd);
-  while (true) {
-    const y = current.getFullYear();
-    const m = String(current.getMonth() + 1).padStart(2, '0');
-    const d = String(current.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${d}`;
-    if (dateStr > endDate) break;
-    days.push(dateStr);
-    current.setDate(current.getDate() + 1);
-  }
-  return days;
-}
-
 /** Format a date string as "Sáb 28" */
 function formatDayTab(date: string): string {
   const d = new Date(date + 'T12:00:00');
@@ -69,19 +53,9 @@ function formatDayTab(date: string): string {
   return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${day}`;
 }
 
-/** Check if a match time falls in a period */
-function matchTimeInPeriod(matchTime: string | null, period: TimePeriod): boolean {
-  if (period === 'all') return true;
-  if (!matchTime) return true; // Show matches without time in all periods
-  const [h] = matchTime.split(':').map(Number);
-  if (period === 'morning') return h < 12;
-  if (period === 'afternoon') return h >= 12 && h < 18;
-  return h >= 18; // evening
-}
-
-/** Build composite key for dedup (same logic as server) */
+/** Build composite key for dedup from a ScoutingGame (wraps shared helper) */
 function buildGameKey(g: ScoutingGame): string {
-  return `${g.homeTeam.toLowerCase()}|${g.awayTeam.toLowerCase()}|${g.matchDate}|${g.matchTime ?? ''}`;
+  return buildGameKeyFromParts(g.homeTeam, g.awayTeam, g.matchDate, g.matchTime);
 }
 
 /** Cache key for results */
@@ -120,6 +94,7 @@ export function BrowseFpfClient({
   round: ScoutingRound;
   existingGames: ScoutingGame[];
 }) {
+  const router = useRouter();
   const days = useMemo(() => getRoundDays(round.startDate, round.endDate), [round.startDate, round.endDate]);
 
   // Load saved filters from localStorage (or use defaults)
@@ -132,13 +107,14 @@ export function BrowseFpfClient({
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all');
   const [teamSearch, setTeamSearch] = useState('');
   const [resultsCache, setResultsCache] = useState<Map<string, FpfBrowseCompetition[]>>(new Map());
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Map<string, FpfBrowseMatch>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [addedKeys, setAddedKeys] = useState<Set<string>>(() =>
+  const [addedKeys] = useState<Set<string>>(() =>
     new Set(existingGames.map(buildGameKey)),
   );
   const [showAssocPicker, setShowAssocPicker] = useState(false);
+  const [fetchTrigger, setFetchTrigger] = useState(0); // Increment to force re-fetch
   const [collapsedComps, setCollapsedComps] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -210,11 +186,11 @@ export function BrowseFpfClient({
     }
   }, [activeDay, selectedSources, selectedClasses, resultsCache]);
 
-  // Fetch on filter changes
+  // Fetch on filter changes or manual refresh
   useEffect(() => {
     fetchMatches();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDay, selectedSources, selectedClasses]);
+  }, [activeDay, selectedSources, selectedClasses, fetchTrigger]);
 
   // Persist filter choices to localStorage
   useEffect(() => {
@@ -270,29 +246,19 @@ export function BrowseFpfClient({
     [displayResults],
   );
 
-  /* ── Toggle selection ── */
-  const toggleMatch = useCallback((key: string) => {
+  /* ── Toggle selection — stores full match data so batch add works across days/filters ── */
+  const toggleMatch = useCallback((key: string, match?: FpfBrowseMatch) => {
     setSelected((prev) => {
-      const next = new Set(prev);
+      const next = new Map(prev);
       if (next.has(key)) next.delete(key);
-      else next.add(key);
+      else if (match) next.set(key, match);
       return next;
     });
   }, []);
 
-  /* ── Batch add ── */
+  /* ── Batch add — reads directly from selected Map (works across days/filters) ── */
   const handleAdd = useCallback(() => {
-    // Collect selected matches from results
-    const matchesMap = new Map<string, FpfBrowseMatch>();
-    for (const comp of displayResults) {
-      for (const s of comp.series) {
-        for (const m of s.matches) {
-          if (selected.has(m.key)) matchesMap.set(m.key, m);
-        }
-      }
-    }
-
-    const matchesToAdd = Array.from(matchesMap.values());
+    const matchesToAdd = Array.from(selected.values());
     if (!matchesToAdd.length) return;
 
     startTransition(async () => {
@@ -316,18 +282,13 @@ export function BrowseFpfClient({
         } else {
           toast.success(`${added} jogo${added !== 1 ? 's' : ''} adicionado${added !== 1 ? 's' : ''}`);
         }
-        // Update added keys so they show as disabled
-        setAddedKeys((prev) => {
-          const next = new Set(prev);
-          for (const m of matchesToAdd) next.add(m.key);
-          return next;
-        });
-        setSelected(new Set());
+        // Navigate back to round detail
+        router.push(`/observacoes/${round.id}`);
       } else {
         toast.error(result.error ?? 'Erro ao adicionar jogos');
       }
     });
-  }, [displayResults, selected, round.id, startTransition]);
+  }, [selected, round.id, router, startTransition]);
 
   /* ── Toggle class filter ── */
   const toggleClass = useCallback((classId: number) => {
@@ -350,7 +311,7 @@ export function BrowseFpfClient({
     setShowAssocPicker(false);
   }, []);
 
-  /* ── Force refresh (clear cache for current filters) ── */
+  /* ── Force refresh (clear cache for current filters, then re-fetch via trigger) ── */
   const forceRefresh = useCallback(() => {
     setResultsCache((prev) => {
       const next = new Map(prev);
@@ -362,7 +323,7 @@ export function BrowseFpfClient({
       }
       return next;
     });
-    // fetchMatches will re-trigger via useEffect
+    setFetchTrigger((n) => n + 1);
   }, [activeDay, selectedSources, selectedClasses]);
 
   /* ── Available associations (not already selected) ── */
@@ -665,14 +626,14 @@ export function BrowseFpfClient({
                             ) : (
                               <Checkbox
                                 checked={isSelected}
-                                onCheckedChange={() => toggleMatch(match.key)}
+                                onCheckedChange={() => toggleMatch(match.key, match)}
                                 className="h-4 w-4"
                               />
                             )}
                           </div>
 
                           {/* Match info */}
-                          <div className="min-w-0 flex-1" onClick={() => !isAdded && toggleMatch(match.key)}>
+                          <div className="min-w-0 flex-1" onClick={() => !isAdded && toggleMatch(match.key, match)}>
                             <div className="flex items-center gap-2">
                               {match.matchTime && (
                                 <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono font-medium">
@@ -706,7 +667,7 @@ export function BrowseFpfClient({
 
       {/* ── Sticky Bottom Bar ── */}
       {selected.size > 0 && (
-        <div className="sticky bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur-sm safe-area-pb">
+        <div className="sticky bottom-0 z-30 border-t bg-background/95 px-4 py-3 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
           <Button
             onClick={handleAdd}
             disabled={isPending}

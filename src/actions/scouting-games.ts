@@ -227,13 +227,13 @@ export async function addBatchGames(
 
   const existingKeys = new Set(
     (existing ?? []).map((g) =>
-      `${(g.home_team ?? '').toLowerCase()}|${(g.away_team ?? '').toLowerCase()}|${g.match_date ?? ''}|${g.match_time ?? ''}`,
+      `${(g.home_team ?? '').trim().toLowerCase()}|${(g.away_team ?? '').trim().toLowerCase()}|${g.match_date ?? ''}|${g.match_time ?? ''}`,
     ),
   );
 
   // Filter out duplicates
   const toInsert = matches.filter((m) => {
-    const key = `${m.homeTeam.toLowerCase()}|${m.awayTeam.toLowerCase()}|${m.matchDate}|${m.matchTime ?? ''}`;
+    const key = `${m.homeTeam.trim().toLowerCase()}|${m.awayTeam.trim().toLowerCase()}|${m.matchDate}|${m.matchTime ?? ''}`;
     return !existingKeys.has(key);
   });
 
@@ -359,4 +359,36 @@ export async function deleteGame(
   revalidatePath(`/observacoes/${roundId}`);
   await broadcastRowMutation(clubId, 'scouting_games', 'DELETE', userId, gameId);
   return { success: true };
+}
+
+/** Batch-delete multiple games from a round. Single DB call. */
+export async function deleteBatchGames(
+  gameIds: number[],
+  roundId: number,
+): Promise<ActionResponse<{ deleted: number }>> {
+  if (!gameIds.length) return { success: false, error: 'Nenhum jogo selecionado' };
+
+  const { clubId, userId, role } = await getActiveClub();
+  if (role !== 'admin' && role !== 'editor') {
+    return { success: false, error: 'Sem permissão' };
+  }
+
+  const supabase = await createClient();
+
+  const { error, count } = await supabase
+    .from('scouting_games')
+    .delete({ count: 'exact' })
+    .in('id', gameIds)
+    .eq('club_id', clubId);
+
+  if (error) {
+    return { success: false, error: `Erro ao eliminar: ${error.message}` };
+  }
+
+  revalidatePath(`/observacoes/${roundId}`);
+
+  const { broadcastBulkMutation } = await import('@/lib/realtime/broadcast');
+  await broadcastBulkMutation(clubId, 'scouting_games', userId, gameIds);
+
+  return { success: true, data: { deleted: count ?? gameIds.length } };
 }

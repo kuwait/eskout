@@ -829,18 +829,20 @@ Public demo mode for potential clients to explore the app without creating an ac
 
 ## 39. FPF Live Match Browser
 
-Browse FPF matches by date for quick game import into scouting rounds. Used in the "Adicionar jogo" dialog's FPF tab.
+Dedicated fullscreen page (`/observacoes/[id]/browse-fpf`) for browsing FPF matches by date and batch-importing into scouting rounds. Accessed via "Jogos FPF" button in the round detail games section.
 
-**Browse-by-date endpoint:** Server action fetches FPF matches for a given date range, returning match details (teams, competition, escalão, venue, time).
+**Browse-by-date endpoint:** Server action fetches FPF matches for a given date, organized by competition and series. Supports multiple sources (FPF Nacional + district associations). Results cached client-side per day/source/class combination.
 
 **Filters:**
-- Competition name (text search)
-- Escalão (dropdown)
-- Date (within round's date range)
+- Source: FPF Nacional + district associations (AF Porto default, add more via picker)
+- Escalão: football class chips (Sub-7 to Sub-19, or "Todos")
+- Time period: Manhã / Tarde / Noite / Todos
+- Team search: real-time text filter
+- Day tabs: one per day in the round date range
 
-**Multi-select:** Checkbox selection of multiple FPF matches, batch-add all selected to the current round in a single action. Prevents duplicate imports (same `fpf_match_id` in the same round).
+**Multi-select:** Checkbox selection across days and filters — match data stored in Map at selection time (not just keys), so selections persist across day/filter changes. Batch-add all selected in a single server action. Dedup by composite key (`home_team|away_team|date|time`, case-insensitive, trimmed). After successful add, redirects back to round detail.
 
-**Integration:** FPF tab in AddGameDialog. Matches displayed as compact cards with home vs away, competition, escalão, date/time. Selected matches highlighted.
+**Game management:** Multi-select checkboxes on game cards in round detail. "Selecionar todos" toggle + "Eliminar" batch delete (single DB call). Confirmation dialog before any delete (single or batch). Optimistic UI with rollback on failure.
 
 ---
 
