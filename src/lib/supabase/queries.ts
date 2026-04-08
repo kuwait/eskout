@@ -612,6 +612,8 @@ function playerDateToCalendarEvent(
   playerInfo: SyntheticPlayerInfo,
 ): CalendarEvent | null {
   // dateValue can be "2026-01-15", "2026-01-15T11:00:00", or full ISO
+  // Use string slicing (NOT new Date()) to avoid timezone conversion —
+  // times are stored as wall-clock values without meaningful timezone offset
   const dateStr = dateValue.slice(0, 10); // YYYY-MM-DD
   // Extract time if present (after T)
   let timeStr: string | null = null;

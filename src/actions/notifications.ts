@@ -94,17 +94,22 @@ export async function notifyTaskAssigned(ctx: TaskNotificationContext): Promise<
 
     const recipientName = profile?.full_name ?? 'Utilizador';
 
-    // Format due date
+    // Format due date — use string slicing to avoid timezone conversion
+    // (pipeline dates are wall-clock values stored without meaningful offset)
     let formattedDate: string | null = null;
     if (ctx.dueDate) {
       try {
-        formattedDate = new Date(ctx.dueDate).toLocaleString('pt-PT', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        const datePart = ctx.dueDate.slice(0, 10);
+        const [year, month, day] = datePart.split('-').map(Number);
+        // Build weekday + day + month via Date at noon (avoids DST boundary)
+        const d = new Date(year, month - 1, day, 12);
+        const weekday = d.toLocaleString('pt-PT', { weekday: 'long' });
+        const monthName = d.toLocaleString('pt-PT', { month: 'long' });
+        const timePart = ctx.dueDate.length > 10 && ctx.dueDate.includes('T') ? ctx.dueDate.slice(11, 16) : null;
+        const hasTime = timePart && timePart !== '00:00';
+        formattedDate = hasTime
+          ? `${weekday}, ${day} ${monthName}, ${timePart}`
+          : `${weekday}, ${day} ${monthName}`;
       } catch {
         formattedDate = ctx.dueDate;
       }

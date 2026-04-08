@@ -25,18 +25,16 @@ const SLOT_LABELS: Record<string, string> = {
 
 /* ───────────── Formatters ───────────── */
 
-/** Format an ISO date string to "dd/MM/yyyy, HH:mm" in Portuguese */
+/** Format an ISO date string to "dd/MM/yyyy, HH:mm" in Portuguese.
+ *  Uses string slicing to avoid timezone conversion — pipeline dates are wall-clock values. */
 export function formatDateStr(isoStr: string): string {
   try {
-    const d = new Date(isoStr);
-    if (isNaN(d.getTime())) return isoStr;
-    return d.toLocaleDateString('pt-PT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const datePart = isoStr.slice(0, 10);
+    const [year, month, day] = datePart.split('-').map(Number);
+    if (!year || !month || !day) return isoStr;
+    const timePart = isoStr.length > 10 && isoStr.includes('T') ? isoStr.slice(11, 16) : null;
+    const date = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+    return timePart && timePart !== '00:00' ? `${date}, ${timePart}` : date;
   } catch {
     return isoStr;
   }

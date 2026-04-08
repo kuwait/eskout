@@ -48,17 +48,22 @@ interface PipelineCardProps {
   contactPurposes?: { id: string; label: string }[];
 }
 
-/** Format a date string to a compact Portuguese display */
+/** Format a date string to a compact Portuguese display.
+ *  Uses string slicing (NOT new Date()) to avoid timezone conversion —
+ *  times are stored as wall-clock values without meaningful timezone offset. */
 function formatScheduledDate(dateStr: string): string {
   try {
-    const d = new Date(dateStr);
-    return d.toLocaleString('pt-PT', {
-      weekday: 'short',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const datePart = dateStr.slice(0, 10); // "YYYY-MM-DD"
+    const timePart = dateStr.length > 10 && dateStr.includes('T') ? dateStr.slice(11, 16) : null;
+
+    // Parse date parts manually to format weekday without timezone shift
+    const [year, month, day] = datePart.split('-').map(Number);
+    // Create date at noon to avoid any DST edge cases on date boundary
+    const d = new Date(year, month - 1, day, 12);
+    const weekday = d.toLocaleString('pt-PT', { weekday: 'short' });
+
+    const display = `${weekday}, ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
+    return timePart && timePart !== '00:00' ? `${display}, ${timePart}` : display;
   } catch {
     return dateStr;
   }

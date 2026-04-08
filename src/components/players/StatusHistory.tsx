@@ -59,12 +59,19 @@ function recruitBadgeClass(v: string | null): string {
   return tw ?? 'bg-neutral-100 text-neutral-500';
 }
 
+/** Format date+time using string slicing to avoid timezone conversion —
+ *  pipeline dates are stored as wall-clock values without meaningful offset. */
 function fmtDateTime(v: string | null): string {
   if (!v) return '—';
   try {
-    return new Date(v).toLocaleString('pt-PT', {
-      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-    });
+    const datePart = v.slice(0, 10);
+    const [year, month, day] = datePart.split('-').map(Number);
+    // Use short month name via Date at noon (avoids DST boundary)
+    const d = new Date(year, month - 1, day, 12);
+    const monthName = d.toLocaleString('pt-PT', { month: 'short' });
+    const timePart = v.length > 10 && v.includes('T') ? v.slice(11, 16) : null;
+    const hasTime = timePart && timePart !== '00:00';
+    return hasTime ? `${day} ${monthName} ${timePart}` : `${day} ${monthName}`;
   } catch { return v; }
 }
 

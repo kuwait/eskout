@@ -38,13 +38,16 @@ export function formatDate(dateStr: string): string {
   }
 }
 
+/** Format date+time using string slicing to avoid timezone conversion —
+ *  times are stored as wall-clock values without meaningful timezone offset. */
 export function formatDateTime(dateStr: string): string {
   try {
-    const d = new Date(dateStr);
-    const date = d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const time = d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+    const datePart = dateStr.slice(0, 10); // "YYYY-MM-DD"
+    const [year, month, day] = datePart.split('-').map(Number);
+    const date = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+    const timePart = dateStr.length > 10 && dateStr.includes('T') ? dateStr.slice(11, 16) : null;
     // Only show time if it's not midnight (meaning time was actually set)
-    return time === '00:00' ? date : `${date} ${time}`;
+    return timePart && timePart !== '00:00' ? `${date} ${timePart}` : date;
   } catch {
     return dateStr;
   }

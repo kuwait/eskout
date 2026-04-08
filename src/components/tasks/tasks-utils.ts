@@ -42,24 +42,27 @@ export const PRIORITY_STYLE: Record<NotePriority, {
 
 /* ───────────── Date utilities ───────────── */
 
+/** Format due date using string slicing to avoid timezone conversion —
+ *  times are stored as wall-clock values without meaningful timezone offset. */
 export function formatDueDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(d);
-  target.setHours(0, 0, 0, 0);
-  const diff = (target.getTime() - today.getTime()) / 86400000;
+  const datePart = dateStr.slice(0, 10); // "YYYY-MM-DD"
+  const [year, month, day] = datePart.split('-').map(Number);
+  const timePart = dateStr.length > 10 && dateStr.includes('T') ? dateStr.slice(11, 16) : null;
+  const hasTime = timePart != null && timePart !== '00:00';
+  const timeSuffix = hasTime ? ` ${timePart}` : '';
 
-  // Check if the stored value includes a time component (not midnight)
-  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
-  const timeSuffix = hasTime ? ` ${d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}` : '';
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const targetDate = new Date(year, month - 1, day);
+  const diff = Math.round((targetDate.getTime() - todayDate.getTime()) / 86400000);
 
   if (diff === 0) return `Hoje${timeSuffix}`;
   if (diff === 1) return `Amanhã${timeSuffix}`;
   if (diff === -1) return `Ontem${timeSuffix}`;
 
   // For all other dates (past or future), show dd/MM format
-  return d.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }) + timeSuffix;
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}${timeSuffix}`;
 }
 
 /** Get effective date for a task — due_date, or fallback to player's pipeline date */

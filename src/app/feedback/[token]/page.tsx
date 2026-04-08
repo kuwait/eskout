@@ -38,7 +38,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerName = (feedback as any)?.players?.name?.split(' ')[0] ?? 'Jogador';
   const dateLabel = feedback?.training_date
-    ? new Date(feedback.training_date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })
+    ? (() => {
+        const [y, m, d] = feedback.training_date.slice(0, 10).split('-').map(Number);
+        const dt = new Date(y, m - 1, d, 12);
+        return dt.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
+      })()
     : '';
   const escalao = feedback?.escalao ?? '';
 
@@ -98,9 +102,11 @@ export default async function CoachFeedbackPage({ params }: PageProps) {
   const club = player.club ?? '';
   const position = player.position_normalized ?? '';
   const photoUrl = player.photo_url || player.zz_photo_url || null;
-  const dateLabel = new Date(feedback.training_date).toLocaleDateString('pt-PT', {
-    day: '2-digit', month: 'long', year: 'numeric',
-  });
+  const dateLabel = (() => {
+    const [y, m, d] = feedback.training_date.slice(0, 10).split('-').map(Number);
+    const dt = new Date(y, m - 1, d, 12);
+    return dt.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
+  })();
 
   return (
     <div className="min-h-dvh bg-neutral-50">
