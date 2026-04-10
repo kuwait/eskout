@@ -79,21 +79,19 @@ export async function middleware(request: NextRequest) {
   // Skip further checks for public routes
   if (!user || isPublicRoute) return supabaseResponse;
 
+  // ── Read claims from JWT app_metadata (populated by sync_user_claims trigger) ──
+  const appMeta = user.app_metadata ?? {};
+  const clubRoles: Record<string, string> = appMeta.club_roles ?? {};
+  const isSuperadmin: boolean = appMeta.is_superadmin ?? false;
+  const canViewCompetitions: boolean = appMeta.can_view_competitions ?? false;
+
   // ── Superadmin routes ──
   const isSuperadminRoute = SUPERADMIN_ROUTES.some((route) => pathname.startsWith(route));
   if (isSuperadminRoute) {
     // /master/competicoes is accessible to superadmins AND users with can_view_competitions
     const isCompetitionsRoute = pathname.startsWith('/master/competicoes');
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_superadmin, can_view_competitions')
-      .eq('id', user.id)
-      .single();
 
-    const hasSuperadminAccess = profile?.is_superadmin;
-    const hasCompetitionAccess = isCompetitionsRoute && profile?.can_view_competitions;
-
-    if (!hasSuperadminAccess && !hasCompetitionAccess) {
+    if (!isSuperadmin && !(isCompetitionsRoute && canViewCompetitions)) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       return NextResponse.redirect(url);
@@ -106,24 +104,21 @@ export async function middleware(request: NextRequest) {
   const clubId = request.cookies.get(CLUB_COOKIE)?.value;
 
   if (!clubId && !isNoClubRoute) {
-    // No club selected — check if user has clubs
-    const { data: memberships } = await supabase
-      .from('club_memberships')
-      .select('club_id')
-      .eq('user_id', user.id);
+    // No club selected — read club list from JWT claims instead of DB query
+    const userClubIds = Object.keys(clubRoles);
 
-    if (!memberships || memberships.length === 0) {
-      // No clubs at all — show "no club" message (club picker handles this)
+    if (userClubIds.length === 0) {
+      // No clubs at all — redirect to club picker
       const url = request.nextUrl.clone();
       url.pathname = '/escolher-clube';
       return NextResponse.redirect(url);
     }
 
-    if (memberships.length === 1) {
+    if (userClubIds.length === 1) {
       // Auto-select single club
       const url = request.nextUrl.clone();
       supabaseResponse = NextResponse.redirect(url);
-      supabaseResponse.cookies.set(CLUB_COOKIE, memberships[0].club_id, {
+      supabaseResponse.cookies.set(CLUB_COOKIE, userClubIds[0], {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -148,28 +143,13 @@ export async function middleware(request: NextRequest) {
   );
 
   if (clubId && (isAdminRoute || !isScoutAllowed)) {
-    // Fetch club role from membership
-    const { data: membership } = await supabase
-      .from('club_memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('club_id', clubId)
-      .single();
+    // Read role from JWT claims instead of DB query
+    let role = clubRoles[clubId];
 
-    let role = membership?.role;
-
-    // Superadmin role impersonation — check override cookie
-    if (role) {
+    // Superadmin role impersonation — override from cookie (no DB query needed, isSuperadmin from claims)
+    if (role && isSuperadmin) {
       const roleOverride = request.cookies.get('eskout-role-override')?.value;
-      if (roleOverride) {
-        // Verify user is superadmin before applying override
-        const { data: saProfile } = await supabase
-          .from('profiles')
-          .select('is_superadmin')
-          .eq('id', user.id)
-          .single();
-        if (saProfile?.is_superadmin) role = roleOverride;
-      }
+      if (roleOverride) role = roleOverride;
     }
 
     // If no membership for this club, clear cookie and redirect
