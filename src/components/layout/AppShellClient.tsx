@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
@@ -55,17 +55,20 @@ export function AppShellClient({
 
   // Heartbeat: update presence every 5 minutes (page, device, last_seen_at)
   // Skip in demo mode — demo user doesn't need presence tracking
+  // pathname tracked via ref to avoid re-firing on every navigation (was causing duplicate POSTs)
+  const pathnameRef = useRef(pathname);
+  useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => {
     if (isPublic || !userId || isDemo) return;
     const device = window.innerWidth < 768 ? 'mobile' : 'desktop';
     // Fire immediately on mount
-    updateLastSeen(pathname, device);
+    updateLastSeen(pathnameRef.current, device);
     const interval = setInterval(() => {
       const dev = window.innerWidth < 768 ? 'mobile' : 'desktop';
-      updateLastSeen(pathname, dev);
+      updateLastSeen(pathnameRef.current, dev);
     }, 300_000);
     return () => clearInterval(interval);
-  }, [isPublic, userId, pathname, isDemo]);
+  }, [isPublic, userId, isDemo]); // eslint-disable-line react-hooks/exhaustive-deps -- pathname tracked via ref
 
   // No shell on public routes or club picker
   if (isPublic || isNoShell) {
