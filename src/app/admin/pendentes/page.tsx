@@ -19,13 +19,6 @@ export default async function PendentesPage() {
   const supabase = await createClient();
   const userId = ctx.userId;
 
-  // Fetch player IDs already dismissed by this user
-  const { data: dismissedRows } = await supabase
-    .from('player_added_dismissals')
-    .select('player_id')
-    .eq('user_id', userId);
-  const dismissedIds = new Set((dismissedRows ?? []).map((d) => d.player_id));
-
   const playerColumns = 'id, name, dob, club, position_normalized, created_by, created_at, pending_approval, approved_by';
 
   interface PlayerRow {
@@ -64,11 +57,13 @@ export default async function PendentesPage() {
     return all;
   }
 
-  // Fetch players created by OTHER users (for notifications) + all manual (for history)
-  const [otherPlayers, allClubPlayers] = await Promise.all([
+  // Fetch dismissals + player pages in parallel (dismissals was sequential before)
+  const [dismissedRes, otherPlayers, allClubPlayers] = await Promise.all([
+    supabase.from('player_added_dismissals').select('player_id').eq('user_id', userId),
     fetchPlayerPages('others'),
     fetchPlayerPages('manual'),
   ]);
+  const dismissedIds = new Set((dismissedRes.data ?? []).map((d) => d.player_id));
 
   // Editor: exclude players created by admins (editors only see notifications from equal/lower roles)
   let filteredOthers = otherPlayers;

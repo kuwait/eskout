@@ -63,7 +63,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     if (clubId) {
       // Fetch profile, membership, club, age groups, sidebar lists, and ALL alert counts — in parallel
       // Alert counts consolidated in a single RPC (get_appshell_counts) instead of 7+ separate queries
-      const [profileRes, membershipRes, clubRes, agRes, sidebarListsRes] = await Promise.all([
+      // Fetch all shell data in a single Promise.all — profile, membership, club, age groups,
+      // sidebar lists, and shared list IDs (was partially sequential before)
+      const [profileRes, membershipRes, clubRes, agRes, sidebarListsRes, sharedListIdsRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('is_superadmin, full_name, can_view_competitions')
@@ -93,6 +95,11 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .eq('user_id', user.id)
           .order('is_system', { ascending: false })
           .order('name', { ascending: true }),
+        // Shared list IDs for sidebar (fetched in parallel instead of sequentially)
+        supabase
+          .from('player_list_shares')
+          .select('list_id')
+          .eq('user_id', user.id),
       ]);
 
       isSuperadmin = profileRes.data?.is_superadmin ?? false;
@@ -129,25 +136,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         }));
       }
 
-      // Single RPC for all alert counts (replaces 7+ individual count queries)
-      const { data: counts } = await supabase.rpc('get_appshell_counts', {
-        p_club_id: clubId,
-        p_user_id: userId,
-        p_user_role: userRole,
-      });
-
-      const c = counts as { urgente: number; importante: number; pending_reports: number; pending_tasks: number; observation_count: number; pending_players: number; new_feedbacks: number } | null;
-
-      alertCounts = {
-        urgente: c?.urgente ?? 0,
-        importante: c?.importante ?? 0,
-        pendingReports: c?.pending_reports ?? 0,
-        pendingPlayers: c?.pending_players ?? 0,
-        pendingTasks: c?.pending_tasks ?? 0,
-        newFeedbacks: c?.new_feedbacks ?? 0,
-        observationCount: c?.observation_count ?? 0,
-      };
-
       // Map sidebar lists for nav sub-items (own lists)
       if (sidebarListsRes.data) {
         sidebarLists = sidebarListsRes.data.map((row: { id: number; name: string; emoji: string; is_system: boolean }) => ({
@@ -158,30 +146,45 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         }));
       }
 
-      // Also fetch shared lists — service client to bypass player_lists RLS
-      const { data: sharedListIds } = await supabase
-        .from('player_list_shares')
-        .select('list_id')
-        .eq('user_id', user.id);
+      // Alert counts RPC (needs resolved role) + shared list details — run in parallel
+      const sharedListIds = sharedListIdsRes.data;
+      const [countsRes, sharedListsRes] = await Promise.all([
+        supabase.rpc('get_appshell_counts', {
+          p_club_id: clubId,
+          p_user_id: userId,
+          p_user_role: userRole,
+        }),
+        sharedListIds?.length
+          ? createServiceClient().then(service =>
+              service
+                .from('player_lists')
+                .select('id, name, emoji, is_system')
+                .in('id', sharedListIds.map(s => s.list_id))
+                .order('name', { ascending: true })
+            )
+          : Promise.resolve({ data: null }),
+      ]);
 
-      if (sharedListIds?.length) {
-        const service = await createServiceClient();
-        const { data: sharedLists } = await service
-          .from('player_lists')
-          .select('id, name, emoji, is_system')
-          .in('id', sharedListIds.map(s => s.list_id))
-          .order('name', { ascending: true });
+      const c = countsRes.data as { urgente: number; importante: number; pending_reports: number; pending_tasks: number; observation_count: number; pending_players: number; new_feedbacks: number } | null;
+      alertCounts = {
+        urgente: c?.urgente ?? 0,
+        importante: c?.importante ?? 0,
+        pendingReports: c?.pending_reports ?? 0,
+        pendingPlayers: c?.pending_players ?? 0,
+        pendingTasks: c?.pending_tasks ?? 0,
+        newFeedbacks: c?.new_feedbacks ?? 0,
+        observationCount: c?.observation_count ?? 0,
+      };
 
-        if (sharedLists?.length) {
-          for (const row of sharedLists) {
-            sidebarLists.push({
-              id: row.id,
-              name: row.name,
-              emoji: row.emoji,
-              isSystem: row.is_system,
-              isSharedWithMe: true,
-            });
-          }
+      if (sharedListsRes.data?.length) {
+        for (const row of sharedListsRes.data) {
+          sidebarLists.push({
+            id: row.id,
+            name: row.name,
+            emoji: row.emoji,
+            isSystem: row.is_system,
+            isSharedWithMe: true,
+          });
         }
       }
     } else {
