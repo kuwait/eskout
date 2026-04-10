@@ -3,8 +3,6 @@
 // Coordinators browse matches by date, filter by escalão/association, and batch-add
 // RELEVANT FILES: src/actions/scraping/fpf-competitions/browse-by-date.ts, src/actions/scouting-games.ts, ./BrowseFpfClient.tsx
 
-export const dynamic = 'force-dynamic';
-
 import { notFound, redirect } from 'next/navigation';
 import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';

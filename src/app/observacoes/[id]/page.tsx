@@ -3,8 +3,6 @@
 // Server component that fetches round, availability, games, assignments, and club scouts
 // RELEVANT FILES: src/actions/scouting-rounds.ts, src/actions/scout-availability.ts, src/actions/scouting-games.ts, src/actions/scout-assignments.ts
 
-export const dynamic = 'force-dynamic';
-
 import { notFound } from 'next/navigation';
 import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';

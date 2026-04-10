@@ -10,8 +10,6 @@ import { getSavedComparisons } from '@/actions/comparisons';
 import { ComparePageClient } from './ComparePageClient';
 import type { Player, ScoutEvaluation, ScoutingReport } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
-
 export interface CompareBundle {
   player: Player;
   reports: ScoutingReport[];

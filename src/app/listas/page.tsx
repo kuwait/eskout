@@ -7,8 +7,6 @@ import { getAuthContext } from '@/lib/supabase/club-context';
 import { getMyLists, getAllLists } from '@/actions/player-lists';
 import { ListsPageClient } from './ListsPageClient';
 
-export const dynamic = 'force-dynamic';
-
 export default async function ListsPage() {
   const ctx = await getAuthContext();
 

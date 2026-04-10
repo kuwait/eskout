@@ -8,8 +8,6 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { PendentesClient } from './PendentesClient';
 
-export const dynamic = 'force-dynamic';
-
 export default async function PendentesPage() {
   const ctx = await getAuthContext();
 

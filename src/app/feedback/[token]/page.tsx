@@ -7,8 +7,6 @@ import type { Metadata } from 'next';
 import { createServiceClient } from '@/lib/supabase/server';
 import { CoachFeedbackForm } from '@/components/feedback/CoachFeedbackForm';
 
-export const dynamic = 'force-dynamic';
-
 interface PageProps {
   params: Promise<{ token: string }>;
 }

@@ -187,20 +187,26 @@ export async function getDataQuality(): Promise<DataQualityResult> {
     };
   });
 
+  // Compute totals in single pass instead of 12 separate .filter() calls
   const totals: DataQualityTotals = {
-    total: players.length,
-    missingFpf: players.filter((p) => !p.hasFpf).length,
-    missingZz: players.filter((p) => !p.hasZz).length,
-    missingBoth: players.filter((p) => !p.hasFpf && !p.hasZz).length,
-    missingPhoto: players.filter((p) => !p.hasPhoto).length,
-    missingPosition: players.filter((p) => !p.hasPosition).length,
-    missingDob: players.filter((p) => !p.hasDob).length,
-    missingNationality: players.filter((p) => !p.hasNationality).length,
-    missingFoot: players.filter((p) => !p.hasFoot).length,
-    fpfClubMismatch: players.filter((p) => p.fpfClubMismatch).length,
-    staleData: players.filter((p) => p.staleData).length,
-    duplicates: players.filter((p) => p.duplicateKey).length,
+    total: 0, missingFpf: 0, missingZz: 0, missingBoth: 0, missingPhoto: 0,
+    missingPosition: 0, missingDob: 0, missingNationality: 0, missingFoot: 0,
+    fpfClubMismatch: 0, staleData: 0, duplicates: 0,
   };
+  for (const p of players) {
+    totals.total++;
+    if (!p.hasFpf) totals.missingFpf++;
+    if (!p.hasZz) totals.missingZz++;
+    if (!p.hasFpf && !p.hasZz) totals.missingBoth++;
+    if (!p.hasPhoto) totals.missingPhoto++;
+    if (!p.hasPosition) totals.missingPosition++;
+    if (!p.hasDob) totals.missingDob++;
+    if (!p.hasNationality) totals.missingNationality++;
+    if (!p.hasFoot) totals.missingFoot++;
+    if (p.fpfClubMismatch) totals.fpfClubMismatch++;
+    if (p.staleData) totals.staleData++;
+    if (p.duplicateKey) totals.duplicates++;
+  }
 
   return { players, totals };
 }

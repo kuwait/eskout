@@ -66,7 +66,7 @@ export function AppShellClient({
     const interval = setInterval(() => {
       const dev = window.innerWidth < 768 ? 'mobile' : 'desktop';
       updateLastSeen(pathnameRef.current, dev);
-    }, 300_000);
+    }, 900_000); // 15 minutes — reduced from 5 min to save Vercel CPU + Supabase queries
     return () => clearInterval(interval);
   }, [isPublic, userId, isDemo]); // eslint-disable-line react-hooks/exhaustive-deps -- pathname tracked via ref
 

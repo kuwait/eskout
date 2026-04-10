@@ -9,8 +9,6 @@ import { getListById, getListItems, getListShares } from '@/actions/player-lists
 import { getClubMembers } from '@/actions/users';
 import { ListDetailClient } from './ListDetailClient';
 
-export const dynamic = 'force-dynamic';
-
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await getAuthContext();
 

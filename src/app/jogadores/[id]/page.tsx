@@ -18,9 +18,6 @@ import { PlayerProfile } from '@/components/players/PlayerProfile';
 import { getPositionLabel } from '@/lib/constants';
 import type { PlayerRow, ScoutingReportRow, SquadPlayerRow, SquadRow, ObservationNote, StatusHistoryEntry, ScoutEvaluation, QuickScoutReport, TrainingFeedback, PlayerVideo } from '@/lib/types';
 
-// Always fetch fresh data — status history and player data change frequently
-export const dynamic = 'force-dynamic';
-
 interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
