@@ -245,7 +245,7 @@ sikout/
 │   │   ├── supabase/
 │   │   │   ├── client.ts             # Browser Supabase client
 │   │   │   ├── server.ts             # Server-side Supabase client
-│   │   │   ├── club-context.ts       # getActiveClub(), club cookie mgmt
+│   │   │   ├── club-context.ts       # getAuthContext() (0 queries), getActiveClub(), club cookie mgmt
 │   │   │   ├── mappers.ts            # DB row → domain type mappers
 │   │   │   ├── queries.ts            # Database query functions
 │   │   │   └── __tests__/mappers.test.ts
@@ -289,25 +289,34 @@ All data is scoped to a club via `club_id` foreign keys. Users belong to clubs t
 
 ### Club Context Flow
 
-1. **Middleware** reads `eskout-club-id` cookie on every request
-2. If no cookie: auto-selects single club or redirects to `/escolher-clube`
-3. **`getActiveClub()`** (`src/lib/supabase/club-context.ts`) verifies membership and returns `ClubContext` with `clubId`, `role`, `club` metadata, `userId`, and `isSuperadmin`
-4. Every server action and query calls `getActiveClub()` to scope data
+1. **Middleware** reads `eskout-club-id` cookie + JWT `app_metadata` claims on every request — **0 DB queries**
+2. If no cookie: reads `club_roles` from JWT to auto-select single club or redirect to `/escolher-clube`
+3. Role-based route protection reads from JWT claims (`is_superadmin`, `can_view_competitions`, `club_roles[clubId]`)
+4. Server actions and pages call **`getAuthContext()`** (0 DB queries) or `getActiveClub()` (1 query, only when club details are needed)
+
+### JWT Custom Claims (Migration 105)
+
+`sync_user_claims()` trigger copies `club_roles`, `is_superadmin`, `can_view_competitions` into `auth.users.raw_app_meta_data` whenever `club_memberships` or `profiles` change. The middleware and `getAuthContext()` read these claims from the JWT — no DB queries needed for auth/role checks.
 
 ### Key Functions
 
-| Function | Purpose |
-|----------|---------|
-| `getActiveClub()` | Full context: club + role + user, with DB verification |
-| `getActiveClubId()` | Lightweight: reads cookie only, no DB call (for RLS-protected queries) |
-| `setActiveClub()` | Sets the club cookie |
-| `getUserClubs()` | Lists all clubs the user belongs to (for club picker) |
+| Function | Purpose | DB Queries |
+|----------|---------|------------|
+| `getAuthContext()` | clubId + userId + role + isSuperadmin from JWT claims | **0** |
+| `getActiveClub()` | Full context: club name/logo/features + role + user | 1 (club_memberships join) |
+| `getActiveClubId()` | Reads cookie only (for RLS-protected queries) | **0** |
+| `setActiveClub()` | Sets the club cookie | 0 |
+| `getUserClubs()` | Lists all clubs the user belongs to (for club picker) | 2 |
+
+**Rule**: Use `getAuthContext()` by default. Only use `getActiveClub()` when you need `club.name`, `club.features`, `club.logoUrl`, or `isDemo`.
 
 ### Client-Side Club Isolation
 
 RLS policies use `user_club_ids()` which returns **all** clubs a user belongs to. This means client-side Supabase queries (in `'use client'` components) must **explicitly filter by `club_id`** — RLS alone is not sufficient for multi-club users.
 
-**Pattern**: Server pages pass `clubId` (from `getActiveClub()`) as a prop to client components, which add `.eq('club_id', clubId)` to every query.
+**Pattern**: Server pages pass `clubId` (from `getAuthContext()`) as a prop to client components, which add `.eq('club_id', clubId)` to every query.
+
+**Server-side props pattern**: Data that client components need on mount (e.g. contact purposes, club members, playing-up IDs, list memberships) should be fetched in the page server component and passed as `initial*` props — avoids client-side server action POST calls on every page view.
 
 Components that follow this pattern: `PlayersView`, `PipelineView`, `SquadPanelView`, `SquadManagement`, `PositionsView`, `CampoView`.
 
