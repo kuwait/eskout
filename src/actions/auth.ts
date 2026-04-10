@@ -30,20 +30,18 @@ export async function login(formData: FormData): Promise<ActionResponse> {
     return { success: false, error: 'Email ou palavra-passe incorretos' };
   }
 
-  // Pre-set club cookie so middleware doesn't need an extra redirect loop
+  // Pre-set club cookie from JWT claims — no DB query needed
   // If user has exactly one club, set it immediately; multi-club users go to picker
   if (authData.user) {
-    const { data: memberships } = await supabase
-      .from('club_memberships')
-      .select('club_id')
-      .eq('user_id', authData.user.id);
+    const clubRoles = authData.user.app_metadata?.club_roles as Record<string, string> | undefined;
+    const clubIds = clubRoles ? Object.keys(clubRoles) : [];
 
-    if (memberships?.length === 1) {
-      await setActiveClub(memberships[0].club_id);
+    if (clubIds.length === 1) {
+      await setActiveClub(clubIds[0]);
     }
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePath('/');
   redirect('/');
 }
 
@@ -68,6 +66,6 @@ export async function logout(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
 
-  revalidatePath('/', 'layout');
+  revalidatePath('/');
   redirect('/login');
 }

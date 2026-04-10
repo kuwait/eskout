@@ -24,21 +24,26 @@ export default async function ObservacoesPage() {
   // Always fetch — admins/editors also see their assigned games inline
   {
     scoutGames = await getMyAssignedGames();
-    // Fetch availability for each published round
+
+    // Fetch availability for all published rounds in parallel (was sequential loop)
     const publishedRounds = rounds.filter(r => r.status === 'published');
-    for (const r of publishedRounds) {
-      const avail = await getScoutAvailability(r.id);
-      const myAvail = avail.filter(a => a.scoutId === userId);
-      if (myAvail.length > 0) scoutAvailability[r.id] = myAvail;
+    const availResults = await Promise.all(publishedRounds.map(r => getScoutAvailability(r.id)));
+    for (let i = 0; i < publishedRounds.length; i++) {
+      const myAvail = availResults[i].filter(a => a.scoutId === userId);
+      if (myAvail.length > 0) scoutAvailability[publishedRounds[i].id] = myAvail;
     }
-    // Fetch targets for all assigned game IDs
+
+    // Fetch targets for all rounds in parallel (was sequential loop)
     const gameIds = scoutGames.map((g) => g.gameId);
     if (gameIds.length > 0) {
-      // Group by round to fetch targets
       const roundIds = [...new Set(scoutGames.map((g) => g.roundId))];
-      for (const roundId of roundIds) {
-        const roundGameIds = scoutGames.filter((g) => g.roundId === roundId).map((g) => g.gameId);
-        const targetsMap = await getTargetsForRound(roundId, roundGameIds);
+      const targetResults = await Promise.all(
+        roundIds.map(roundId => {
+          const roundGameIds = scoutGames.filter((g) => g.roundId === roundId).map((g) => g.gameId);
+          return getTargetsForRound(roundId, roundGameIds);
+        })
+      );
+      for (const targetsMap of targetResults) {
         for (const [gid, t] of targetsMap) scoutTargets[gid] = t;
       }
     }
