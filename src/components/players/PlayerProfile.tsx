@@ -117,10 +117,14 @@ interface PlayerProfileProps {
   zzPlayingUp?: import('@/lib/utils/playing-up').PlayingUpResult;
   /** Auto-open QSR form with match context (from scouting game target link) */
   qsrAutoOpen?: { competition?: string; opponent?: string; matchDate?: string; gameId?: number };
+  /** Server-rendered list membership IDs — avoids client POST on mount */
+  initialListMemberships?: number[];
+  /** Server-rendered share tokens for training feedback — avoids client POST on mount */
+  initialShareTokens?: { feedbackId: number; tokenId: number; token: string; usedAt: string | null; revokedAt: string | null; expiresAt: string; coachName: string | null }[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- _scoutEvaluations kept for future structured evaluations
-export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations: _scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [], fpfPlayingUp = [], zzPlayingUp, qsrAutoOpen }: PlayerProfileProps) {
+export function PlayerProfile({ player, userRole, notes = [], statusHistory = [], scoutingReports = [], scoutEvaluations: _scoutEvaluations = [], quickReports = [], trainingFeedback = [], playerVideos = [], currentUserId = null, onClose, ageGroupName, clubMembers = [], playerSquads = [], fpfPlayingUp = [], zzPlayingUp, qsrAutoOpen, initialListMemberships, initialShareTokens }: PlayerProfileProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -440,7 +444,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             {/* Lists bookmark dropdown — admin/editor/recruiter */}
             {canObserve && (
               <>
-                <ListBookmarkDropdown playerId={player.id} />
+                <ListBookmarkDropdown playerId={player.id} initialMemberships={initialListMemberships} />
                 <div className="mx-0.5 h-4 w-px bg-neutral-200" />
               </>
             )}
@@ -1450,6 +1454,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                   defaultEscalao={p.trainingEscalao}
                   currentUserName={clubMembers.find((m) => m.id === currentUserId)?.fullName}
                   currentUserId={currentUserId}
+                  initialShareTokens={initialShareTokens}
                 />
               </Section>
             )}

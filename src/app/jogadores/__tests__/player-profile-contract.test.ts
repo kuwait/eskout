@@ -188,9 +188,9 @@ describe('Player profile query efficiency', () => {
     const directQueries = (pageContent.match(/supabase\.from\(/g) || []).length;
     const rpcCalls = (pageContent.match(/supabase\.rpc\(/g) || []).length;
     const total = getFunctions + fetchFunctions + directQueries + rpcCalls;
-    // After RPC consolidation: ~11 (RPC + role + auth + fpfPlayingUp + getPlayerForOg + getPositionLabel + getActiveClubId + detectPlayingUp + mappers)
-    // Down from ~21 before RPC
-    expect(total).toBeLessThanOrEqual(12);
+    // After RPC consolidation + server-side props: ~13 (RPC + role + auth + fpfPlayingUp + getPlayerForOg + getPositionLabel + getActiveClubId + detectPlayingUp + mappers + getPlayerListMemberships + getShareTokensForFeedbacks)
+    // Down from ~21 before RPC. The extra calls are moved FROM client mount (3-5 POSTs) to server (0 POSTs).
+    expect(total).toBeLessThanOrEqual(14);
   });
 });
 

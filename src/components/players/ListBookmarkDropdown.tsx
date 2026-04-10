@@ -22,10 +22,10 @@ import type { PlayerList } from '@/lib/types';
 
 /* ───────────── Component ───────────── */
 
-export function ListBookmarkDropdown({ playerId, compact = false, lazy = false }: { playerId: number; compact?: boolean; lazy?: boolean }) {
+export function ListBookmarkDropdown({ playerId, compact = false, lazy = false, initialMemberships }: { playerId: number; compact?: boolean; lazy?: boolean; initialMemberships?: number[] }) {
   const [open, setOpen] = useState(false);
   const [lists, setLists] = useState<PlayerList[]>([]);
-  const [memberListIds, setMemberListIds] = useState<Set<number>>(new Set());
+  const [memberListIds, setMemberListIds] = useState<Set<number>>(new Set(initialMemberships ?? []));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -56,12 +56,12 @@ export function ListBookmarkDropdown({ playerId, compact = false, lazy = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on open change
   }, [open]);
 
-  /* Fetch memberships on mount to show filled/unfilled icon (skip in lazy mode to avoid N+1 queries in tables) */
+  /* Fetch memberships on mount to show filled/unfilled icon (skip if server-provided or lazy mode) */
   useEffect(() => {
-    if (!lazy) {
+    if (!lazy && !initialMemberships) {
       getPlayerListMemberships(playerId).then((ids) => setMemberListIds(new Set(ids)));
     }
-  }, [playerId, lazy]);
+  }, [playerId, lazy, initialMemberships]);
 
   /* Toggle a list membership */
   async function handleToggle(listId: number) {

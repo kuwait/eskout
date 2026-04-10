@@ -8,6 +8,8 @@ import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
 import { getCurrentUserRole } from '@/lib/supabase/queries';
 import { getPlayerFpfPlayingUp } from '@/actions/players';
+import { getPlayerListMemberships } from '@/actions/player-lists';
+import { getShareTokensForFeedbacks } from '@/actions/training-feedback';
 import { detectPlayingUp } from '@/lib/utils/playing-up';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveClubId } from '@/lib/supabase/club-context';
@@ -285,6 +287,15 @@ export default async function PlayerProfilePage({ params, searchParams: searchPa
   const birthYear = player.dob ? new Date(player.dob).getFullYear() : null;
   const fpfPlayingUp = birthYear ? await getPlayerFpfPlayingUp(playerId, birthYear) : [];
 
+  // Fetch bookmark memberships + share tokens server-side (avoids client POST on mount)
+  const stubIds = trainingFeedback
+    .filter((f) => !f.feedback && !f.rating && !f.coachFeedback)
+    .map((f) => f.id);
+  const [listMemberships, shareTokens] = await Promise.all([
+    getPlayerListMemberships(playerId),
+    getShareTokensForFeedbacks(stubIds),
+  ]);
+
   // Compute hybrid rating: report ratings + scout evaluations
   const reportRatings = scoutingReports.filter((r: { rating: number | null }) => r.rating !== null).map((r: { rating: number | null }) => r.rating!);
   const scoutRatings = scoutEvaluations.map((e) => e.rating);
@@ -312,6 +323,8 @@ export default async function PlayerProfilePage({ params, searchParams: searchPa
         playerSquads={playerSquads}
         fpfPlayingUp={fpfPlayingUp}
         zzPlayingUp={zzPlayingUp}
+        initialListMemberships={listMemberships}
+        initialShareTokens={shareTokens}
         qsrAutoOpen={searchParams?.qsr === '1' ? {
           competition: (searchParams.competition as string) ?? undefined,
           opponent: (searchParams.opponent as string) ?? undefined,

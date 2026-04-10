@@ -60,19 +60,33 @@ interface TrainingFeedbackProps {
   defaultEscalao?: string | null;
   currentUserName?: string | null;
   currentUserId?: string | null;
+  /** Server-rendered share tokens — avoids client POST on mount */
+  initialShareTokens?: { feedbackId: number; tokenId: number; token: string; usedAt: string | null; revokedAt: string | null; expiresAt: string; coachName: string | null }[];
 }
 
 /* ───────────── Main List Component ───────────── */
 
-export function TrainingFeedbackList({ playerId, entries: initialEntries, userRole, defaultEscalao, currentUserName, currentUserId }: TrainingFeedbackProps) {
+export function TrainingFeedbackList({ playerId, entries: initialEntries, userRole, defaultEscalao, currentUserName, currentUserId, initialShareTokens }: TrainingFeedbackProps) {
   const [entries, setEntries] = useState(initialEntries);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [coachDialogOpen, setCoachDialogOpen] = useState(false);
   // Map of feedbackId → { url, expiresAt } (for "Aguarda treinador" entries)
-  const [shareLinks, setShareLinks] = useState<Record<number, { url: string; expiresAt?: string }>>({});
+  // Initialize from server-rendered tokens when available (avoids client POST on mount)
+  const [shareLinks, setShareLinks] = useState<Record<number, { url: string; expiresAt?: string }>>(() => {
+    if (!initialShareTokens?.length) return {};
+    const map: Record<number, { url: string; expiresAt?: string }> = {};
+    for (const t of initialShareTokens) {
+      if (!t.usedAt && !t.revokedAt && new Date(t.expiresAt) > new Date()) {
+        // Use relative URL on server (window not available) — TrainingFeedbackCard builds full URL on client
+        map[t.feedbackId] = { url: `/feedback/${t.token}`, expiresAt: t.expiresAt };
+      }
+    }
+    return map;
+  });
 
-  // Fetch existing share tokens for stub entries (no feedback, no rating, no coach data)
+  // Fallback: fetch share tokens client-side if not provided by server
   useEffect(() => {
+    if (initialShareTokens) return; // Already provided by server
     const stubIds = entries
       .filter((e) => e.presence === 'attended' && !e.feedback && !e.ratingPerformance && !e.coachSubmittedAt)
       .map((e) => e.id);
@@ -91,7 +105,7 @@ export function TrainingFeedbackList({ playerId, entries: initialEntries, userRo
         }
       })
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount when no server data
   }, []);
   const [isPending, startTransition] = useTransition();
 
