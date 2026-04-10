@@ -6,7 +6,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { normalizePosition } from '@/lib/utils/positions';
 import { type ZzParsedProfile } from '@/lib/zerozero/parser';
 import { type ZzSearchCandidate } from '@/lib/zerozero/helpers';
@@ -195,7 +195,7 @@ export async function autoScrapePlayer(
 
   // After FPF scrape, try to auto-find ZeroZero link if player doesn't have one
   if (fpfLinkChanged && !zzLinkChanged) {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
     const { data } = await supabase
       .from('players')

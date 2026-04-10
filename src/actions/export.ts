@@ -7,7 +7,7 @@
 
 import ExcelJS from 'exceljs';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 
 /* ───────────── Column Definitions ───────────── */
 
@@ -147,7 +147,7 @@ function parsePostgresArray(raw: unknown): string[] | null {
 
 // Auth check — admin/editor only, returns clubId for downstream queries
 async function checkExportAuth() {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   const supabase = await createClient();
 
   if (role !== 'admin' && role !== 'editor') {

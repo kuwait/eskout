@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 
@@ -168,7 +168,7 @@ export async function submitScoutReport(
   input: ScoutReportInput,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId } = await getActiveClub();
+    const { clubId, userId } = await getAuthContext();
     const supabase = await createClient();
 
     if (!input.playerName.trim()) return { success: false, error: 'Nome do jogador é obrigatório' };
@@ -254,7 +254,7 @@ export async function submitManualReport(
   input: ManualReportInput,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId } = await getActiveClub();
+    const { clubId, userId } = await getAuthContext();
     const supabase = await createClient();
 
     // Get author name
@@ -320,7 +320,7 @@ export async function submitManualReport(
 
 export async function listMyScoutReports(): Promise<{ success: boolean; reports: ScoutReportRow[]; error?: string }> {
   try {
-    const { clubId, userId } = await getActiveClub();
+    const { clubId, userId } = await getAuthContext();
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -342,7 +342,7 @@ export async function listMyScoutReports(): Promise<{ success: boolean; reports:
 
 export async function getScoutReport(id: number): Promise<{ report: ScoutReportRow | null; error?: string }> {
   try {
-    const { clubId, userId, role } = await getActiveClub();
+    const { clubId, userId, role } = await getAuthContext();
     const supabase = await createClient();
 
     const isAdminOrEditor = role === 'admin' || role === 'editor';
@@ -372,7 +372,7 @@ export async function listAllScoutReports(
   statusFilter?: 'pendente' | 'aprovado' | 'rejeitado',
 ): Promise<{ success: boolean; reports: ScoutReportRow[]; error?: string }> {
   try {
-    const { clubId, role } = await getActiveClub();
+    const { clubId, role } = await getAuthContext();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -401,7 +401,7 @@ export async function listAllScoutReports(
 
 export async function getPendingReportsCount(): Promise<number> {
   try {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
     const { count } = await supabase
       .from('scouting_reports')
@@ -420,7 +420,7 @@ export async function approveScoutReport(
   reportId: number,
 ): Promise<{ success: boolean; playerId?: number; error?: string }> {
   try {
-    const { clubId, userId, role } = await getActiveClub();
+    const { clubId, userId, role } = await getAuthContext();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -543,7 +543,7 @@ export async function approveScoutReport(
 
 export async function rejectScoutReport(reportId: number): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId, role } = await getActiveClub();
+    const { clubId, userId, role } = await getAuthContext();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -572,7 +572,7 @@ export async function rejectScoutReport(reportId: number): Promise<{ success: bo
 /** Delete a scouting report — author can delete own, admin can delete any */
 export async function deleteScoutingReport(reportId: number): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId, role } = await getActiveClub();
+    const { clubId, userId, role } = await getAuthContext();
     const supabase = await createClient();
 
     // Verify ownership or admin
@@ -646,7 +646,7 @@ export async function listReportsPaginated(params: {
   tag?: string;
 }): Promise<{ reports: ScoutReportRow[]; totalCount: number; error?: string }> {
   try {
-    const { clubId, role } = await getActiveClub();
+    const { clubId, role } = await getAuthContext();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -713,7 +713,7 @@ export async function getReportKpis(): Promise<{
   const defaults = { totalReports: 0, uniquePlayers: 0, avgRating: null, reportsThisMonth: 0 };
 
   try {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
 
     // Total count
@@ -778,7 +778,7 @@ export async function getReportHighlights(): Promise<{
   const defaults = { bestRatedThisWeek: null, mostObservedPlayer: null, mostActiveScout: null };
 
   try {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
 
     // Best rated this week — last 7 days, highest rating
@@ -878,7 +878,7 @@ export async function getScoutStats(): Promise<{
   }>;
 }> {
   try {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
 
     const query = supabase
@@ -948,7 +948,7 @@ export async function getScoutStats(): Promise<{
 
 export async function getActivityHeatmap(): Promise<Array<{ date: string; count: number }>> {
   try {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
 
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
@@ -1001,7 +1001,7 @@ export interface ConsensusEntry {
 
 export async function getMultiScoutConsensus(): Promise<ConsensusEntry[]> {
   try {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
 
     // Fetch all reports — match by player name (not just player_id)
@@ -1183,7 +1183,7 @@ export async function toggleReportTag(
   tag: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId, role } = await getActiveClub();
+    const { clubId, userId, role } = await getAuthContext();
     const supabase = await createClient();
 
     if (role !== 'admin' && role !== 'editor') {
@@ -1241,7 +1241,7 @@ export async function toggleReportTag(
 
 export async function getDistinctScoutNames(): Promise<string[]> {
   try {
-    const { clubId } = await getActiveClub();
+    const { clubId } = await getAuthContext();
     const supabase = await createClient();
 
     const query = supabase

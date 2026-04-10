@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import type { ActionResponse } from '@/lib/types';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 
@@ -20,7 +20,7 @@ export async function upsertScoutEvaluation(
     return { success: false, error: 'Avaliação deve ser entre 1 e 5' };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -43,7 +43,7 @@ export async function upsertScoutEvaluation(
 export async function deleteScoutEvaluation(
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const { error } = await supabase

@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { trainingFeedbackSchema } from '@/lib/validators';
 import type { ActionResponse } from '@/lib/types';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
@@ -50,7 +50,7 @@ export async function createTrainingFeedback(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data: row, error } = await supabase
@@ -106,7 +106,7 @@ export async function updateTrainingFeedback(
     maturation?: string | null;
   },
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   // Only author or admin can update
@@ -121,7 +121,7 @@ export async function updateTrainingFeedback(
     return { success: false, error: 'Feedback não encontrado' };
   }
 
-  const { role } = await getActiveClub();
+  const { role } = await getAuthContext();
   if (existing.author_id !== userId && role !== 'admin') {
     return { success: false, error: 'Sem permissão para editar este feedback' };
   }
@@ -161,7 +161,7 @@ export async function deleteTrainingFeedback(
   feedbackId: number,
   playerId: number,
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   const supabase = await createClient();
 
   // Admin can delete any; others can only delete their own
@@ -197,7 +197,7 @@ export async function deleteTrainingFeedback(
 
 /** Update training_feedback_seen_at on club_memberships to clear the "new" badge */
 export async function markTrainingFeedbacksSeen(): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -220,7 +220,7 @@ export async function createCoachFeedbackLink(
   trainingDate: string,
   escalao?: string,
 ): Promise<ActionResponse<{ url: string }>> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para pedir feedback externo' };
   }
@@ -277,7 +277,7 @@ export async function createCoachFeedbackLink(
 export async function revokeShareToken(
   tokenId: number,
 ): Promise<ActionResponse> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -297,7 +297,7 @@ export async function getShareTokensForFeedbacks(
   feedbackIds: number[],
 ): Promise<{ feedbackId: number; tokenId: number; token: string; usedAt: string | null; revokedAt: string | null; expiresAt: string; coachName: string | null }[]> {
   if (feedbackIds.length === 0) return [];
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data } = await supabase

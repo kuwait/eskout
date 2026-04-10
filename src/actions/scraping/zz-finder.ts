@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { type ZzSearchCandidate } from '@/lib/zerozero/helpers';
 import { browserHeaders, humanDelay, clubsMatch, calcAgeFromDob } from './helpers';
 import { fetchZeroZeroData } from './zerozero';
@@ -279,7 +279,7 @@ export interface ZzLinkFinderResult {
 
 /** Find ZeroZero links for players that have FPF data but no ZeroZero link */
 export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFinderResult> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   // Get players with FPF data + name + DOB but no ZeroZero link
@@ -339,7 +339,7 @@ export async function findZeroZeroLinks(ageGroupId?: number): Promise<ZzLinkFind
 
 /** Find ZeroZero link for a single player by ID */
 export async function findZeroZeroLinkForPlayer(playerId: number): Promise<{ success: boolean; url: string | null; error?: string }> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data: player } = await supabase

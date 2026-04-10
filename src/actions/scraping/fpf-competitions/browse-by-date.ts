@@ -8,7 +8,7 @@
 import { browserHeaders, decodeHtmlEntities } from '../helpers';
 import { FPF_RESULTS_BASE, FPF_CURRENT_SEASON_ID } from '@/lib/constants';
 import type { ActionResponse } from '@/lib/types';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import type { FpfBrowseMatch, FpfBrowseCompetition } from './fpf-data';
 
 /* ───────────── Retry Helper ───────────── */
@@ -311,7 +311,7 @@ export async function browseFpfByDate(params: {
   footballClassId?: number;                  // 2-5, omit for "Todos"
 }): Promise<ActionResponse<FpfBrowseCompetition[]>> {
   // Auth check — only coordinators (admin/editor)
-  const { role } = await getActiveClub();
+  const { role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }

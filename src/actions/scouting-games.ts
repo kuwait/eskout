@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { scoutingGameSchema } from '@/lib/validators';
 import type { ActionResponse, ScoutingGame, ScoutingGameRow } from '@/lib/types';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
@@ -40,7 +40,7 @@ export async function getFpfMatchesForImport(
   startDate: string,
   endDate: string,
 ): Promise<{ id: number; homeTeam: string; awayTeam: string; matchDate: string; matchTime: string | null; venue: string | null; competitionName: string | null; escalao: string | null }[]> {
-  const { role } = await getActiveClub();
+  const { role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') return [];
 
   const supabase = await createClient();
@@ -100,7 +100,7 @@ export async function addManualGame(data: {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -141,7 +141,7 @@ export async function addFpfGame(
   roundId: number,
   fpfMatchId: number,
 ): Promise<ActionResponse<ScoutingGame>> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -212,7 +212,7 @@ export async function addBatchGames(
     return { success: false, error: 'Nenhum jogo selecionado' };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -301,7 +301,7 @@ export async function updateGame(
     notes?: string;
   },
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -339,7 +339,7 @@ export async function deleteGame(
   gameId: number,
   roundId: number,
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -368,7 +368,7 @@ export async function deleteBatchGames(
 ): Promise<ActionResponse<{ deleted: number }>> {
   if (!gameIds.length) return { success: false, error: 'Nenhum jogo selecionado' };
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }

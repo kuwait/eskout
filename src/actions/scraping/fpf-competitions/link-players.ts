@@ -6,7 +6,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import { fetchFpfData } from '@/actions/scraping/fpf';
 import type { ActionResponse } from '@/lib/types';
@@ -299,7 +299,7 @@ export async function importUnlinkedPlayers(
   const supabase = await requireSuperadmin();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const log: ImportLogEntry[] = [];
 
   // Get all match IDs for this competition

@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createSquadSchema, renameSquadSchema, updateSquadDescriptionSchema, squadPlayerSchema, shadowSquadSchema } from '@/lib/validators';
 import type { ActionResponse, Squad, SquadRow, SquadType } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
@@ -54,7 +54,7 @@ export async function createSquad(data: {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem criar plantéis' };
   }
@@ -99,7 +99,7 @@ export async function renameSquad(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem renomear plantéis' };
   }
@@ -131,7 +131,7 @@ export async function updateSquadDescription(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem editar plantéis' };
   }
@@ -155,7 +155,7 @@ export async function updateSquadDescription(
 /* ───────────── Delete Squad ───────────── */
 
 export async function deleteSquad(squadId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem eliminar plantéis' };
   }
@@ -184,7 +184,7 @@ export async function deleteSquad(squadId: number): Promise<ActionResponse> {
 export async function reorderSquads(
   updates: { id: number; sortOrder: number }[]
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem reordenar plantéis' };
   }
@@ -227,7 +227,7 @@ export async function addPlayerToSquad(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -296,7 +296,7 @@ export async function removePlayerFromSquad(
   squadId: number,
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -348,7 +348,7 @@ export async function toggleSquadPlayerDoubt(
   playerId: number,
   isDoubt: boolean
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -376,7 +376,7 @@ export async function toggleSquadPlayerSigned(
   playerId: number,
   isSigned: boolean
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -406,7 +406,7 @@ export async function reorderSquadPlayer(
   /** New: optional squadId — if provided, uses squad_players table */
   squadId?: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -450,7 +450,7 @@ export async function bulkReorderSquad(
   /** New: optional squadId — if provided, uses squad_players table */
   squadId?: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -498,7 +498,7 @@ export async function moveSquadPlayerPosition(
   /** New: optional squadId — if provided, uses squad_players table */
   squadId?: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -607,7 +607,7 @@ export async function addToShadowSquad(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -661,7 +661,7 @@ export async function addToShadowSquad(
 export async function removeFromShadowSquad(
   playerId: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }
@@ -727,7 +727,7 @@ export async function toggleRealSquad(
   position?: string,
   ageGroupId?: number
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir plantéis' };
   }

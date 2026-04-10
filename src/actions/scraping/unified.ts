@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { normalizePosition } from '@/lib/utils/positions';
 import { type ZzParsedProfile } from '@/lib/zerozero/parser';
 import { type ZzSearchCandidate } from '@/lib/zerozero/helpers';
@@ -97,7 +97,7 @@ export interface PreFetchedZz {
 /** Scrape BOTH FPF and ZeroZero for a player, merge results, return what changed.
  *  When preZz is provided, ZZ data comes from client-side fetch (no server-side ZZ request). */
 export async function scrapePlayerAll(playerId: number, preZz?: PreFetchedZz): Promise<ScrapedChanges> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data: player } = await supabase
@@ -345,7 +345,7 @@ export async function applyScrapedData(
   },
   preZzProfile?: ZzParsedProfile | null,
 ): Promise<{ success: boolean }> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false };
   }

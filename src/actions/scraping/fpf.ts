@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { HEADERS, clubsMatch } from './helpers';
 
 /* ───────────── Types ───────────── */
@@ -131,7 +131,7 @@ export async function fetchFpfData(fpfLink: string) {
 
 /** Scrape FPF for a single player — returns scraped data for the client to decide what to update */
 export async function scrapePlayerFpf(playerId: number): Promise<FpfScrapeResult> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data: player } = await supabase

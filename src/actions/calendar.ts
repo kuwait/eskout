@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { calendarEventSchema } from '@/lib/validators';
 import type { ActionResponse, RecruitmentStatus } from '@/lib/types';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
@@ -100,7 +100,7 @@ export async function createCalendarEvent(formData: {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir calendário' };
   }
@@ -174,7 +174,7 @@ export async function updateCalendarEvent(
     assigneeName?: string;
   }
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir calendário' };
   }
@@ -240,7 +240,7 @@ export async function updateCalendarEvent(
 /* ───────────── Delete Event ───────────── */
 
 export async function deleteCalendarEvent(eventId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para gerir calendário' };
   }

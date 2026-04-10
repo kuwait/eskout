@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import type { ActionResponse, GameObservationTarget, GameObservationTargetRow } from '@/lib/types';
 import { mapGameObservationTargetRow } from '@/lib/supabase/mappers';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
@@ -69,7 +69,7 @@ export async function addGameTarget(
   roundId: number,
   notes?: string,
 ): Promise<ActionResponse<GameObservationTarget>> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -111,7 +111,7 @@ export async function removeGameTarget(
   targetId: number,
   roundId: number,
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const { error } = await supabase

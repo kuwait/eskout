@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import type { ActionResponse, ScoutAssignment, ScoutAssignmentRow, ScoutAssignmentStatus } from '@/lib/types';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 import { mapScoutAssignmentRow } from '@/lib/supabase/mappers';
@@ -60,7 +60,7 @@ export interface AssignedGame {
 
 /** Fetch all assigned games for the current user across published rounds */
 export async function getMyAssignedGames(): Promise<AssignedGame[]> {
-  const { userId } = await getActiveClub();
+  const { userId } = await getAuthContext();
   const supabase = await createClient();
 
   // Fetch assignments with joined game + round data
@@ -199,7 +199,7 @@ export async function assignScout(
   roundId: number,
   coordinatorNotes?: string,
 ): Promise<ActionResponse<ScoutAssignment & { conflicts: AssignmentConflict[] }>> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -241,7 +241,7 @@ export async function removeAssignment(
   assignmentId: number,
   roundId: number,
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -270,7 +270,7 @@ export async function updateAssignmentStatus(
   status: ScoutAssignmentStatus,
   roundId: number,
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   // RLS handles permission (scout own + admin/editor any)

@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { scoutAvailabilitySchema } from '@/lib/validators';
 import type { ActionResponse, ScoutAvailability, ScoutAvailabilityRow } from '@/lib/types';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
@@ -35,7 +35,7 @@ export async function getScoutAvailability(roundId: number): Promise<ScoutAvaila
 
 /** Fetch club members who can be scouts (admin/editor/scout roles) for the availability matrix */
 export async function getClubScouts(): Promise<{ id: string; name: string; role: string }[]> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -73,7 +73,7 @@ export async function addAvailability(data: {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data: created, error } = await supabase
@@ -111,7 +111,7 @@ export async function removeAvailability(
   availabilityId: number,
   roundId: number,
 ): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   // RLS ensures scout can only delete own

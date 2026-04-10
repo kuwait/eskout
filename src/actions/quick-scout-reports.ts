@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { quickScoutReportSchema, type QuickScoutReportData } from '@/lib/validators';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 import type { ActionResponse, QuickScoutReport } from '@/lib/types';
@@ -21,7 +21,7 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
   const d = parsed.data;
 
@@ -129,7 +129,7 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
 
 /** Get all quick reports for a player, with author names */
 export async function getQuickReportsForPlayer(playerId: number): Promise<QuickScoutReport[]> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -192,7 +192,7 @@ export async function getQuickReportsForPlayer(playerId: number): Promise<QuickS
 
 /** Get quick reports authored by the current user */
 export async function getMyQuickReports(page = 0, pageSize = 20): Promise<{ reports: QuickScoutReport[]; total: number }> {
-  const { userId } = await getActiveClub();
+  const { userId } = await getAuthContext();
   const supabase = await createClient();
 
   const from = page * pageSize;
@@ -261,7 +261,7 @@ export async function getMyQuickReports(page = 0, pageSize = 20): Promise<{ repo
 
 /** Get ALL quick reports for the club (admin/editor view), paginated, with player + author info */
 export async function getAllClubQuickReports(page = 0, pageSize = 50): Promise<{ reports: QuickScoutReport[]; total: number }> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') return { reports: [], total: 0 };
 
   const supabase = await createClient();
@@ -336,7 +336,7 @@ export async function getAllClubQuickReports(page = 0, pageSize = 50): Promise<{
 
 /** Delete a quick report — author or admin */
 export async function deleteQuickReport(reportId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   // Scouts cannot delete reports — only admin/editor
   if (role === 'scout') {
     return { success: false, error: 'Scouts não podem eliminar relatórios' };

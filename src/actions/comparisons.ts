@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 import { saveComparisonSchema } from '@/lib/validators';
 import type { ActionResponse, SavedComparison, SavedComparisonRow } from '@/lib/types';
@@ -29,7 +29,7 @@ function mapRow(row: SavedComparisonRow): SavedComparison {
 
 /** Get all saved comparisons for the current club */
 export async function getSavedComparisons(): Promise<SavedComparison[]> {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -57,7 +57,7 @@ export async function saveComparison(
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Dados inválidos' };
   }
 
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -86,7 +86,7 @@ export async function saveComparison(
 
 /** Delete a saved comparison */
 export async function deleteComparison(comparisonId: number): Promise<ActionResponse> {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   const supabase = await createClient();
 
   const { error } = await supabase

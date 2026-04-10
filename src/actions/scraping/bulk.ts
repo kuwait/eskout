@@ -6,7 +6,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { normalizeCountry, clubsMatch, calcAgeFromDob } from './helpers';
 import { fetchFpfData } from './fpf';
 import { fetchZeroZeroData } from './zerozero';
@@ -30,7 +30,7 @@ export async function bulkScrapeExternalData(
   limit: number,
   sources: ('fpf' | 'zerozero')[]
 ): Promise<BulkUpdateProgress & { hasMore: boolean }> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role === 'scout' || role === 'recruiter') {
     return { total: 0, processed: 0, fpfUpdated: 0, zzUpdated: 0, errors: 0, hasMore: false };
   }

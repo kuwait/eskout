@@ -6,7 +6,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import type { ActionResponse } from '@/lib/types';
 
 /* ───────────── Types ───────────── */
@@ -31,7 +31,7 @@ const DEFAULTS: NotificationPreferences = {
 
 /** Get notification preferences for the current user+club (defaults: all enabled) */
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data } = await supabase
@@ -56,7 +56,7 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
 
 /** Update notification preferences for the current user+club */
 export async function updateNotificationPreferences(prefs: Partial<NotificationPreferences>): Promise<ActionResponse> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   const supabase = await createClient();
 
   const payload: Record<string, unknown> = {

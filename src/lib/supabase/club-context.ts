@@ -26,6 +26,55 @@ export interface ClubContext {
   isDemo: boolean;
 }
 
+/* ───────────── Lightweight Auth Context (0 DB queries) ───────────── */
+
+export interface AuthContext {
+  clubId: string;
+  userId: string;
+  role: UserRole;
+  isSuperadmin: boolean;
+}
+
+/**
+ * Lightweight auth context from JWT claims — ZERO database queries.
+ * Reads clubId from cookie, role + superadmin from JWT app_metadata.
+ * Wrapped in React.cache() — deduplicated within the same request.
+ * Use this in server actions that only need clubId/userId/role.
+ * Use getActiveClub() only when you need club.name, club.features, etc.
+ */
+export async function getAuthContext(): Promise<AuthContext> {
+  const cookieStore = await cookies();
+  const clubId = cookieStore.get(CLUB_COOKIE)?.value;
+
+  if (!clubId) throw new Error('NO_CLUB_SELECTED');
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('NOT_AUTHENTICATED');
+
+  const appMeta = user.app_metadata ?? {};
+  const clubRoles: Record<string, string> = appMeta.club_roles ?? {};
+  const role = clubRoles[clubId] as UserRole | undefined;
+
+  if (!role) throw new Error('NO_CLUB_MEMBERSHIP');
+
+  // Superadmin role impersonation — override role from cookie for testing
+  let effectiveRole = role;
+  if (appMeta.is_superadmin) {
+    const roleOverride = cookieStore.get(ROLE_OVERRIDE_COOKIE)?.value as UserRole | undefined;
+    if (roleOverride) effectiveRole = roleOverride;
+  }
+
+  return {
+    clubId,
+    userId: user.id,
+    role: effectiveRole,
+    isSuperadmin: appMeta.is_superadmin ?? false,
+  };
+}
+
+/* ───────────── Full Club Context (DB queries for club details) ───────────── */
+
 /**
  * Get the active club for the current user.
  * Reads club_id from cookie, verifies membership, returns club + role.
@@ -55,20 +104,14 @@ export async function getActiveClub(): Promise<ClubContext> {
     throw new Error('NO_CLUB_MEMBERSHIP');
   }
 
-  // Check superadmin flag
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', user.id)
-    .single();
-
   const club = membership.clubs as unknown as {
     id: string; name: string; slug: string;
     logo_url: string | null; features: Record<string, boolean>;
     settings: Record<string, unknown>; is_demo: boolean;
   };
 
-  const isSuperadmin = profile?.is_superadmin ?? false;
+  // Read superadmin from JWT claims — no extra DB query needed
+  const isSuperadmin = user.app_metadata?.is_superadmin ?? false;
 
   // Superadmin role impersonation — override role from cookie for testing
   let effectiveRole = membership.role as UserRole;

@@ -6,7 +6,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { clubsMatch } from '@/actions/scraping/helpers';
 import { isStale } from '@/actions/data-quality-helpers';
 
@@ -64,7 +64,7 @@ export interface DataQualityResult {
 /* ───────────── Query ───────────── */
 
 export async function getDataQuality(): Promise<DataQualityResult> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   const emptyTotals: DataQualityTotals = {
     total: 0, missingFpf: 0, missingZz: 0, missingBoth: 0, missingPhoto: 0,
     missingPosition: 0, missingDob: 0, missingNationality: 0, missingFoot: 0,

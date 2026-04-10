@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 import { addVideoSchema } from '@/lib/validators';
 import type { ActionResponse, PlayerVideo, PlayerVideoRow } from '@/lib/types';
@@ -71,7 +71,7 @@ async function fetchOembedMetadata(url: string): Promise<{ title: string; thumbn
 
 /** Get all videos for a player */
 export async function getPlayerVideos(playerId: number): Promise<PlayerVideo[]> {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -105,7 +105,7 @@ export async function addPlayerVideo(
     return { success: false, error: 'Não foi possível extrair o ID do vídeo' };
   }
 
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   const supabase = await createClient();
 
   // Check limit
@@ -164,7 +164,7 @@ export async function addPlayerVideo(
 
 /** Delete a video */
 export async function deletePlayerVideo(videoId: number, playerId: number): Promise<ActionResponse> {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   const supabase = await createClient();
 
   const { error } = await supabase

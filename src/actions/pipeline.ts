@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getActiveClub, getAuthContext } from '@/lib/supabase/club-context';
 import { recruitmentStatusChangeSchema, decisionSideSchema } from '@/lib/validators';
 import type { ActionResponse, DecisionSide, RecruitmentStatus } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
@@ -362,7 +362,7 @@ export async function reorderPipelineCards(
 ): Promise<ActionResponse> {
   if (updates.length === 0) return { success: true };
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -392,7 +392,7 @@ export async function updateTrainingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -455,7 +455,7 @@ export async function updateSigningDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -518,7 +518,7 @@ export async function updateMeetingDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -667,7 +667,7 @@ export async function updateSigningAttendees(
   playerId: number,
   attendeeIds: string[]
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -727,7 +727,7 @@ export async function updateTrainingEscalao(
   playerId: number,
   escalao: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -756,7 +756,7 @@ export async function updateDecisionDate(
   playerId: number,
   dateTime: string | null
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -810,7 +810,7 @@ export async function updateDecisionSide(
     return { success: false, error: 'Lado de decisão inválido' };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -870,7 +870,7 @@ export async function updateStandbyReason(
     return { success: false, error: 'Motivo é obrigatório' };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
@@ -914,7 +914,7 @@ export async function updateContactPurpose(
   contactPurposeId: string | null,
   contactPurposeCustom: string | null,
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }

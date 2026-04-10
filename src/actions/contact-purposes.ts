@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import type { ActionResponse, ContactPurpose, ContactPurposeRow } from '@/lib/types';
 
 /* ───────────── Mapper ───────────── */
@@ -26,7 +26,7 @@ function mapRow(row: ContactPurposeRow): ContactPurpose {
 
 /** Fetch active (non-archived) contact purposes for the current club, ordered by sort_order */
 export async function getContactPurposes(): Promise<ContactPurpose[]> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -46,7 +46,7 @@ export async function getContactPurposes(): Promise<ContactPurpose[]> {
 
 /** Fetch ALL contact purposes (including archived) for admin management */
 export async function getAllContactPurposes(): Promise<ContactPurpose[]> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin') return [];
 
   const supabase = await createClient();
@@ -73,7 +73,7 @@ export async function createContactPurpose(label: string): Promise<ActionRespons
   if (!trimmed) return { success: false, error: 'O nome é obrigatório' };
   if (trimmed.length > 50) return { success: false, error: 'Máximo de 50 caracteres' };
 
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Apenas administradores podem gerir objetivos' };
 
   const supabase = await createClient();
@@ -111,7 +111,7 @@ export async function updateContactPurpose(id: string, label: string): Promise<A
   if (!trimmed) return { success: false, error: 'O nome é obrigatório' };
   if (trimmed.length > 50) return { success: false, error: 'Máximo de 50 caracteres' };
 
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Apenas administradores podem gerir objetivos' };
 
   const supabase = await createClient();
@@ -134,7 +134,7 @@ export async function updateContactPurpose(id: string, label: string): Promise<A
 
 /** Bulk update sort_order for all contact purposes */
 export async function reorderContactPurposes(orderedIds: string[]): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Apenas administradores podem gerir objetivos' };
 
   const supabase = await createClient();
@@ -160,7 +160,7 @@ export async function reorderContactPurposes(orderedIds: string[]): Promise<Acti
 
 /** Count how many status_history entries reference this contact purpose */
 export async function getContactPurposeUsageCount(id: string): Promise<number> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { count, error } = await supabase
@@ -179,7 +179,7 @@ export async function getContactPurposeUsageCount(id: string): Promise<number> {
 
 /** Delete a contact purpose (only if unused) or archive it (if used) */
 export async function deleteContactPurpose(id: string): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Apenas administradores podem gerir objetivos' };
 
   const usageCount = await getContactPurposeUsageCount(id);
@@ -213,7 +213,7 @@ export async function deleteContactPurpose(id: string): Promise<ActionResponse> 
 
 /** Reassign all status_history entries from one contact purpose to another, then delete the old one */
 export async function reassignContactPurpose(fromId: string, toId: string): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Apenas administradores podem gerir objetivos' };
 
   const supabase = await createClient();
@@ -244,7 +244,7 @@ export async function reassignContactPurpose(fromId: string, toId: string): Prom
 
 /** Restore an archived contact purpose */
 export async function restoreContactPurpose(id: string): Promise<ActionResponse> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Apenas administradores podem gerir objetivos' };
 
   const supabase = await createClient();

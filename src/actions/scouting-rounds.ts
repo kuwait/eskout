@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { scoutingRoundSchema } from '@/lib/validators';
 import type { ActionResponse, ScoutingRound, ScoutingRoundRow, ScoutingRoundStatus } from '@/lib/types';
 import { broadcastRowMutation } from '@/lib/realtime/broadcast';
@@ -19,7 +19,7 @@ const REVALIDATE_PATH = '/observacoes';
 
 /** Fetch scouting rounds for the active club. Scouts only see published rounds. */
 export async function getScoutingRounds(): Promise<ScoutingRound[]> {
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
   const supabase = await createClient();
 
   let query = supabase
@@ -56,7 +56,7 @@ export async function createScoutingRound(data: {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -92,7 +92,7 @@ export async function updateScoutingRound(
   roundId: number,
   updates: { name?: string; startDate?: string; endDate?: string; notes?: string },
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -126,7 +126,7 @@ export async function updateRoundStatus(
   roundId: number,
   status: ScoutingRoundStatus,
 ): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin' && role !== 'editor') {
     return { success: false, error: 'Sem permissão' };
   }
@@ -156,7 +156,7 @@ export async function updateRoundStatus(
 /* ───────────── Delete ───────────── */
 
 export async function deleteScoutingRound(roundId: number): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getActiveClub();
+  const { clubId, userId, role } = await getAuthContext();
   if (role !== 'admin') {
     return { success: false, error: 'Apenas administradores podem eliminar jornadas' };
   }

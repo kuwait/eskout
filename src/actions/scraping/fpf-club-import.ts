@@ -6,7 +6,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import { broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { revalidatePath } from 'next/cache';
@@ -71,7 +71,7 @@ export interface ImportPlayerResult {
 
 /** Search FPF clubs by name (autocomplete) */
 export async function searchFpfClubs(searchText: string): Promise<ActionResponse<FpfClubSearchResult[]>> {
-  const { role } = await getActiveClub();
+  const { role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Sem permissão' };
 
   if (!searchText || searchText.trim().length < 2) {
@@ -115,7 +115,7 @@ export async function getFpfClubPlayers(
   clubId: number,
   classId: number,
 ): Promise<ActionResponse<FpfClubPlayer[]>> {
-  const { role } = await getActiveClub();
+  const { role } = await getAuthContext();
   if (role !== 'admin') return { success: false, error: 'Sem permissão' };
 
   try {
@@ -179,7 +179,7 @@ export async function importFpfPlayer(
   clubName: string,
 ): Promise<ActionResponse<ImportPlayerResult>> {
   const t0 = Date.now();
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
   const tAuth = Date.now() - t0;
 
@@ -433,7 +433,7 @@ async function createNewPlayer(
 
 /** Revalidate pages + broadcast bulk mutation after batch import completes */
 export async function finishFpfImport(): Promise<void> {
-  const { clubId, userId } = await getActiveClub();
+  const { clubId, userId } = await getAuthContext();
   revalidatePath('/jogadores');
   revalidatePath('/admin/dados');
   revalidatePath('/campo');

@@ -7,7 +7,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { type ZzParsedProfile } from '@/lib/zerozero/parser';
 import { browserHeaders, clubsMatch } from './helpers';
 
@@ -472,7 +472,7 @@ export async function fetchZeroZeroData(zzLink: string) {
 
 /** Scrape ZeroZero for a single player — returns scraped data for the client to decide */
 export async function scrapePlayerZeroZero(playerId: number): Promise<ZzScrapeResult> {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const { data: player } = await supabase
@@ -531,7 +531,7 @@ export async function scrapePlayerZeroZeroWithData(playerId: number, preData: Zz
   const EMPTY: ZzScrapeResult = { success: false, currentClub: null, photoUrl: null, height: null, weight: null, nationality: null, birthCountry: null, position: null, foot: null, gamesSeason: null, goalsSeason: null, teamHistory: [], clubChanged: false };
   if (!preData) return EMPTY;
 
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
   const { data: player } = await supabase.from('players').select('club').eq('id', playerId).eq('club_id', clubId).single();
 

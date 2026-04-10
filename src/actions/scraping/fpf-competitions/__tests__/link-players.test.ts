@@ -42,7 +42,7 @@ jest.mock('@/lib/supabase/server', () => ({
 }));
 
 jest.mock('@/lib/supabase/club-context', () => ({
-  getActiveClub: jest.fn().mockResolvedValue({ clubId: 'club-001', userId: 'user-001' }),
+  getAuthContext: jest.fn().mockResolvedValue({ clubId: 'club-001', userId: 'user-001', role: 'admin', isSuperadmin: false }),
 }));
 
 const mockFetchFpfData = jest.fn();

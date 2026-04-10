@@ -7,13 +7,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import type { UserRole } from '@/lib/types';
 
 /* ───────────── Auth Guard ───────────── */
 
 async function requireAdmin() {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   if (ctx.role !== 'admin') throw new Error('Acesso negado');
   return ctx;
 }
