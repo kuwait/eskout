@@ -45,9 +45,13 @@ interface PipelineViewProps {
   initialPlayers?: any[];
   /** Server-rendered contact purpose labels for em_contacto cards */
   initialContactPurposes?: { player_id: number; purpose_label: string }[];
+  /** Server-rendered club members for assignment dropdowns — avoids client POST on mount */
+  initialClubMembers?: { id: string; fullName: string }[];
+  /** Server-rendered contact purposes for StatusChangeDialog — avoids client POST on mount */
+  initialPurposes?: ContactPurpose[];
 }
 
-export function PipelineView({ clubId, initialPlayers, initialContactPurposes }: PipelineViewProps) {
+export function PipelineView({ clubId, initialPlayers, initialContactPurposes, initialClubMembers, initialPurposes }: PipelineViewProps) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
 
@@ -58,8 +62,8 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
   });
   const [, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [clubMembers, setClubMembers] = useState<{ id: string; fullName: string }[]>([]);
-  const [contactPurposes, setContactPurposes] = useState<ContactPurpose[]>([]);
+  const [clubMembers] = useState<{ id: string; fullName: string }[]>(initialClubMembers ?? []);
+  const [contactPurposes] = useState<ContactPurpose[]>(initialPurposes ?? []);
   // StatusChangeDialog state — shown when moving to em_contacto
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState<{ playerId: number; playerName: string } | null>(null);
@@ -126,21 +130,8 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes }:
     fetchPipelinePlayers();
   }, [fetchPipelinePlayers]);
 
-  // Fetch club members once for contact assignment dropdowns (via server action to avoid RLS issues)
-  useEffect(() => {
-    import('@/actions/users').then(({ getClubMembers }) =>
-      getClubMembers().then((members) => setClubMembers(members))
-    );
-  }, []);
-
-  // Fetch contact purposes for the StatusChangeDialog
-  useEffect(() => {
-    import('@/actions/contact-purposes').then(({ getContactPurposes }) =>
-      getContactPurposes()
-        .then((purposes) => setContactPurposes(purposes))
-        .catch(() => setContactPurposes([]))
-    ).catch(() => setContactPurposes([]));
-  }, []);
+  // Club members and contact purposes are now fetched server-side and passed as props
+  // (avoids 2-3 server action POSTs on every page mount)
 
   /* ───────────── Realtime: refetch when other users modify players ───────────── */
 

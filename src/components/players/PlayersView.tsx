@@ -67,7 +67,7 @@ interface PlayersPageData {
   options: { clubs: string[]; nationalities: string[]; birth_years: number[] };
 }
 
-export function PlayersView({ hideEvaluations = false, hideScoutingData = false, clubId, initialData }: { hideEvaluations?: boolean; hideScoutingData?: boolean; clubId: string; initialData?: PlayersPageData | null }) {
+export function PlayersView({ hideEvaluations = false, hideScoutingData = false, clubId, initialData, initialPlayingUp }: { hideEvaluations?: boolean; hideScoutingData?: boolean; clubId: string; initialData?: PlayersPageData | null; initialPlayingUp?: { regular: number[]; pontual: number[] } }) {
   const searchParams = useSearchParams();
   const initialClub = searchParams.get('clube') ?? '';
   const initialNationality = searchParams.get('nacionalidade') ?? '';
@@ -96,9 +96,12 @@ export function PlayersView({ hideEvaluations = false, hideScoutingData = false,
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
 
-  // Playing-up player IDs from ZZ+FPF (fetched once on mount)
-  const [fpfPlayingUp, setFpfPlayingUp] = useState<{ regular: Set<number>; pontual: Set<number> }>({ regular: new Set(), pontual: new Set() });
-  const [playingUpReady, setPlayingUpReady] = useState(false);
+  // Playing-up player IDs from ZZ+FPF (server-rendered when available, client fallback)
+  const [fpfPlayingUp, setFpfPlayingUp] = useState<{ regular: Set<number>; pontual: Set<number> }>(() => ({
+    regular: new Set(initialPlayingUp?.regular ?? []),
+    pontual: new Set(initialPlayingUp?.pontual ?? []),
+  }));
+  const [playingUpReady, setPlayingUpReady] = useState(!!initialPlayingUp);
 
   // Stable array of playing-up IDs — only recomputes when filter is active AND IDs change
   // Prevents applyAllFilters/fetchPage from recreating when playingUpReady changes but filter is off
@@ -320,12 +323,14 @@ export function PlayersView({ hideEvaluations = false, hideScoutingData = false,
         }
       });
     }
-    // Fetch playing-up IDs (ZZ + FPF combined) to enrich table badges + filter
-    getPlayingUpPlayerIds(clubId).then((ids) => {
-      setFpfPlayingUp({ regular: new Set(ids.regular), pontual: new Set(ids.pontual) });
-      setPlayingUpReady(true);
-    }).catch(() => setPlayingUpReady(true));
-  }, [clubId]);
+    // Fetch playing-up IDs only if not already provided by server (avoids server action POST on mount)
+    if (!initialPlayingUp) {
+      getPlayingUpPlayerIds(clubId).then((ids) => {
+        setFpfPlayingUp({ regular: new Set(ids.regular), pontual: new Set(ids.pontual) });
+        setPlayingUpReady(true);
+      }).catch(() => setPlayingUpReady(true));
+    }
+  }, [clubId, initialPlayingUp]);
 
   const hasFilters = Object.values(filters).some(Boolean);
   const activeFilterCount = Object.values(filters).filter(Boolean).length;

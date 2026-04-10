@@ -6,20 +6,24 @@
 import { PlayersView } from '@/components/players/PlayersView';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
+import { getPlayingUpPlayerIds } from '@/actions/players';
 
 export default async function JogadoresPage() {
   const { clubId } = await getActiveClub();
   const supabase = await createClient();
 
-  // Server-side: first page of 50 players + dropdown options in 1 RPC
-  const { data } = await supabase.rpc('get_players_page', { p_club_id: clubId });
+  // Fetch all initial data server-side — avoids client-side server action POSTs on mount
+  const [playersRes, playingUp] = await Promise.all([
+    supabase.rpc('get_players_page', { p_club_id: clubId }),
+    getPlayingUpPlayerIds(clubId),
+  ]);
 
   return (
     <div className="p-4 lg:p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold lg:text-2xl">Jogadores</h1>
       </div>
-      <PlayersView clubId={clubId} initialData={data} />
+      <PlayersView clubId={clubId} initialData={playersRes.data} initialPlayingUp={playingUp} />
     </div>
   );
 }

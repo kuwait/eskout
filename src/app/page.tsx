@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { PlayersView } from '@/components/players/PlayersView';
 import { getActiveClub } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
+import { getPlayingUpPlayerIds } from '@/actions/players';
 
 export default async function HomePage() {
   const ctx = await getActiveClub();
@@ -16,8 +17,11 @@ export default async function HomePage() {
   const isScout = ctx.role === 'scout';
   const supabase = await createClient();
 
-  // Server-side: first page of 50 players + dropdown options in 1 RPC
-  const { data } = await supabase.rpc('get_players_page', { p_club_id: ctx.clubId });
+  // Fetch all initial data server-side — avoids client-side server action POSTs on mount
+  const [playersRes, playingUp] = await Promise.all([
+    supabase.rpc('get_players_page', { p_club_id: ctx.clubId }),
+    getPlayingUpPlayerIds(ctx.clubId),
+  ]);
 
   return (
     <div className="p-4 lg:p-6">
@@ -32,7 +36,7 @@ export default async function HomePage() {
           </Button>
         )}
       </div>
-      <PlayersView hideEvaluations={hideEvaluations || isScout} hideScoutingData={isScout} clubId={ctx.clubId} initialData={data} />
+      <PlayersView hideEvaluations={hideEvaluations || isScout} hideScoutingData={isScout} clubId={ctx.clubId} initialData={playersRes.data} initialPlayingUp={playingUp} />
     </div>
   );
 }
