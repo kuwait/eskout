@@ -5,7 +5,7 @@
 
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { SquadPanelView } from '@/components/squad/SquadPanelView';
 import type { SquadType } from '@/lib/types';
 
@@ -18,7 +18,7 @@ export default async function SquadByIdPage({ params }: PageProps) {
   const squadId = parseInt(rawId, 10);
   if (isNaN(squadId)) notFound();
 
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   // Fetch squad type + full squad data in parallel

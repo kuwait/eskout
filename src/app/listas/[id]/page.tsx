@@ -3,7 +3,7 @@
 // Adapted from the original A Observar page, now generic for any list
 // RELEVANT FILES: src/app/listas/[id]/ListDetailClient.tsx, src/actions/player-lists.ts, src/lib/types/index.ts
 
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { notFound } from 'next/navigation';
 import { getListById, getListItems, getListShares } from '@/actions/player-lists';
 import { getClubMembers } from '@/actions/users';
@@ -12,7 +12,7 @@ import { ListDetailClient } from './ListDetailClient';
 export const dynamic = 'force-dynamic';
 
 export default async function ListDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
 
   // All roles can access lists
 

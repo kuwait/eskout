@@ -4,11 +4,11 @@
 // RELEVANT FILES: src/components/squad/SquadPanelView.tsx, src/components/layout/Sidebar.tsx, src/app/campo/sombra/page.tsx
 
 import { SquadPanelView } from '@/components/squad/SquadPanelView';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function PlantelRealPage() {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   // Server-side fetch: squads + squad_players + player details in one RPC

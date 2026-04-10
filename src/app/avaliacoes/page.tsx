@@ -3,7 +3,7 @@
 // Route: /avaliacoes (sub-item of Observações in nav)
 // RELEVANT FILES: src/app/avaliacoes/AvaliacoesClient.tsx, src/actions/quick-scout-reports.ts
 
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { getMyQuickReports, getAllClubQuickReports } from '@/actions/quick-scout-reports';
 import { AvaliacoesClient } from './AvaliacoesClient';
 
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 const PAGE_SIZE = 50;
 
 export default async function AvaliacoesPage({ searchParams: searchParamsPromise }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { role } = await getActiveClub();
+  const { role } = await getAuthContext();
   const searchParams = await searchParamsPromise;
   const isScout = role === 'scout' || role === 'recruiter';
   const canSeeAll = role === 'admin' || role === 'editor';

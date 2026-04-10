@@ -3,7 +3,7 @@
 // Admin/editor manage rounds; scouts see published rounds with inline games
 // RELEVANT FILES: src/actions/scouting-rounds.ts, src/app/observacoes/ObservacoesClient.tsx
 
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { getScoutingRounds } from '@/actions/scouting-rounds';
 import { getMyAssignedGames } from '@/actions/scout-assignments';
 import { getTargetsForRound } from '@/actions/game-targets';
@@ -14,7 +14,7 @@ import type { AssignedGame } from '@/actions/scout-assignments';
 import type { GameObservationTarget } from '@/lib/types';
 
 export default async function ObservacoesPage() {
-  const { role, userId } = await getActiveClub();
+  const { role, userId } = await getAuthContext();
   const rounds = await getScoutingRounds();
   // Fetch assigned games + targets for ALL roles (everyone sees their assignments inline)
   let scoutGames: AssignedGame[] = [];

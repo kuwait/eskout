@@ -3,7 +3,7 @@
 // Fetches player data + evaluations server-side, renders via client component
 // RELEVANT FILES: src/app/comparar/ComparePageClient.tsx, src/lib/supabase/queries.ts, src/components/players/PlayerProfile.tsx
 
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { redirect } from 'next/navigation';
 import { getPlayerById, getScoutEvaluations, getScoutingReports } from '@/lib/supabase/queries';
 import { getSavedComparisons } from '@/actions/comparisons';
@@ -23,7 +23,7 @@ export default async function ComparePage({
 }: {
   searchParams: Promise<{ ids?: string }>;
 }) {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   if (ctx.role === 'scout') redirect('/');
 
   const { ids } = await searchParams;

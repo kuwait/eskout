@@ -7,12 +7,12 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PlayersView } from '@/components/players/PlayersView';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 import { getPlayingUpPlayerIds } from '@/actions/players';
 
 export default async function HomePage() {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
   const hideEvaluations = ctx.role === 'recruiter';
   const isScout = ctx.role === 'scout';
   const supabase = await createClient();

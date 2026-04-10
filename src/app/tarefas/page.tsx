@@ -4,7 +4,7 @@
 // RELEVANT FILES: src/components/tasks/TasksView.tsx, src/actions/tasks.ts, src/lib/supabase/queries.ts
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { getMyTasks } from '@/actions/tasks';
 import { getFlaggedNotes } from '@/lib/supabase/queries';
 import { getClubMembers } from '@/actions/users';
@@ -19,7 +19,7 @@ function pickValidUrl(...urls: (string | null | undefined)[]): string | null {
 }
 
 export default async function TarefasPage() {
-  const { role } = await getActiveClub();
+  const { role } = await getAuthContext();
   const supabase = await createClient();
 
   // Fetch tasks, flagged notes, and club members in parallel

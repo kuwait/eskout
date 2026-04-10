@@ -6,10 +6,10 @@
 import Link from 'next/link';
 import { Database, Users, FileText, AlertTriangle, Shield, GitBranch, ListTodo, Upload } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 
 async function getStats() {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   const [players, reports, notes, pipeline, realSquad, shadowSquad, tasks, ageGroups, history] = await Promise.all([

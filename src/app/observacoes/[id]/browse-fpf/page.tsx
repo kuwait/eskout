@@ -6,7 +6,7 @@
 export const dynamic = 'force-dynamic';
 
 import { notFound, redirect } from 'next/navigation';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 import { mapScoutingRoundRow } from '@/lib/supabase/mappers';
 import { getGamesForRound } from '@/actions/scouting-games';
@@ -18,7 +18,7 @@ export default async function BrowseFpfPage({ params }: { params: Promise<{ id: 
   const roundId = parseInt(id, 10);
   if (isNaN(roundId)) notFound();
 
-  const { clubId, role } = await getActiveClub();
+  const { clubId, role } = await getAuthContext();
 
   // Only admin/editor (coordinators) can browse FPF games
   if (role !== 'admin' && role !== 'editor') {

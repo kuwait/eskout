@@ -3,13 +3,13 @@
 // Scouts see pending/approved status; recruiters see all their additions
 // RELEVANT FILES: src/actions/players.ts, src/app/jogadores/novo/page.tsx, src/app/admin/pendentes/page.tsx
 
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { MeusJogadoresClient } from './MeusJogadoresClient';
 
 export default async function MeusJogadoresPage() {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
 
   // Only scouts and recruiters use this page
   if (ctx.role !== 'scout' && ctx.role !== 'recruiter') {

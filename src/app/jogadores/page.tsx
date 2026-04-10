@@ -4,12 +4,12 @@
 // RELEVANT FILES: src/components/players/PlayersView.tsx, src/components/players/PlayerTable.tsx, src/components/players/PlayerFilters.tsx
 
 import { PlayersView } from '@/components/players/PlayersView';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 import { getPlayingUpPlayerIds } from '@/actions/players';
 
 export default async function JogadoresPage() {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   // Fetch all initial data server-side — avoids client-side server action POSTs on mount

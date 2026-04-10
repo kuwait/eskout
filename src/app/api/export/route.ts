@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 
 // ExcelJS needs Node.js runtime (uses streams/Buffer)
 export const runtime = 'nodejs';
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   // Auth + role check via club context (verifies membership + scopes to club)
   let clubId: string;
   try {
-    const ctx = await getActiveClub();
+    const ctx = await getAuthContext();
     if (ctx.role !== 'admin' && ctx.role !== 'editor') {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
     }

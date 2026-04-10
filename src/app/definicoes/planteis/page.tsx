@@ -4,10 +4,10 @@
 // RELEVANT FILES: src/components/admin/SquadManagement.tsx, src/app/definicoes/page.tsx, src/components/layout/nav-items.ts
 
 import { SquadManagement } from '@/components/admin/SquadManagement';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 
 export default async function PlanteisAdminPage() {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
 
   return (
     <div className="p-4 lg:p-6">

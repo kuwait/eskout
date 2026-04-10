@@ -3,14 +3,14 @@
 // Admin/editor/recruiter only. Admin secretly sees all users' lists.
 // RELEVANT FILES: src/app/listas/ListsPageClient.tsx, src/actions/player-lists.ts, src/lib/types/index.ts
 
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { getMyLists, getAllLists } from '@/actions/player-lists';
 import { ListsPageClient } from './ListsPageClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ListsPage() {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
 
   // All roles can access lists
 

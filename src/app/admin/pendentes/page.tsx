@@ -3,7 +3,7 @@
 // Admin/editor sees all players created by other users, minus their own dismissals
 // RELEVANT FILES: src/actions/players.ts, src/app/admin/pendentes/PendentesClient.tsx
 
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { PendentesClient } from './PendentesClient';
@@ -11,7 +11,7 @@ import { PendentesClient } from './PendentesClient';
 export const dynamic = 'force-dynamic';
 
 export default async function PendentesPage() {
-  const ctx = await getActiveClub();
+  const ctx = await getAuthContext();
 
   // Only admin and editor can access
   if (ctx.role !== 'admin' && ctx.role !== 'editor') {

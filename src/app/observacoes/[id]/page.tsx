@@ -6,7 +6,7 @@
 export const dynamic = 'force-dynamic';
 
 import { notFound } from 'next/navigation';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 import { mapScoutingRoundRow } from '@/lib/supabase/mappers';
 import { getScoutAvailability, getClubScouts } from '@/actions/scout-availability';
@@ -21,7 +21,7 @@ export default async function RoundDetailPage({ params }: { params: Promise<{ id
   const roundId = parseInt(id, 10);
   if (isNaN(roundId)) notFound();
 
-  const { clubId, role, userId } = await getActiveClub();
+  const { clubId, role, userId } = await getAuthContext();
   const supabase = await createClient();
 
   // Fetch round

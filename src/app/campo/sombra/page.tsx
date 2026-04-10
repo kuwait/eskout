@@ -4,11 +4,11 @@
 // RELEVANT FILES: src/components/squad/SquadPanelView.tsx, src/components/layout/Sidebar.tsx, src/app/campo/real/page.tsx
 
 import { SquadPanelView } from '@/components/squad/SquadPanelView';
-import { getActiveClub } from '@/lib/supabase/club-context';
+import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function PlantelSombraPage() {
-  const { clubId } = await getActiveClub();
+  const { clubId } = await getAuthContext();
   const supabase = await createClient();
 
   // Fetch shadow age group IDs server-side (needed for AgeGroupSelector filtering)

@@ -4,7 +4,7 @@
 // RELEVANT FILES: src/lib/supabase/server.ts, src/lib/supabase/mappers.ts, src/lib/supabase/club-context.ts
 
 import { createClient } from '@/lib/supabase/server';
-import { getActiveClub, getActiveClubId } from '@/lib/supabase/club-context';
+import { getAuthContext, getActiveClubId } from '@/lib/supabase/club-context';
 import { mapPlayerRow, mapCalendarEventRow, mapScoutingReportRow, mapTrainingFeedbackRow, mapSquadRow, mapSquadPlayerRow } from '@/lib/supabase/mappers';
 import type { CalendarEvent, CalendarEventRow, NotePriority, Player, PlayerRow, Profile, ScoutEvaluation, ScoutingReport, ScoutingReportRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, SquadType, SquadWithPlayers, StatusHistoryEntry, ObservationNote, TrainingFeedback, TrainingFeedbackRow, TrainingFeedbackWithPlayer } from '@/lib/types';
 
@@ -48,7 +48,7 @@ export async function getPlayerById(id: number): Promise<Player | null> {
 
 export async function getCurrentUserRole(): Promise<'admin' | 'editor' | 'scout' | 'recruiter' | null> {
   try {
-    const { role } = await getActiveClub();
+    const { role } = await getAuthContext();
     return role;
   } catch {
     // Fallback: no club context (e.g. club picker page)
