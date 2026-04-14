@@ -5,6 +5,7 @@
 
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { cn, shortName } from '@/lib/utils';
 import type { CalendarEvent, CalendarEventType } from '@/lib/types';
 import { EVENT_TYPE_LABEL_MAP } from '@/lib/constants';
@@ -37,6 +38,7 @@ interface EventBadgeProps {
 /* ───────────── Component ───────────── */
 
 export function EventBadge({ event, onClick }: EventBadgeProps) {
+  const router = useRouter();
   const colors = ACCENT[event.eventType] ?? DEFAULT_ACCENT;
   const typeLabel = CALENDAR_LABEL_OVERRIDES[event.eventType] ?? EVENT_TYPE_LABEL_MAP[event.eventType] ?? event.eventType;
   const timeLabel = event.eventTime ? event.eventTime.slice(0, 5) : '';
@@ -93,7 +95,17 @@ export function EventBadge({ event, onClick }: EventBadgeProps) {
               }}
               size={18}
             />
-            <span className="truncate text-xs font-semibold leading-none text-neutral-900">
+            <span
+              className={cn(
+                'truncate text-xs font-semibold leading-none text-neutral-900',
+                event.playerId && 'cursor-pointer hover:underline',
+              )}
+              onClick={(e) => {
+                if (!event.playerId) return;
+                e.stopPropagation();
+                router.push(`/jogadores/${event.playerId}`);
+              }}
+            >
               {shortName(event.playerName)}
               {event.playerDob && (
                 <span className="ml-1 font-medium text-neutral-400">{new Date(event.playerDob).getFullYear()}</span>
