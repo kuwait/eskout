@@ -464,8 +464,13 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated, onClose }: {
       const res = await createCoachFeedbackLink(playerId, date, escalao || undefined);
       if (res.success && res.data) {
         setGeneratedUrl(res.data.url);
-        await navigator.clipboard.writeText(res.data.url);
-        toast.success('Link copiado para a área de transferência!');
+        // Clipboard can fail on some in-app browsers (WhatsApp webview, etc.) — don't block success flow
+        try {
+          await navigator.clipboard.writeText(res.data.url);
+          toast.success('Link copiado para a área de transferência!');
+        } catch {
+          toast.success('Link gerado! Copia ou partilha abaixo.');
+        }
         // Create optimistic stub entry for the list
         onCreated({
           id: Date.now(), clubId: '', playerId, authorId: '', authorName: 'Eu',
@@ -494,14 +499,26 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated, onClose }: {
             <Check className="h-5 w-5 text-green-600" />
           </div>
         </div>
-        <p className="text-center text-sm font-medium text-neutral-700">Link gerado e copiado!</p>
+        <p className="text-center text-sm font-medium text-neutral-700">Link gerado!</p>
+        {/* Always-visible URL — fallback if clipboard copy failed (some in-app browsers block it) */}
+        <input
+          type="text"
+          value={generatedUrl}
+          readOnly
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-700 outline-none focus:border-blue-300"
+        />
         <div className="flex gap-2">
           <button
             type="button"
             onClick={async () => {
-              await navigator.clipboard.writeText(generatedUrl);
-              setLinkCopied(true);
-              setTimeout(() => setLinkCopied(false), 2000);
+              try {
+                await navigator.clipboard.writeText(generatedUrl);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              } catch {
+                toast.error('Cópia bloqueada — seleciona o link acima e copia manualmente');
+              }
             }}
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-medium transition',
@@ -511,8 +528,22 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated, onClose }: {
             )}
           >
             {linkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {linkCopied ? 'Copiado!' : 'Copiar link'}
+            {linkCopied ? 'Copiado!' : 'Copiar'}
           </button>
+          {typeof navigator !== 'undefined' && 'share' in navigator && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.share({ url: generatedUrl, title: 'Feedback de treino' });
+                } catch { /* user dismissed share sheet */ }
+              }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-2.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+            >
+              <Share2 className="h-4 w-4" />
+              Partilhar
+            </button>
+          )}
           <a
             href={generatedUrl}
             target="_blank"
@@ -845,12 +876,23 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
 
 function ShareLinkButtons({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
+  const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast.success('Link copiado!');
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('Link copiado!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Cópia bloqueada — usa o botão Partilhar ou abre o link');
+    }
+  }
+
+  async function handleShare() {
+    try {
+      await navigator.share({ url, title: 'Feedback de treino' });
+    } catch { /* user dismissed share sheet */ }
   }
 
   return (
@@ -868,6 +910,16 @@ function ShareLinkButtons({ url }: { url: string }) {
         {copied ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5" />}
         {copied ? 'Copiado!' : 'Copiar'}
       </button>
+      {canShare && (
+        <button
+          type="button"
+          onClick={handleShare}
+          className="flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-600 border border-neutral-200 hover:bg-neutral-200 transition"
+        >
+          <Share2 className="h-2.5 w-2.5" />
+          Partilhar
+        </button>
+      )}
       <a
         href={url}
         target="_blank"
