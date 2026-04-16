@@ -36,7 +36,20 @@ import {
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { StatusChangeDialog } from '@/components/pipeline/StatusChangeDialog';
 import { StandbyReasonDialog } from '@/components/pipeline/StandbyReasonDialog';
+import { ScheduleTrainingDialog } from '@/components/pipeline/ScheduleTrainingDialog';
 import type { ContactPurpose, DecisionSide, Player, PlayerRow, RecruitmentStatus } from '@/lib/types';
+
+/** Training session info exposta ao pipeline card (subset dos campos de training_feedback) */
+export interface PipelineTrainingSession {
+  id: number;
+  player_id: number;
+  training_date: string;
+  session_time: string | null;
+  status: string;
+  escalao: string | null;
+  location: string | null;
+  has_evaluation: boolean;
+}
 
 interface PipelineViewProps {
   clubId: string;
@@ -45,13 +58,15 @@ interface PipelineViewProps {
   initialPlayers?: any[];
   /** Server-rendered contact purpose labels for em_contacto cards */
   initialContactPurposes?: { player_id: number; purpose_label: string }[];
+  /** Server-rendered training sessions do ciclo actual — vir_treinar players */
+  initialTrainingSessions?: PipelineTrainingSession[];
   /** Server-rendered club members for assignment dropdowns — avoids client POST on mount */
   initialClubMembers?: { id: string; fullName: string }[];
   /** Server-rendered contact purposes for StatusChangeDialog — avoids client POST on mount */
   initialPurposes?: ContactPurpose[];
 }
 
-export function PipelineView({ clubId, initialPlayers, initialContactPurposes, initialClubMembers, initialPurposes }: PipelineViewProps) {
+export function PipelineView({ clubId, initialPlayers, initialContactPurposes, initialTrainingSessions, initialClubMembers, initialPurposes }: PipelineViewProps) {
   const router = useRouter();
   const { ageGroups, selectedId, setSelectedId } = usePageAgeGroup({ pageId: 'pipeline', defaultAll: true });
 
@@ -70,6 +85,9 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
   // StandbyReasonDialog state — shown when moving to em_standby
   const [standbyDialogOpen, setStandbyDialogOpen] = useState(false);
   const [pendingStandbyChange, setPendingStandbyChange] = useState<{ playerId: number; playerName: string } | null>(null);
+  // ScheduleTrainingDialog state — shown when moving to vir_treinar (mandatory)
+  const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
+  const [pendingTrainingChange, setPendingTrainingChange] = useState<{ playerId: number; playerName: string; escalao: string | null } | null>(null);
   // Show birth year on cards when viewing all age groups
   const showBirthYear = selectedId === null;
 
@@ -90,6 +108,17 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
     return map;
   });
 
+  // Map of playerId -> training sessions do ciclo actual (para vir_treinar cards)
+  const [trainingSessionsMap, setTrainingSessionsMap] = useState<Record<number, PipelineTrainingSession[]>>(() => {
+    if (!initialTrainingSessions?.length) return {};
+    const map: Record<number, PipelineTrainingSession[]> = {};
+    for (const t of initialTrainingSessions) {
+      if (!map[t.player_id]) map[t.player_id] = [];
+      map[t.player_id].push(t);
+    }
+    return map;
+  });
+
   // Single RPC fetch: pipeline players + contact purpose labels in one round-trip
   // (was: pagination loop + sequential contact purpose fetch = 2-3 queries)
   const fetchPipelinePlayers = useCallback(async () => {
@@ -100,12 +129,16 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
     });
 
     if (error || !data) {
-      startTransition(() => { setPipelinePlayers([]); setContactPurposeMap({}); });
+      startTransition(() => { setPipelinePlayers([]); setContactPurposeMap({}); setTrainingSessionsMap({}); });
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = data as { players: any[]; contact_purposes: { player_id: number; purpose_label: string }[] };
+    const result = data as {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      players: any[];
+      contact_purposes: { player_id: number; purpose_label: string }[];
+      training_sessions?: PipelineTrainingSession[];
+    };
     const mapped = (result.players ?? []).map((row: PlayerRow) => mapPlayerRow(row));
 
     // Build contact purpose map from RPC result
@@ -114,9 +147,17 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
       if (cp.purpose_label) purposeMap[cp.player_id] = cp.purpose_label;
     }
 
+    // Build training sessions map (vir_treinar cards)
+    const sessionsMap: Record<number, PipelineTrainingSession[]> = {};
+    for (const t of result.training_sessions ?? []) {
+      if (!sessionsMap[t.player_id]) sessionsMap[t.player_id] = [];
+      sessionsMap[t.player_id].push(t);
+    }
+
     startTransition(() => {
       setPipelinePlayers(mapped);
       setContactPurposeMap(purposeMap);
+      setTrainingSessionsMap(sessionsMap);
     });
   }, [selectedId, clubId]);
 
@@ -146,11 +187,17 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
       if (!event.fields || event.fields.some(f =>
         ['recruitment_status', 'pipeline_order', 'age_group_id', 'name', 'club',
          'position_normalized', 'department_opinion', 'decision_side', 'decision_date',
-         'training_date', 'meeting_date', 'signing_date', 'contact_assigned_to'].includes(f)
+         'training_date', 'meeting_date', 'signing_date', 'contact_assigned_to',
+         'vir_treinar_entered_at'].includes(f)
       )) {
         fetchPipelinePlayers();
       }
     },
+  });
+
+  // Training sessions — refetch quando criados/alterados/cancelados
+  useRealtimeTable('training_feedback', {
+    onAny: () => { fetchPipelinePlayers(); },
   });
 
   /* ───────────── Group pipeline players by status ───────────── */
@@ -184,6 +231,17 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
       const player = pipelinePlayers.find((p) => p.id === playerId);
       setPendingStandbyChange({ playerId, playerName: player?.name ?? `Jogador #${playerId}` });
       setStandbyDialogOpen(true);
+      return;
+    }
+    // Intercept: moving to vir_treinar → obrigar a agendar pelo menos 1 treino
+    if (newStatus === 'vir_treinar') {
+      const player = pipelinePlayers.find((p) => p.id === playerId);
+      setPendingTrainingChange({
+        playerId,
+        playerName: player?.name ?? `Jogador #${playerId}`,
+        escalao: player?.trainingEscalao ?? null,
+      });
+      setTrainingDialogOpen(true);
       return;
     }
 
@@ -365,6 +423,7 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
         clubMembers={clubMembers}
         contactPurposeMap={contactPurposeMap}
         contactPurposes={contactPurposes}
+        trainingSessionsMap={trainingSessionsMap}
         onPlayerClick={handlePlayerClick}
         onStatusChange={handleStatusChange}
         onRemove={handleRemove}
@@ -408,6 +467,27 @@ export function PipelineView({ clubId, initialPlayers, initialContactPurposes, i
         clubMembers={clubMembers}
         currentAssignedTo={pendingStatusChange ? pipelinePlayers.find((p) => p.id === pendingStatusChange.playerId)?.contactAssignedTo : null}
         onConfirm={handleStatusDialogConfirm}
+      />
+
+      {/* Schedule training dialog — obrigatório ao mover para vir_treinar */}
+      <ScheduleTrainingDialog
+        open={trainingDialogOpen}
+        onOpenChange={(v) => {
+          setTrainingDialogOpen(v);
+          if (!v) setPendingTrainingChange(null);
+        }}
+        playerId={pendingTrainingChange?.playerId ?? null}
+        playerName={pendingTrainingChange?.playerName ?? ''}
+        defaultEscalao={pendingTrainingChange?.escalao ?? null}
+        onScheduled={() => {
+          // scheduleTraining já fez auto-move no servidor; refetch para sync
+          setPendingTrainingChange(null);
+          fetchPipelinePlayers();
+        }}
+        onCancel={() => {
+          // User cancelou — nada foi alterado, só fechar
+          setPendingTrainingChange(null);
+        }}
       />
     </div>
   );

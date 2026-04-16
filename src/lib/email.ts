@@ -59,6 +59,8 @@ export interface TaskEmailData {
   tasksUrl: string;
   /** Club name */
   clubName: string;
+  /** Tipo de notificação — afecta subject e intro do email (Fase 6 training sessions) */
+  kind?: 'created' | 'rescheduled' | 'cancelled';
 }
 
 /* ───────────── Send ───────────── */
@@ -75,7 +77,7 @@ export async function sendTaskEmail(data: TaskEmailData): Promise<void> {
   }
 
   try {
-    const subject = `Nova tarefa: ${stripEmoji(data.taskTitle)}`;
+    const subject = buildSubject(data);
     const html = buildTaskEmailHtml(data);
 
     await resend.emails.send({
@@ -88,6 +90,41 @@ export async function sendTaskEmail(data: TaskEmailData): Promise<void> {
     // Never block the calling action — log and move on
     console.error('[email] Failed to send task notification:', err);
   }
+}
+
+/* ───────────── Subject + intro helpers (Fase 6 training sessions) ───────────── */
+
+export function buildSubject(data: TaskEmailData): string {
+  const title = stripEmoji(stripPurposeSuffix(data.taskTitle));
+  switch (data.kind) {
+    case 'rescheduled':
+      return `Treino alterado${data.playerName ? ` — ${data.playerName}` : ''}`;
+    case 'cancelled':
+      return `Treino cancelado${data.playerName ? ` — ${data.playerName}` : ''}`;
+    case 'created':
+    default:
+      return `Nova tarefa: ${title}`;
+  }
+}
+
+export function buildIntro(data: TaskEmailData): string {
+  const who = `<strong>${escapeHtml(data.assignedByName)}</strong>`;
+  switch (data.kind) {
+    case 'rescheduled':
+      return `${who} alterou a data de um treino:`;
+    case 'cancelled':
+      return `${who} cancelou um treino:`;
+    case 'created':
+    default:
+      return `${who} atribuiu-te uma nova tarefa:`;
+  }
+}
+
+/** CTA button label por kind (usado no HTML template) */
+export function buildCtaLabel(kind?: 'created' | 'rescheduled' | 'cancelled'): string {
+  if (kind === 'cancelled') return 'Ver detalhes';
+  if (kind === 'rescheduled') return 'Ver nova data';
+  return 'Ver Tarefas';
 }
 
 /* ───────────── HTML Template ───────────── */
@@ -112,7 +149,7 @@ export function buildTaskEmailHtml(data: TaskEmailData): string {
         Olá <strong>${escapeHtml(data.recipientName)}</strong>,
       </p>
       <p style="margin:0 0 20px;font-size:14px;color:#525252">
-        <strong>${escapeHtml(data.assignedByName)}</strong> atribuiu-te uma nova tarefa:
+        ${buildIntro(data)}
       </p>
 
       <!-- Task card -->
@@ -125,7 +162,7 @@ export function buildTaskEmailHtml(data: TaskEmailData): string {
 
       <!-- CTA -->
       <a href="${escapeHtml(data.tasksUrl)}" style="display:inline-block;background:#1a1a1a;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:600">
-        Ver Tarefas
+        ${data.kind === 'cancelled' ? 'Ver detalhes' : data.kind === 'rescheduled' ? 'Ver nova data' : 'Ver Tarefas'}
       </a>
     </div>
 

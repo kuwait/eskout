@@ -23,8 +23,21 @@ export default async function PipelinePage() {
     getAllProfiles(),
   ]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const initialData = pipelineData.data as { players: any[]; contact_purposes: { player_id: number; purpose_label: string }[] } | null;
+  const initialData = pipelineData.data as {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    players: any[];
+    contact_purposes: { player_id: number; purpose_label: string }[];
+    training_sessions?: {
+      id: number;
+      player_id: number;
+      training_date: string;
+      session_time: string | null;
+      status: string;
+      escalao: string | null;
+      location: string | null;
+      has_evaluation: boolean;
+    }[];
+  } | null;
   const clubMembers = profiles.map((p) => ({ id: p.id, fullName: p.fullName }));
 
   return (
@@ -33,6 +46,7 @@ export default async function PipelinePage() {
         clubId={clubId}
         initialPlayers={initialData?.players ?? []}
         initialContactPurposes={initialData?.contact_purposes ?? []}
+        initialTrainingSessions={initialData?.training_sessions ?? []}
         initialClubMembers={clubMembers}
         initialPurposes={purposes}
       />

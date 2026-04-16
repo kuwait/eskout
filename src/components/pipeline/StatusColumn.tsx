@@ -11,6 +11,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Building2, User } from 'lucide-react';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
+import type { PipelineTrainingSession } from '@/components/pipeline/PipelineView';
 import { subZoneId } from '@/components/pipeline/kanban-helpers';
 import { shortName } from '@/lib/utils';
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
@@ -50,6 +51,8 @@ interface StatusColumnProps {
   contactPurposeMap?: Record<number, string>;
   /** Available contact purpose options for editing */
   contactPurposes?: { id: string; label: string }[];
+  /** Map of playerId -> treinos do ciclo actual (para vir_treinar cards) */
+  trainingSessionsMap?: Record<number, PipelineTrainingSession[]>;
 }
 
 /* ───────────── Sortable Card Wrapper ───────────── */
@@ -66,6 +69,7 @@ function SortablePipelineCard({
   onDecisionSideChange,
   contactPurposeLabel,
   contactPurposes,
+  trainingSessions,
 }: {
   player: Player;
   dragId: string;
@@ -78,6 +82,7 @@ function SortablePipelineCard({
   onDecisionSideChange?: (playerId: number, side: DecisionSide) => void;
   contactPurposeLabel?: string;
   contactPurposes?: { id: string; label: string }[];
+  trainingSessions?: PipelineTrainingSession[];
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
 
@@ -203,7 +208,7 @@ function SortablePipelineCard({
       onPointerCancel={handlePointerUp}
       onClick={handleClick}
     >
-      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} onPlayerClick={onPlayerClick} onStatusChange={onStatusChange} onDecisionSideChange={onDecisionSideChange} contactPurposeLabel={contactPurposeLabel} contactPurposes={contactPurposes ?? []} />
+      <PipelineCard player={player} showBirthYear={showBirthYear} onRemove={onRemove} onDateChange={onDateChange} clubMembers={clubMembers} onPlayerClick={onPlayerClick} onStatusChange={onStatusChange} onDecisionSideChange={onDecisionSideChange} contactPurposeLabel={contactPurposeLabel} contactPurposes={contactPurposes ?? []} trainingSessions={trainingSessions} />
     </div>
   );
 }
@@ -305,7 +310,7 @@ function DecisionSubSection({
 }
 
 const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: React.CSSProperties }>(
-  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, onDecisionSideChange, contactPurposeMap = {}, contactPurposes = [], headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
+  function ColumnInner({ status, players, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers, disableDrag, onStatusChange, onDecisionSideChange, contactPurposeMap = {}, contactPurposes = [], trainingSessionsMap = {}, headerDragRef, headerDragListeners, headerDragAttributes, style }, ref) {
     const config = RECRUITMENT_STATUSES.find((s) => s.value === status);
     const label = config?.labelPt ?? status;
     const light = config?.tailwindLight ?? { bg: 'bg-neutral-100', text: 'text-neutral-600', border: 'border-neutral-300', dot: 'bg-neutral-400' };
@@ -427,6 +432,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
                 onStatusChange={onStatusChange}
                 contactPurposeLabel={contactPurposeMap[player.id]}
                 contactPurposes={contactPurposes}
+                trainingSessions={trainingSessionsMap[player.id]}
               />
             ))}
           </div>
@@ -451,6 +457,7 @@ const ColumnInner = forwardRef<HTMLDivElement, ColumnInnerProps & { style?: Reac
                   onStatusChange={onStatusChange}
                   contactPurposeLabel={contactPurposeMap[player.id]}
                   contactPurposes={contactPurposes}
+                  trainingSessions={trainingSessionsMap[player.id]}
                 />
               ))}
             </div>

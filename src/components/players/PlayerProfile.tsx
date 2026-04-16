@@ -50,7 +50,7 @@ import { QuickReportCard } from '@/components/players/QuickReportCard';
 import { QuickReportForm } from '@/components/players/QuickReportForm';
 import { ManualReportForm } from '@/components/players/ManualReportForm';
 import { PlayerClubHistory } from '@/components/players/PlayerClubHistory';
-import { TrainingFeedbackList } from '@/components/players/TrainingFeedback';
+import { TrainingSessionsList } from '@/components/players/TrainingSessionsList';
 import { PlayerVideos } from '@/components/players/PlayerVideos';
 import {
   POSITION_LABELS,
@@ -1447,12 +1447,11 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
             {/* ───────────── Training Feedback (Treinos) ───────────── */}
             {!isScout && (
               <Section title="Treinos no Clube">
-                <TrainingFeedbackList
+                <TrainingSessionsList
                   playerId={player.id}
                   entries={trainingFeedback}
                   userRole={userRole}
                   defaultEscalao={p.trainingEscalao}
-                  currentUserName={clubMembers.find((m) => m.id === currentUserId)?.fullName}
                   currentUserId={currentUserId}
                   initialShareTokens={initialShareTokens}
                 />

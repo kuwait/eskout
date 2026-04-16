@@ -601,6 +601,9 @@ export interface CalendarEventRow {
 
 export type TrainingPresence = 'attended' | 'missed' | 'rescheduled';
 export type TrainingDecision = 'assinar' | 'repetir' | 'duvidas' | 'descartar' | 'sem_decisao';
+
+/** Estado top-level de um treino (migration 107). `presence` fica deprecated — `status` é a fonte de verdade. */
+export type TrainingStatus = 'agendado' | 'realizado' | 'cancelado' | 'faltou';
 export type HeightScale = 'alto' | 'normal' | 'baixo';
 export type BuildScale = 'ectomorfo' | 'mesomorfo' | 'endomorfo';
 export type SpeedScale = 'rapido' | 'normal' | 'lento';
@@ -611,10 +614,20 @@ export interface TrainingFeedback {
   id: number;
   clubId: string;
   playerId: number;
-  authorId: string;
+  /** Nullable após migration 107 — autor preservado a NULL se user apagado */
+  authorId: string | null;
   authorName: string;
   trainingDate: string;
   escalao: string | null;
+  /** Estado top-level (migration 107) — fonte de verdade, substitui `presence` */
+  status: TrainingStatus;
+  sessionTime: string | null;
+  location: string | null;
+  observedPosition: string | null;
+  isRetroactive: boolean;
+  cancelledAt: string | null;
+  cancelledReason: string | null;
+  /** @deprecated use status. Mantido para compat de leitura de histórico */
   presence: TrainingPresence;
   feedback: string | null;
   rating: number | null;
@@ -658,9 +671,16 @@ export interface TrainingFeedbackRow {
   id: number;
   club_id: string;
   player_id: number;
-  author_id: string;
+  author_id: string | null;
   training_date: string;
   escalao: string | null;
+  status: string;
+  session_time: string | null;
+  location: string | null;
+  observed_position: string | null;
+  is_retroactive: boolean;
+  cancelled_at: string | null;
+  cancelled_reason: string | null;
   presence: string;
   feedback: string | null;
   rating: number | null;

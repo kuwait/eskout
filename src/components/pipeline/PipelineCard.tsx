@@ -21,10 +21,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateDecisionDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao, updateStandbyReason } from '@/actions/pipeline';
+import { updateMeetingDate, updateSigningDate, updateDecisionDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao, updateStandbyReason } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
+import type { PipelineTrainingSession } from '@/components/pipeline/PipelineView';
+import { formatTrainingChip } from '@/lib/utils/training-sessions';
 
 interface PipelineCardProps {
   player: Player;
@@ -46,6 +48,8 @@ interface PipelineCardProps {
   contactPurposeLabel?: string;
   /** Available contact purpose options for editing */
   contactPurposes?: { id: string; label: string }[];
+  /** Treinos do ciclo actual — para vir_treinar cards */
+  trainingSessions?: PipelineTrainingSession[];
 }
 
 /** Format a date string to a compact Portuguese display.
@@ -69,17 +73,10 @@ function formatScheduledDate(dateStr: string): string {
   }
 }
 
-/** Config for statuses that support scheduled dates */
+/** Config for statuses that support scheduled dates.
+ *  Nota: `vir_treinar` já não usa este config — gestão de treinos passa via
+ *  training_feedback (Fase 2-4). A coluna mostra chips em vez de botão single-date. */
 const DATE_STATUS_CONFIG = {
-  vir_treinar: {
-    field: 'trainingDate' as const,
-    icon: Calendar,
-    dialogTitle: 'Data de Treino',
-    placeholder: 'Definir data de treino',
-    bgClass: 'bg-amber-50 text-amber-700 hover:bg-amber-100',
-    iconClass: 'text-amber-500',
-    serverAction: updateTrainingDate,
-  },
   reuniao_marcada: {
     field: 'meetingDate' as const,
     icon: Users,
@@ -113,7 +110,7 @@ import { shortName } from '@/lib/utils';
 // Re-export for consumers that imported from here
 export { shortName } from '@/lib/utils';
 
-export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel, contactPurposes = [] }: PipelineCardProps) {
+export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel, contactPurposes = [], trainingSessions }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
   // Short name on pipeline cards — full name truncated via CSS
@@ -301,7 +298,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           />
         )}
 
-        {/* Vir treinar: responsible person + escalão */}
+        {/* Vir treinar: responsible person + escalão + lista de treinos do ciclo actual */}
         {player.recruitmentStatus === 'vir_treinar' && (
           <div className="mt-1.5 space-y-1">
             {responsibleName && (
@@ -311,6 +308,9 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               </div>
             )}
             <TrainingEscalaoButton player={player} />
+            {trainingSessions && trainingSessions.length > 0 && (
+              <TrainingSessionChips playerId={player.id} sessions={trainingSessions} />
+            )}
           </div>
         )}
 
@@ -329,7 +329,8 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           <StandbyReasonButton playerId={player.id} currentReason={player.standbyReason} />
         )}
 
-        {/* Scheduled date button — for "Vir treinar", "Reunião Marcada", "Confirmado" */}
+        {/* Scheduled date button — "Reunião Marcada", "Confirmado", "A Decidir"
+            (vir_treinar usa TrainingSessionChips acima — não aparece aqui) */}
         {statusConfig && (
           <button
             data-no-navigate
@@ -1150,6 +1151,48 @@ function StandbyReasonButton({
       <span className="flex-1">{currentReason || 'Motivo…'}</span>
       <Pencil className="h-2.5 w-2.5 shrink-0 opacity-40" />
     </button>
+  );
+}
+
+/* ───────────── Training session chips (vir_treinar card) ───────────── */
+
+/** Mapeia estado/data→cor do dot colorido (pequeno indicador à esquerda de cada linha) */
+function dotColorForSession(s: { status: string; training_date: string; has_evaluation: boolean }, todayISO: string): string {
+  if (s.status === 'agendado' && s.training_date < todayISO) return 'bg-orange-500';
+  if (s.status === 'agendado') return 'bg-amber-500';
+  if (s.status === 'realizado' && !s.has_evaluation) return 'bg-yellow-500';
+  return 'bg-green-500';
+}
+
+/** Lista vertical de treinos do ciclo actual — dot + data compactos, click → perfil */
+function TrainingSessionChips({ playerId, sessions }: {
+  playerId: number;
+  sessions: PipelineTrainingSession[];
+}) {
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const agendados = sessions.filter((s) => s.status === 'agendado');
+  const realizados = sessions.filter((s) => s.status === 'realizado');
+
+  const maxVisible = 3;
+  const visible = [...agendados, ...realizados].slice(0, maxVisible);
+  const hiddenCount = sessions.length - visible.length;
+
+  return (
+    <Link
+      href={`/jogadores/${playerId}`}
+      onClick={(e) => e.stopPropagation()}
+      className="mt-1 block space-y-0.5 rounded px-1 py-0.5 hover:bg-neutral-50"
+    >
+      {visible.map((s) => (
+        <div key={s.id} className="flex items-center gap-1.5 text-[11px] text-neutral-700">
+          <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dotColorForSession(s, todayISO)}`} />
+          <span className="truncate">{formatTrainingChip(s.training_date, s.session_time)}</span>
+        </div>
+      ))}
+      {hiddenCount > 0 && (
+        <div className="text-[10px] text-neutral-400">+{hiddenCount} mais</div>
+      )}
+    </Link>
   );
 }
 

@@ -105,9 +105,11 @@ export async function POST(
   const now = new Date().toISOString();
 
   // Update training_feedback with coach data
+  // Migration 107: coach submit → status=realizado (transição implícita)
   const { error: updateError } = await supabase
     .from('training_feedback')
     .update({
+      status: 'realizado',
       coach_feedback: data.feedback,
       coach_rating: data.ratingPerformance,
       coach_decision: data.decision,

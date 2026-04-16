@@ -8,6 +8,9 @@ import { sendTaskEmail, type TaskEmailData } from '@/lib/email';
 
 /* ───────────── Types ───────────── */
 
+/** Training-sessions notification kind — controls subject + intro tone */
+export type NotificationKind = 'created' | 'rescheduled' | 'cancelled';
+
 export interface TaskNotificationContext {
   /** Club ID for preference lookup */
   clubId: string;
@@ -37,6 +40,8 @@ export interface TaskNotificationContext {
   dueDate: string | null;
   /** Training escalão */
   trainingEscalao: string | null;
+  /** Kind (training-sessions Fase 6). Default 'created' para manter compat. */
+  kind?: NotificationKind;
 }
 
 /* ───────────── Main ───────────── */
@@ -137,6 +142,7 @@ export async function notifyTaskAssigned(ctx: TaskNotificationContext): Promise<
       trainingEscalao: ctx.trainingEscalao,
       tasksUrl: `${appUrl}/tarefas`,
       clubName: ctx.clubName,
+      kind: ctx.kind ?? 'created',
     };
 
     await sendTaskEmail(emailData);

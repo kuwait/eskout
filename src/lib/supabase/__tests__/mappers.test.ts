@@ -238,6 +238,83 @@ describe('mapTrainingFeedbackRow', () => {
     expect(fb.feedback).toBeNull();
     expect(fb.rating).toBeNull();
   });
+
+  /* ── Fase 1-2 novos campos (migration 107) ── */
+
+  it('maps status top-level (defaults to realizado)', () => {
+    expect(mapTrainingFeedbackRow(makeTrainingFeedbackRow({ status: 'agendado' })).status).toBe('agendado');
+    expect(mapTrainingFeedbackRow(makeTrainingFeedbackRow({ status: 'realizado' })).status).toBe('realizado');
+    expect(mapTrainingFeedbackRow(makeTrainingFeedbackRow({ status: 'cancelado' })).status).toBe('cancelado');
+    expect(mapTrainingFeedbackRow(makeTrainingFeedbackRow({ status: 'faltou' })).status).toBe('faltou');
+  });
+
+  it('status fallback é "realizado" quando undefined/missing', () => {
+    // Simula linha antiga sem status (pré-migration 107). Partial<> permite undefined.
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ status: undefined as unknown as string }));
+    expect(fb.status).toBe('realizado');
+  });
+
+  it('maps sessionTime', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ session_time: '10:30:00' }));
+    expect(fb.sessionTime).toBe('10:30:00');
+  });
+
+  it('sessionTime null quando ausente', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ session_time: null }));
+    expect(fb.sessionTime).toBeNull();
+  });
+
+  it('maps location', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ location: 'Campo 1' }));
+    expect(fb.location).toBe('Campo 1');
+  });
+
+  it('maps observedPosition (staff)', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ observed_position: 'DC,MC' }));
+    expect(fb.observedPosition).toBe('DC,MC');
+  });
+
+  it('maps isRetroactive (default false)', () => {
+    expect(mapTrainingFeedbackRow(makeTrainingFeedbackRow({ is_retroactive: true })).isRetroactive).toBe(true);
+    expect(mapTrainingFeedbackRow(makeTrainingFeedbackRow({ is_retroactive: false })).isRetroactive).toBe(false);
+  });
+
+  it('isRetroactive fallback false quando undefined', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ is_retroactive: undefined as unknown as boolean }));
+    expect(fb.isRetroactive).toBe(false);
+  });
+
+  it('maps cancelledAt / cancelledReason', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({
+      cancelled_at: '2026-04-15T10:00:00Z',
+      cancelled_reason: 'Doença',
+    }));
+    expect(fb.cancelledAt).toBe('2026-04-15T10:00:00Z');
+    expect(fb.cancelledReason).toBe('Doença');
+  });
+
+  it('cancelledAt/Reason null quando ausentes', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({
+      cancelled_at: null,
+      cancelled_reason: null,
+    }));
+    expect(fb.cancelledAt).toBeNull();
+    expect(fb.cancelledReason).toBeNull();
+  });
+
+  it('preserva presence como legacy (fonte de verdade é status agora)', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({
+      presence: 'missed',
+      status: 'faltou',
+    }));
+    expect(fb.presence).toBe('missed');
+    expect(fb.status).toBe('faltou');
+  });
+
+  it('authorId nullable — preserva null quando user apagado (FK SET NULL)', () => {
+    const fb = mapTrainingFeedbackRow(makeTrainingFeedbackRow({ author_id: null }));
+    expect(fb.authorId).toBeNull();
+  });
 });
 
 /* ───────────── mapUserTaskRow ───────────── */

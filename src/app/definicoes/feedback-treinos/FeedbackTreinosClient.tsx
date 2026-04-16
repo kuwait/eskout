@@ -67,7 +67,7 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
   const authors = useMemo(() => {
     const map = new Map<string, string>();
     for (const f of feedbacks) {
-      if (f.authorName) map.set(f.authorId, f.authorName);
+      if (f.authorName && f.authorId) map.set(f.authorId, f.authorName);
       if (f.coachName) map.set(`coach-${f.coachName}`, f.coachName);
     }
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
