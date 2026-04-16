@@ -1,6 +1,6 @@
 # Feature — Treinos à Experiência (Training Sessions)
 
-**Estado:** Fase 1-3 implementadas. Fase 4+ pendente.
+**Estado:** Fase 1-6 implementadas (feature completa). Fase 7-8 deferred (polish opcional).
 **Última atualização:** 2026-04-17
 **Objetivo:** suportar múltiplos treinos por atleta, com avaliação por treino, independentes da pipeline mas possivelmente relacionados.
 
@@ -854,7 +854,35 @@ Branch: `feat/training-sessions-fase1`.
 - CTA button text também adaptado: `"Ver Tarefas"` / `"Ver nova data"` / `"Ver detalhes"`
 - `scheduleTraining`/`rescheduleTraining`/`cancelTraining` passam `kind` explicitamente
 
-### ⏳ Fase 7-8 pendentes (opcional, futuro)
-- Lembrete dia-anterior via Vercel Cron
-- `/treinos` listagem global filtrável
+### ✅ Fase 7 — Transição manual (decisão do utilizador)
+- Sem auto-transição `agendado → realizado` (decisão do utilizador durante Q&A)
+- Card mostra badge `⚠️ Data passou` quando `status='agendado' AND training_date < today`
+- Ícone `AlertTriangle` laranja no dot do card (em vez de Calendar amber)
+- CTAs no ⋮ menu: Preencher avaliação / Marcar faltou / Cancelar / Apagar
+- Pipeline card chip fica laranja quando agendado+overdue (destaque visual)
+
+### ⏳ Fase 8 — Deferido (polish opcional)
+Tudo não-essencial, pode ser implementado quando for prioridade:
+- Lembrete dia-anterior via Vercel Cron (`vercel.json` + endpoint `/api/cron/training-reminders` com CRON_SECRET)
+- `/treinos` listagem global filtrável por escalão/treinador/decisão
 - Audit log de mudanças em treinos
+- "Repetir N vezes" já foi feito via multi-date picker na Fase 3
+
+---
+
+## 14. Resumo — feature completa
+
+**6 commits no branch `feat/training-sessions-fase1`:**
+- `e3f12f7` — Fase 1-3: schema + actions + UI perfil
+- `1ca1495` — Fase 4: pipeline card chips + schedule dialog obrigatório
+- `0d5d090` — Fase 5: cleanup legacy (`updateTrainingDate` removido)
+- `394fc33` — Fase 6: notificações por tipo
+
+**Schema:** 2 migrations (107, 108) aplicadas.
+**Actions:** 7 novas em `training-feedback.ts` + cleanup em `pipeline.ts`.
+**UI:** `TrainingSessionsList.tsx` novo (perfil) · `PipelineCard` estendido com chips · `ScheduleTrainingDialog` novo (pipeline).
+**Notificações:** 3 tipos com subject/intro/CTA adaptados.
+
+**Testes:** typecheck ✅ lint ✅ unit ✅ em cada commit (790/791 pass, 1 falha pré-existente).
+
+Branch pronto para PR.
