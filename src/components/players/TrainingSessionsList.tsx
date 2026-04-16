@@ -247,7 +247,10 @@ function TrainingCard({
   });
   const datePassed = new Date(entry.trainingDate) < new Date(new Date().setHours(0, 0, 0, 0));
 
-  const status = entry.status;
+  // Status pode vir de dados legacy pré-migration 107 ou optimistic stubs — fallback defensivo
+  const status: TrainingStatus = (entry.status && STATUS_CONFIG[entry.status])
+    ? entry.status
+    : 'realizado';
   const pill = STATUS_CONFIG[status];
 
   const hasEval = !!(entry.feedback || entry.ratingPerformance || entry.ratingPotential || entry.coachSubmittedAt);
