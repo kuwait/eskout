@@ -45,9 +45,10 @@ async function upsertAutoTask(
 
 /* ───────────── Calendar <-> Pipeline sync helper ───────────── */
 
-/** Event type mapping: pipeline date field -> calendar event type */
+/** Event type mapping: pipeline date field -> calendar event type.
+ *  Nota: `training_date` removido (Fase 5) — calendar events de treino são geridos via
+ *  training_feedback_id FK. Este helper só lida com reunião/assinatura. */
 const DATE_FIELD_TO_EVENT_TYPE: Record<string, string> = {
-  training_date: 'treino',
   meeting_date: 'reuniao',
   signing_date: 'assinatura',
 };
@@ -236,9 +237,9 @@ export async function updateRecruitmentStatus(
   }
 
   // Sync calendar events: delete events for cleared date fields
-  if (oldStatus === 'vir_treinar' && newStatus !== 'vir_treinar') {
-    await syncCalendarEvent(supabase, clubId, userId, playerId, 'training_date', null);
-  }
+  // Nota: vir_treinar NÃO toca calendar (events de treino têm training_feedback_id próprio,
+  // geridos via training-feedback actions). Agendados em curso ficam no calendar mesmo após
+  // sair do ciclo; utilizador decide se cancela via perfil do atleta.
   if (oldStatus === 'reuniao_marcada' && newStatus !== 'reuniao_marcada') {
     await syncCalendarEvent(supabase, clubId, userId, playerId, 'meeting_date', null);
   }
@@ -392,68 +393,9 @@ export async function reorderPipelineCards(
   return { success: true };
 }
 
-/** Update the training date/time for a player with status 'vir_treinar' */
-export async function updateTrainingDate(
-  playerId: number,
-  dateTime: string | null
-): Promise<ActionResponse> {
-  const { clubId, userId, role } = await getAuthContext();
-  if (role === 'scout') {
-    return { success: false, error: 'Sem permissão para alterar pipeline' };
-  }
-  const supabase = await createClient();
-
-  // Get old value for history
-  const { data: player } = await supabase
-    .from('players')
-    .select('training_date')
-    .eq('id', playerId)
-    .eq('club_id', clubId)
-    .single();
-
-  const { error } = await supabase
-    .from('players')
-    .update({ training_date: dateTime })
-    .eq('id', playerId)
-    .eq('club_id', clubId);
-
-  if (error) {
-    return { success: false, error: `Erro ao atualizar data de treino: ${error.message}` };
-  }
-
-  // Log to status_history
-  await supabase.from('status_history').insert({
-    club_id: clubId,
-    player_id: playerId,
-    field_changed: 'training_date',
-    old_value: player?.training_date ?? null,
-    new_value: dateTime,
-    changed_by: userId,
-  });
-
-  // Sync to calendar (create/update/delete calendar event)
-  await syncCalendarEvent(supabase, clubId, userId, playerId, 'training_date', dateTime);
-
-  // Sync due_date on existing training tasks for this player
-  await supabase
-    .from('user_tasks')
-    .update({ due_date: dateTime })
-    .eq('player_id', playerId)
-    .eq('club_id', clubId)
-    .eq('source', 'pipeline_training')
-    .eq('completed', false);
-
-  revalidatePath('/pipeline');
-  revalidatePath('/tarefas');
-  revalidatePath('/calendario');
-  revalidatePath(`/jogadores/${playerId}`);
-
-  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
-  await broadcastRowMutation(clubId, 'calendar_events', 'UPDATE', userId, playerId);
-  await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, playerId);
-
-  return { success: true };
-}
+// updateTrainingDate REMOVIDO (Fase 5). Agendamento/edição de datas de treino passa via
+// scheduleTraining/rescheduleTraining em src/actions/training-feedback.ts — cada treino
+// tem o seu training_feedback + calendar event próprio.
 
 /** Update the signing date for a player with status 'confirmado' */
 export async function updateSigningDate(

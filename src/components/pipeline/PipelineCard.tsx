@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateDecisionDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao, updateStandbyReason } from '@/actions/pipeline';
+import { updateMeetingDate, updateSigningDate, updateDecisionDate, updateMeetingAttendees, updateSigningAttendees, updateTrainingEscalao, updateStandbyReason } from '@/actions/pipeline';
 import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
@@ -72,17 +72,10 @@ function formatScheduledDate(dateStr: string): string {
   }
 }
 
-/** Config for statuses that support scheduled dates */
+/** Config for statuses that support scheduled dates.
+ *  Nota: `vir_treinar` já não usa este config — gestão de treinos passa via
+ *  training_feedback (Fase 2-4). A coluna mostra chips em vez de botão single-date. */
 const DATE_STATUS_CONFIG = {
-  vir_treinar: {
-    field: 'trainingDate' as const,
-    icon: Calendar,
-    dialogTitle: 'Data de Treino',
-    placeholder: 'Definir data de treino',
-    bgClass: 'bg-amber-50 text-amber-700 hover:bg-amber-100',
-    iconClass: 'text-amber-500',
-    serverAction: updateTrainingDate,
-  },
   reuniao_marcada: {
     field: 'meetingDate' as const,
     icon: Users,
@@ -336,8 +329,8 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
         )}
 
         {/* Scheduled date button — "Reunião Marcada", "Confirmado", "A Decidir"
-            (para vir_treinar usamos TrainingSessionChips acima, este botão é escondido) */}
-        {statusConfig && player.recruitmentStatus !== 'vir_treinar' && (
+            (vir_treinar usa TrainingSessionChips acima — não aparece aqui) */}
+        {statusConfig && (
           <button
             data-no-navigate
             onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}

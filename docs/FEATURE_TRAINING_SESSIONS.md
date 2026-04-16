@@ -839,7 +839,14 @@ Branch: `feat/training-sessions-fase1`.
 - Countdown subtil: "hoje", "amanhã", "daqui a X dias", "ontem", "há X dias"
 - Realtime em `training_feedback` para refetch quando há mudanças
 
-### ⏳ Fase 5+ pendentes (próximos PRs)
-- Fase 5: Calendar — remover `syncCalendarEvent` overwrite legacy; 1 event por training_feedback_id
+### ✅ Fase 5 — Calendar cleanup
+- Removido `updateTrainingDate` server action (legacy overwrite)
+- Removido `vir_treinar` de `DATE_STATUS_CONFIG` em `PipelineCard.tsx`
+- Removido `training_date` de `DATE_FIELD_TO_EVENT_TYPE` (helper só lida com reunião/assinatura agora)
+- Sair de `vir_treinar` no pipeline já não toca calendar events — training events são geridos via `training_feedback_id` FK e só são apagados em `cancelTraining`/`markTrainingMissed`
+- Calendar events de treino criados via `scheduleTraining` / `rescheduleTraining` / `cancelTraining` — 1 event por training_feedback
+- Multi-session no mesmo dia = múltiplos events distintos no calendário
+
+### ⏳ Fase 6+ pendentes (próximos PRs)
 - Fase 6: Notificações refinadas (subject prefixes "Alterado:", "Cancelado:")
 - Fase 7-8: polish (lembrete dia-anterior via cron, /treinos listagem, audit log)
