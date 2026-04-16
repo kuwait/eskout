@@ -26,6 +26,7 @@ import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
 import type { PipelineTrainingSession } from '@/components/pipeline/PipelineView';
+import { chipColorClass, formatTrainingChip } from '@/lib/utils/training-sessions';
 
 interface PipelineCardProps {
   player: Player;
@@ -1155,30 +1156,15 @@ function StandbyReasonButton({
 
 /* ───────────── Training session chips (vir_treinar card) ───────────── */
 
-/** Formata data do treino para chip: "3ª 22/4" ou "3ª 22/4 · 10:00" */
-function formatTrainingChip(date: string, time: string | null): string {
-  try {
-    const [y, m, d] = date.split('-').map(Number);
-    const dd = new Date(y, m - 1, d, 12);
-    const wd = dd.toLocaleString('pt-PT', { weekday: 'short' }).replace('.', '');
-    const dm = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
-    const tm = time && time !== '00:00:00' ? time.slice(0, 5) : null;
-    return tm ? `${wd} ${dm} · ${tm}` : `${wd} ${dm}`;
-  } catch { return date; }
-}
-
 /** Chips compactos com as sessões agendadas do ciclo actual. Click → perfil do atleta. */
 function TrainingSessionChips({ playerId, sessions }: {
   playerId: number;
   sessions: PipelineTrainingSession[];
 }) {
-  // Split: agendados futuros + realizados (já aconteceram)
   const todayISO = new Date().toISOString().slice(0, 10);
   const agendados = sessions.filter((s) => s.status === 'agendado');
   const realizados = sessions.filter((s) => s.status === 'realizado');
-  // Destaque: agendado com data já passada → precisa acção
   const hasOverdue = agendados.some((s) => s.training_date < todayISO);
-  // Realizado sem avaliação
   const hasPendingEval = realizados.some((s) => !s.has_evaluation);
 
   const maxVisible = 2;
@@ -1192,18 +1178,11 @@ function TrainingSessionChips({ playerId, sessions }: {
       className="flex flex-wrap items-center gap-1 rounded bg-neutral-50 px-2 py-1 text-[10px] text-neutral-600 hover:bg-neutral-100"
     >
       <Calendar className="h-3 w-3 shrink-0 text-neutral-400" />
-      {visible.map((s) => {
-        const chipClass =
-          s.status === 'agendado' && s.training_date < todayISO ? 'bg-orange-100 text-orange-700' :
-          s.status === 'agendado' ? 'bg-amber-100 text-amber-700' :
-          s.status === 'realizado' && !s.has_evaluation ? 'bg-yellow-100 text-yellow-700' :
-          'bg-green-100 text-green-700';
-        return (
-          <span key={s.id} className={`rounded px-1.5 py-0.5 font-medium ${chipClass}`}>
-            {formatTrainingChip(s.training_date, s.session_time)}
-          </span>
-        );
-      })}
+      {visible.map((s) => (
+        <span key={s.id} className={`rounded px-1.5 py-0.5 font-medium ${chipColorClass(s, todayISO)}`}>
+          {formatTrainingChip(s.training_date, s.session_time)}
+        </span>
+      ))}
       {hiddenCount > 0 && (
         <span className="text-neutral-400">+{hiddenCount}</span>
       )}

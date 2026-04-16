@@ -38,6 +38,7 @@ import {
   deleteTrainingFeedback, createCoachFeedbackLink,
 } from '@/actions/training-feedback';
 import { cn } from '@/lib/utils';
+import { countdownLabel as computeCountdownLabel, daysUntil } from '@/lib/utils/training-sessions';
 
 /* ───────────── Props ───────────── */
 
@@ -313,23 +314,9 @@ function TrainingCard({
   const headerBg = ratingBg ?? 'bg-neutral-50/50';
   const dotColor = BAR_COLORS[mainRating] ?? 'bg-neutral-300';
 
-  // Countdown: "Hoje", "Amanhã", "Em X dias", "Há X dias" (só para agendado)
-  const daysUntil = (() => {
-    try {
-      const [y, m, d] = entry.trainingDate.split('-').map(Number);
-      const target = new Date(y, m - 1, d).setHours(0, 0, 0, 0);
-      const today0 = new Date().setHours(0, 0, 0, 0);
-      return Math.round((target - today0) / 86400000);
-    } catch { return null; }
-  })();
-  const countdownLabel = (() => {
-    if (status !== 'agendado' || daysUntil === null) return null;
-    if (daysUntil === 0) return 'hoje';
-    if (daysUntil === 1) return 'amanhã';
-    if (daysUntil > 1) return `daqui a ${daysUntil} dias`;
-    if (daysUntil === -1) return 'ontem';
-    return `há ${Math.abs(daysUntil)} dias`;
-  })();
+  // Countdown (só relevante para agendado) — helpers puros em lib/utils/training-sessions
+  const days = daysUntil(entry.trainingDate);
+  const countdownLabel = status === 'agendado' ? computeCountdownLabel(days) : null;
 
   // Header visual por estado
   const headerIcon = (() => {

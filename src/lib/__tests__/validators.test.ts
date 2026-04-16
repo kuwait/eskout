@@ -20,6 +20,11 @@ import {
   saveComparisonSchema,
   addVideoSchema,
   quickScoutReportSchema,
+  scheduleTrainingSchema,
+  rescheduleTrainingSchema,
+  cancelTrainingSchema,
+  registerPastTrainingSchema,
+  updateTrainingEvaluationSchema,
 } from '@/lib/validators';
 
 /* ───────────── loginSchema ───────────── */
@@ -885,5 +890,211 @@ describe('quickScoutReportSchema', () => {
   it('rejects minutesObserved as non-integer', () => {
     const result = quickScoutReportSchema.safeParse({ ...validReport, minutesObserved: 45.5 });
     expect(result.success).toBe(false);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* ───────────── Training Sessions schemas (Fase 2, migration 107) ────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+describe('scheduleTrainingSchema', () => {
+  const valid = { playerId: 1, trainingDate: '2026-05-01' };
+
+  it('accepts minimum required fields', () => {
+    expect(scheduleTrainingSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts full payload', () => {
+    const r = scheduleTrainingSchema.safeParse({
+      playerId: 42, trainingDate: '2026-05-01',
+      sessionTime: '10:30', location: 'Campo 1', escalao: 'Sub-15',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects playerId zero or negative', () => {
+    expect(scheduleTrainingSchema.safeParse({ ...valid, playerId: 0 }).success).toBe(false);
+    expect(scheduleTrainingSchema.safeParse({ ...valid, playerId: -1 }).success).toBe(false);
+  });
+
+  it('rejects non-integer playerId', () => {
+    expect(scheduleTrainingSchema.safeParse({ ...valid, playerId: 1.5 }).success).toBe(false);
+  });
+
+  it('rejects missing trainingDate', () => {
+    expect(scheduleTrainingSchema.safeParse({ playerId: 1 }).success).toBe(false);
+  });
+
+  it('rejects empty trainingDate', () => {
+    expect(scheduleTrainingSchema.safeParse({ ...valid, trainingDate: '' }).success).toBe(false);
+  });
+
+  it('optional fields são opcionais (undefined passa)', () => {
+    const r = scheduleTrainingSchema.safeParse(valid);
+    if (r.success) {
+      expect(r.data.sessionTime).toBeUndefined();
+      expect(r.data.location).toBeUndefined();
+      expect(r.data.escalao).toBeUndefined();
+    }
+  });
+});
+
+describe('rescheduleTrainingSchema', () => {
+  const valid = { trainingId: 10, trainingDate: '2026-05-01' };
+
+  it('accepts minimum required', () => {
+    expect(rescheduleTrainingSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('rejects missing trainingId', () => {
+    expect(rescheduleTrainingSchema.safeParse({ trainingDate: '2026-05-01' }).success).toBe(false);
+  });
+
+  it('rejects missing trainingDate', () => {
+    expect(rescheduleTrainingSchema.safeParse({ trainingId: 10 }).success).toBe(false);
+  });
+
+  it('rejects non-positive trainingId', () => {
+    expect(rescheduleTrainingSchema.safeParse({ ...valid, trainingId: 0 }).success).toBe(false);
+  });
+});
+
+describe('cancelTrainingSchema', () => {
+  it('accepts só trainingId', () => {
+    expect(cancelTrainingSchema.safeParse({ trainingId: 10 }).success).toBe(true);
+  });
+
+  it('accepts com reason', () => {
+    expect(cancelTrainingSchema.safeParse({ trainingId: 10, reason: 'doença' }).success).toBe(true);
+  });
+
+  it('reason é opcional', () => {
+    const r = cancelTrainingSchema.safeParse({ trainingId: 10 });
+    if (r.success) expect(r.data.reason).toBeUndefined();
+  });
+
+  it('rejects reason > 500 chars', () => {
+    const longReason = 'x'.repeat(501);
+    expect(cancelTrainingSchema.safeParse({ trainingId: 10, reason: longReason }).success).toBe(false);
+  });
+
+  it('rejects missing trainingId', () => {
+    expect(cancelTrainingSchema.safeParse({ reason: 'x' }).success).toBe(false);
+  });
+});
+
+describe('registerPastTrainingSchema', () => {
+  const valid = { playerId: 1, trainingDate: '2026-03-10' };
+
+  it('accepts minimum required', () => {
+    expect(registerPastTrainingSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts full retroactive payload', () => {
+    const r = registerPastTrainingSchema.safeParse({
+      playerId: 1, trainingDate: '2026-03-10',
+      escalao: 'Sub-14', location: 'Campo 2',
+      observedPosition: 'DC,MC',
+      feedback: 'Correu bem',
+      ratingPerformance: 4,
+      ratingPotential: 5,
+      decision: 'assinar',
+      heightScale: 'normal',
+      buildScale: 'mesomorfo',
+      speedScale: 'rapido',
+      intensityScale: 'intenso',
+      maturation: 'maturado',
+      tags: ['bom_passe', 'leitura_de_jogo'],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('decision default é "sem_decisao"', () => {
+    const r = registerPastTrainingSchema.safeParse(valid);
+    if (r.success) expect(r.data.decision).toBe('sem_decisao');
+  });
+
+  it('tags default é []', () => {
+    const r = registerPastTrainingSchema.safeParse(valid);
+    if (r.success) expect(r.data.tags).toEqual([]);
+  });
+
+  it('ratings aceitam 1..5', () => {
+    for (const r of [1, 2, 3, 4, 5]) {
+      expect(registerPastTrainingSchema.safeParse({
+        ...valid, ratingPerformance: r, ratingPotential: r,
+      }).success).toBe(true);
+    }
+  });
+
+  it('rejects ratings fora de 1..5', () => {
+    expect(registerPastTrainingSchema.safeParse({ ...valid, ratingPerformance: 0 }).success).toBe(false);
+    expect(registerPastTrainingSchema.safeParse({ ...valid, ratingPerformance: 6 }).success).toBe(false);
+    expect(registerPastTrainingSchema.safeParse({ ...valid, ratingPotential: -1 }).success).toBe(false);
+  });
+
+  it('rejects ratings não inteiros', () => {
+    expect(registerPastTrainingSchema.safeParse({ ...valid, ratingPerformance: 3.5 }).success).toBe(false);
+  });
+
+  it('rejects decision inválida', () => {
+    expect(registerPastTrainingSchema.safeParse({ ...valid, decision: 'inventada' }).success).toBe(false);
+  });
+
+  it('accepts escalas nullable', () => {
+    const r = registerPastTrainingSchema.safeParse({
+      ...valid,
+      heightScale: null, buildScale: null, speedScale: null,
+      intensityScale: null, maturation: null,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects escalas com valor inválido', () => {
+    expect(registerPastTrainingSchema.safeParse({ ...valid, heightScale: 'gigante' }).success).toBe(false);
+    expect(registerPastTrainingSchema.safeParse({ ...valid, buildScale: 'forte' }).success).toBe(false);
+  });
+});
+
+describe('updateTrainingEvaluationSchema', () => {
+  const minimal = { trainingId: 10 };
+
+  it('accepts só trainingId (todos os outros campos são opcionais)', () => {
+    expect(updateTrainingEvaluationSchema.safeParse(minimal).success).toBe(true);
+  });
+
+  it('accepts ratings nullable (apagar avaliação)', () => {
+    const r = updateTrainingEvaluationSchema.safeParse({
+      trainingId: 10,
+      ratingPerformance: null,
+      ratingPotential: null,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts ratings 1..5', () => {
+    expect(updateTrainingEvaluationSchema.safeParse({
+      trainingId: 10,
+      ratingPerformance: 3,
+      ratingPotential: 4,
+    }).success).toBe(true);
+  });
+
+  it('rejects ratings fora de 1..5', () => {
+    expect(updateTrainingEvaluationSchema.safeParse({
+      trainingId: 10, ratingPerformance: 6,
+    }).success).toBe(false);
+  });
+
+  it('rejects trainingId missing', () => {
+    expect(updateTrainingEvaluationSchema.safeParse({ ratingPerformance: 3 }).success).toBe(false);
+  });
+
+  it('rejects tag array com valor não-string', () => {
+    const r = updateTrainingEvaluationSchema.safeParse({
+      trainingId: 10,
+      tags: ['ok', 123 as unknown as string],
+    });
+    expect(r.success).toBe(false);
   });
 });

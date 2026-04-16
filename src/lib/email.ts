@@ -94,7 +94,7 @@ export async function sendTaskEmail(data: TaskEmailData): Promise<void> {
 
 /* ───────────── Subject + intro helpers (Fase 6 training sessions) ───────────── */
 
-function buildSubject(data: TaskEmailData): string {
+export function buildSubject(data: TaskEmailData): string {
   const title = stripEmoji(stripPurposeSuffix(data.taskTitle));
   switch (data.kind) {
     case 'rescheduled':
@@ -107,7 +107,7 @@ function buildSubject(data: TaskEmailData): string {
   }
 }
 
-function buildIntro(data: TaskEmailData): string {
+export function buildIntro(data: TaskEmailData): string {
   const who = `<strong>${escapeHtml(data.assignedByName)}</strong>`;
   switch (data.kind) {
     case 'rescheduled':
@@ -118,6 +118,13 @@ function buildIntro(data: TaskEmailData): string {
     default:
       return `${who} atribuiu-te uma nova tarefa:`;
   }
+}
+
+/** CTA button label por kind (usado no HTML template) */
+export function buildCtaLabel(kind?: 'created' | 'rescheduled' | 'cancelled'): string {
+  if (kind === 'cancelled') return 'Ver detalhes';
+  if (kind === 'rescheduled') return 'Ver nova data';
+  return 'Ver Tarefas';
 }
 
 /* ───────────── HTML Template ───────────── */
