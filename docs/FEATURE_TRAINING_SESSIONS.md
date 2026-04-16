@@ -847,6 +847,14 @@ Branch: `feat/training-sessions-fase1`.
 - Calendar events de treino criados via `scheduleTraining` / `rescheduleTraining` / `cancelTraining` — 1 event por training_feedback
 - Multi-session no mesmo dia = múltiplos events distintos no calendário
 
-### ⏳ Fase 6+ pendentes (próximos PRs)
-- Fase 6: Notificações refinadas (subject prefixes "Alterado:", "Cancelado:")
-- Fase 7-8: polish (lembrete dia-anterior via cron, /treinos listagem, audit log)
+### ✅ Fase 6 — Notificações refinadas
+- `TaskNotificationContext.kind`: `'created' | 'rescheduled' | 'cancelled'`
+- `email.ts` — helper `buildSubject`: `"Nova tarefa: X"` (created) · `"Treino alterado — João"` (rescheduled) · `"Treino cancelado — João"` (cancelled)
+- Intro do email adaptado: `"atribuiu-te uma nova tarefa"` (created) · `"alterou a data de um treino"` (rescheduled) · `"cancelou um treino"` (cancelled)
+- CTA button text também adaptado: `"Ver Tarefas"` / `"Ver nova data"` / `"Ver detalhes"`
+- `scheduleTraining`/`rescheduleTraining`/`cancelTraining` passam `kind` explicitamente
+
+### ⏳ Fase 7-8 pendentes (opcional, futuro)
+- Lembrete dia-anterior via Vercel Cron
+- `/treinos` listagem global filtrável
+- Audit log de mudanças em treinos

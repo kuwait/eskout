@@ -581,6 +581,7 @@ export async function scheduleTraining(input: {
     contactPurpose: null,
     dueDate: sessionTime ? `${parsed.data.trainingDate}T${sessionTime}` : parsed.data.trainingDate,
     trainingEscalao: parsed.data.escalao ?? null,
+    kind: 'created',
   });
 
   revalidatePath(`/jogadores/${parsed.data.playerId}`);
@@ -699,6 +700,7 @@ export async function rescheduleTraining(input: {
       contactPurpose: null,
       dueDate: sessionTime ? `${parsed.data.trainingDate}T${sessionTime}` : parsed.data.trainingDate,
       trainingEscalao: training.escalao,
+      kind: 'rescheduled',
     });
   }
 
@@ -814,6 +816,7 @@ export async function cancelTraining(input: {
       contactPurpose: null,
       dueDate: training.session_time ? `${training.training_date}T${training.session_time}` : training.training_date,
       trainingEscalao: training.escalao,
+      kind: 'cancelled',
     });
   }
 
