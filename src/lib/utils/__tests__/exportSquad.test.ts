@@ -6,6 +6,11 @@
 import { buildDirectorExcelPayload, exportAsText, exportAsWhatsApp, type ExportSquadData } from '@/lib/utils/exportSquad';
 import { makePlayer } from '@/lib/__tests__/factories';
 
+/** Convert a positional row + headers into a header-keyed object for readable assertions */
+function rowAsObject(p: ReturnType<typeof buildDirectorExcelPayload>, idx: number): Record<string, unknown> {
+  return Object.fromEntries(p.headers.map((h, i) => [h, p.rows[idx][i]]));
+}
+
 /* ───────────── Test data ───────────── */
 
 function makeSquadData(overrides?: Partial<ExportSquadData>): ExportSquadData {
@@ -105,13 +110,13 @@ describe('buildDirectorExcelPayload', () => {
   it('emits one row per player and orders by pitch slot (GR before PL)', () => {
     const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
     expect(p.rows).toHaveLength(4); // GR + DC_E + 2x PL
-    expect(p.rows[0].name).toBe('Miguel Ferreira'); // GR
-    expect(p.rows[p.rows.length - 1].name).toBe('Tomás Ribeiro'); // last PL
+    expect(rowAsObject(p, 0).Nome).toBe('Miguel Ferreira'); // GR
+    expect(rowAsObject(p, p.rows.length - 1).Nome).toBe('Tomás Ribeiro'); // last PL
   });
 
   it('uses Portuguese slot labels (not codes) for Posição', () => {
     const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
-    const positions = p.rows.map((r) => r.position);
+    const positions = p.rows.map((_, i) => rowAsObject(p, i).Posição);
     expect(positions).toContain('Guarda-Redes');
     expect(positions).toContain('Central (E)');
     expect(positions).toContain('Ponta de Lança');
@@ -121,27 +126,28 @@ describe('buildDirectorExcelPayload', () => {
 
   it('preserves full names (no shortening) — directors need the full name', () => {
     const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
-    expect(p.rows.some((r) => r.name === 'Pedro Santos Costa')).toBe(true);
+    const names = p.rows.map((_, i) => rowAsObject(p, i).Nome);
+    expect(names).toContain('Pedro Santos Costa');
   });
 
   it('parses dob into a Date object so Excel renders it as a date type', () => {
     const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
-    const goalkeeper = p.rows.find((r) => r.position === 'Guarda-Redes');
-    expect(goalkeeper?.dob).toBeInstanceOf(Date);
+    const goalkeeperIdx = p.rows.findIndex((_, i) => rowAsObject(p, i).Posição === 'Guarda-Redes');
+    expect(rowAsObject(p, goalkeeperIdx)['Data Nascimento']).toBeInstanceOf(Date);
   });
 
   it('keeps Observações empty so directors can fill it in', () => {
     const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
-    expect(p.rows.every((r) => r.notes === '')).toBe(true);
+    expect(p.rows.every((_, i) => rowAsObject(p, i).Observações === '')).toBe(true);
   });
 
   it('uses the season starting in July (Apr 16 2026 → 2025/2026)', () => {
-    const p = buildDirectorExcelPayload(makeSquadData(), new Date('2026-04-16'));
+    const p = buildDirectorExcelPayload(makeSquadData(), undefined, new Date('2026-04-16'));
     expect(p.subtitle).toBe('Época Desportiva 2025/2026');
   });
 
   it('uses the new season after July 1 (Aug 1 2026 → 2026/2027)', () => {
-    const p = buildDirectorExcelPayload(makeSquadData(), new Date('2026-08-01'));
+    const p = buildDirectorExcelPayload(makeSquadData(), undefined, new Date('2026-08-01'));
     expect(p.subtitle).toBe('Época Desportiva 2026/2027');
   });
 
@@ -165,21 +171,21 @@ describe('buildDirectorExcelPayload', () => {
     const p = buildDirectorExcelPayload(
       makeSquadData({ byPosition: { GR: [makePlayer({ name: 'X', dob: null })] } })
     );
-    expect(p.rows[0].dob).toBeNull();
+    expect(rowAsObject(p, 0)['Data Nascimento']).toBeNull();
   });
 
   it('handles player with malformed dob — emits null instead of crashing', () => {
     const p = buildDirectorExcelPayload(
       makeSquadData({ byPosition: { GR: [makePlayer({ name: 'X', dob: 'not-a-date' })] } })
     );
-    expect(p.rows[0].dob).toBeNull();
+    expect(rowAsObject(p, 0)['Data Nascimento']).toBeNull();
   });
 
   it('emits empty string for missing contact (no "—" or "N/A" placeholder)', () => {
     const p = buildDirectorExcelPayload(
       makeSquadData({ byPosition: { GR: [makePlayer({ name: 'X', contact: '' })] } })
     );
-    expect(p.rows[0].contact).toBe('');
+    expect(rowAsObject(p, 0).Contacto).toBe('');
   });
 
   it('preserves the Portuguese "Posição" header (not English)', () => {
@@ -197,7 +203,73 @@ describe('buildDirectorExcelPayload', () => {
         MC: [makePlayer({ name: 'Midfielder' })],
       },
     }));
-    expect(p.rows.map((r) => r.name)).toEqual(['Keeper', 'Midfielder', 'Striker']);
+    const names = p.rows.map((_, i) => rowAsObject(p, i).Nome);
+    expect(names).toEqual(['Keeper', 'Midfielder', 'Striker']);
+  });
+
+  /* ───────────── Custom column selection / ordering ───────────── */
+
+  it('honours custom column order — Posição before Nome when selected that way', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }), ['position', 'name']);
+    expect(p.headers).toEqual(['Posição', 'Nome']);
+    expect(p.rows[0]).toHaveLength(2);
+  });
+
+  it('only emits selected columns', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }), ['name', 'foot']);
+    expect(p.headers).toEqual(['Nome', 'Pé']);
+    expect(p.rows.every((r) => r.length === 2)).toBe(true);
+  });
+
+  it('exposes the extra "Pé" column when selected', () => {
+    const p = buildDirectorExcelPayload(
+      makeSquadData({ byPosition: { GR: [makePlayer({ name: 'X', foot: 'Esq' })] } }),
+      ['name', 'foot'],
+    );
+    expect(rowAsObject(p, 0).Pé).toBe('Esq');
+  });
+
+  it('drops unknown column IDs silently (forward-compatible with stale localStorage)', () => {
+    const p = buildDirectorExcelPayload(
+      makeSquadData({ squadType: 'real' }),
+      // @ts-expect-error — intentionally passing an invalid id to test resilience
+      ['name', 'unknownColumn', 'dob'],
+    );
+    expect(p.headers).toEqual(['Nome', 'Data Nascimento']);
+  });
+
+  it('falls back to defaults when given an empty selection', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }), []);
+    expect(p.headers).toEqual(['Nome', 'Data Nascimento', 'Posição', 'Clube Anterior', 'Contacto', 'Observações']);
+  });
+
+  it('falls back to defaults when every selected ID is unknown', () => {
+    const p = buildDirectorExcelPayload(
+      makeSquadData({ squadType: 'real' }),
+      // @ts-expect-error — intentionally invalid
+      ['totallyMadeUp', 'nope'],
+    );
+    expect(p.headers).toEqual(['Nome', 'Data Nascimento', 'Posição', 'Clube Anterior', 'Contacto', 'Observações']);
+  });
+
+  /* ───────────── Extra columns ───────────── */
+
+  it('exposes the 4 extras: posição secundária, peso, nacionalidade, país nascimento', () => {
+    const p = buildDirectorExcelPayload(
+      makeSquadData({ byPosition: { GR: [makePlayer({
+        name: 'X',
+        secondaryPosition: 'DC',
+        weight: 75,
+        nationality: 'Português',
+        birthCountry: 'Portugal',
+      })] } }),
+      ['name', 'secondaryPosition', 'weight', 'nationality', 'birthCountry'],
+    );
+    expect(p.headers).toEqual(['Nome', 'Posição Secundária', 'Peso', 'Nacionalidade', 'País Nascimento']);
+    expect(rowAsObject(p, 0)['Posição Secundária']).toBe('DC');
+    expect(rowAsObject(p, 0).Peso).toBe(75);
+    expect(rowAsObject(p, 0).Nacionalidade).toBe('Português');
+    expect(rowAsObject(p, 0)['País Nascimento']).toBe('Portugal');
   });
 });
 

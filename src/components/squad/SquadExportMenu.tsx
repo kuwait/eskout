@@ -27,7 +27,9 @@ import {
   printTablePdf,
   printVisualPdf,
   type ExportSquadData,
+  type DirectorExcelColumnId,
 } from '@/lib/utils/exportSquad';
+import { SquadExcelColumnDialog } from '@/components/squad/SquadExcelColumnDialog';
 
 interface SquadExportMenuProps {
   data: ExportSquadData;
@@ -38,6 +40,7 @@ interface SquadExportMenuProps {
 export function SquadExportMenu({ data, captureRef }: SquadExportMenuProps) {
   const [copied, setCopied] = useState<'text' | 'whatsapp' | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [excelDialogOpen, setExcelDialogOpen] = useState(false);
 
   async function handleCopy(format: 'text' | 'whatsapp') {
     const text = format === 'whatsapp' ? exportAsWhatsApp(data) : exportAsText(data);
@@ -54,7 +57,13 @@ export function SquadExportMenu({ data, captureRef }: SquadExportMenuProps) {
     try { await fn(); } finally { setExporting(false); }
   }
 
+  /** Confirmed from the dialog — kicks off the actual export with the user's column selection */
+  function handleExcelExport(columnIds: DirectorExcelColumnId[]) {
+    withLoading(() => exportAsExcel(data, columnIds));
+  }
+
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs" disabled={exporting}>
@@ -77,11 +86,13 @@ export function SquadExportMenu({ data, captureRef }: SquadExportMenuProps) {
           <ImageIcon className="h-4 w-4" />
           Imagem (PNG)
         </DropdownMenuItem>
-        {/* Excel for coaches/directors — only relevant for the real squad */}
+        {/* Excel — only for the real squad. Opens a dialog so the user can pick
+            columns + reorder; selection is remembered via localStorage so a
+            typical click is open → Exportar. */}
         {data.squadType === 'real' && (
-          <DropdownMenuItem onClick={() => withLoading(() => exportAsExcel(data))}>
+          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setExcelDialogOpen(true); }}>
             <FileSpreadsheet className="h-4 w-4" />
-            Excel (diretores)
+            Excel
           </DropdownMenuItem>
         )}
 
@@ -112,5 +123,11 @@ export function SquadExportMenu({ data, captureRef }: SquadExportMenuProps) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <SquadExcelColumnDialog
+      open={excelDialogOpen}
+      onOpenChange={setExcelDialogOpen}
+      onExport={handleExcelExport}
+    />
+    </>
   );
 }

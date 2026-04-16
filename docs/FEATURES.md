@@ -250,7 +250,7 @@ For each of the 10 positions: real squad / shadow squad / pool breakdown. Visual
 Upload `.xlsx`, parse with hyperlinks, auto-detect age group, duplicate detection, preview before import. Admin only.
 
 ## 11. Export
-**Squad:** PDF, image, text, WhatsApp, Excel (diretores — Plantel only, columns Nome/Data Nasc./Posição/Clube Anterior/Contacto/Observações), print. Visual exports use `html2canvas-pro` for Tailwind v4 oklch() compatibility. **Database:** Excel (filtered), PDF (filtered), JSON (full backup). Admin only.
+**Squad:** PDF, image, text, WhatsApp, Excel (Plantel only — customizable columns + order via dialog, persisted in localStorage; defaults: Nome/Data Nasc./Posição/Clube Anterior/Contacto/Observações; extras: Pé, Posição Natural/Secundária, Nº Camisola, Altura, Peso, Nacionalidade, País Nascimento), print. Visual exports use `html2canvas-pro` for Tailwind v4 oklch() compatibility. **Database:** Excel (filtered), PDF (filtered), JSON (full backup). Admin only.
 
 ## 12. Observation Notes
 Content + match context + priority (normal/importante/urgente). Priority styling with colored borders and icons. Admin deletes any, author deletes own.

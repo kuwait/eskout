@@ -109,22 +109,75 @@ function hideInteractiveElements(container: HTMLElement): () => void {
 
 /* ───────────── Excel for Coaches/Directors ───────────── */
 
-export interface DirectorExcelRow {
-  name: string;
-  /** Native JS Date if dob is parseable, else null — written as Excel date type */
-  dob: Date | null;
-  position: string;
-  previousClub: string;
-  contact: string;
-  /** Always empty — directors fill this in manually */
-  notes: string;
+export type DirectorExcelColumnId =
+  | 'name' | 'dob' | 'position' | 'previousClub' | 'contact' | 'notes'
+  | 'foot' | 'naturalPosition' | 'shirtNumber' | 'height'
+  | 'secondaryPosition' | 'weight' | 'nationality' | 'birthCountry';
+
+export type DirectorExcelCellValue = string | number | Date | null;
+
+interface DirectorExcelColumnDef {
+  id: DirectorExcelColumnId;
+  label: string;
+  /** Excel column width (character units, ExcelJS convention) */
+  width: number;
+  defaultEnabled: boolean;
+  /** Excel number format applied to data cells (e.g. for dates) */
+  numFmt?: string;
+  /** Extract the cell value from a Player + the slot label they were rendered under */
+  extract: (p: Player, slotLabel: string) => DirectorExcelCellValue;
 }
+
+/**
+ * Canonical column registry for the directors' Excel export. Order here is the
+ * default order shown in the customization dialog.
+ *
+ * Defaults (defaultEnabled: true) mirror what Ruben asked for: Nome, Data
+ * Nascimento, Posição, Clube Anterior, Contacto, Observações. Extras let
+ * power users add Pé, Posição Natural, Nº Camisola, Altura.
+ */
+export const DIRECTOR_EXCEL_COLUMNS: DirectorExcelColumnDef[] = [
+  // ── Defaults (Ruben's original ask) ──
+  { id: 'name', label: 'Nome', width: 36, defaultEnabled: true, extract: (p) => p.name },
+  {
+    id: 'dob', label: 'Data Nascimento', width: 16, defaultEnabled: true, numFmt: 'dd/mm/yyyy',
+    extract: (p) => {
+      if (!p.dob) return null;
+      const d = new Date(p.dob);
+      return isNaN(d.getTime()) ? null : d;
+    },
+  },
+  { id: 'position', label: 'Posição', width: 18, defaultEnabled: true, extract: (_p, slot) => slot },
+  // "Clube Anterior" header but value is the player's current club in our DB —
+  // from the receiving director's perspective, that's their previous club.
+  { id: 'previousClub', label: 'Clube Anterior', width: 22, defaultEnabled: true, extract: (p) => p.club ?? '' },
+  { id: 'contact', label: 'Contacto', width: 16, defaultEnabled: true, extract: (p) => p.contact ?? '' },
+  // Always emits empty so directors can fill it in by hand
+  { id: 'notes', label: 'Observações', width: 28, defaultEnabled: true, extract: () => '' },
+  // ── Extras (off by default) ──
+  { id: 'secondaryPosition', label: 'Posição Secundária', width: 18, defaultEnabled: false, extract: (p) => p.secondaryPosition ?? '' },
+  { id: 'foot', label: 'Pé', width: 8, defaultEnabled: false, extract: (p) => p.foot ?? '' },
+  { id: 'naturalPosition', label: 'Posição Natural', width: 16, defaultEnabled: false, extract: (p) => p.positionNormalized ?? '' },
+  { id: 'shirtNumber', label: 'Nº Camisola', width: 12, defaultEnabled: false, extract: (p) => p.shirtNumber ?? '' },
+  { id: 'height', label: 'Altura', width: 10, defaultEnabled: false, extract: (p) => p.height ?? '' },
+  { id: 'weight', label: 'Peso', width: 10, defaultEnabled: false, extract: (p) => p.weight ?? '' },
+  { id: 'nationality', label: 'Nacionalidade', width: 16, defaultEnabled: false, extract: (p) => p.nationality ?? '' },
+  { id: 'birthCountry', label: 'País Nascimento', width: 18, defaultEnabled: false, extract: (p) => p.birthCountry ?? '' },
+];
+
+const COLUMNS_BY_ID = new Map(DIRECTOR_EXCEL_COLUMNS.map((c) => [c.id, c]));
+
+/** Default-on column IDs in registry order — used by the dialog and as the export fallback */
+export const DEFAULT_DIRECTOR_COLUMN_IDS: DirectorExcelColumnId[] =
+  DIRECTOR_EXCEL_COLUMNS.filter((c) => c.defaultEnabled).map((c) => c.id);
 
 export interface DirectorExcelPayload {
   title: string;
   subtitle: string;
-  headers: ['Nome', 'Data Nascimento', 'Posição', 'Clube Anterior', 'Contacto', 'Observações'];
-  rows: DirectorExcelRow[];
+  headers: string[];
+  rows: DirectorExcelCellValue[][];
+  /** Column metadata aligned 1:1 with headers/rows for Excel rendering */
+  columns: DirectorExcelColumnDef[];
 }
 
 /** Compute the Portuguese football season label for a given date (Jul 1 → Jun 30) */
@@ -134,38 +187,58 @@ function seasonLabel(now: Date = new Date()): string {
   return `${startYear}/${startYear + 1}`;
 }
 
-/** Build the rows + headers for the directors' Excel — pure function, easy to test */
-export function buildDirectorExcelPayload(data: ExportSquadData, now: Date = new Date()): DirectorExcelPayload {
-  const rows: DirectorExcelRow[] = [];
+/**
+ * Resolve a list of column IDs into validated DirectorExcelColumnDef entries.
+ * Unknown IDs are dropped silently — that way an outdated localStorage entry
+ * (e.g. a column we removed in a future release) doesn't crash the export.
+ * If the resulting list is empty, falls back to the defaults so the user always
+ * gets a usable file.
+ */
+function resolveColumns(columnIds?: DirectorExcelColumnId[]): DirectorExcelColumnDef[] {
+  const ids = columnIds?.length ? columnIds : DEFAULT_DIRECTOR_COLUMN_IDS;
+  const cols = ids.map((id) => COLUMNS_BY_ID.get(id)).filter((c): c is DirectorExcelColumnDef => !!c);
+  if (cols.length === 0) {
+    return DEFAULT_DIRECTOR_COLUMN_IDS.map((id) => COLUMNS_BY_ID.get(id)!);
+  }
+  return cols;
+}
+
+/**
+ * Build the rows + headers for the directors' Excel — pure function, easy to test.
+ * `columnIds` is the user's chosen order/selection; defaults to enabled-by-default.
+ */
+export function buildDirectorExcelPayload(
+  data: ExportSquadData,
+  columnIds?: DirectorExcelColumnId[],
+  now: Date = new Date(),
+): DirectorExcelPayload {
+  const columns = resolveColumns(columnIds);
+  const rows: DirectorExcelCellValue[][] = [];
   for (const { label, players } of activeSlots(data)) {
     for (const p of players) {
-      const dob = p.dob ? new Date(p.dob) : null;
-      rows.push({
-        name: p.name,
-        dob: dob && !isNaN(dob.getTime()) ? dob : null,
-        position: label,
-        previousClub: p.club ?? '',
-        contact: p.contact ?? '',
-        notes: '',
-      });
+      rows.push(columns.map((c) => c.extract(p, label)));
     }
   }
   return {
     title: buildTitle(data),
     subtitle: `Época Desportiva ${seasonLabel(now)}`,
-    headers: ['Nome', 'Data Nascimento', 'Posição', 'Clube Anterior', 'Contacto', 'Observações'],
+    headers: columns.map((c) => c.label),
     rows,
+    columns,
   };
 }
 
 /**
  * Excel export for coaches/directors. Mimics the printed list format they're
  * used to: title + season subtitle, then a table grouped in pitch order.
- * Contacto and Observações may be empty for them to fill in.
+ * Empty cells (Contacto/Observações) are intentional — for hand editing.
  */
-export async function exportAsExcel(data: ExportSquadData): Promise<void> {
+export async function exportAsExcel(
+  data: ExportSquadData,
+  columnIds?: DirectorExcelColumnId[],
+): Promise<void> {
   const ExcelJS = (await import('exceljs')).default;
-  const payload = buildDirectorExcelPayload(data);
+  const payload = buildDirectorExcelPayload(data, columnIds);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Eskout';
@@ -201,25 +274,19 @@ export async function exportAsExcel(data: ExportSquadData): Promise<void> {
   headerRow.alignment = { vertical: 'middle' };
   headerRow.height = 20;
 
-  // Rows 5+: player data
-  payload.rows.forEach((r, i) => {
-    const row = ws.getRow(5 + i);
-    row.getCell(1).value = r.name;
-    row.getCell(2).value = r.dob; // Real Date type → Excel renders as date, sortable/filterable
-    row.getCell(2).numFmt = 'dd/mm/yyyy';
-    row.getCell(3).value = r.position;
-    row.getCell(4).value = r.previousClub;
-    row.getCell(5).value = r.contact;
-    row.getCell(6).value = r.notes;
+  // Rows 5+: player data, applying numFmt per-column where defined
+  payload.rows.forEach((r, rowIdx) => {
+    const row = ws.getRow(5 + rowIdx);
+    r.forEach((value, colIdx) => {
+      const cell = row.getCell(colIdx + 1);
+      cell.value = value;
+      const numFmt = payload.columns[colIdx].numFmt;
+      if (numFmt) cell.numFmt = numFmt;
+    });
   });
 
-  // Column widths — generous, room for handwritten edits when printed
-  ws.getColumn(1).width = 36; // Nome
-  ws.getColumn(2).width = 16; // Data Nascimento
-  ws.getColumn(3).width = 18; // Posição
-  ws.getColumn(4).width = 22; // Clube Anterior
-  ws.getColumn(5).width = 16; // Contacto
-  ws.getColumn(6).width = 28; // Observações
+  // Column widths from registry
+  payload.columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.width; });
 
   // Auto-filter on header row + freeze panes below it
   ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: colCount } };
@@ -231,7 +298,7 @@ export async function exportAsExcel(data: ExportSquadData): Promise<void> {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${fileLabel(data)}_diretores.xlsx`;
+  link.download = `${fileLabel(data)}.xlsx`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
