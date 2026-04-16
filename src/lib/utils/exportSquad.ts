@@ -40,21 +40,34 @@ function join(parts: (string | null | undefined)[], sep = ' · '): string {
   return parts.filter(Boolean).join(sep);
 }
 
-/** Opinion array to short string */
-function opinionStr(opinions: string[]): string {
-  if (!opinions.length) return '';
-  return opinions.join(', ');
-}
-
 /** Squad type label in Portuguese — uses custom name if available */
 function squadLabel(type: 'real' | 'shadow', customName?: string): string {
   if (customName) return customName;
   return type === 'real' ? 'Plantel' : 'Plantel Sombra';
 }
 
+/**
+ * Split the title into left (squad/type) and right (age group). When the squad
+ * name matches the age group label (e.g. squad "Sub-15" in age group "Sub-15"),
+ * collapse into a single part ("Plantel Sub-15") to avoid "Sub-15 — Sub-15".
+ */
+function titleParts(data: ExportSquadData): { left: string; right: string | null } {
+  const left = squadLabel(data.squadType, data.squadName);
+  if (data.ageGroupLabel && left === data.ageGroupLabel) {
+    const prefix = data.squadType === 'real' ? 'Plantel' : 'Plantel Sombra';
+    return { left: `${prefix} ${left}`, right: null };
+  }
+  return { left, right: data.ageGroupLabel || null };
+}
+
+function buildTitle(data: ExportSquadData): string {
+  const { left, right } = titleParts(data);
+  return right ? `${left} — ${right}` : left;
+}
+
 /** Filename-safe label */
 function fileLabel(data: ExportSquadData): string {
-  return `${squadLabel(data.squadType, data.squadName).replace(/ /g, '_')}_${data.ageGroupLabel.replace(/ /g, '_')}`;
+  return buildTitle(data).replace(/ /g, '_');
 }
 
 /** Position emoji for WhatsApp messages */
@@ -94,10 +107,143 @@ function hideInteractiveElements(container: HTMLElement): () => void {
   };
 }
 
+/* ───────────── Excel for Coaches/Directors ───────────── */
+
+export interface DirectorExcelRow {
+  name: string;
+  /** Native JS Date if dob is parseable, else null — written as Excel date type */
+  dob: Date | null;
+  position: string;
+  previousClub: string;
+  contact: string;
+  /** Always empty — directors fill this in manually */
+  notes: string;
+}
+
+export interface DirectorExcelPayload {
+  title: string;
+  subtitle: string;
+  headers: ['Nome', 'Data Nascimento', 'Posição', 'Clube Anterior', 'Contacto', 'Observações'];
+  rows: DirectorExcelRow[];
+}
+
+/** Compute the Portuguese football season label for a given date (Jul 1 → Jun 30) */
+function seasonLabel(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const startYear = now.getMonth() >= 6 ? year : year - 1; // July (index 6) onwards is new season
+  return `${startYear}/${startYear + 1}`;
+}
+
+/** Build the rows + headers for the directors' Excel — pure function, easy to test */
+export function buildDirectorExcelPayload(data: ExportSquadData, now: Date = new Date()): DirectorExcelPayload {
+  const rows: DirectorExcelRow[] = [];
+  for (const { label, players } of activeSlots(data)) {
+    for (const p of players) {
+      const dob = p.dob ? new Date(p.dob) : null;
+      rows.push({
+        name: p.name,
+        dob: dob && !isNaN(dob.getTime()) ? dob : null,
+        position: label,
+        previousClub: p.club ?? '',
+        contact: p.contact ?? '',
+        notes: '',
+      });
+    }
+  }
+  return {
+    title: buildTitle(data),
+    subtitle: `Época Desportiva ${seasonLabel(now)}`,
+    headers: ['Nome', 'Data Nascimento', 'Posição', 'Clube Anterior', 'Contacto', 'Observações'],
+    rows,
+  };
+}
+
+/**
+ * Excel export for coaches/directors. Mimics the printed list format they're
+ * used to: title + season subtitle, then a table grouped in pitch order.
+ * Contacto and Observações may be empty for them to fill in.
+ */
+export async function exportAsExcel(data: ExportSquadData): Promise<void> {
+  const ExcelJS = (await import('exceljs')).default;
+  const payload = buildDirectorExcelPayload(data);
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Eskout';
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet('Plantel');
+  const colCount = payload.headers.length;
+
+  // Row 1: Title (merged across all columns)
+  ws.mergeCells(1, 1, 1, colCount);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = payload.title;
+  titleCell.font = { bold: true, size: 14 };
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
+  ws.getRow(1).height = 22;
+
+  // Row 2: Subtitle (season)
+  ws.mergeCells(2, 1, 2, colCount);
+  const subtitleCell = ws.getCell(2, 1);
+  subtitleCell.value = payload.subtitle;
+  subtitleCell.font = { italic: true, size: 10, color: { argb: 'FF737373' } };
+  subtitleCell.alignment = { horizontal: 'left', vertical: 'middle' };
+
+  // Row 3: blank spacer
+
+  // Row 4: Column headers
+  const headerRow = ws.getRow(4);
+  payload.headers.forEach((h, i) => {
+    headerRow.getCell(i + 1).value = h;
+  });
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A1A' } };
+  headerRow.alignment = { vertical: 'middle' };
+  headerRow.height = 20;
+
+  // Rows 5+: player data
+  payload.rows.forEach((r, i) => {
+    const row = ws.getRow(5 + i);
+    row.getCell(1).value = r.name;
+    row.getCell(2).value = r.dob; // Real Date type → Excel renders as date, sortable/filterable
+    row.getCell(2).numFmt = 'dd/mm/yyyy';
+    row.getCell(3).value = r.position;
+    row.getCell(4).value = r.previousClub;
+    row.getCell(5).value = r.contact;
+    row.getCell(6).value = r.notes;
+  });
+
+  // Column widths — generous, room for handwritten edits when printed
+  ws.getColumn(1).width = 36; // Nome
+  ws.getColumn(2).width = 16; // Data Nascimento
+  ws.getColumn(3).width = 18; // Posição
+  ws.getColumn(4).width = 22; // Clube Anterior
+  ws.getColumn(5).width = 16; // Contacto
+  ws.getColumn(6).width = 28; // Observações
+
+  // Auto-filter on header row + freeze panes below it
+  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: colCount } };
+  ws.views = [{ state: 'frozen', ySplit: 4 }];
+
+  // Generate buffer → trigger download
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${fileLabel(data)}_diretores.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 /* ───────────── Plain Text ───────────── */
 
 export function exportAsText(data: ExportSquadData): string {
-  const title = `${squadLabel(data.squadType, data.squadName).toUpperCase()} — ${data.ageGroupLabel}`;
+  // Uppercase only the squad/type label, leave the age group in original case
+  const { left, right } = titleParts(data);
+  const title = right ? `${left.toUpperCase()} — ${right}` : left.toUpperCase();
   const date = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const lines: string[] = [title, date, ''];
 
@@ -105,7 +251,7 @@ export function exportAsText(data: ExportSquadData): string {
     lines.push(`${slot} — ${label}`);
     players.forEach((p, i) => {
       const rank = data.squadType === 'shadow' ? `${i + 1}. ` : '• ';
-      const details = join([p.club, p.foot, formatDob(p.dob), opinionStr(p.departmentOpinion)]);
+      const details = join([p.club, p.foot, formatDob(p.dob)]);
       lines.push(`  ${rank}${shortName(p.name)}${details ? ` (${details})` : ''}`);
     });
     lines.push('');
@@ -117,7 +263,7 @@ export function exportAsText(data: ExportSquadData): string {
 /* ───────────── WhatsApp Message ───────────── */
 
 export function exportAsWhatsApp(data: ExportSquadData): string {
-  const title = `⚽ *${squadLabel(data.squadType, data.squadName)} — ${data.ageGroupLabel}*`;
+  const title = `⚽ *${buildTitle(data)}*`;
   const date = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const lines: string[] = [title, `📅 ${date}`, ''];
 
@@ -126,7 +272,7 @@ export function exportAsWhatsApp(data: ExportSquadData): string {
     lines.push(`${emoji} *${slot} — ${label}*`);
     players.forEach((p, i) => {
       const rank = data.squadType === 'shadow' ? `${i + 1}.` : '•';
-      const details = join([p.club, p.foot, opinionStr(p.departmentOpinion)]);
+      const details = join([p.club, p.foot]);
       lines.push(`${rank} ${shortName(p.name)}${details ? ` — ${details}` : ''}`);
     });
     lines.push('');
@@ -191,7 +337,7 @@ export async function exportAsPdf(data: ExportSquadData, mode: 'download' | 'pri
   // Header
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${squadLabel(data.squadType, data.squadName)} — ${data.ageGroupLabel}`, margin, y);
+  doc.text(buildTitle(data), margin, y);
   y += 7;
 
   doc.setFontSize(9);
@@ -222,8 +368,8 @@ export async function exportAsPdf(data: ExportSquadData, mode: 'download' | 'pri
 
     // Player table
     const headers = data.squadType === 'shadow'
-      ? [['#', 'Nome', 'Clube', 'Pé', 'Nasc.', 'Opinião']]
-      : [['Nome', 'Clube', 'Pé', 'Nasc.', 'Opinião']];
+      ? [['#', 'Nome', 'Clube', 'Pé', 'Nasc.']]
+      : [['Nome', 'Clube', 'Pé', 'Nasc.']];
 
     const rows = players.map((p, i) => {
       const row = [
@@ -231,7 +377,6 @@ export async function exportAsPdf(data: ExportSquadData, mode: 'download' | 'pri
         p.club || '—',
         p.foot || '—',
         formatDob(p.dob) || '—',
-        opinionStr(p.departmentOpinion) || '—',
       ];
       if (data.squadType === 'shadow') row.unshift(String(i + 1));
       return row;
@@ -278,7 +423,10 @@ export async function exportAsPdf(data: ExportSquadData, mode: 'download' | 'pri
 /* ───────────── Shared: capture element as PNG data URL ───────────── */
 
 async function captureElement(element: HTMLElement): Promise<string> {
-  const { toCanvas } = await import('html-to-image');
+  // html2canvas-pro: fork of html2canvas with native oklch()/lab()/lch() support.
+  // Required because Tailwind v4 emits all design tokens as oklch(), and the
+  // previous library (html-to-image) crashes when getComputedStyle returns oklch().
+  const { default: html2canvas } = await import('html2canvas-pro');
 
   // Pre-convert cross-origin images to data URLs via our proxy to avoid canvas taint
   const imgs = element.querySelectorAll<HTMLImageElement>('img[src]');
@@ -301,11 +449,11 @@ async function captureElement(element: HTMLElement): Promise<string> {
   }));
 
   try {
-    // Use toCanvas for more reliable rendering (avoids SVG serialization issues)
-    const canvas = await toCanvas(element, {
+    const canvas = await html2canvas(element, {
       backgroundColor: '#ffffff',
-      pixelRatio: 2,
-      skipAutoScale: true,
+      scale: 2,
+      useCORS: true,
+      logging: false,
     });
     return canvas.toDataURL('image/png');
   } finally {
@@ -350,7 +498,7 @@ export async function exportAsVisualPdf(element: HTMLElement, data: ExportSquadD
     // Title
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${squadLabel(data.squadType, data.squadName)} — ${data.ageGroupLabel}`, margin, 8);
+    doc.text(buildTitle(data), margin, 8);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140);

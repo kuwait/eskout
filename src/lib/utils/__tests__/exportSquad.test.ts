@@ -3,7 +3,7 @@
 // Validates plain text and WhatsApp format output
 // RELEVANT FILES: src/lib/utils/exportSquad.ts, src/lib/constants.ts
 
-import { exportAsText, exportAsWhatsApp, type ExportSquadData } from '@/lib/utils/exportSquad';
+import { buildDirectorExcelPayload, exportAsText, exportAsWhatsApp, type ExportSquadData } from '@/lib/utils/exportSquad';
 import { makePlayer } from '@/lib/__tests__/factories';
 
 /* ───────────── Test data ───────────── */
@@ -64,10 +64,11 @@ describe('exportAsText', () => {
     expect(text).not.toContain('1. Miguel Ferreira');
   });
 
-  it('includes player details (club, foot, opinion)', () => {
+  it('includes player details (club, foot, dob) but not opinion', () => {
     const text = exportAsText(makeSquadData());
     expect(text).toContain('FC Porto');
-    expect(text).toContain('1ª Escolha');
+    // Opinion was intentionally removed from text/whatsapp/table exports
+    expect(text).not.toContain('1ª Escolha');
   });
 
   it('handles empty squad', () => {
@@ -75,6 +76,128 @@ describe('exportAsText', () => {
     expect(text).toContain('PLANTEL SOMBRA');
     // Should not throw, just have title + date
     expect(text.split('\n').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('collapses redundant title when squad name equals age group', () => {
+    // squad named "Sub-15" inside age group "Sub-15" → "PLANTEL SUB-15", not "SUB-15 — SUB-15"
+    const text = exportAsText(makeSquadData({ squadType: 'real', squadName: 'Sub-15', ageGroupLabel: 'Sub-15' }));
+    expect(text).toContain('PLANTEL SUB-15');
+    expect(text).not.toContain('Sub-15 — Sub-15');
+  });
+
+  it('keeps both labels when squad name differs from age group', () => {
+    // Age group case is preserved (only the left side is uppercased)
+    const text = exportAsText(makeSquadData({ squadType: 'real', squadName: 'A', ageGroupLabel: 'Sub-15' }));
+    expect(text).toContain('A — Sub-15');
+  });
+});
+
+/* ───────────── exportAsWhatsApp ───────────── */
+
+/* ───────────── buildDirectorExcelPayload ───────────── */
+
+describe('buildDirectorExcelPayload', () => {
+  it('uses the canonical 6-column header order', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real', squadName: 'Sub-15', ageGroupLabel: 'Sub-15' }));
+    expect(p.headers).toEqual(['Nome', 'Data Nascimento', 'Posição', 'Clube Anterior', 'Contacto', 'Observações']);
+  });
+
+  it('emits one row per player and orders by pitch slot (GR before PL)', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
+    expect(p.rows).toHaveLength(4); // GR + DC_E + 2x PL
+    expect(p.rows[0].name).toBe('Miguel Ferreira'); // GR
+    expect(p.rows[p.rows.length - 1].name).toBe('Tomás Ribeiro'); // last PL
+  });
+
+  it('uses Portuguese slot labels (not codes) for Posição', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
+    const positions = p.rows.map((r) => r.position);
+    expect(positions).toContain('Guarda-Redes');
+    expect(positions).toContain('Central (E)');
+    expect(positions).toContain('Ponta de Lança');
+    expect(positions).not.toContain('GR');
+    expect(positions).not.toContain('DC_E');
+  });
+
+  it('preserves full names (no shortening) — directors need the full name', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
+    expect(p.rows.some((r) => r.name === 'Pedro Santos Costa')).toBe(true);
+  });
+
+  it('parses dob into a Date object so Excel renders it as a date type', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
+    const goalkeeper = p.rows.find((r) => r.position === 'Guarda-Redes');
+    expect(goalkeeper?.dob).toBeInstanceOf(Date);
+  });
+
+  it('keeps Observações empty so directors can fill it in', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
+    expect(p.rows.every((r) => r.notes === '')).toBe(true);
+  });
+
+  it('uses the season starting in July (Apr 16 2026 → 2025/2026)', () => {
+    const p = buildDirectorExcelPayload(makeSquadData(), new Date('2026-04-16'));
+    expect(p.subtitle).toBe('Época Desportiva 2025/2026');
+  });
+
+  it('uses the new season after July 1 (Aug 1 2026 → 2026/2027)', () => {
+    const p = buildDirectorExcelPayload(makeSquadData(), new Date('2026-08-01'));
+    expect(p.subtitle).toBe('Época Desportiva 2026/2027');
+  });
+
+  it('uses the collapsed title when squad name matches age group', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real', squadName: 'Sub-15', ageGroupLabel: 'Sub-15' }));
+    expect(p.title).toBe('Plantel Sub-15');
+  });
+
+  it('falls back to "Plantel — <age>" when no custom squad name is provided', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real', squadName: undefined, ageGroupLabel: 'Sub-14' }));
+    expect(p.title).toBe('Plantel — Sub-14');
+  });
+
+  it('handles empty squad — keeps headers, returns zero rows', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ byPosition: {} }));
+    expect(p.headers).toHaveLength(6);
+    expect(p.rows).toHaveLength(0);
+  });
+
+  it('handles player with null dob — emits null (not NaN Date)', () => {
+    const p = buildDirectorExcelPayload(
+      makeSquadData({ byPosition: { GR: [makePlayer({ name: 'X', dob: null })] } })
+    );
+    expect(p.rows[0].dob).toBeNull();
+  });
+
+  it('handles player with malformed dob — emits null instead of crashing', () => {
+    const p = buildDirectorExcelPayload(
+      makeSquadData({ byPosition: { GR: [makePlayer({ name: 'X', dob: 'not-a-date' })] } })
+    );
+    expect(p.rows[0].dob).toBeNull();
+  });
+
+  it('emits empty string for missing contact (no "—" or "N/A" placeholder)', () => {
+    const p = buildDirectorExcelPayload(
+      makeSquadData({ byPosition: { GR: [makePlayer({ name: 'X', contact: '' })] } })
+    );
+    expect(p.rows[0].contact).toBe('');
+  });
+
+  it('preserves the Portuguese "Posição" header (not English)', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({ squadType: 'real' }));
+    expect(p.headers).toContain('Posição');
+    expect(p.headers).not.toContain('Position');
+  });
+
+  it('orders rows: GR → defenders → midfielders → strikers (pitch order)', () => {
+    const p = buildDirectorExcelPayload(makeSquadData({
+      squadType: 'real',
+      byPosition: {
+        PL: [makePlayer({ name: 'Striker' })],
+        GR: [makePlayer({ name: 'Keeper' })],
+        MC: [makePlayer({ name: 'Midfielder' })],
+      },
+    }));
+    expect(p.rows.map((r) => r.name)).toEqual(['Keeper', 'Midfielder', 'Striker']);
   });
 });
 

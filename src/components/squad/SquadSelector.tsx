@@ -48,10 +48,12 @@ export function SquadSelector({
   return (
     <div className="inline-flex shrink-0 items-center rounded-lg border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
       {/* Previous */}
+      {/* suppressHydrationWarning: `disabled` depends on selectedSquadId which is hydrated from localStorage on the client */}
       <button
         type="button"
         onClick={goPrev}
         disabled={!hasPrev}
+        suppressHydrationWarning
         className="flex h-9 w-9 items-center justify-center rounded-l-lg text-neutral-500 transition-colors hover:bg-neutral-100 active:bg-neutral-200 disabled:opacity-20 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
         aria-label="Plantel anterior"
       >
@@ -88,10 +90,12 @@ export function SquadSelector({
       </Select>
 
       {/* Next */}
+      {/* suppressHydrationWarning: same reason as the previous-button above */}
       <button
         type="button"
         onClick={goNext}
         disabled={!hasNext}
+        suppressHydrationWarning
         className="flex h-9 w-9 items-center justify-center rounded-r-lg text-neutral-500 transition-colors hover:bg-neutral-100 active:bg-neutral-200 disabled:opacity-20 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
         aria-label="Próximo plantel"
       >

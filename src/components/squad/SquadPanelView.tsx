@@ -678,6 +678,16 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     ? (squadType === 'shadow' ? String(selectedAgeGroup.generationYear) : selectedAgeGroup.name)
     : '';
 
+  // Resolve label from a squad's own age group — used for export titles so they
+  // reflect the exported squad, not the (possibly stale) global age group selector.
+  // Real squads navigate via SquadSelector, so `selectedId` can lag behind.
+  const resolveAgeGroupLabel = (ageGroupId: number | null | undefined): string => {
+    if (!ageGroupId) return ageGroupLabel;
+    const ag = ageGroups.find((a) => a.id === ageGroupId);
+    if (!ag) return ageGroupLabel;
+    return squadType === 'shadow' ? String(ag.generationYear) : ag.name;
+  };
+
   /** Render one squad's formation/list */
   function renderSquadContent(squad: Squad, byPos: Record<string, Player[]>, showName: boolean, sections?: Record<string, Player[]>) {
     const openAdd = (pos: string) => { setDialogPosition(pos); setDialogSquadId(squad.id); setDialogOpen(true); };
@@ -688,7 +698,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const moveToSection = squadType === 'real'
       ? (pid: number, section: SpecialSquadSection) => handleMoveToSection(pid, squad.id, section)
       : undefined;
-    const exportData = { squadType, ageGroupLabel, byPosition: byPos, squadName: squad.name };
+    const exportData = { squadType, ageGroupLabel: resolveAgeGroupLabel(squad.ageGroupId), byPosition: byPos, squadName: squad.name };
 
     // Player counts — pitch only (special sections show their own counts)
     const pitchPlayers = Object.values(byPos).flat();
@@ -842,7 +852,8 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
   // otherByPosition already computed from otherSquadPlayersMap
 
   const singleExportData = {
-    squadType, ageGroupLabel,
+    squadType,
+    ageGroupLabel: resolveAgeGroupLabel(visibleSquadSections[0]?.squad.ageGroupId),
     byPosition: compareLeftByPosition,
     squadName: visibleSquadSections[0]?.squad.name,
   };

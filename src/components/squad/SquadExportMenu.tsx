@@ -6,7 +6,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, FileText, Image as ImageIcon, MessageCircle, Printer, Copy, Check, Camera } from 'lucide-react';
+import { Download, FileText, Image as ImageIcon, MessageCircle, Printer, Copy, Check, Camera, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import {
   exportAsPdf,
   exportAsVisualPdf,
   exportAsImage,
+  exportAsExcel,
   exportAsText,
   exportAsWhatsApp,
   copyToClipboard,
@@ -76,6 +77,13 @@ export function SquadExportMenu({ data, captureRef }: SquadExportMenuProps) {
           <ImageIcon className="h-4 w-4" />
           Imagem (PNG)
         </DropdownMenuItem>
+        {/* Excel for coaches/directors — only relevant for the real squad */}
+        {data.squadType === 'real' && (
+          <DropdownMenuItem onClick={() => withLoading(() => exportAsExcel(data))}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel (diretores)
+          </DropdownMenuItem>
+        )}
 
         <DropdownMenuSeparator />
 
