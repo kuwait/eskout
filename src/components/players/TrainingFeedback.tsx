@@ -474,7 +474,10 @@ function CoachLinkForm({ playerId, defaultEscalao, onCreated, onClose }: {
         // Create optimistic stub entry for the list
         onCreated({
           id: Date.now(), clubId: '', playerId, authorId: '', authorName: 'Eu',
-          trainingDate: date, escalao: escalao || null, presence: 'attended',
+          trainingDate: date, escalao: escalao || null,
+          status: 'agendado', sessionTime: null, location: null, observedPosition: null,
+          isRetroactive: false, cancelledAt: null, cancelledReason: null,
+          presence: 'attended',
           feedback: null, rating: null, ratingPerformance: null, ratingPotential: null, decision: 'sem_decisao',
           heightScale: null, buildScale: null, speedScale: null, intensityScale: null, maturation: null, tags: [],
           coachFeedback: null, coachRating: null, coachRatingPerformance: null, coachRatingPotential: null,
@@ -654,7 +657,10 @@ function AddTrainingFeedbackForm({ playerId, defaultEscalao, currentUserName, on
       if (res.success) {
         onCreated({
           id: Date.now(), clubId: '', playerId, authorId: '', authorName: currentUserName || 'Eu',
-          trainingDate: date, escalao: escalao || null, presence, feedback: feedback || null,
+          trainingDate: date, escalao: escalao || null,
+          status: 'realizado', sessionTime: null, location: null, observedPosition: null,
+          isRetroactive: false, cancelledAt: null, cancelledReason: null,
+          presence, feedback: feedback || null,
           rating: ratingPerformance, ratingPerformance, ratingPotential,
           decision, heightScale, buildScale, speedScale, intensityScale, maturation, tags,
           coachFeedback: null, coachRating: null, coachRatingPerformance: null, coachRatingPotential: null,

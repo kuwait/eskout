@@ -220,6 +220,72 @@ export const coachFeedbackSchema = z.object({
 
 export type CoachFeedbackFormData = z.infer<typeof coachFeedbackSchema>;
 
+/* ───────────── Training Sessions (migration 107) ───────────── */
+
+const TRAINING_STATUS_VALUES = ['agendado', 'realizado', 'cancelado', 'faltou'] as const;
+
+/** Agendar treino futuro — data obrigatória deve ser >= hoje */
+export const scheduleTrainingSchema = z.object({
+  playerId: z.number().int().positive('ID de jogador inválido'),
+  trainingDate: z.string().min(1, 'Data é obrigatória'),
+  sessionTime: z.string().optional(),
+  location: z.string().optional(),
+  escalao: z.string().optional(),
+});
+
+export type ScheduleTrainingData = z.infer<typeof scheduleTrainingSchema>;
+
+/** Alterar data/hora/local de treino agendado */
+export const rescheduleTrainingSchema = z.object({
+  trainingId: z.number().int().positive(),
+  trainingDate: z.string().min(1, 'Data é obrigatória'),
+  sessionTime: z.string().optional(),
+  location: z.string().optional(),
+});
+
+/** Cancelar treino com motivo opcional */
+export const cancelTrainingSchema = z.object({
+  trainingId: z.number().int().positive(),
+  reason: z.string().max(500).optional(),
+});
+
+/** Registar treino retroactivo (já aconteceu) — com avaliação directa */
+export const registerPastTrainingSchema = z.object({
+  playerId: z.number().int().positive(),
+  trainingDate: z.string().min(1, 'Data é obrigatória'),
+  escalao: z.string().optional(),
+  location: z.string().optional(),
+  observedPosition: z.string().optional(),
+  feedback: z.string().optional(),
+  ratingPerformance: z.number().int().min(1).max(5).optional(),
+  ratingPotential: z.number().int().min(1).max(5).optional(),
+  decision: z.enum(TRAINING_DECISION_VALUES).default('sem_decisao'),
+  heightScale: z.enum(HEIGHT_SCALE_VALUES).nullable().optional(),
+  buildScale: z.enum(BUILD_SCALE_VALUES).nullable().optional(),
+  speedScale: z.enum(SPEED_SCALE_VALUES).nullable().optional(),
+  intensityScale: z.enum(INTENSITY_SCALE_VALUES).nullable().optional(),
+  maturation: z.enum(MATURATION_SCALE_VALUES).nullable().optional(),
+  tags: z.array(z.string()).default([]),
+});
+
+/** Preencher avaliação num treino existente (agendado ou realizado) */
+export const updateTrainingEvaluationSchema = z.object({
+  trainingId: z.number().int().positive(),
+  feedback: z.string().optional(),
+  ratingPerformance: z.number().int().min(1).max(5).nullable().optional(),
+  ratingPotential: z.number().int().min(1).max(5).nullable().optional(),
+  decision: z.enum(TRAINING_DECISION_VALUES).optional(),
+  heightScale: z.enum(HEIGHT_SCALE_VALUES).nullable().optional(),
+  buildScale: z.enum(BUILD_SCALE_VALUES).nullable().optional(),
+  speedScale: z.enum(SPEED_SCALE_VALUES).nullable().optional(),
+  intensityScale: z.enum(INTENSITY_SCALE_VALUES).nullable().optional(),
+  maturation: z.enum(MATURATION_SCALE_VALUES).nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  observedPosition: z.string().optional(),
+});
+
+export { TRAINING_STATUS_VALUES };
+
 /* ───────────── Player Lists ───────────── */
 
 export const createListSchema = z.object({

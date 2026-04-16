@@ -193,6 +193,11 @@ export async function updateRecruitmentStatus(
   if (newStatus === 'em_contacto' && contactAssignedTo !== undefined) {
     updatePayload.contact_assigned_to = contactAssignedTo;
   }
+  // Snapshot quando player entra em vir_treinar — usado pelo pipeline card para
+  // filtrar treinos do ciclo actual (migration 107)
+  if (newStatus === 'vir_treinar' && oldStatus !== 'vir_treinar') {
+    updatePayload.vir_treinar_entered_at = new Date().toISOString();
+  }
   // Auto-set decision_side when entering a_decidir, auto-clear when leaving
   // If caller provides explicit decisionSide, use it; otherwise default to 'club'
   if (newStatus === 'a_decidir') {
