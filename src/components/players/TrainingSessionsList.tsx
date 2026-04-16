@@ -8,7 +8,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertTriangle, Calendar, Check, Copy, ExternalLink, GraduationCap, Loader2, MapPin, MoreVertical, Plus,
+  AlertTriangle, Calendar, Check, Copy, ExternalLink, GraduationCap, Loader2, MapPin, MoreVertical, Pencil, Plus,
   Share2, Star, Trash2, UserX, XCircle,
 } from 'lucide-react';
 import {
@@ -33,7 +33,7 @@ import type {
   TrainingDecision, TrainingFeedback as TFeedback, TrainingStatus, UserRole,
 } from '@/lib/types';
 import {
-  scheduleTraining, cancelTraining, markTrainingMissed,
+  scheduleTraining, rescheduleTraining, cancelTraining, markTrainingMissed,
   registerPastTraining, updateTrainingEvaluation,
   deleteTrainingFeedback, createCoachFeedbackLink,
 } from '@/actions/training-feedback';
@@ -233,6 +233,7 @@ function TrainingCard({
   onShareLink: (feedbackId: number, url: string, expiresAt: string) => void;
 }) {
   const [evalOpen, setEvalOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [missedOpen, setMissedOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -412,6 +413,9 @@ function TrainingCard({
                     <DropdownMenuItem onClick={() => setCoachOpen(true)}>
                       <Share2 className="mr-2 h-4 w-4" /> Pedir ao treinador
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                      <Pencil className="mr-2 h-4 w-4" /> Editar data/hora
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setMissedOpen(true)}>
                       <UserX className="mr-2 h-4 w-4" /> Marcar faltou
@@ -429,12 +433,20 @@ function TrainingCard({
                     <DropdownMenuItem onClick={() => setCoachOpen(true)}>
                       <Share2 className="mr-2 h-4 w-4" /> Pedir ao treinador
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                      <Pencil className="mr-2 h-4 w-4" /> Editar data/hora
+                    </DropdownMenuItem>
                   </>
                 )}
                 {showEditEval && (
-                  <DropdownMenuItem onClick={() => setEvalOpen(true)}>
-                    <Star className="mr-2 h-4 w-4" /> Editar avaliação
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => setEvalOpen(true)}>
+                      <Star className="mr-2 h-4 w-4" /> Editar avaliação
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                      <Pencil className="mr-2 h-4 w-4" /> Editar data/hora
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {canDelete && (
                   <>
@@ -556,6 +568,12 @@ function TrainingCard({
         onOpenChange={setEvalOpen}
         entry={entry}
         onSaved={(updated) => { onUpdate(updated); setEvalOpen(false); }}
+      />
+      <EditTrainingDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        entry={entry}
+        onSaved={(updated) => { onUpdate(updated); setEditOpen(false); }}
       />
       <CancelDialog
         open={cancelOpen}
@@ -1286,6 +1304,109 @@ function EvaluateDialog({ open, onOpenChange, entry, onSaved }: {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:bg-neutral-300 disabled:text-neutral-500">
             {isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> A guardar...</> : 'Guardar avaliação'}
           </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ───────────── Edit Training Dialog (data / hora / local / escalão) ───────────── */
+
+function EditTrainingDialog({ open, onOpenChange, entry, onSaved }: {
+  open: boolean; onOpenChange: (v: boolean) => void;
+  entry: TFeedback; onSaved: (e: TFeedback) => void;
+}) {
+  const [date, setDate] = useState(entry.trainingDate);
+  const [time, setTime] = useState(entry.sessionTime ? entry.sessionTime.slice(0, 5) : '10:00');
+  const [location, setLocation] = useState(entry.location ?? '');
+  const [escalao, setEscalao] = useState(entry.escalao ?? '');
+  const [isPending, startTransition] = useTransition();
+
+  // Sync state quando o entry muda externamente (realtime / outro user)
+  /* eslint-disable react-hooks/set-state-in-effect -- sync controlled inputs com entry externamente actualizado */
+  useEffect(() => {
+    setDate(entry.trainingDate);
+    setTime(entry.sessionTime ? entry.sessionTime.slice(0, 5) : '10:00');
+    setLocation(entry.location ?? '');
+    setEscalao(entry.escalao ?? '');
+  }, [entry.trainingDate, entry.sessionTime, entry.location, entry.escalao]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const hasChanges =
+    date !== entry.trainingDate
+    || time !== (entry.sessionTime?.slice(0, 5) ?? '10:00')
+    || location !== (entry.location ?? '')
+    || escalao !== (entry.escalao ?? '');
+
+  function handleSave() {
+    if (!date) { toast.error('Data obrigatória'); return; }
+    if (!hasChanges) { onOpenChange(false); return; }
+    startTransition(async () => {
+      const res = await rescheduleTraining({
+        trainingId: entry.id,
+        trainingDate: date,
+        sessionTime: time || undefined,
+        location: location || undefined,
+        escalao: escalao || undefined,
+      });
+      if (res.success) {
+        toast.success('Treino actualizado');
+        onSaved({
+          ...entry,
+          trainingDate: date,
+          sessionTime: time || null,
+          location: location || null,
+          escalao: escalao || null,
+        });
+      } else {
+        toast.error(res.error ?? 'Erro');
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar treino</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5">
+              <Calendar className="h-4 w-4 shrink-0 text-neutral-400" />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-transparent text-sm outline-none" />
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5">
+              <span className="text-neutral-400 text-xs">⏰</span>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
+                className="w-full bg-transparent text-sm outline-none" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5">
+              <GraduationCap className="h-4 w-4 shrink-0 text-neutral-400" />
+              <input type="text" value={escalao} onChange={(e) => setEscalao(e.target.value)}
+                placeholder="Escalão"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5">
+              <MapPin className="h-4 w-4 shrink-0 text-neutral-400" />
+              <input type="text" value={location} onChange={(e) => setLocation(e.target.value)}
+                placeholder="Local (opc.)"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => onOpenChange(false)} disabled={isPending}
+              className="rounded-xl border border-neutral-200 py-3 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50">
+              Cancelar
+            </button>
+            <button type="button" onClick={handleSave} disabled={isPending || !date}
+              className="rounded-xl bg-neutral-900 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:bg-neutral-300 disabled:text-neutral-500">
+              {isPending ? 'A guardar...' : hasChanges ? 'Guardar' : 'Sem alterações'}
+            </button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

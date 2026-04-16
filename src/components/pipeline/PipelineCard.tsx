@@ -26,7 +26,7 @@ import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
 import type { PipelineTrainingSession } from '@/components/pipeline/PipelineView';
-import { chipColorClass, formatTrainingChip } from '@/lib/utils/training-sessions';
+import { formatTrainingChip } from '@/lib/utils/training-sessions';
 
 interface PipelineCardProps {
   player: Player;
@@ -1156,7 +1156,15 @@ function StandbyReasonButton({
 
 /* ───────────── Training session chips (vir_treinar card) ───────────── */
 
-/** Chips compactos com as sessões agendadas do ciclo actual. Click → perfil do atleta. */
+/** Mapeia estado/data→cor do dot colorido (pequeno indicador à esquerda de cada linha) */
+function dotColorForSession(s: { status: string; training_date: string; has_evaluation: boolean }, todayISO: string): string {
+  if (s.status === 'agendado' && s.training_date < todayISO) return 'bg-orange-500';
+  if (s.status === 'agendado') return 'bg-amber-500';
+  if (s.status === 'realizado' && !s.has_evaluation) return 'bg-yellow-500';
+  return 'bg-green-500';
+}
+
+/** Lista vertical de treinos do ciclo actual — dot + data compactos, click → perfil */
 function TrainingSessionChips({ playerId, sessions }: {
   playerId: number;
   sessions: PipelineTrainingSession[];
@@ -1164,10 +1172,8 @@ function TrainingSessionChips({ playerId, sessions }: {
   const todayISO = new Date().toISOString().slice(0, 10);
   const agendados = sessions.filter((s) => s.status === 'agendado');
   const realizados = sessions.filter((s) => s.status === 'realizado');
-  const hasOverdue = agendados.some((s) => s.training_date < todayISO);
-  const hasPendingEval = realizados.some((s) => !s.has_evaluation);
 
-  const maxVisible = 2;
+  const maxVisible = 3;
   const visible = [...agendados, ...realizados].slice(0, maxVisible);
   const hiddenCount = sessions.length - visible.length;
 
@@ -1175,21 +1181,16 @@ function TrainingSessionChips({ playerId, sessions }: {
     <Link
       href={`/jogadores/${playerId}`}
       onClick={(e) => e.stopPropagation()}
-      className="flex flex-wrap items-center gap-1 rounded bg-neutral-50 px-2 py-1 text-[10px] text-neutral-600 hover:bg-neutral-100"
+      className="mt-1 block space-y-0.5 rounded px-1 py-0.5 hover:bg-neutral-50"
     >
-      <Calendar className="h-3 w-3 shrink-0 text-neutral-400" />
       {visible.map((s) => (
-        <span key={s.id} className={`rounded px-1.5 py-0.5 font-medium ${chipColorClass(s, todayISO)}`}>
-          {formatTrainingChip(s.training_date, s.session_time)}
-        </span>
+        <div key={s.id} className="flex items-center gap-1.5 text-[11px] text-neutral-700">
+          <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dotColorForSession(s, todayISO)}`} />
+          <span className="truncate">{formatTrainingChip(s.training_date, s.session_time)}</span>
+        </div>
       ))}
       {hiddenCount > 0 && (
-        <span className="text-neutral-400">+{hiddenCount}</span>
-      )}
-      {(hasOverdue || hasPendingEval) && (
-        <span className="ml-auto text-[9px] font-bold uppercase text-orange-600">
-          {hasOverdue ? 'Atraso' : 'Pendente'}
-        </span>
+        <div className="text-[10px] text-neutral-400">+{hiddenCount} mais</div>
       )}
     </Link>
   );

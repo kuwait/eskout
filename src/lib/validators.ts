@@ -235,12 +235,13 @@ export const scheduleTrainingSchema = z.object({
 
 export type ScheduleTrainingData = z.infer<typeof scheduleTrainingSchema>;
 
-/** Alterar data/hora/local de treino agendado */
+/** Alterar data/hora/local/escalão de treino */
 export const rescheduleTrainingSchema = z.object({
   trainingId: z.number().int().positive(),
   trainingDate: z.string().min(1, 'Data é obrigatória'),
   sessionTime: z.string().optional(),
   location: z.string().optional(),
+  escalao: z.string().optional(),
 });
 
 /** Cancelar treino com motivo opcional */

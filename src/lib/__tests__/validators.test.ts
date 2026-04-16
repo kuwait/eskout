@@ -957,6 +957,17 @@ describe('rescheduleTrainingSchema', () => {
   it('rejects non-positive trainingId', () => {
     expect(rescheduleTrainingSchema.safeParse({ ...valid, trainingId: 0 }).success).toBe(false);
   });
+
+  it('accepts sessionTime / location / escalao opcionais', () => {
+    expect(rescheduleTrainingSchema.safeParse({
+      ...valid, sessionTime: '14:30', location: 'Campo 2', escalao: 'Sub-15',
+    }).success).toBe(true);
+  });
+
+  it('escalao é opcional (undefined passa)', () => {
+    const r = rescheduleTrainingSchema.safeParse(valid);
+    if (r.success) expect(r.data.escalao).toBeUndefined();
+  });
 });
 
 describe('cancelTrainingSchema', () => {

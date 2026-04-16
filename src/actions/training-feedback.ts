@@ -606,6 +606,7 @@ export async function rescheduleTraining(input: {
   trainingDate: string;
   sessionTime?: string;
   location?: string;
+  escalao?: string;
 }): Promise<ActionResponse> {
   const parsed = rescheduleTrainingSchema.safeParse(input);
   if (!parsed.success) {
@@ -642,6 +643,7 @@ export async function rescheduleTraining(input: {
       training_date: parsed.data.trainingDate,
       session_time: sessionTime,
       location: parsed.data.location ?? null,
+      escalao: parsed.data.escalao ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', parsed.data.trainingId)
