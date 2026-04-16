@@ -27,6 +27,7 @@ import {
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SortableStatusColumn, StatusColumn } from '@/components/pipeline/StatusColumn';
+import type { PipelineTrainingSession } from '@/components/pipeline/PipelineView';
 import { PipelineCard } from '@/components/pipeline/PipelineCard';
 import { RECRUITMENT_STATUSES } from '@/lib/constants';
 import { cardId, parseCardId, columnId, parseColumnId, parseSubZoneId, buildContainerItems, findContainer, STATUS_SET, type ContainerItems } from '@/components/pipeline/kanban-helpers';
@@ -83,6 +84,8 @@ interface KanbanBoardProps {
   contactPurposeMap?: Record<number, string>;
   /** Available contact purpose options for editing */
   contactPurposes?: { id: string; label: string }[];
+  /** Map of playerId -> treinos do ciclo actual (para vir_treinar cards) */
+  trainingSessionsMap?: Record<number, PipelineTrainingSession[]>;
 }
 
 /* ───────────── Component ───────────── */
@@ -106,7 +109,7 @@ const MEASURING_CONFIG = {
   droppable: { strategy: MeasuringStrategy.Always as const },
 };
 
-export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [], onDecisionSideChange, contactPurposeMap = {}, contactPurposes = [] }: KanbanBoardProps) {
+export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateChange, onReorder, showBirthYear, onPlayerClick, clubMembers = [], onDecisionSideChange, contactPurposeMap = {}, contactPurposes = [], trainingSessionsMap = {} }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<RecruitmentStatus[]>(DEFAULT_ORDER);
@@ -413,6 +416,7 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
             clubMembers={clubMembers}
             contactPurposeMap={contactPurposeMap}
             contactPurposes={contactPurposes}
+            trainingSessionsMap={trainingSessionsMap}
             onPlayerClick={onPlayerClick}
             onRemove={onRemove}
             onDateChange={onDateChange}
@@ -447,7 +451,8 @@ export function KanbanBoard({ playersByStatus, onStatusChange, onRemove, onDateC
                 showBirthYear={showBirthYear}
                 clubMembers={clubMembers}
                 contactPurposeMap={contactPurposeMap}
-            contactPurposes={contactPurposes}
+                contactPurposes={contactPurposes}
+                trainingSessionsMap={trainingSessionsMap}
                 onPlayerClick={onPlayerClick}
                 onRemove={onRemove}
                 onDateChange={onDateChange}

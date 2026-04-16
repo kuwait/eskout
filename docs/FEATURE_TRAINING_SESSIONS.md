@@ -829,8 +829,17 @@ Branch: `feat/training-sessions-fase1`.
 - Dialog "Registar" e "Editar avaliação": layout idêntico ao CoachFeedbackForm
 - ⋮ menu contextual por estado
 
-### ⏳ Fase 4+ pendentes (próximos PRs)
-- Fase 4: Pipeline card com múltiplas datas + ciclo actual (estender RPC `get_pipeline_players`)
-- Fase 5: Calendar — remover overwrite legacy
-- Fase 6: Notificações refinadas
-- Fase 7-8: polish
+### ✅ Fase 4 — Pipeline card
+- Migration 108: estende RPC `get_pipeline_players` para incluir `training_sessions` do ciclo actual por player (JSON agregado, evita N+1)
+- `PipelineView` propaga `trainingSessionsMap` → `KanbanBoard` → `StatusColumn` → `PipelineCard`
+- Novo componente `TrainingSessionChips` no card: chips compactos com data+hora, cores por estado (amber agendado · orange overdue · yellow sem avaliação · green realizado), max 2 + "+X" mais
+- Single-date button legacy escondido para `vir_treinar` (mantém para reuniao/confirmado)
+- `ScheduleTrainingDialog`: **obrigatório** ao mover para `vir_treinar` no pipeline, mesmo layout do agendar no perfil
+- Card de realizado com rating mantém dot colorido com número; estados sem rating (agendado/cancelado/faltou/pendente) usam ícone temático (Calendar/XCircle/UserX/AlertTriangle)
+- Countdown subtil: "hoje", "amanhã", "daqui a X dias", "ontem", "há X dias"
+- Realtime em `training_feedback` para refetch quando há mudanças
+
+### ⏳ Fase 5+ pendentes (próximos PRs)
+- Fase 5: Calendar — remover `syncCalendarEvent` overwrite legacy; 1 event por training_feedback_id
+- Fase 6: Notificações refinadas (subject prefixes "Alterado:", "Cancelado:")
+- Fase 7-8: polish (lembrete dia-anterior via cron, /treinos listagem, audit log)

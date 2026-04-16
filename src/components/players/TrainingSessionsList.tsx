@@ -8,7 +8,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
-  Calendar, Check, Copy, ExternalLink, GraduationCap, Loader2, MapPin, MoreVertical, Plus,
+  AlertTriangle, Calendar, Check, Copy, ExternalLink, GraduationCap, Loader2, MapPin, MoreVertical, Plus,
   Share2, Star, Trash2, UserX, XCircle,
 } from 'lucide-react';
 import {
@@ -313,6 +313,40 @@ function TrainingCard({
   const headerBg = ratingBg ?? 'bg-neutral-50/50';
   const dotColor = BAR_COLORS[mainRating] ?? 'bg-neutral-300';
 
+  // Countdown: "Hoje", "Amanhã", "Em X dias", "Há X dias" (só para agendado)
+  const daysUntil = (() => {
+    try {
+      const [y, m, d] = entry.trainingDate.split('-').map(Number);
+      const target = new Date(y, m - 1, d).setHours(0, 0, 0, 0);
+      const today0 = new Date().setHours(0, 0, 0, 0);
+      return Math.round((target - today0) / 86400000);
+    } catch { return null; }
+  })();
+  const countdownLabel = (() => {
+    if (status !== 'agendado' || daysUntil === null) return null;
+    if (daysUntil === 0) return 'hoje';
+    if (daysUntil === 1) return 'amanhã';
+    if (daysUntil > 1) return `daqui a ${daysUntil} dias`;
+    if (daysUntil === -1) return 'ontem';
+    return `há ${Math.abs(daysUntil)} dias`;
+  })();
+
+  // Header visual por estado
+  const headerIcon = (() => {
+    if (status === 'realizado' && mainRating > 0) return null; // show number
+    if (status === 'agendado') return showOverdueBadge ? <AlertTriangle className="h-5 w-5 text-orange-600" /> : <Calendar className="h-5 w-5 text-amber-600" />;
+    if (status === 'cancelado') return <XCircle className="h-5 w-5 text-neutral-500" />;
+    if (status === 'faltou') return <UserX className="h-5 w-5 text-red-500" />;
+    return null; // realizado sem rating (pendente) cai aqui
+  })();
+  const headerIconBg = (() => {
+    if (status === 'agendado') return showOverdueBadge ? 'bg-orange-100' : 'bg-amber-100';
+    if (status === 'cancelado') return 'bg-neutral-200';
+    if (status === 'faltou') return 'bg-red-100';
+    if (status === 'realizado' && !headerIcon && mainRating === 0) return 'bg-yellow-100'; // realizado pendente
+    return dotColor;
+  })();
+
   return (
     <div className={cn(
       'overflow-hidden rounded-lg border',
@@ -321,9 +355,11 @@ function TrainingCard({
     )}>
       {/* Header — rating dot + data + pill */}
       <div className={cn('flex items-start gap-3 px-3 py-2.5', headerBg)}>
-        {/* Rating dot */}
-        <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', dotColor)}>
-          {mainRating || '–'}
+        {/* Dot — rating number OR icon por estado */}
+        <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+          mainRating > 0 ? 'text-white' : '',
+          headerIconBg)}>
+          {headerIcon ?? (mainRating > 0 ? mainRating : <AlertTriangle className="h-4 w-4 text-yellow-700" />)}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -345,6 +381,9 @@ function TrainingCard({
             <span className={cn('rounded-full border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wider', pill.classes)}>
               {pill.label}
             </span>
+            {countdownLabel && !showOverdueBadge && (
+              <span className="text-[10px] font-normal lowercase text-neutral-500">· {countdownLabel}</span>
+            )}
             {showOverdueBadge && (
               <span className="rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0 text-[9px] font-semibold uppercase text-orange-700">
                 Data passou

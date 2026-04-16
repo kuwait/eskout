@@ -25,6 +25,7 @@ import { updateTrainingDate, updateMeetingDate, updateSigningDate, updateDecisio
 import { updatePlayer } from '@/actions/players';
 import { POSITION_LABELS, RECRUITMENT_STATUSES } from '@/lib/constants';
 import type { DecisionSide, Player, PositionCode, RecruitmentStatus } from '@/lib/types';
+import type { PipelineTrainingSession } from '@/components/pipeline/PipelineView';
 
 interface PipelineCardProps {
   player: Player;
@@ -46,6 +47,8 @@ interface PipelineCardProps {
   contactPurposeLabel?: string;
   /** Available contact purpose options for editing */
   contactPurposes?: { id: string; label: string }[];
+  /** Treinos do ciclo actual — para vir_treinar cards */
+  trainingSessions?: PipelineTrainingSession[];
 }
 
 /** Format a date string to a compact Portuguese display.
@@ -113,7 +116,7 @@ import { shortName } from '@/lib/utils';
 // Re-export for consumers that imported from here
 export { shortName } from '@/lib/utils';
 
-export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel, contactPurposes = [] }: PipelineCardProps) {
+export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel, contactPurposes = [], trainingSessions }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
   const birthYear = showBirthYear && player.dob ? new Date(player.dob).getFullYear() : null;
   // Short name on pipeline cards — full name truncated via CSS
@@ -301,7 +304,7 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           />
         )}
 
-        {/* Vir treinar: responsible person + escalão */}
+        {/* Vir treinar: responsible person + escalão + lista de treinos do ciclo actual */}
         {player.recruitmentStatus === 'vir_treinar' && (
           <div className="mt-1.5 space-y-1">
             {responsibleName && (
@@ -311,6 +314,9 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               </div>
             )}
             <TrainingEscalaoButton player={player} />
+            {trainingSessions && trainingSessions.length > 0 && (
+              <TrainingSessionChips playerId={player.id} sessions={trainingSessions} />
+            )}
           </div>
         )}
 
@@ -329,8 +335,9 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
           <StandbyReasonButton playerId={player.id} currentReason={player.standbyReason} />
         )}
 
-        {/* Scheduled date button — for "Vir treinar", "Reunião Marcada", "Confirmado" */}
-        {statusConfig && (
+        {/* Scheduled date button — "Reunião Marcada", "Confirmado", "A Decidir"
+            (para vir_treinar usamos TrainingSessionChips acima, este botão é escondido) */}
+        {statusConfig && player.recruitmentStatus !== 'vir_treinar' && (
           <button
             data-no-navigate
             onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
@@ -1150,6 +1157,69 @@ function StandbyReasonButton({
       <span className="flex-1">{currentReason || 'Motivo…'}</span>
       <Pencil className="h-2.5 w-2.5 shrink-0 opacity-40" />
     </button>
+  );
+}
+
+/* ───────────── Training session chips (vir_treinar card) ───────────── */
+
+/** Formata data do treino para chip: "3ª 22/4" ou "3ª 22/4 · 10:00" */
+function formatTrainingChip(date: string, time: string | null): string {
+  try {
+    const [y, m, d] = date.split('-').map(Number);
+    const dd = new Date(y, m - 1, d, 12);
+    const wd = dd.toLocaleString('pt-PT', { weekday: 'short' }).replace('.', '');
+    const dm = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+    const tm = time && time !== '00:00:00' ? time.slice(0, 5) : null;
+    return tm ? `${wd} ${dm} · ${tm}` : `${wd} ${dm}`;
+  } catch { return date; }
+}
+
+/** Chips compactos com as sessões agendadas do ciclo actual. Click → perfil do atleta. */
+function TrainingSessionChips({ playerId, sessions }: {
+  playerId: number;
+  sessions: PipelineTrainingSession[];
+}) {
+  // Split: agendados futuros + realizados (já aconteceram)
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const agendados = sessions.filter((s) => s.status === 'agendado');
+  const realizados = sessions.filter((s) => s.status === 'realizado');
+  // Destaque: agendado com data já passada → precisa acção
+  const hasOverdue = agendados.some((s) => s.training_date < todayISO);
+  // Realizado sem avaliação
+  const hasPendingEval = realizados.some((s) => !s.has_evaluation);
+
+  const maxVisible = 2;
+  const visible = [...agendados, ...realizados].slice(0, maxVisible);
+  const hiddenCount = sessions.length - visible.length;
+
+  return (
+    <Link
+      href={`/jogadores/${playerId}`}
+      onClick={(e) => e.stopPropagation()}
+      className="flex flex-wrap items-center gap-1 rounded bg-neutral-50 px-2 py-1 text-[10px] text-neutral-600 hover:bg-neutral-100"
+    >
+      <Calendar className="h-3 w-3 shrink-0 text-neutral-400" />
+      {visible.map((s) => {
+        const chipClass =
+          s.status === 'agendado' && s.training_date < todayISO ? 'bg-orange-100 text-orange-700' :
+          s.status === 'agendado' ? 'bg-amber-100 text-amber-700' :
+          s.status === 'realizado' && !s.has_evaluation ? 'bg-yellow-100 text-yellow-700' :
+          'bg-green-100 text-green-700';
+        return (
+          <span key={s.id} className={`rounded px-1.5 py-0.5 font-medium ${chipClass}`}>
+            {formatTrainingChip(s.training_date, s.session_time)}
+          </span>
+        );
+      })}
+      {hiddenCount > 0 && (
+        <span className="text-neutral-400">+{hiddenCount}</span>
+      )}
+      {(hasOverdue || hasPendingEval) && (
+        <span className="ml-auto text-[9px] font-bold uppercase text-orange-600">
+          {hasOverdue ? 'Atraso' : 'Pendente'}
+        </span>
+      )}
+    </Link>
   );
 }
 
