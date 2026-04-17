@@ -792,22 +792,24 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
                   <span suppressHydrationWarning>{squad.description}</span>
                 </Badge>
               )}
-              {/* Player count + doubt count */}
-              <div className="flex items-center gap-1.5">
-                <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900">
+              {/* Player count + doubt count.
+                  suppressHydrationWarning: the active squad is chosen from localStorage on the client,
+                  so the counts can differ from the server-rendered default on first paint. */}
+              <div className="flex items-center gap-1.5" suppressHydrationWarning>
+                <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900" suppressHydrationWarning>
                   {totalCount}
-                  <span className="font-normal opacity-70">{totalCount === 1 ? 'atleta' : 'atletas'}</span>
+                  <span className="font-normal opacity-70" suppressHydrationWarning>{totalCount === 1 ? 'atleta' : 'atletas'}</span>
                 </span>
                 {doubtCount > 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
+                  <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white" suppressHydrationWarning>
                     {doubtCount}
-                    <span className="font-normal opacity-80">{doubtCount === 1 ? 'dúvida' : 'dúvidas'}</span>
+                    <span className="font-normal opacity-80" suppressHydrationWarning>{doubtCount === 1 ? 'dúvida' : 'dúvidas'}</span>
                   </span>
                 )}
                 {preseasonCount > 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-sky-500 px-2.5 py-1 text-xs font-semibold text-white">
+                  <span className="flex items-center gap-1 rounded-full bg-sky-500 px-2.5 py-1 text-xs font-semibold text-white" suppressHydrationWarning>
                     {preseasonCount}
-                    <span className="font-normal opacity-80">pré-época</span>
+                    <span className="font-normal opacity-80" suppressHydrationWarning>pré-época</span>
                   </span>
                 )}
               </div>
