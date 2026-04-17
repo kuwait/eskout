@@ -25,7 +25,8 @@ import {
   addToShadowSquad, removeFromShadowSquad, toggleRealSquad,
   addPlayerToSquad, removePlayerFromSquad,
   bulkReorderSquad, moveSquadPlayerPosition,
-  toggleSquadPlayerDoubt,
+  toggleSquadPlayerDoubt, toggleSquadPlayerSigned, toggleSquadPlayerPreseason,
+  setSquadPlayerDoubtReason,
 } from '@/actions/squads';
 import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +35,16 @@ import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import type { Player, PickerPlayer, PlayerRow, Squad, SquadRow, SquadType } from '@/lib/types';
 
 type ViewMode = 'campo' | 'lista' | 'comparar';
-type SquadPlayersMap = Map<number, { position: string; sortOrder: number; isDoubt: boolean; isSigned: boolean }>;
+type SquadPlayersMap = Map<number, {
+  position: string;
+  sortOrder: number;
+  isDoubt: boolean;
+  isSigned: boolean;
+  isPreseason: boolean;
+  doubtReason: string | null;
+  doubtReasonCustom: string | null;
+  doubtReasonColor: string | null;
+}>;
 
 const VIEW_MODE_KEY_PREFIX = 'eskout-view-';
 const SQUAD_SELECTION_KEY_PREFIX = 'eskout-squad-';
@@ -74,8 +84,19 @@ function computeByPosition(
   for (const [playerId, sp] of playerMap) {
     const player = allPlayers.find((p) => p.id === playerId);
     if (!player) continue;
-    // Stamp squad-context doubt flag onto the player object for rendering
-    const stamped = (sp.isDoubt || sp.isSigned) ? { ...player, isDoubt: sp.isDoubt, isSigned: sp.isSigned } : player;
+    // Stamp squad-context flags onto the player object for rendering
+    const hasFlag = sp.isDoubt || sp.isSigned || sp.isPreseason || sp.doubtReason;
+    const stamped = hasFlag
+      ? {
+          ...player,
+          isDoubt: sp.isDoubt,
+          isSigned: sp.isSigned,
+          isPreseason: sp.isPreseason,
+          doubtReason: sp.doubtReason,
+          doubtReasonCustom: sp.doubtReasonCustom,
+          doubtReasonColor: sp.doubtReasonColor,
+        }
+      : player;
     const pos = sp.position;
 
     // Special sections — not on the pitch
@@ -210,7 +231,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const map = new Map<number, SquadPlayersMap>();
     for (const row of initialData.squad_players) {
       if (!map.has(row.squad_id)) map.set(row.squad_id, new Map());
-      map.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false });
+      map.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null });
     }
     return map;
   });
@@ -267,7 +288,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const spMap = new Map<number, SquadPlayersMap>();
     for (const row of result.squad_players ?? []) {
       if (!spMap.has(row.squad_id)) spMap.set(row.squad_id, new Map());
-      spMap.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false });
+      spMap.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null });
     }
     setAllSquadPlayersMap(spMap);
 
@@ -352,14 +373,14 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
 
     const { data } = await supabase
       .from('squad_players')
-      .select('squad_id, player_id, position, sort_order, is_doubt, is_signed')
+      .select('squad_id, player_id, position, sort_order, is_doubt, is_signed, is_preseason, doubt_reason, doubt_reason_custom, doubt_reason_color')
       .eq('squad_id', compareRightId);
 
     if (!data) { setOtherSquadPlayersMap(new Map()); return; }
 
     const map: SquadPlayersMap = new Map();
     for (const row of data) {
-      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false });
+      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null });
     }
     setOtherSquadPlayersMap(map);
   }, [compareRightId]);
@@ -456,7 +477,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
       setAllSquadPlayersMap((prev) => {
         const next = new Map(prev);
         const updated = new Map(next.get(squadId) ?? new Map());
-        updated.set(player.id, { position: pos, sortOrder: nextOrder, isDoubt: false, isSigned: false });
+        updated.set(player.id, { position: pos, sortOrder: nextOrder, isDoubt: false, isSigned: false, isPreseason: false, doubtReason: null, doubtReasonCustom: null, doubtReasonColor: null });
         next.set(squadId, updated);
         return next;
       });
@@ -626,11 +647,56 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
       next.set(squadId, updated);
       return next;
     });
-    import('@/actions/squads').then(({ toggleSquadPlayerSigned }) =>
-      toggleSquadPlayerSigned(squadId, playerId, isSigned).then((res) => {
-        if (!res.success) fetchAllSquadData();
-      })
-    );
+    toggleSquadPlayerSigned(squadId, playerId, isSigned).then((res) => {
+      if (!res.success) fetchAllSquadData();
+    });
+  }
+
+  /** Set doubt reason (Dúvida section only) — independent of pipeline status */
+  function handleSetDoubtReason(
+    playerId: number,
+    squadId: number | null,
+    reason: string | null,
+    customText?: string | null,
+    customColor?: string | null
+  ) {
+    if (!squadId) return;
+    markMutation();
+    setAllSquadPlayersMap((prev) => {
+      const next = new Map(prev);
+      const updated = new Map(next.get(squadId) ?? new Map());
+      const existing = updated.get(playerId);
+      if (existing) {
+        updated.set(playerId, {
+          ...existing,
+          doubtReason: reason,
+          doubtReasonCustom: reason === 'outro' ? (customText ?? null) : null,
+          doubtReasonColor: reason === 'outro' ? (customColor ?? null) : null,
+        });
+      }
+      next.set(squadId, updated);
+      return next;
+    });
+    setSquadPlayerDoubtReason(squadId, playerId, reason, customText, customColor).then((res) => {
+      if (!res.success) fetchAllSquadData();
+    });
+  }
+
+  /** Toggle is_preseason on squad_players — independent of pipeline */
+  function handleTogglePreseason(playerId: number, squadId: number | null, isPreseason: boolean) {
+    if (!squadId) return;
+    markMutation();
+    setAllSquadPlayersMap((prev) => {
+      const next = new Map(prev);
+      const updated = new Map(next.get(squadId) ?? new Map());
+      const existing = updated.get(playerId);
+      if (existing) updated.set(playerId, { ...existing, isPreseason });
+      next.set(squadId, updated);
+      return next;
+    });
+    toggleSquadPlayerPreseason(squadId, playerId, isPreseason).then((res) => {
+      if (!res.success) fetchAllSquadData();
+    });
   }
 
   /** Move a player from a pitch position to a special section (DUVIDA / POSSIBILIDADE) */
@@ -695,6 +761,9 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const dragEnd = (info: DragEndInfo) => handleDragEnd(info, squad.id, byPos);
     const toggleDoubt = (pid: number, isDoubt: boolean) => handleToggleDoubt(pid, squad.id, isDoubt);
     const toggleSigned = (pid: number, isSigned: boolean) => handleToggleSigned(pid, squad.id, isSigned);
+    const togglePreseason = (pid: number, isPreseason: boolean) => handleTogglePreseason(pid, squad.id, isPreseason);
+    const setDoubtReason = (pid: number, reason: string | null, customText?: string | null, customColor?: string | null) =>
+      handleSetDoubtReason(pid, squad.id, reason, customText, customColor);
     const moveToSection = squadType === 'real'
       ? (pid: number, section: SpecialSquadSection) => handleMoveToSection(pid, squad.id, section)
       : undefined;
@@ -704,6 +773,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const pitchPlayers = Object.values(byPos).flat();
     const totalCount = pitchPlayers.length;
     const doubtCount = pitchPlayers.filter((p) => p.isDoubt).length;
+    const preseasonCount = pitchPlayers.filter((p) => p.isPreseason).length;
 
     return (
       <div key={squad.id} className="space-y-4">
@@ -717,8 +787,9 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
                 >{squad.name}</h3>
               )}
               {squad.description && (
-                <Badge variant="secondary" className="rounded-md px-3 py-1 text-sm uppercase tracking-wide">
-                  {squad.description}
+                /* suppressHydrationWarning: squad is chosen from localStorage on the client, so description may differ from the server-rendered default */
+                <Badge variant="secondary" className="rounded-md px-3 py-1 text-sm uppercase tracking-wide" suppressHydrationWarning>
+                  <span suppressHydrationWarning>{squad.description}</span>
                 </Badge>
               )}
               {/* Player count + doubt count */}
@@ -733,6 +804,12 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
                     <span className="font-normal opacity-80">{doubtCount === 1 ? 'dúvida' : 'dúvidas'}</span>
                   </span>
                 )}
+                {preseasonCount > 0 && (
+                  <span className="flex items-center gap-1 rounded-full bg-sky-500 px-2.5 py-1 text-xs font-semibold text-white">
+                    {preseasonCount}
+                    <span className="font-normal opacity-80">pré-época</span>
+                  </span>
+                )}
               </div>
             </div>
             {/* Per-squad export — only shown when multiple squads visible (single squad uses global export) */}
@@ -744,7 +821,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
         {viewMode === 'campo' && (
           <>
             {mounted ? (
-              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} onToggleDoubt={toggleDoubt} onToggleSigned={toggleSigned} onMoveToSection={moveToSection} specialSections={sections}>
+              <FormationView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onDragEnd={dragEnd} onToggleDoubt={toggleDoubt} onToggleSigned={toggleSigned} onTogglePreseason={togglePreseason} onMoveToSection={moveToSection} specialSections={sections}>
                 {/* Special sections inside DndContext — enables drag from pitch to sections */}
                 {squadType === 'real' && sections && (
                   <div className="grid grid-cols-1 gap-3 pt-3 sm:grid-cols-2">
@@ -756,6 +833,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
                         players={sections[sectionKey] ?? []}
                         onAdd={() => openAdd(sectionKey)}
                         onRemovePlayer={remove}
+                        onSetDoubtReason={setDoubtReason}
                       />
                     ))}
                   </div>
@@ -775,7 +853,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
         )}
         {viewMode === 'lista' && (
           <>
-            <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onToggleDoubt={toggleDoubt} onToggleSigned={toggleSigned} />
+            <SquadListView byPosition={byPos} squadType={squadType} onAdd={openAdd} onRemovePlayer={remove} onPlayerClick={handlePlayerClick} onToggleDoubt={toggleDoubt} onToggleSigned={toggleSigned} onTogglePreseason={togglePreseason} />
             {/* Special sections for list view — outside DnD (no drag in list view) */}
             {squadType === 'real' && sections && (
               <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">

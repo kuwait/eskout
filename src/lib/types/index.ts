@@ -127,6 +127,14 @@ export interface Player {
   isDoubt?: boolean;
   /** Squad-context only: player is marked as "Assinou" in the current squad view */
   isSigned?: boolean;
+  /** Squad-context only: player is marked as "Pré-Época" in the current squad view */
+  isPreseason?: boolean;
+  /** Squad-context only: reason the player is in the "Dúvida" special section */
+  doubtReason?: string | null;
+  /** Squad-context only: custom text for doubt reason when reason = 'outro' */
+  doubtReasonCustom?: string | null;
+  /** Squad-context only: custom color choice for doubt reason when reason = 'outro' */
+  doubtReasonColor?: string | null;
 }
 
 /* ───────────── Database Row Types (snake_case from Supabase) ───────────── */
@@ -912,6 +920,10 @@ export interface SquadPlayer {
   sortOrder: number;
   isDoubt: boolean;
   isSigned: boolean;
+  isPreseason: boolean;
+  doubtReason: string | null;
+  doubtReasonCustom: string | null;
+  doubtReasonColor: string | null;
   addedAt: string;
 }
 
@@ -924,6 +936,10 @@ export interface SquadPlayerRow {
   sort_order: number;
   is_doubt: boolean;
   is_signed: boolean;
+  is_preseason: boolean;
+  doubt_reason: string | null;
+  doubt_reason_custom: string | null;
+  doubt_reason_color: string | null;
   added_at: string;
 }
 

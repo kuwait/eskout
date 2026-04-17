@@ -74,7 +74,8 @@ export function SquadSelector({
           aria-label="Selecionar plantel"
         >
           <SelectValue>
-            {current?.name ?? 'Selecionar'}
+            {/* suppressHydrationWarning: squad name depends on localStorage (client-only via SquadPanelView), so server renders 1st squad and client renders stored one */}
+            <span suppressHydrationWarning>{current?.name ?? 'Selecionar'}</span>
           </SelectValue>
         </SelectTrigger>
         <SelectContent>

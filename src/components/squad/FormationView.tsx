@@ -81,6 +81,7 @@ interface FormationViewProps {
   onDragEnd?: (info: DragEndInfo) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
   onToggleSigned?: (playerId: number, isSigned: boolean) => void;
+  onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
   /** Move player to a special section (Dúvida / Possibilidades) — real squads only */
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
   /** Players in special sections (DUVIDA, POSSIBILIDADE) — included in DnD context for cross-zone drag */
@@ -119,7 +120,7 @@ interface DragVirtual {
   toIndex: number;
 }
 
-export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt, onToggleSigned, onMoveToSection, specialSections, children }: FormationViewProps) {
+export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt, onToggleSigned, onTogglePreseason, onMoveToSection, specialSections, children }: FormationViewProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [dragVirtual, setDragVirtual] = useState<DragVirtual | null>(null);
   const isDesktop = useIsDesktop();
@@ -301,6 +302,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
         onPlayerClick={onPlayerClick}
         onToggleDoubt={onToggleDoubt}
         onToggleSigned={onToggleSigned}
+        onTogglePreseason={onTogglePreseason}
         onMoveToSection={onMoveToSection}
       />
     );

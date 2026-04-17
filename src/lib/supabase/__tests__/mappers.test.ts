@@ -3,8 +3,29 @@
 // Validates snake_case→camelCase, null handling, legacy format compat
 // RELEVANT FILES: src/lib/supabase/mappers.ts, src/lib/types/index.ts, src/lib/__tests__/factories.ts
 
-import { mapPlayerRow, mapScoutingReportRow, mapCalendarEventRow, mapTrainingFeedbackRow, mapUserTaskRow } from '@/lib/supabase/mappers';
+import { mapPlayerRow, mapScoutingReportRow, mapCalendarEventRow, mapTrainingFeedbackRow, mapUserTaskRow, mapSquadPlayerRow } from '@/lib/supabase/mappers';
 import { makePlayerRow, makeScoutingReportRow, makeCalendarEventRow, makeTrainingFeedbackRow, makeUserTaskRow } from '@/lib/__tests__/factories';
+import type { SquadPlayerRow } from '@/lib/types';
+
+/** Build a full SquadPlayerRow for tests — only the fields under test vary */
+function makeSquadPlayerRow(overrides: Partial<SquadPlayerRow> = {}): SquadPlayerRow {
+  return {
+    id: 1,
+    squad_id: 10,
+    club_id: '00000000-0000-0000-0000-000000000001',
+    player_id: 100,
+    position: 'DC',
+    sort_order: 0,
+    is_doubt: false,
+    is_signed: false,
+    is_preseason: false,
+    doubt_reason: null,
+    doubt_reason_custom: null,
+    doubt_reason_color: null,
+    added_at: '2026-04-17T10:00:00.000Z',
+    ...overrides,
+  };
+}
 
 /* ───────────── mapPlayerRow ───────────── */
 
@@ -404,5 +425,76 @@ describe('mapPlayerRow — signingAttendees', () => {
     const row = makePlayerRow({ signing_attendees: null });
     const player = mapPlayerRow(row);
     expect(player.signingAttendees).toEqual([]);
+  });
+});
+
+/* ───────────── mapSquadPlayerRow — preseason + doubt reason ───────────── */
+
+describe('mapSquadPlayerRow', () => {
+  it('maps all core fields from snake_case to camelCase', () => {
+    const row = makeSquadPlayerRow({ squad_id: 5, player_id: 42, position: 'MC', sort_order: 3 });
+    const sp = mapSquadPlayerRow(row);
+
+    expect(sp.squadId).toBe(5);
+    expect(sp.playerId).toBe(42);
+    expect(sp.position).toBe('MC');
+    expect(sp.sortOrder).toBe(3);
+  });
+
+  it('defaults isPreseason to false when the column is null (old rows pre-migration 109)', () => {
+    // Simulate a row from before the migration where the column came back null
+    const row = makeSquadPlayerRow({ is_preseason: null as unknown as boolean });
+    const sp = mapSquadPlayerRow(row);
+    expect(sp.isPreseason).toBe(false);
+  });
+
+  it('preserves isPreseason=true', () => {
+    const row = makeSquadPlayerRow({ is_preseason: true });
+    const sp = mapSquadPlayerRow(row);
+    expect(sp.isPreseason).toBe(true);
+  });
+
+  it('maps doubt_reason preset to camelCase with custom fields null', () => {
+    const row = makeSquadPlayerRow({
+      is_doubt: true,
+      doubt_reason: 'saude',
+      doubt_reason_custom: null,
+      doubt_reason_color: null,
+    });
+    const sp = mapSquadPlayerRow(row);
+
+    expect(sp.isDoubt).toBe(true);
+    expect(sp.doubtReason).toBe('saude');
+    expect(sp.doubtReasonCustom).toBeNull();
+    expect(sp.doubtReasonColor).toBeNull();
+  });
+
+  it('maps doubt_reason=outro with custom text + color', () => {
+    const row = makeSquadPlayerRow({
+      is_doubt: true,
+      doubt_reason: 'outro',
+      doubt_reason_custom: 'Lesão prolongada',
+      doubt_reason_color: 'purple',
+    });
+    const sp = mapSquadPlayerRow(row);
+
+    expect(sp.doubtReason).toBe('outro');
+    expect(sp.doubtReasonCustom).toBe('Lesão prolongada');
+    expect(sp.doubtReasonColor).toBe('purple');
+  });
+
+  it('nulls out doubt reason fields when player is not in Dúvida', () => {
+    const row = makeSquadPlayerRow({
+      is_doubt: false,
+      doubt_reason: null,
+      doubt_reason_custom: null,
+      doubt_reason_color: null,
+    });
+    const sp = mapSquadPlayerRow(row);
+
+    expect(sp.isDoubt).toBe(false);
+    expect(sp.doubtReason).toBeNull();
+    expect(sp.doubtReasonCustom).toBeNull();
+    expect(sp.doubtReasonColor).toBeNull();
   });
 });
