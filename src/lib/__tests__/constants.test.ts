@@ -28,6 +28,12 @@ import {
   MATURATION_SCALE_OPTIONS,
   TRAINING_TAG_CATEGORIES,
   TRAINING_TAG_LABEL_MAP,
+  POSITION_CHIP_SOLID,
+  POSITION_CHIP_OUTLINE,
+  DOUBT_REASONS,
+  DOUBT_REASON_CONFIG,
+  CUSTOM_COLOR_CHOICES,
+  CUSTOM_COLOR_CLASSES,
 } from '@/lib/constants';
 import { makePlayer } from '@/lib/__tests__/factories';
 
@@ -493,5 +499,91 @@ describe('isSpecialSection', () => {
     expect(isSpecialSection('')).toBe(false);
     expect(isSpecialSection('XX')).toBe(false);
     expect(isSpecialSection('duvida')).toBe(false);
+  });
+});
+
+/* ───────────── Position chip color tables ───────────── */
+
+describe('POSITION_CHIP_SOLID + POSITION_CHIP_OUTLINE', () => {
+  // Every code used in squads or profiles must have both a solid and an outline variant so cards
+  // never render with missing styles. Keep these in sync with SquadPanelView / FormationSlot.
+  const EXPECTED_CODES = ['GR', 'DD', 'DE', 'DC', 'MDC', 'MC', 'MOC', 'ED', 'EE', 'PL', 'MD', 'ME', 'AD', 'AE', 'SA'];
+
+  it('defines a solid bg class for every primary + extended position code', () => {
+    for (const code of EXPECTED_CODES) {
+      expect(POSITION_CHIP_SOLID[code]).toBeDefined();
+      expect(POSITION_CHIP_SOLID[code]).toMatch(/^bg-/);
+    }
+  });
+
+  it('defines border + text outline classes for every primary + extended position code', () => {
+    for (const code of EXPECTED_CODES) {
+      expect(POSITION_CHIP_OUTLINE[code]).toBeDefined();
+      expect(POSITION_CHIP_OUTLINE[code]).toMatch(/border-/);
+      expect(POSITION_CHIP_OUTLINE[code]).toMatch(/text-/);
+    }
+  });
+
+  it('groups defenders on blue, midfielders on orange, attackers on red, GR on amber', () => {
+    expect(POSITION_CHIP_SOLID.GR).toContain('amber');
+    expect(POSITION_CHIP_SOLID.DC).toContain('blue');
+    expect(POSITION_CHIP_SOLID.DD).toContain('blue');
+    expect(POSITION_CHIP_SOLID.DE).toContain('blue');
+    expect(POSITION_CHIP_SOLID.MC).toContain('orange');
+    expect(POSITION_CHIP_SOLID.MDC).toContain('orange');
+    expect(POSITION_CHIP_SOLID.MOC).toContain('orange');
+    expect(POSITION_CHIP_SOLID.PL).toContain('red');
+    expect(POSITION_CHIP_SOLID.ED).toContain('red');
+    expect(POSITION_CHIP_SOLID.EE).toContain('red');
+  });
+});
+
+/* ───────────── Doubt reasons (Dúvida section) ───────────── */
+
+describe('DOUBT_REASONS + DOUBT_REASON_CONFIG', () => {
+  it('lists the 6 canonical reasons in stable order', () => {
+    // Order matters: UI renders the grid in this sequence, and "outro" must be last
+    expect(DOUBT_REASONS).toEqual(['decidir', 'saude', 'pre_epoca', 'outro_escalao', 'dispensar', 'outro']);
+  });
+
+  it('has an entry in DOUBT_REASON_CONFIG for every reason', () => {
+    for (const reason of DOUBT_REASONS) {
+      const cfg = DOUBT_REASON_CONFIG[reason];
+      expect(cfg).toBeDefined();
+      expect(cfg.label).toMatch(/\S/);
+      expect(cfg.border).toMatch(/^border-/);
+      expect(cfg.bg).toMatch(/^bg-/);
+      expect(cfg.text).toMatch(/^text-/);
+    }
+  });
+
+  it('uses Portuguese labels (user-facing)', () => {
+    expect(DOUBT_REASON_CONFIG.decidir.label).toBe('Por Decidir');
+    expect(DOUBT_REASON_CONFIG.saude.label).toBe('Saúde');
+    expect(DOUBT_REASON_CONFIG.pre_epoca.label).toBe('Pré-Época');
+    expect(DOUBT_REASON_CONFIG.outro_escalao.label).toBe('Outro Escalão');
+    expect(DOUBT_REASON_CONFIG.dispensar.label).toBe('A Dispensar');
+    expect(DOUBT_REASON_CONFIG.outro.label).toBe('Outro');
+  });
+});
+
+describe('CUSTOM_COLOR_CHOICES + CUSTOM_COLOR_CLASSES', () => {
+  it('has a class entry for every color choice', () => {
+    for (const c of CUSTOM_COLOR_CHOICES) {
+      const palette = CUSTOM_COLOR_CLASSES[c];
+      expect(palette).toBeDefined();
+      expect(palette.border).toMatch(/^border-/);
+      expect(palette.bg).toMatch(/^bg-/);
+      expect(palette.text).toMatch(/^text-/);
+      // dot is used on the swatch picker — must be a solid bg
+      expect(palette.dot).toMatch(/^bg-/);
+    }
+  });
+
+  it('keys are in sync with the migration 110 CHECK constraint', () => {
+    // If this changes, update supabase/migrations/110_squad_player_doubt_reason.sql too
+    expect([...CUSTOM_COLOR_CHOICES].sort()).toEqual(
+      ['amber', 'blue', 'green', 'orange', 'pink', 'purple', 'red', 'slate']
+    );
   });
 });

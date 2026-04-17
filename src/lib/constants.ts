@@ -49,6 +49,64 @@ export function isSpecialSection(position: string): position is SpecialSquadSect
   return position === 'DUVIDA' || position === 'POSSIBILIDADE';
 }
 
+/* ───────────── Position chip colors (tactical role) ───────────── */
+
+/** Solid bg colors for the primary position chip — GR/DEF/MID/ATK grouping */
+export const POSITION_CHIP_SOLID: Record<string, string> = {
+  GR: 'bg-amber-500',
+  DC: 'bg-blue-600', DD: 'bg-blue-600', DE: 'bg-blue-600',
+  MDC: 'bg-orange-500', MC: 'bg-orange-500', MOC: 'bg-orange-500',
+  ED: 'bg-red-500', EE: 'bg-red-500', PL: 'bg-red-600',
+  MD: 'bg-orange-500', ME: 'bg-orange-500', AD: 'bg-red-500', AE: 'bg-red-500', SA: 'bg-red-600',
+};
+
+/** Outline chip classes for alternate (secondary/tertiary) positions — same family color, lighter weight */
+export const POSITION_CHIP_OUTLINE: Record<string, string> = {
+  GR: 'border-amber-400 text-amber-700',
+  DC: 'border-blue-400 text-blue-700', DD: 'border-blue-400 text-blue-700', DE: 'border-blue-400 text-blue-700',
+  MDC: 'border-orange-400 text-orange-700', MC: 'border-orange-400 text-orange-700', MOC: 'border-orange-400 text-orange-700',
+  ED: 'border-red-400 text-red-700', EE: 'border-red-400 text-red-700', PL: 'border-red-500 text-red-700',
+  MD: 'border-orange-400 text-orange-700', ME: 'border-orange-400 text-orange-700',
+  AD: 'border-red-400 text-red-700', AE: 'border-red-400 text-red-700', SA: 'border-red-500 text-red-700',
+};
+
+/* ───────────── Doubt Reasons (Dúvida section only) ───────────── */
+
+/** Reasons why a player is in the "Dúvida" special section — independent of recruitment pipeline */
+export const DOUBT_REASONS = ['decidir', 'saude', 'pre_epoca', 'outro_escalao', 'dispensar', 'outro'] as const;
+export type DoubtReason = typeof DOUBT_REASONS[number];
+
+/** Label + soft tinted color classes per doubt reason */
+export const DOUBT_REASON_CONFIG: Record<DoubtReason, {
+  label: string;
+  border: string;
+  bg: string;
+  text: string;
+}> = {
+  decidir:       { label: 'Por Decidir',   border: 'border-amber-300',  bg: 'bg-amber-50',  text: 'text-amber-700' },
+  saude:         { label: 'Saúde',         border: 'border-red-300',    bg: 'bg-red-50',    text: 'text-red-700' },
+  pre_epoca:     { label: 'Pré-Época',     border: 'border-sky-300',    bg: 'bg-sky-50',    text: 'text-sky-700' },
+  outro_escalao: { label: 'Outro Escalão', border: 'border-blue-300',   bg: 'bg-blue-50',   text: 'text-blue-700' },
+  dispensar:     { label: 'A Dispensar',   border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-700' },
+  outro:         { label: 'Outro',         border: 'border-slate-300',  bg: 'bg-slate-50',  text: 'text-slate-700' },
+};
+
+/** Color choices for 'outro' (custom) doubt reason — keep keys in sync with migration 110 check constraint */
+export const CUSTOM_COLOR_CHOICES = ['red', 'orange', 'amber', 'green', 'blue', 'purple', 'pink', 'slate'] as const;
+export type CustomColorChoice = typeof CUSTOM_COLOR_CHOICES[number];
+
+/** Soft tinted Tailwind classes per custom color choice — used when doubt_reason = 'outro' */
+export const CUSTOM_COLOR_CLASSES: Record<CustomColorChoice, { border: string; bg: string; text: string; dot: string }> = {
+  red:    { border: 'border-red-300',    bg: 'bg-red-50',    text: 'text-red-700',    dot: 'bg-red-500' },
+  orange: { border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
+  amber:  { border: 'border-amber-300',  bg: 'bg-amber-50',  text: 'text-amber-700',  dot: 'bg-amber-500' },
+  green:  { border: 'border-green-300',  bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500' },
+  blue:   { border: 'border-blue-300',   bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-500' },
+  purple: { border: 'border-purple-300', bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  pink:   { border: 'border-pink-300',   bg: 'bg-pink-50',   text: 'text-pink-700',   dot: 'bg-pink-500' },
+  slate:  { border: 'border-slate-300',  bg: 'bg-slate-50',  text: 'text-slate-700',  dot: 'bg-slate-500' },
+};
+
 /** Squad display slots — DC split into DC (E) and DC (D) for list/compare views */
 export const SQUAD_SLOTS: { slot: SquadSlot; label: string }[] = [
   { slot: 'GR', label: 'Guarda-Redes' },

@@ -397,6 +397,73 @@ export async function toggleSquadPlayerSigned(
   return { success: true };
 }
 
+/* ───────────── Set Doubt Reason (Dúvida section only, independent of pipeline) ───────────── */
+
+/** Set or clear the doubt reason for a squad player — used in the Dúvida special section */
+export async function setSquadPlayerDoubtReason(
+  squadId: number,
+  playerId: number,
+  reason: string | null,
+  customText?: string | null,
+  customColor?: string | null
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getAuthContext();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
+  const supabase = await createClient();
+
+  // When clearing or not 'outro', null the custom fields to keep data clean
+  const payload = {
+    doubt_reason: reason,
+    doubt_reason_custom: reason === 'outro' ? (customText ?? null) : null,
+    doubt_reason_color: reason === 'outro' ? (customColor ?? null) : null,
+  };
+
+  const { error } = await supabase
+    .from('squad_players')
+    .update(payload)
+    .eq('squad_id', squadId)
+    .eq('player_id', playerId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar motivo da dúvida: ${error.message}` };
+  }
+
+  revalidatePath('/campo');
+  await broadcastRowMutation(clubId, 'squad_players', 'UPDATE', userId, playerId);
+  return { success: true };
+}
+
+/* ───────────── Toggle Pré-Época (squad-level, independent of pipeline) ───────────── */
+
+/** Mark or unmark a squad player as "Pré-Época" */
+export async function toggleSquadPlayerPreseason(
+  squadId: number,
+  playerId: number,
+  isPreseason: boolean
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getAuthContext();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('squad_players')
+    .update({ is_preseason: isPreseason })
+    .eq('squad_id', squadId)
+    .eq('player_id', playerId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar pré-época: ${error.message}` };
+  }
+
+  revalidatePath('/campo');
+  await broadcastRowMutation(clubId, 'squad_players', 'UPDATE', userId, playerId);
+  return { success: true };
+}
+
 /* ───────────── Reorder Squad Player (within same position) ───────────── */
 
 export async function reorderSquadPlayer(

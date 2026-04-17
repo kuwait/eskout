@@ -44,11 +44,12 @@ interface SquadListViewProps {
   onPlayerClick?: (playerId: number) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
   onToggleSigned?: (playerId: number, isSigned: boolean) => void;
+  onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
 }
 
 /* ───────────── Component ───────────── */
 
-export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onToggleSigned }: SquadListViewProps) {
+export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onToggleSigned, onTogglePreseason }: SquadListViewProps) {
   return (
     <div className="space-y-4">
       {SQUAD_SLOTS.map(({ slot, label }) => {
@@ -98,7 +99,11 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                     <div
                       key={player.id}
                       className={`group relative flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-neutral-50 ${
-                        player.isDoubt ? 'border border-dashed border-amber-400 bg-amber-50/50' : ''
+                        player.isDoubt
+                          ? 'border border-dashed border-amber-400 bg-amber-50/50'
+                          : player.isPreseason
+                            ? 'border border-dashed border-sky-400 bg-sky-50/50'
+                            : ''
                       } ${
                         squadType === 'shadow' ? (RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200') : ''
                       }`}
@@ -160,7 +165,10 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                           {player.isDoubt && (
                             <span className="rounded bg-amber-100 px-1 py-0 text-[9px] font-medium text-amber-700">DÚVIDA</span>
                           )}
-                          {!player.isDoubt && player.isSigned && (
+                          {!player.isDoubt && player.isPreseason && (
+                            <span className="rounded bg-sky-100 px-1 py-0 text-[9px] font-medium text-sky-700">PRÉ-ÉPOCA</span>
+                          )}
+                          {!player.isDoubt && !player.isPreseason && player.isSigned && (
                             <span className="rounded bg-green-100 px-1 py-0 text-[9px] font-medium text-green-700">ASSINOU</span>
                           )}
                         </div>
@@ -179,6 +187,19 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                             aria-label={player.isDoubt ? 'Remover dúvida' : 'Marcar como dúvida'}
                           >
                             {player.isDoubt ? '✓ Dúvida' : '? Dúvida'}
+                          </button>
+                        )}
+                        {onTogglePreseason && (
+                          <button
+                            className={`rounded px-2 py-1 text-[10px] font-medium ${
+                              player.isPreseason
+                                ? 'bg-sky-100 text-sky-700 hover:bg-sky-200'
+                                : 'text-sky-600 hover:bg-sky-50'
+                            }`}
+                            onClick={(e) => { e.stopPropagation(); onTogglePreseason(player.id, !player.isPreseason); }}
+                            aria-label={player.isPreseason ? 'Remover pré-época' : 'Marcar como pré-época'}
+                          >
+                            {player.isPreseason ? '✓ Pré-Época' : '○ Pré-Época'}
                           </button>
                         )}
                         {onToggleSigned && (
