@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Plus, Trash2, User, Footprints, Calendar, X } from 'lucide-react';
+import { Plus, Trash2, User, Footprints, Calendar } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -239,16 +239,6 @@ function DraggablePlayerCard({
           className="relative rounded-b-md border-t border-neutral-100 bg-white px-2 pb-2 pt-2"
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {/* Explicit close button — always reachable even if the root-click toggle misfires */}
-          <button
-            type="button"
-            className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
-            onClick={(e) => { e.stopPropagation(); setShowActions(false); }}
-            aria-label="Fechar"
-            title="Fechar"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
           {/* Meta strip — justified: [pos chip] left · foot center · date right */}
           {(posCode || player.foot || dobLabel) && (
             <div
