@@ -63,6 +63,13 @@ function displayName(name: string): string {
   return firstLast;
 }
 
+/** Compact name for narrow mobile cards: always "F. Last" for 2+ words */
+function compactName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return name;
+  return `${parts[0].charAt(0)}. ${parts[parts.length - 1]}`;
+}
+
 /** Compute age in years from an ISO dob string, returns null if invalid */
 function computeAge(dobStr: string | null | undefined): number | null {
   if (!dobStr) return null;
@@ -172,7 +179,7 @@ function DraggablePlayerCard({
       {...listeners}
       // Must come AFTER {...listeners} so our composed handler wins (it still forwards to dnd-kit)
       onPointerDown={composedOnPointerDown}
-      className={`relative w-[180px] cursor-grab rounded-md shadow-sm touch-none active:cursor-grabbing ${
+      className={`relative w-[140px] cursor-grab rounded-md shadow-sm touch-none active:cursor-grabbing lg:w-[180px] ${
         player.isDoubt
           ? 'border border-dashed border-amber-400 bg-amber-50/90 opacity-80'
           : player.isPreseason
@@ -225,7 +232,9 @@ function DraggablePlayerCard({
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[12px] font-semibold leading-tight text-neutral-900" title={player.name}>
-            {displayName(player.name)}
+            {/* Mobile-narrow card (<lg): always abbreviate to "F. Last" to avoid truncation */}
+            <span className="lg:hidden">{compactName(player.name)}</span>
+            <span className="hidden lg:inline">{displayName(player.name)}</span>
           </p>
           <p className="truncate text-[10px] leading-tight text-neutral-500" title={player.club ?? undefined}>
             {player.club || '—'}
