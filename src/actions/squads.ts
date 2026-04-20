@@ -13,6 +13,7 @@ import type { ActionResponse, Squad, SquadRow, SquadType } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { mapSquadRow } from '@/lib/supabase/mappers';
 import { isSpecialSection } from '@/lib/constants';
+import { normalizePossibilityReason } from '@/lib/squads/possibility-reason';
 
 /* ───────────── Helper: log status change ───────────── */
 
@@ -437,6 +438,44 @@ export async function setSquadPlayerDoubtReason(
 
   if (error) {
     return { success: false, error: `Erro ao atualizar motivo da dúvida: ${error.message}` };
+  }
+
+  revalidatePath('/campo');
+  await broadcastRowMutation(clubId, 'squad_players', 'UPDATE', userId, playerId);
+  return { success: true };
+}
+
+/* ───────────── Set Possibility Reason (Possibilidade section, real squads only) ───────────── */
+
+/**
+ * Store a custom motivo + color for a player in the Possibilidade section.
+ * Pass null for customText to clear the motivo (returns card to plain status strip).
+ */
+export async function setSquadPlayerPossibilityReason(
+  squadId: number,
+  playerId: number,
+  customText: string | null,
+  customColor: string | null
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getAuthContext();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
+  const supabase = await createClient();
+
+  const { text, color } = normalizePossibilityReason(customText, customColor);
+
+  const { error } = await supabase
+    .from('squad_players')
+    .update({
+      possibility_reason_custom: text,
+      possibility_reason_color: color,
+    })
+    .eq('squad_id', squadId)
+    .eq('player_id', playerId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar motivo: ${error.message}` };
   }
 
   revalidatePath('/campo');

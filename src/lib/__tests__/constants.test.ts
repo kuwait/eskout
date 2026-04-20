@@ -580,10 +580,13 @@ describe('CUSTOM_COLOR_CHOICES + CUSTOM_COLOR_CLASSES', () => {
     }
   });
 
-  it('keys are in sync with the migration 110 CHECK constraint', () => {
-    // If this changes, update supabase/migrations/110_squad_player_doubt_reason.sql too
+  it('keys are in sync with the migration 112 CHECK constraint', () => {
+    // If this changes, update supabase/migrations/112_possibility_reason.sql too
     expect([...CUSTOM_COLOR_CHOICES].sort()).toEqual(
-      ['amber', 'blue', 'green', 'orange', 'pink', 'purple', 'red', 'slate']
+      [
+        'amber', 'blue', 'cyan', 'emerald', 'green', 'indigo', 'lime', 'orange',
+        'pink', 'purple', 'red', 'rose', 'sky', 'slate', 'teal', 'yellow',
+      ]
     );
   });
 });

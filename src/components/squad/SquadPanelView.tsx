@@ -26,9 +26,10 @@ import {
   addPlayerToSquad, removePlayerFromSquad,
   bulkReorderSquad, moveSquadPlayerPosition,
   toggleSquadPlayerDoubt, setSquadPlayerSignStatus, toggleSquadPlayerPreseason,
-  setSquadPlayerDoubtReason,
+  setSquadPlayerDoubtReason, setSquadPlayerPossibilityReason,
 } from '@/actions/squads';
 import type { SquadSignStatus } from '@/actions/squads';
+import { normalizePossibilityReason } from '@/lib/squads/possibility-reason';
 import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -46,6 +47,8 @@ type SquadPlayersMap = Map<number, {
   doubtReason: string | null;
   doubtReasonCustom: string | null;
   doubtReasonColor: string | null;
+  possibilityReasonCustom: string | null;
+  possibilityReasonColor: string | null;
 }>;
 
 const VIEW_MODE_KEY_PREFIX = 'eskout-view-';
@@ -87,7 +90,9 @@ function computeByPosition(
     const player = allPlayers.find((p) => p.id === playerId);
     if (!player) continue;
     // Stamp squad-context flags onto the player object for rendering
-    const hasFlag = sp.isDoubt || sp.isSigned || sp.isWillSign || sp.isPreseason || sp.doubtReason;
+    const hasFlag =
+      sp.isDoubt || sp.isSigned || sp.isWillSign || sp.isPreseason ||
+      sp.doubtReason || sp.possibilityReasonCustom;
     const stamped = hasFlag
       ? {
           ...player,
@@ -98,6 +103,8 @@ function computeByPosition(
           doubtReason: sp.doubtReason,
           doubtReasonCustom: sp.doubtReasonCustom,
           doubtReasonColor: sp.doubtReasonColor,
+          possibilityReasonCustom: sp.possibilityReasonCustom,
+          possibilityReasonColor: sp.possibilityReasonColor,
         }
       : player;
     const pos = sp.position;
@@ -234,7 +241,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const map = new Map<number, SquadPlayersMap>();
     for (const row of initialData.squad_players) {
       if (!map.has(row.squad_id)) map.set(row.squad_id, new Map());
-      map.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isWillSign: row.is_will_sign ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null });
+      map.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isWillSign: row.is_will_sign ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null, possibilityReasonCustom: row.possibility_reason_custom ?? null, possibilityReasonColor: row.possibility_reason_color ?? null });
     }
     return map;
   });
@@ -291,7 +298,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const spMap = new Map<number, SquadPlayersMap>();
     for (const row of result.squad_players ?? []) {
       if (!spMap.has(row.squad_id)) spMap.set(row.squad_id, new Map());
-      spMap.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isWillSign: row.is_will_sign ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null });
+      spMap.get(row.squad_id)!.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isWillSign: row.is_will_sign ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null, possibilityReasonCustom: row.possibility_reason_custom ?? null, possibilityReasonColor: row.possibility_reason_color ?? null });
     }
     setAllSquadPlayersMap(spMap);
 
@@ -376,14 +383,14 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
 
     const { data } = await supabase
       .from('squad_players')
-      .select('squad_id, player_id, position, sort_order, is_doubt, is_signed, is_will_sign, is_preseason, doubt_reason, doubt_reason_custom, doubt_reason_color')
+      .select('squad_id, player_id, position, sort_order, is_doubt, is_signed, is_will_sign, is_preseason, doubt_reason, doubt_reason_custom, doubt_reason_color, possibility_reason_custom, possibility_reason_color')
       .eq('squad_id', compareRightId);
 
     if (!data) { setOtherSquadPlayersMap(new Map()); return; }
 
     const map: SquadPlayersMap = new Map();
     for (const row of data) {
-      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isWillSign: row.is_will_sign ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null });
+      map.set(row.player_id, { position: row.position, sortOrder: row.sort_order, isDoubt: row.is_doubt ?? false, isSigned: row.is_signed ?? false, isWillSign: row.is_will_sign ?? false, isPreseason: row.is_preseason ?? false, doubtReason: row.doubt_reason ?? null, doubtReasonCustom: row.doubt_reason_custom ?? null, doubtReasonColor: row.doubt_reason_color ?? null, possibilityReasonCustom: row.possibility_reason_custom ?? null, possibilityReasonColor: row.possibility_reason_color ?? null });
     }
     setOtherSquadPlayersMap(map);
   }, [compareRightId]);
@@ -480,7 +487,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
       setAllSquadPlayersMap((prev) => {
         const next = new Map(prev);
         const updated = new Map(next.get(squadId) ?? new Map());
-        updated.set(player.id, { position: pos, sortOrder: nextOrder, isDoubt: false, isSigned: false, isWillSign: false, isPreseason: false, doubtReason: null, doubtReasonCustom: null, doubtReasonColor: null });
+        updated.set(player.id, { position: pos, sortOrder: nextOrder, isDoubt: false, isSigned: false, isWillSign: false, isPreseason: false, doubtReason: null, doubtReasonCustom: null, doubtReasonColor: null, possibilityReasonCustom: null, possibilityReasonColor: null });
         next.set(squadId, updated);
         return next;
       });
@@ -691,6 +698,35 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     });
   }
 
+  /** Set/clear Possibilidade motivo (real squads only, POSSIBILIDADE section) */
+  function handleSetPossibilityReason(
+    playerId: number,
+    squadId: number | null,
+    customText: string | null,
+    customColor: string | null
+  ) {
+    if (!squadId) return;
+    const { text, color } = normalizePossibilityReason(customText, customColor);
+    markMutation();
+    setAllSquadPlayersMap((prev) => {
+      const next = new Map(prev);
+      const updated = new Map(next.get(squadId) ?? new Map());
+      const existing = updated.get(playerId);
+      if (existing) {
+        updated.set(playerId, {
+          ...existing,
+          possibilityReasonCustom: text,
+          possibilityReasonColor: color,
+        });
+      }
+      next.set(squadId, updated);
+      return next;
+    });
+    setSquadPlayerPossibilityReason(squadId, playerId, text, color).then((res) => {
+      if (!res.success) fetchAllSquadData();
+    });
+  }
+
   /** Toggle is_preseason on squad_players — independent of pipeline */
   function handleTogglePreseason(playerId: number, squadId: number | null, isPreseason: boolean) {
     if (!squadId) return;
@@ -773,6 +809,10 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const togglePreseason = (pid: number, isPreseason: boolean) => handleTogglePreseason(pid, squad.id, isPreseason);
     const setDoubtReason = (pid: number, reason: string | null, customText?: string | null, customColor?: string | null) =>
       handleSetDoubtReason(pid, squad.id, reason, customText, customColor);
+    const setPossibilityReason = squadType === 'real'
+      ? (pid: number, customText: string | null, customColor: string | null) =>
+          handleSetPossibilityReason(pid, squad.id, customText, customColor)
+      : undefined;
     const moveToSection = squadType === 'real'
       ? (pid: number, section: SpecialSquadSection) => handleMoveToSection(pid, squad.id, section)
       : undefined;
@@ -845,6 +885,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
                         onAdd={() => openAdd(sectionKey)}
                         onRemovePlayer={remove}
                         onSetDoubtReason={setDoubtReason}
+                        onSetPossibilityReason={setPossibilityReason}
                       />
                     ))}
                   </div>
@@ -876,6 +917,8 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
                     players={sections[sectionKey] ?? []}
                     onAdd={() => openAdd(sectionKey)}
                     onRemovePlayer={remove}
+                    onSetDoubtReason={setDoubtReason}
+                    onSetPossibilityReason={setPossibilityReason}
                   />
                 ))}
               </div>

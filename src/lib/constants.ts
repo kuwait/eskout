@@ -84,27 +84,39 @@ export const DOUBT_REASON_CONFIG: Record<DoubtReason, {
   text: string;
 }> = {
   decidir:       { label: 'Por Decidir',   border: 'border-amber-300',  bg: 'bg-amber-50',  text: 'text-amber-700' },
-  saude:         { label: 'Saúde',         border: 'border-red-300',    bg: 'bg-red-50',    text: 'text-red-700' },
+  saude:         { label: 'Saúde',         border: 'border-purple-300', bg: 'bg-purple-50', text: 'text-purple-700' },
   pre_epoca:     { label: 'Pré-Época',     border: 'border-sky-300',    bg: 'bg-sky-50',    text: 'text-sky-700' },
   outro_escalao: { label: 'Outro Escalão', border: 'border-blue-300',   bg: 'bg-blue-50',   text: 'text-blue-700' },
-  dispensar:     { label: 'A Dispensar',   border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-700' },
+  dispensar:     { label: 'A Dispensar',   border: 'border-red-300',    bg: 'bg-red-50',    text: 'text-red-700' },
   outro:         { label: 'Outro',         border: 'border-slate-300',  bg: 'bg-slate-50',  text: 'text-slate-700' },
 };
 
-/** Color choices for 'outro' (custom) doubt reason — keep keys in sync with migration 110 check constraint */
-export const CUSTOM_COLOR_CHOICES = ['red', 'orange', 'amber', 'green', 'blue', 'purple', 'pink', 'slate'] as const;
+/** Color choices for custom reasons (Dúvida 'outro' + Possibilidade motivo) — keep in sync with migration 112 check constraint */
+export const CUSTOM_COLOR_CHOICES = [
+  'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal',
+  'cyan', 'sky', 'blue', 'indigo', 'purple', 'pink', 'rose', 'slate',
+] as const;
 export type CustomColorChoice = typeof CUSTOM_COLOR_CHOICES[number];
 
-/** Soft tinted Tailwind classes per custom color choice — used when doubt_reason = 'outro' */
+/** Soft tinted Tailwind classes per custom color choice — used by custom reasons (Dúvida 'outro' + Possibilidade).
+ * `dot` uses -500 for most colors and -600 for the pale hues (yellow/lime/amber/sky) so every swatch reads as a distinct filled circle on a white background. */
 export const CUSTOM_COLOR_CLASSES: Record<CustomColorChoice, { border: string; bg: string; text: string; dot: string }> = {
-  red:    { border: 'border-red-300',    bg: 'bg-red-50',    text: 'text-red-700',    dot: 'bg-red-500' },
-  orange: { border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
-  amber:  { border: 'border-amber-300',  bg: 'bg-amber-50',  text: 'text-amber-700',  dot: 'bg-amber-500' },
-  green:  { border: 'border-green-300',  bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500' },
-  blue:   { border: 'border-blue-300',   bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-500' },
-  purple: { border: 'border-purple-300', bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
-  pink:   { border: 'border-pink-300',   bg: 'bg-pink-50',   text: 'text-pink-700',   dot: 'bg-pink-500' },
-  slate:  { border: 'border-slate-300',  bg: 'bg-slate-50',  text: 'text-slate-700',  dot: 'bg-slate-500' },
+  red:     { border: 'border-red-300',     bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500' },
+  orange:  { border: 'border-orange-300',  bg: 'bg-orange-50',  text: 'text-orange-700',  dot: 'bg-orange-500' },
+  amber:   { border: 'border-amber-300',   bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500' },
+  yellow:  { border: 'border-yellow-300',  bg: 'bg-yellow-50',  text: 'text-yellow-700',  dot: 'bg-yellow-400' },
+  lime:    { border: 'border-lime-300',    bg: 'bg-lime-50',    text: 'text-lime-700',    dot: 'bg-lime-500' },
+  green:   { border: 'border-green-300',   bg: 'bg-green-50',   text: 'text-green-700',   dot: 'bg-green-500' },
+  emerald: { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  teal:    { border: 'border-teal-300',    bg: 'bg-teal-50',    text: 'text-teal-700',    dot: 'bg-teal-500' },
+  cyan:    { border: 'border-cyan-300',    bg: 'bg-cyan-50',    text: 'text-cyan-700',    dot: 'bg-cyan-500' },
+  sky:     { border: 'border-sky-300',     bg: 'bg-sky-50',     text: 'text-sky-700',     dot: 'bg-sky-500' },
+  blue:    { border: 'border-blue-300',    bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500' },
+  indigo:  { border: 'border-indigo-300',  bg: 'bg-indigo-50',  text: 'text-indigo-700',  dot: 'bg-indigo-500' },
+  purple:  { border: 'border-purple-300',  bg: 'bg-purple-50',  text: 'text-purple-700',  dot: 'bg-purple-500' },
+  pink:    { border: 'border-pink-300',    bg: 'bg-pink-50',    text: 'text-pink-700',    dot: 'bg-pink-500' },
+  rose:    { border: 'border-rose-300',    bg: 'bg-rose-50',    text: 'text-rose-700',    dot: 'bg-rose-500' },
+  slate:   { border: 'border-slate-300',   bg: 'bg-slate-50',   text: 'text-slate-700',   dot: 'bg-slate-500' },
 };
 
 /** Squad display slots — DC split into DC (E) and DC (D) for list/compare views */

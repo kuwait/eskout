@@ -137,6 +137,10 @@ export interface Player {
   doubtReasonCustom?: string | null;
   /** Squad-context only: custom color choice for doubt reason when reason = 'outro' */
   doubtReasonColor?: string | null;
+  /** Squad-context only (real + POSSIBILIDADE section): custom motivo text */
+  possibilityReasonCustom?: string | null;
+  /** Squad-context only (real + POSSIBILIDADE section): custom color choice */
+  possibilityReasonColor?: string | null;
 }
 
 /* ───────────── Database Row Types (snake_case from Supabase) ───────────── */
@@ -927,6 +931,8 @@ export interface SquadPlayer {
   doubtReason: string | null;
   doubtReasonCustom: string | null;
   doubtReasonColor: string | null;
+  possibilityReasonCustom: string | null;
+  possibilityReasonColor: string | null;
   addedAt: string;
 }
 
@@ -944,6 +950,8 @@ export interface SquadPlayerRow {
   doubt_reason: string | null;
   doubt_reason_custom: string | null;
   doubt_reason_color: string | null;
+  possibility_reason_custom: string | null;
+  possibility_reason_color: string | null;
   added_at: string;
 }
 
