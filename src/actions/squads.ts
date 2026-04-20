@@ -13,6 +13,7 @@ import type { ActionResponse, Squad, SquadRow, SquadType } from '@/lib/types';
 import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { mapSquadRow } from '@/lib/supabase/mappers';
 import { isSpecialSection } from '@/lib/constants';
+import { normalizePossibilityReason } from '@/lib/squads/possibility-reason';
 
 /* ───────────── Helper: log status change ───────────── */
 
@@ -462,9 +463,7 @@ export async function setSquadPlayerPossibilityReason(
   }
   const supabase = await createClient();
 
-  // Normalize: empty string → null. Color is kept only when text exists.
-  const text = customText && customText.trim().length > 0 ? customText.trim() : null;
-  const color = text ? customColor : null;
+  const { text, color } = normalizePossibilityReason(customText, customColor);
 
   const { error } = await supabase
     .from('squad_players')

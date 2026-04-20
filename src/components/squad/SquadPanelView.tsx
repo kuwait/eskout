@@ -29,6 +29,7 @@ import {
   setSquadPlayerDoubtReason, setSquadPlayerPossibilityReason,
 } from '@/actions/squads';
 import type { SquadSignStatus } from '@/actions/squads';
+import { normalizePossibilityReason } from '@/lib/squads/possibility-reason';
 import { SquadExportMenu } from '@/components/squad/SquadExportMenu';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -705,8 +706,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     customColor: string | null
   ) {
     if (!squadId) return;
-    const text = customText && customText.trim().length > 0 ? customText.trim() : null;
-    const color = text ? customColor : null;
+    const { text, color } = normalizePossibilityReason(customText, customColor);
     markMutation();
     setAllSquadPlayersMap((prev) => {
       const next = new Map(prev);
