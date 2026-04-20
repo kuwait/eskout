@@ -412,6 +412,7 @@ export function mapSquadPlayerRow(row: SquadPlayerRow): SquadPlayer {
     sortOrder: row.sort_order,
     isDoubt: row.is_doubt ?? false,
     isSigned: row.is_signed ?? false,
+    isWillSign: row.is_will_sign ?? false,
     isPreseason: row.is_preseason ?? false,
     doubtReason: row.doubt_reason ?? null,
     doubtReasonCustom: row.doubt_reason_custom ?? null,

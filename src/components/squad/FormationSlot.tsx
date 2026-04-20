@@ -15,7 +15,15 @@ import { CSS } from '@dnd-kit/utilities';
 import { POSITION_LABELS, SPECIAL_SECTION_LABELS, POSITION_CHIP_SOLID, POSITION_CHIP_OUTLINE } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import type { Player, PositionCode } from '@/lib/types';
+import type { SquadSignStatus } from '@/actions/squads';
 import type { SpecialSquadSection } from '@/lib/constants';
+
+/** Compute the next sign status in the cycle: none → will_sign → signed → none */
+function nextSignStatus(isWillSign: boolean | undefined, isSigned: boolean | undefined): SquadSignStatus {
+  if (isSigned) return 'none';
+  if (isWillSign) return 'signed';
+  return 'will_sign';
+}
 
 interface FormationSlotProps {
   position: string;
@@ -29,7 +37,7 @@ interface FormationSlotProps {
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
-  onToggleSigned?: (playerId: number, isSigned: boolean) => void;
+  onSetSignStatus?: (playerId: number, status: SquadSignStatus) => void;
   onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
   /** Move player to a special section (Dúvida / Possibilidades) — real squads only */
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
@@ -83,7 +91,7 @@ function DraggablePlayerCard({
   squadType,
   onRemove,
   onToggleDoubt,
-  onToggleSigned,
+  onSetSignStatus,
   onTogglePreseason,
   onMoveToSection,
 }: {
@@ -92,7 +100,7 @@ function DraggablePlayerCard({
   squadType: 'real' | 'shadow';
   onRemove: () => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
-  onToggleSigned?: (playerId: number, isSigned: boolean) => void;
+  onSetSignStatus?: (playerId: number, status: SquadSignStatus) => void;
   onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
 }) {
@@ -179,13 +187,15 @@ function DraggablePlayerCard({
           ? 'border border-dashed border-sky-400 bg-sky-50/90'
           : player.isSigned
           ? 'border border-green-300 bg-green-50/80'
+          : player.isWillSign
+          ? 'border border-dashed border-green-400 bg-green-50/95'
           : 'bg-white/95'
       } ${
         squadType === 'shadow' ? RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200' : ''
       }`}
       onClick={handleCardClick}
     >
-      {/* Status flag — bottom-right corner (priority: Dúvida > Pré-Época > Assinou) */}
+      {/* Status flag — bottom-right corner (priority: Dúvida > Pré-Época > Assinou > Vai Assinar) */}
       {player.isDoubt ? (
         <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-amber-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Dúvida">
           Dúvida
@@ -197,6 +207,10 @@ function DraggablePlayerCard({
       ) : player.isSigned ? (
         <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-green-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Assinou">
           Assinou
+        </span>
+      ) : player.isWillSign ? (
+        <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-green-400 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Vai Assinar">
+          Vai Assinar
         </span>
       ) : null}
 
@@ -281,11 +295,11 @@ function DraggablePlayerCard({
           )}
 
           {/* Squad flags — single row of compact pills (Dúvida · Pré-Época · Assinou) */}
-          {(onToggleDoubt || onTogglePreseason || onToggleSigned) && (
+          {(onToggleDoubt || onTogglePreseason || onSetSignStatus) && (
             <div className="mt-2 flex items-center justify-center gap-1">
               {onToggleDoubt && (
                 <button
-                  className={`flex items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition-colors ${
+                  className={`flex items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[8px] font-semibold transition-colors ${
                     player.isDoubt
                       ? 'border-amber-400 bg-amber-500 text-white'
                       : 'border-amber-300 text-amber-600 hover:bg-amber-50'
@@ -299,7 +313,7 @@ function DraggablePlayerCard({
               )}
               {onTogglePreseason && (
                 <button
-                  className={`flex items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition-colors ${
+                  className={`flex items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[8px] font-semibold transition-colors ${
                     player.isPreseason
                       ? 'border-sky-400 bg-sky-500 text-white'
                       : 'border-sky-300 text-sky-600 hover:bg-sky-50'
@@ -311,18 +325,30 @@ function DraggablePlayerCard({
                   {player.isPreseason && <span aria-hidden="true">✓</span>}
                 </button>
               )}
-              {onToggleSigned && (
+              {onSetSignStatus && (
                 <button
-                  className={`flex items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[9px] font-semibold transition-colors ${
+                  // 3-state cycle: none → will_sign (outlined light green) → signed (solid green) → none
+                  className={`flex items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[8px] font-semibold transition-colors ${
                     player.isSigned
                       ? 'border-green-400 bg-green-500 text-white'
-                      : 'border-green-300 text-green-600 hover:bg-green-50'
+                      : player.isWillSign
+                        ? 'border-green-400 bg-green-400 text-white'
+                        : 'border-green-300 text-green-600 hover:bg-green-50'
                   }`}
-                  onClick={(e) => { e.stopPropagation(); onToggleSigned(player.id, !player.isSigned); }}
-                  aria-label={player.isSigned ? 'Remover assinatura' : 'Marcar como assinou'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetSignStatus(player.id, nextSignStatus(player.isWillSign, player.isSigned));
+                  }}
+                  aria-label={
+                    player.isSigned
+                      ? 'Remover assinatura'
+                      : player.isWillSign
+                        ? 'Marcar como assinou'
+                        : 'Marcar como vai assinar'
+                  }
                 >
-                  Assinou
-                  {player.isSigned && <span aria-hidden="true">✓</span>}
+                  {player.isSigned ? 'Assinou' : player.isWillSign ? 'Vai Assinar' : 'Assinou'}
+                  {(player.isSigned || player.isWillSign) && <span aria-hidden="true">✓</span>}
                 </button>
               )}
             </div>
@@ -380,7 +406,7 @@ function DraggablePlayerCard({
 /* ───────────── Formation Slot (droppable + sortable container) ───────────── */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- onPlayerClick kept in interface for backward compat, Link replaced onClick
-export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onToggleSigned, onTogglePreseason, onMoveToSection }: FormationSlotProps) {
+export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onSetSignStatus, onTogglePreseason, onMoveToSection }: FormationSlotProps) {
   const label = positionLabel ?? ((POSITION_LABELS as Record<string, string>)[position] ?? position);
   const displayCode = positionLabel ?? position;
   const dndId = slotId ?? position;
@@ -413,7 +439,7 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
             squadType={squadType}
             onRemove={() => onRemovePlayer(p.id)}
             onToggleDoubt={onToggleDoubt}
-            onToggleSigned={onToggleSigned}
+            onSetSignStatus={onSetSignStatus}
             onTogglePreseason={onTogglePreseason}
             onMoveToSection={onMoveToSection}
           />
