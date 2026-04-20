@@ -23,6 +23,8 @@ function makeSquadPlayerRow(overrides: Partial<SquadPlayerRow> = {}): SquadPlaye
     doubt_reason: null,
     doubt_reason_custom: null,
     doubt_reason_color: null,
+    possibility_reason_custom: null,
+    possibility_reason_color: null,
     added_at: '2026-04-17T10:00:00.000Z',
     ...overrides,
   };

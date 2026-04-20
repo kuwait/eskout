@@ -444,6 +444,46 @@ export async function setSquadPlayerDoubtReason(
   return { success: true };
 }
 
+/* ───────────── Set Possibility Reason (Possibilidade section, real squads only) ───────────── */
+
+/**
+ * Store a custom motivo + color for a player in the Possibilidade section.
+ * Pass null for customText to clear the motivo (returns card to plain status strip).
+ */
+export async function setSquadPlayerPossibilityReason(
+  squadId: number,
+  playerId: number,
+  customText: string | null,
+  customColor: string | null
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getAuthContext();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
+  const supabase = await createClient();
+
+  // Normalize: empty string → null. Color is kept only when text exists.
+  const text = customText && customText.trim().length > 0 ? customText.trim() : null;
+  const color = text ? customColor : null;
+
+  const { error } = await supabase
+    .from('squad_players')
+    .update({
+      possibility_reason_custom: text,
+      possibility_reason_color: color,
+    })
+    .eq('squad_id', squadId)
+    .eq('player_id', playerId);
+
+  if (error) {
+    return { success: false, error: `Erro ao atualizar motivo: ${error.message}` };
+  }
+
+  revalidatePath('/campo');
+  await broadcastRowMutation(clubId, 'squad_players', 'UPDATE', userId, playerId);
+  return { success: true };
+}
+
 /* ───────────── Toggle Pré-Época (squad-level, independent of pipeline) ───────────── */
 
 /** Mark or unmark a squad player as "Pré-Época" */

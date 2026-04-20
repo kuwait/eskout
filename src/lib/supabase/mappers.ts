@@ -417,6 +417,8 @@ export function mapSquadPlayerRow(row: SquadPlayerRow): SquadPlayer {
     doubtReason: row.doubt_reason ?? null,
     doubtReasonCustom: row.doubt_reason_custom ?? null,
     doubtReasonColor: row.doubt_reason_color ?? null,
+    possibilityReasonCustom: row.possibility_reason_custom ?? null,
+    possibilityReasonColor: row.possibility_reason_color ?? null,
     addedAt: row.added_at,
   };
 }

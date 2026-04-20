@@ -98,6 +98,12 @@ interface SquadSpecialSectionProps {
     customText?: string | null,
     customColor?: string | null
   ) => void;
+  /** Set the custom possibility motivo — used only in the POSSIBILIDADE section (real squads) */
+  onSetPossibilityReason?: (
+    playerId: number,
+    customText: string | null,
+    customColor: string | null
+  ) => void;
 }
 
 /* ───────────── Helper ───────────── */
@@ -126,6 +132,7 @@ function SectionPlayerCard({
   sectionKey,
   onRemove,
   onSetDoubtReason,
+  onSetPossibilityReason,
 }: {
   player: Player;
   sectionKey: SpecialSquadSection;
@@ -135,6 +142,11 @@ function SectionPlayerCard({
     reason: string | null,
     customText?: string | null,
     customColor?: string | null
+  ) => void;
+  onSetPossibilityReason?: (
+    playerId: number,
+    customText: string | null,
+    customColor: string | null
   ) => void;
 }) {
   const dragId = `player-${player.id}`;
@@ -234,7 +246,7 @@ function SectionPlayerCard({
 
           {/* Bottom strip —
               DUVIDA: doubt reason picker (opens Popover to change reason + custom text/color)
-              POSSIBILIDADE: pipeline status (read-only, defaults to "Por Tratar") */}
+              POSSIBILIDADE: motivo picker (custom text + color) when set, else pipeline status (read-only) */}
           {isDuvida && doubtStyle ? (
             <DoubtReasonStrip
               player={player}
@@ -242,10 +254,10 @@ function SectionPlayerCard({
               onSetDoubtReason={onSetDoubtReason}
             />
           ) : (
-            <StatusBadge
-              status={effectiveStatus}
-              variant="compact"
-              className="flex w-full justify-center rounded-none rounded-b-md border-x-0 border-b-0 px-2 py-1 text-[9px] uppercase tracking-wider"
+            <PossibilityReasonStrip
+              player={player}
+              effectiveStatus={effectiveStatus}
+              onSetPossibilityReason={onSetPossibilityReason}
             />
           )}
         </div>
@@ -297,6 +309,7 @@ export function SquadSpecialSection({
   onAdd,
   onRemovePlayer,
   onSetDoubtReason,
+  onSetPossibilityReason,
 }: SquadSpecialSectionProps) {
   const styles = SECTION_STYLES[sectionKey];
 
@@ -346,6 +359,7 @@ export function SquadSpecialSection({
                   sectionKey={sectionKey}
                   onRemove={() => onRemovePlayer(player.id)}
                   onSetDoubtReason={onSetDoubtReason}
+                  onSetPossibilityReason={onSetPossibilityReason}
                 />
               ))}
             </div>
@@ -384,12 +398,15 @@ function DoubtReasonStrip({
   // Editable draft state — committed on "Guardar" when reason = 'outro'. Reset via onOpenChange.
   const [draftText, setDraftText] = useState(currentCustomText);
   const [draftColor, setDraftColor] = useState<CustomColorChoice>(currentCustomColor);
+  // Local toggle so clicking "Outro" opens the editor without persisting yet — only "Guardar" commits.
+  const [showOutroEditor, setShowOutroEditor] = useState(currentReason === 'outro');
 
   function handleOpenChange(next: boolean) {
-    // Reset drafts to current persisted values every time the popover opens
+    // Reset drafts + editor visibility to current persisted values every time the popover opens
     if (next) {
       setDraftText(currentCustomText);
       setDraftColor(currentCustomColor);
+      setShowOutroEditor(currentReason === 'outro');
     }
     setOpen(next);
   }
@@ -404,12 +421,13 @@ function DoubtReasonStrip({
     setOpen(false);
   }
 
-  // Clicking a non-'outro' preset immediately commits; 'outro' stays open for the user to edit
+  // Non-'outro' presets commit immediately. 'Outro' just opens the editor — persistence waits for "Guardar".
   function handleSelectPreset(reason: DoubtReason) {
     if (reason === 'outro') {
-      if (onSetDoubtReason) onSetDoubtReason(player.id, 'outro', draftText.trim() || null, draftColor);
+      setShowOutroEditor(true);
       return;
     }
+    setShowOutroEditor(false);
     commit(reason);
   }
 
@@ -440,7 +458,8 @@ function DoubtReasonStrip({
           <div className="grid grid-cols-2 gap-1">
             {DOUBT_REASONS.map((r) => {
               const cfg = DOUBT_REASON_CONFIG[r];
-              const active = currentReason === r;
+              // "Outro" pulses as active either because it's persisted OR because the editor is open
+              const active = r === 'outro' ? (currentReason === 'outro' || showOutroEditor) : currentReason === r;
               return (
                 <button
                   key={r}
@@ -458,12 +477,12 @@ function DoubtReasonStrip({
             })}
           </div>
 
-          {/* 'Outro' editor — shown when the active reason is 'outro' */}
-          {currentReason === 'outro' && (
+          {/* 'Outro' editor — visible when the persisted reason is 'outro' OR the user just clicked the preset */}
+          {showOutroEditor && (
             <div className="space-y-2 border-t pt-2">
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Texto
+                  Motivo
                 </label>
                 <input
                   type="text"
@@ -505,6 +524,154 @@ function DoubtReasonStrip({
               </button>
             </div>
           )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ───────────── Possibility Reason Strip (POSSIBILIDADE section, real squads only) ───────────── */
+
+/**
+ * Bottom strip for Possibilidade cards — when a custom motivo is set, renders a colored
+ * label (like Dúvida); when empty, falls back to the pipeline status badge. Click to
+ * open a Popover with a free-text Motivo + color palette. Persists on "Guardar".
+ */
+function PossibilityReasonStrip({
+  player,
+  effectiveStatus,
+  onSetPossibilityReason,
+}: {
+  player: Player;
+  effectiveStatus: RecruitmentStatus;
+  onSetPossibilityReason?: (
+    playerId: number,
+    customText: string | null,
+    customColor: string | null
+  ) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const currentText = (player.possibilityReasonCustom ?? '').trim();
+  const currentColor = (player.possibilityReasonColor as CustomColorChoice | null) ?? 'slate';
+
+  const [draftText, setDraftText] = useState(currentText);
+  const [draftColor, setDraftColor] = useState<CustomColorChoice>(currentColor);
+
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      setDraftText(currentText);
+      setDraftColor(currentColor);
+    }
+    setOpen(next);
+  }
+
+  function commit() {
+    if (!onSetPossibilityReason) return;
+    const text = draftText.trim();
+    onSetPossibilityReason(player.id, text || null, text ? draftColor : null);
+    setOpen(false);
+  }
+
+  function clearMotivo() {
+    if (!onSetPossibilityReason) return;
+    onSetPossibilityReason(player.id, null, null);
+    setOpen(false);
+  }
+
+  // When a motivo exists, show it with the custom palette; otherwise fall back to pipeline status badge.
+  const hasMotivo = currentText.length > 0;
+  const palette = hasMotivo
+    ? (CUSTOM_COLOR_CLASSES[currentColor] ?? CUSTOM_COLOR_CLASSES.slate)
+    : null;
+
+  // Trigger is the whole bottom strip — disabled when there's no handler (legacy squads)
+  const disabled = !onSetPossibilityReason;
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`flex w-full items-center justify-center rounded-b-md border-t px-2 py-1 text-[9px] font-semibold uppercase tracking-wider transition-opacity hover:opacity-85 ${
+            hasMotivo && palette
+              ? `${palette.border} ${palette.bg} ${palette.text}`
+              : 'border-neutral-200 bg-white text-neutral-400'
+          }`}
+          onClick={(e) => { e.stopPropagation(); handleOpenChange(true); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={hasMotivo ? 'Editar motivo' : 'Adicionar motivo'}
+          disabled={disabled}
+        >
+          {hasMotivo ? (
+            <span className="truncate">{currentText}</span>
+          ) : (
+            // Fallback shows the pipeline status — keeps parity with the old read-only strip
+            <StatusBadge
+              status={effectiveStatus}
+              variant="compact"
+              className="flex w-full items-center justify-center border-0 bg-transparent p-0 text-[9px] uppercase tracking-wider"
+            />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-64 p-3"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Motivo
+          </p>
+          <input
+            type="text"
+            value={draftText}
+            onChange={(e) => setDraftText(e.target.value.slice(0, 40))}
+            placeholder="Motivo…"
+            maxLength={40}
+            className="w-full rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs focus:border-neutral-500 focus:outline-none"
+          />
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Cor
+            </label>
+            <div className="flex flex-wrap gap-1">
+              {CUSTOM_COLOR_CHOICES.map((c) => {
+                const pal = CUSTOM_COLOR_CLASSES[c];
+                const selected = draftColor === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setDraftColor(c)}
+                    className={`h-6 w-6 rounded-full ${pal.dot} ${
+                      selected ? 'ring-2 ring-neutral-900 ring-offset-1' : 'ring-1 ring-black/10'
+                    }`}
+                    aria-label={`Cor ${c}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex items-stretch gap-1 pt-1">
+            <button
+              type="button"
+              className="flex-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800"
+              onClick={commit}
+            >
+              Guardar
+            </button>
+            {hasMotivo && (
+              <button
+                type="button"
+                className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+                onClick={clearMotivo}
+                title="Remover motivo"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
         </div>
       </PopoverContent>
     </Popover>
