@@ -369,12 +369,18 @@ export async function toggleSquadPlayerDoubt(
   return { success: true };
 }
 
-/* ───────────── Toggle Signed (squad-level, independent of pipeline) ───────────── */
+/* ───────────── Sign Status — 3-state cycle: none → will_sign → signed → none ───────────── */
 
-export async function toggleSquadPlayerSigned(
+export type SquadSignStatus = 'none' | 'will_sign' | 'signed';
+
+/**
+ * Set the sign status of a player in a squad. The three states are mutually exclusive
+ * at the UI level — exactly one (or none) of is_will_sign / is_signed is true.
+ */
+export async function setSquadPlayerSignStatus(
   squadId: number,
   playerId: number,
-  isSigned: boolean
+  status: SquadSignStatus
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getAuthContext();
   if (role === 'scout') {
@@ -384,7 +390,10 @@ export async function toggleSquadPlayerSigned(
 
   const { error } = await supabase
     .from('squad_players')
-    .update({ is_signed: isSigned })
+    .update({
+      is_will_sign: status === 'will_sign',
+      is_signed: status === 'signed',
+    })
     .eq('squad_id', squadId)
     .eq('player_id', playerId);
 

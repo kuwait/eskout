@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/core';
 import { FormationSlot } from '@/components/squad/FormationSlot';
 import type { Player, PositionCode } from '@/lib/types';
+import type { SquadSignStatus } from '@/actions/squads';
 import { isSpecialSection } from '@/lib/constants';
 import type { SpecialSquadSection } from '@/lib/constants';
 
@@ -80,7 +81,7 @@ interface FormationViewProps {
   onPlayerClick?: (playerId: number) => void;
   onDragEnd?: (info: DragEndInfo) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
-  onToggleSigned?: (playerId: number, isSigned: boolean) => void;
+  onSetSignStatus?: (playerId: number, status: SquadSignStatus) => void;
   onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
   /** Move player to a special section (Dúvida / Possibilidades) — real squads only */
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
@@ -120,7 +121,7 @@ interface DragVirtual {
   toIndex: number;
 }
 
-export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt, onToggleSigned, onTogglePreseason, onMoveToSection, specialSections, children }: FormationViewProps) {
+export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt, onSetSignStatus, onTogglePreseason, onMoveToSection, specialSections, children }: FormationViewProps) {
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
   const [dragVirtual, setDragVirtual] = useState<DragVirtual | null>(null);
   const isDesktop = useIsDesktop();
@@ -301,7 +302,7 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
         onRemovePlayer={onRemovePlayer}
         onPlayerClick={onPlayerClick}
         onToggleDoubt={onToggleDoubt}
-        onToggleSigned={onToggleSigned}
+        onSetSignStatus={onSetSignStatus}
         onTogglePreseason={onTogglePreseason}
         onMoveToSection={onMoveToSection}
       />

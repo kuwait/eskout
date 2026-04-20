@@ -18,6 +18,7 @@ function makeSquadPlayerRow(overrides: Partial<SquadPlayerRow> = {}): SquadPlaye
     sort_order: 0,
     is_doubt: false,
     is_signed: false,
+    is_will_sign: false,
     is_preseason: false,
     doubt_reason: null,
     doubt_reason_custom: null,
@@ -452,6 +453,18 @@ describe('mapSquadPlayerRow', () => {
     const row = makeSquadPlayerRow({ is_preseason: true });
     const sp = mapSquadPlayerRow(row);
     expect(sp.isPreseason).toBe(true);
+  });
+
+  it('defaults isWillSign to false when the column is null (old rows pre-migration 111)', () => {
+    const row = makeSquadPlayerRow({ is_will_sign: null as unknown as boolean });
+    const sp = mapSquadPlayerRow(row);
+    expect(sp.isWillSign).toBe(false);
+  });
+
+  it('preserves isWillSign=true', () => {
+    const row = makeSquadPlayerRow({ is_will_sign: true });
+    const sp = mapSquadPlayerRow(row);
+    expect(sp.isWillSign).toBe(true);
   });
 
   it('maps doubt_reason preset to camelCase with custom fields null', () => {

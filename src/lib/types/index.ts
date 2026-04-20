@@ -127,6 +127,8 @@ export interface Player {
   isDoubt?: boolean;
   /** Squad-context only: player is marked as "Assinou" in the current squad view */
   isSigned?: boolean;
+  /** Squad-context only: player is marked as "Vai Assinar" in the current squad view (intermediate state before "Assinou") */
+  isWillSign?: boolean;
   /** Squad-context only: player is marked as "Pré-Época" in the current squad view */
   isPreseason?: boolean;
   /** Squad-context only: reason the player is in the "Dúvida" special section */
@@ -920,6 +922,7 @@ export interface SquadPlayer {
   sortOrder: number;
   isDoubt: boolean;
   isSigned: boolean;
+  isWillSign: boolean;
   isPreseason: boolean;
   doubtReason: string | null;
   doubtReasonCustom: string | null;
@@ -936,6 +939,7 @@ export interface SquadPlayerRow {
   sort_order: number;
   is_doubt: boolean;
   is_signed: boolean;
+  is_will_sign: boolean;
   is_preseason: boolean;
   doubt_reason: string | null;
   doubt_reason_custom: string | null;

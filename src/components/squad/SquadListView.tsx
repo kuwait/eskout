@@ -12,6 +12,14 @@ import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SQUAD_SLOTS, POSITION_LABELS } from '@/lib/constants';
 import type { Player, PositionCode } from '@/lib/types';
+import type { SquadSignStatus } from '@/actions/squads';
+
+/** Compute the next sign status in the cycle: none → will_sign → signed → none */
+function nextSignStatus(isWillSign: boolean | undefined, isSigned: boolean | undefined): SquadSignStatus {
+  if (isSigned) return 'none';
+  if (isWillSign) return 'signed';
+  return 'will_sign';
+}
 
 /* ───────────── Rank styling ───────────── */
 
@@ -43,13 +51,13 @@ interface SquadListViewProps {
   onRemovePlayer: (playerId: number) => void;
   onPlayerClick?: (playerId: number) => void;
   onToggleDoubt?: (playerId: number, isDoubt: boolean) => void;
-  onToggleSigned?: (playerId: number, isSigned: boolean) => void;
+  onSetSignStatus?: (playerId: number, status: SquadSignStatus) => void;
   onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
 }
 
 /* ───────────── Component ───────────── */
 
-export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onToggleSigned, onTogglePreseason }: SquadListViewProps) {
+export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onSetSignStatus, onTogglePreseason }: SquadListViewProps) {
   return (
     <div className="space-y-4">
       {SQUAD_SLOTS.map(({ slot, label }) => {
@@ -103,7 +111,9 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                           ? 'border border-dashed border-amber-400 bg-amber-50/50'
                           : player.isPreseason
                             ? 'border border-dashed border-sky-400 bg-sky-50/50'
-                            : ''
+                            : player.isWillSign && !player.isSigned
+                              ? 'border border-dashed border-green-400 bg-green-50/40'
+                              : ''
                       } ${
                         squadType === 'shadow' ? (RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200') : ''
                       }`}
@@ -171,6 +181,9 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                           {!player.isDoubt && !player.isPreseason && player.isSigned && (
                             <span className="rounded bg-green-100 px-1 py-0 text-[9px] font-medium text-green-700">ASSINOU</span>
                           )}
+                          {!player.isDoubt && !player.isPreseason && !player.isSigned && player.isWillSign && (
+                            <span className="rounded bg-green-50 px-1 py-0 text-[9px] font-medium text-green-600">VAI ASSINAR</span>
+                          )}
                         </div>
                       </div>
 
@@ -202,17 +215,29 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                             {player.isPreseason ? '✓ Pré-Época' : '○ Pré-Época'}
                           </button>
                         )}
-                        {onToggleSigned && (
+                        {onSetSignStatus && (
                           <button
+                            // 3-state cycle: none → will_sign → signed → none
                             className={`rounded px-2 py-1 text-[10px] font-medium ${
                               player.isSigned
                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                : 'text-green-600 hover:bg-green-50'
+                                : player.isWillSign
+                                  ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                  : 'text-green-600 hover:bg-green-50'
                             }`}
-                            onClick={(e) => { e.stopPropagation(); onToggleSigned(player.id, !player.isSigned); }}
-                            aria-label={player.isSigned ? 'Remover assinatura' : 'Marcar como assinou'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSetSignStatus(player.id, nextSignStatus(player.isWillSign, player.isSigned));
+                            }}
+                            aria-label={
+                              player.isSigned
+                                ? 'Remover assinatura'
+                                : player.isWillSign
+                                  ? 'Marcar como assinou'
+                                  : 'Marcar como vai assinar'
+                            }
                           >
-                            {player.isSigned ? '✓ Assinou' : '✍ Assinou'}
+                            {player.isSigned ? '✓ Assinou' : player.isWillSign ? '⏳ Vai Assinar' : '✍ Assinou'}
                           </button>
                         )}
                         <button
