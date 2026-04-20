@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -36,12 +36,15 @@ const SIZES = {
 };
 
 export function ClubBadge({ club, logoUrl, showName = true, size = 'sm', className = '', onRemoveLogo, linkToFilter }: ClubBadgeProps) {
-  // Detect touch after mount to avoid hydration mismatch (server always renders non-touch)
-  const [isTouch] = useState(() =>
-    typeof window !== 'undefined'
-      ? 'ontouchstart' in window || navigator.maxTouchPoints > 0
-      : false
-  );
+  // Start as false to match SSR; detect touch after mount to avoid hydration mismatch.
+  // A useState initializer still runs during first client render, so we must defer the
+  // browser check to useEffect for the server/client markup to line up.
+  const [isTouch, setIsTouch] = useState(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- SSR-safe: must read touch capability after hydration */
+  useEffect(() => {
+    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!club) return null;
 
