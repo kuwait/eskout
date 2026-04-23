@@ -108,9 +108,13 @@ export async function inviteUser(
     const { clubId } = await requireAdmin();
     const service = await createServiceClient();
 
-    // Invite via Supabase Admin API — sends magic link email
+    // Invite via Supabase Admin API — sends magic link email.
+    // redirectTo lands the invitee on /definir-password after the link is verified,
+    // so they set a password on first access instead of being stuck without credentials.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eskout.com';
     const { data, error } = await service.auth.admin.inviteUserByEmail(email, {
       data: { full_name: fullName, role },
+      redirectTo: `${appUrl}/definir-password`,
     });
 
     if (error) {
@@ -187,29 +191,21 @@ export async function deleteUser(
   userId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, userId: currentUserId } = await requireAdmin();
+    const { userId: currentUserId } = await requireAdmin();
 
     // Prevent self-deactivation
     if (userId === currentUserId) return { success: false, error: 'Não podes desativar a tua própria conta' };
 
     const service = await createServiceClient();
 
-    // Deactivate the club membership (soft delete — preserves data for join references)
-    const { error: membershipErr } = await service
-      .from('club_memberships')
-      .update({ active: false })
-      .eq('user_id', userId)
-      .eq('club_id', clubId);
-
-    if (membershipErr) return { success: false, error: 'Erro ao desativar utilizador' };
-
-    // Also mark profile as inactive and ban auth user so they can't login
+    // Soft delete: mark profile inactive and ban auth user. profiles.active is the
+    // source of truth (club_memberships has no `active` column — it's unused anyway).
     const { error: profileErr } = await service
       .from('profiles')
       .update({ active: false })
       .eq('id', userId);
 
-    if (profileErr) return { success: false, error: 'Membership desativada mas erro ao desativar perfil' };
+    if (profileErr) return { success: false, error: 'Erro ao desativar utilizador' };
 
     // Ban auth user so they can't login
     const { error: authErr } = await service.auth.admin.updateUserById(userId, {
@@ -224,30 +220,47 @@ export async function deleteUser(
   }
 }
 
+/* ───────────── Set User Password (manual override) ───────────── */
+
+export async function setUserPassword(
+  userId: string,
+  password: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { userId: currentUserId } = await requireAdmin();
+
+    // Self-change must go through the normal auth flow (not this admin override)
+    if (userId === currentUserId) return { success: false, error: 'Não podes alterar a tua própria password por aqui' };
+
+    // Mirrors Supabase `minimum_password_length` in config.toml
+    if (password.length < 6) return { success: false, error: 'A password deve ter pelo menos 6 caracteres' };
+
+    const service = await createServiceClient();
+    const { error } = await service.auth.admin.updateUserById(userId, { password });
+
+    if (error) return { success: false, error: error.message };
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Erro desconhecido' };
+  }
+}
+
 /* ───────────── Reactivate User ───────────── */
 
 export async function reactivateUser(
   userId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId } = await requireAdmin();
+    await requireAdmin();
     const service = await createServiceClient();
-
-    // Reactivate the club membership
-    const { error: membershipErr } = await service
-      .from('club_memberships')
-      .update({ active: true })
-      .eq('user_id', userId)
-      .eq('club_id', clubId);
-
-    if (membershipErr) return { success: false, error: 'Erro ao reativar utilizador' };
 
     const { error: profileErr } = await service
       .from('profiles')
       .update({ active: true })
       .eq('id', userId);
 
-    if (profileErr) return { success: false, error: 'Membership reativada mas erro ao reativar perfil' };
+    if (profileErr) return { success: false, error: 'Erro ao reativar utilizador' };
 
     // Unban auth user
     const { error: authErr } = await service.auth.admin.updateUserById(userId, {
