@@ -8,7 +8,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
-import { Mail, RotateCcw, Search, Trash2, UserPlus } from 'lucide-react';
+import { Check, Copy, KeyRound, Mail, RotateCcw, Search, Trash2, UserPlus } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,8 +19,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -28,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { inviteUser, updateUserRole, deleteUser, reactivateUser, type UserListItem } from '@/actions/users';
+import { inviteUser, updateUserRole, deleteUser, reactivateUser, setUserPassword, type UserListItem } from '@/actions/users';
 import type { UserRole } from '@/lib/types';
 
 /* ───────────── Constants ───────────── */
@@ -93,6 +102,13 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<UserListItem | null>(null);
 
+  // Set-password dialog
+  const [passwordTarget, setPasswordTarget] = useState<UserListItem | null>(null);
+  const [passwordValue, setPasswordValue] = useState('');
+  const [passwordSaved, setPasswordSaved] = useState(false); // shows copy affordance after success
+  const [passwordCopied, setPasswordCopied] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   // Filtered users — fuzzy search on name, email, role label
   const filteredUsers = useMemo(() => {
     if (!search.trim()) return initialUsers;
@@ -146,6 +162,62 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
         showFeedback('error', result.error ?? 'Erro ao desativar');
       }
     });
+  }
+
+  /* ───────────── Set Password ───────────── */
+
+  function openPasswordDialog(user: UserListItem) {
+    setPasswordTarget(user);
+    setPasswordValue('');
+    setPasswordSaved(false);
+    setPasswordCopied(false);
+    setPasswordError(null);
+  }
+
+  function closePasswordDialog() {
+    setPasswordTarget(null);
+    setPasswordValue('');
+    setPasswordSaved(false);
+    setPasswordCopied(false);
+    setPasswordError(null);
+  }
+
+  // Generate a readable 12-char alphanumeric password (no ambiguous 0/O/1/l)
+  function generatePassword() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let pwd = '';
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    for (let i = 0; i < 12; i++) pwd += chars[bytes[i] % chars.length];
+    setPasswordValue(pwd);
+    setPasswordError(null);
+  }
+
+  function handleSetPassword() {
+    if (!passwordTarget) return;
+    setPasswordError(null);
+    if (passwordValue.length < 6) {
+      setPasswordError('A password deve ter pelo menos 6 caracteres');
+      return;
+    }
+    startTransition(async () => {
+      const result = await setUserPassword(passwordTarget.id, passwordValue);
+      if (result.success) {
+        setPasswordSaved(true);
+      } else {
+        setPasswordError(result.error ?? 'Erro ao definir password');
+      }
+    });
+  }
+
+  async function copyPassword() {
+    try {
+      await navigator.clipboard.writeText(passwordValue);
+      setPasswordCopied(true);
+      setTimeout(() => setPasswordCopied(false), 2000);
+    } catch {
+      setPasswordError('Falha ao copiar — copia à mão');
+    }
   }
 
   function handleReactivate(user: UserListItem) {
@@ -291,15 +363,26 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
                   </td>
                   <td className="px-4 py-3">
                     {user.active ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
-                        onClick={() => setDeleteTarget(user)}
-                        title="Desativar"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-neutral-400 hover:text-neutral-700"
+                          onClick={() => openPasswordDialog(user)}
+                          title="Definir password"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+                          onClick={() => setDeleteTarget(user)}
+                          title="Desativar"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         variant="ghost"
@@ -371,14 +454,24 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
                   </SelectContent>
                 </Select>
                 {user.active ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
-                    onClick={() => setDeleteTarget(user)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-neutral-400 hover:text-neutral-700"
+                      onClick={() => openPasswordDialog(user)}
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+                      onClick={() => setDeleteTarget(user)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
                 ) : (
                   <Button
                     variant="ghost"
@@ -400,6 +493,65 @@ export function UserManagement({ initialUsers }: UserManagementProps) {
           )}
         </div>
       </div>
+
+      {/* Set password dialog */}
+      <Dialog open={!!passwordTarget} onOpenChange={(open) => { if (!open) closePasswordDialog(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Definir password</DialogTitle>
+            <DialogDescription>
+              {passwordSaved ? (
+                <>Password definida para <strong>{passwordTarget?.fullName}</strong>. Copia e envia por canal seguro (WhatsApp/Signal).</>
+              ) : (
+                <>Escolhe uma password para <strong>{passwordTarget?.fullName}</strong> ({passwordTarget?.email}). Partilha por canal seguro — a pessoa pode trocar depois.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-password">Password</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="new-password"
+                  type="text"
+                  value={passwordValue}
+                  onChange={(e) => { setPasswordValue(e.target.value); setPasswordError(null); }}
+                  placeholder="Pelo menos 6 caracteres"
+                  autoComplete="off"
+                  readOnly={passwordSaved}
+                  className="font-mono"
+                />
+                {passwordSaved ? (
+                  <Button type="button" variant="outline" size="sm" onClick={copyPassword} className="shrink-0">
+                    {passwordCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    <span className="ml-1.5">{passwordCopied ? 'Copiado' : 'Copiar'}</span>
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" onClick={generatePassword} className="shrink-0">
+                    Gerar
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {passwordError && (
+              <p className="text-sm text-red-500" role="alert">{passwordError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closePasswordDialog}>
+              {passwordSaved ? 'Fechar' : 'Cancelar'}
+            </Button>
+            {!passwordSaved && (
+              <Button onClick={handleSetPassword} disabled={isPending || passwordValue.length < 6}>
+                {isPending ? 'A guardar...' : 'Guardar'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Deactivate confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>

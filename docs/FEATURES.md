@@ -14,7 +14,7 @@ Detailed specifications for every feature in the application.
 - Editor: can edit players, manage squads/pipeline, approve/reject scout reports — cannot delete players or manage users. Can access `/admin/pendentes`.
 - Scout: can only access `/submeter` (report submission), `/meus-relatorios` (own reports), `/meus-jogadores`, `/observacoes` (read-only, inline games per round), `/meus-jogos`, `/listas`, `/preferencias`, individual player profiles — redirected away from all other routes
 - Recruiter: see Section 1.1 below
-- User management: invite via email (Supabase Auth), set password on first login, soft delete (deactivate/reactivate)
+- User management: invite via email (Supabase Auth with `redirectTo` → `/definir-password`), set password on first login, soft delete (deactivate/reactivate). Admins can also set a user's password manually from `/admin/utilizadores` (key icon) — generate or type, then copy to share via secure channel (useful when email delivery fails)
 - Session persistence across browser sessions
 - Protected routes → redirect to login if unauthenticated
 - Social media crawlers (WhatsApp, Facebook, Twitter, Telegram, LinkedIn, Slack, Discord) bypass auth to read OG meta tags
