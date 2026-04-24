@@ -49,6 +49,7 @@ import type {
   UserRole,
 } from '@/lib/types';
 import { createTrainingFeedback, deleteTrainingFeedback, createCoachFeedbackLink } from '@/actions/training-feedback';
+import { stripCoachPrefix } from '@/lib/utils/author-name';
 import { cn } from '@/lib/utils';
 
 /* ───────────── Props ───────────── */
@@ -247,7 +248,9 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
   const rPot = entry.coachRatingPotential ?? entry.ratingPotential;
   const decision = entry.coachDecision ?? (entry.decision !== 'sem_decisao' ? entry.decision : null);
   const decisionConfig = decision ? [...TRAINING_DECISIONS, ...COACH_DECISIONS].find((d) => d.value === decision) : null;
-  const authorName = hasCoach ? entry.coachName : (entry.feedback || entry.ratingPerformance) ? entry.authorName : null;
+  // Strip "Mister" etc. do coach name — o render prepende "Mister " (evita "Mister Mister X")
+  const rawAuthorName = hasCoach ? entry.coachName : (entry.feedback || entry.ratingPerformance) ? entry.authorName : null;
+  const authorName = rawAuthorName && hasCoach ? stripCoachPrefix(rawAuthorName) : rawAuthorName;
 
   // Physical (merge coach + internal)
   const physicalPairs: { category: string; label: string }[] = [];
@@ -346,7 +349,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
             )}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-            {authorName && <span>{hasCoach ? `Mister ${authorName}` : authorName}</span>}
+            {authorName && <span>{authorName}</span>}
           </div>
         </div>
 

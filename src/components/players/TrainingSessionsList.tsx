@@ -38,6 +38,7 @@ import {
   deleteTrainingFeedback, createCoachFeedbackLink,
 } from '@/actions/training-feedback';
 import { cn } from '@/lib/utils';
+import { stripCoachPrefix } from '@/lib/utils/author-name';
 import { countdownLabel as computeCountdownLabel, daysUntil } from '@/lib/utils/training-sessions';
 
 /* ───────────── Props ───────────── */
@@ -269,7 +270,9 @@ function TrainingCard({
   const decisionConfig = decision
     ? [...TRAINING_DECISIONS, ...COACH_DECISIONS].find((d) => d.value === decision)
     : null;
-  const authorName = hasCoach ? entry.coachName : entry.authorName;
+  // Strip "Mister" etc. do coach name — o render prepende "Mister " (evita "Mister Mister X")
+  const rawAuthorName = hasCoach ? entry.coachName : entry.authorName;
+  const authorName = rawAuthorName && hasCoach ? stripCoachPrefix(rawAuthorName) : rawAuthorName;
 
   // Physical scales (merge staff + coach)
   const physicalPairs: { category: string; label: string }[] = [];
@@ -391,7 +394,7 @@ function TrainingCard({
               </span>
             )}
             {entry.location && <span className="inline-flex items-center gap-1"><MapPin className="h-2.5 w-2.5" /> {entry.location}</span>}
-            {authorName && hasEval && <span>· {hasCoach ? `Mister ${authorName}` : authorName}</span>}
+            {authorName && hasEval && <span>· {authorName}</span>}
           </div>
         </div>
         {canEdit && (() => {

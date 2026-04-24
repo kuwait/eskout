@@ -22,6 +22,7 @@ import {
   MATURATION_SCALE_OPTIONS,
 } from '@/lib/constants';
 import { markTrainingFeedbacksSeen } from '@/actions/training-feedback';
+import { canonicalAuthorKey, stripCoachPrefix } from '@/lib/utils/author-name';
 import type { TrainingFeedbackWithPlayer, TrainingDecision } from '@/lib/types';
 
 /* ───────────── Constants ───────────── */
@@ -63,14 +64,35 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
     return Array.from(set).sort();
   }, [feedbacks]);
 
-  // Extract unique authors
+  // Extract unique authors — dedup por canonical key (nome sem prefixo "Mister/Mr." + acentos).
+  // Agrupa internal user + coach com o mesmo nome no mesmo entry.
   const authors = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { label: string; internal: boolean }>();
     for (const f of feedbacks) {
-      if (f.authorName && f.authorId) map.set(f.authorId, f.authorName);
-      if (f.coachName) map.set(`coach-${f.coachName}`, f.coachName);
+      const hasInternalContent = !!((f.feedback || f.ratingPerformance) && f.authorName);
+      const hasCoachSubmission = !!(f.coachSubmittedAt && f.coachName);
+
+      if (hasInternalContent) {
+        const key = canonicalAuthorKey(f.authorName);
+        if (key) {
+          const existing = map.get(key);
+          // Internal user ganha a label (nome limpo do profile)
+          if (!existing || !existing.internal) {
+            map.set(key, { label: f.authorName, internal: true });
+          }
+        }
+      }
+      if (hasCoachSubmission) {
+        const key = canonicalAuthorKey(f.coachName!);
+        if (key && !map.has(key)) {
+          // Só adiciona se nenhum internal user já cobriu esta chave
+          map.set(key, { label: stripCoachPrefix(f.coachName!), internal: false });
+        }
+      }
     }
-    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    return Array.from(map.entries())
+      .map(([key, { label }]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [feedbacks]);
 
   // Filter feedbacks
@@ -83,7 +105,11 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
       if (decisionFilter !== 'all' && effectiveDecision !== decisionFilter) return false;
       if (q && !f.playerName.toLowerCase().includes(q) && !f.playerClub?.toLowerCase().includes(q)) return false;
       if (authorFilter !== 'all') {
-        const matchesAuthor = f.authorId === authorFilter || (authorFilter.startsWith('coach-') && f.coachName === authorFilter.slice(6));
+        const hasInternalContent = (f.feedback || f.ratingPerformance) && f.authorName;
+        const hasCoachSubmission = f.coachSubmittedAt && f.coachName;
+        const matchesAuthor =
+          (hasInternalContent && canonicalAuthorKey(f.authorName) === authorFilter) ||
+          (hasCoachSubmission && canonicalAuthorKey(f.coachName!) === authorFilter);
         if (!matchesAuthor) return false;
       }
       return true;
@@ -157,8 +183,8 @@ export function FeedbackTreinosClient({ feedbacks }: { feedbacks: TrainingFeedba
             className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400"
           >
             <option value="all">Todos autores</option>
-            {authors.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
+            {authors.map(({ key, label }) => (
+              <option key={key} value={key}>{label}</option>
             ))}
           </select>
           {hasActiveFilters && (
@@ -218,8 +244,10 @@ function FeedbackCard({ feedback: f }: { feedback: TrainingFeedbackWithPlayer })
   const decision = f.coachDecision ?? (f.decision !== 'sem_decisao' ? f.decision : null);
   const decisionConfig = decision ? TRAINING_DECISIONS.find((d) => d.value === decision) : null;
   const feedbackText = f.coachFeedback ?? f.feedback;
-  const authorName = f.coachSubmittedAt ? f.coachName : (f.feedback || f.ratingPerformance) ? f.authorName : null;
+  const rawAuthorName = f.coachSubmittedAt ? f.coachName : (f.feedback || f.ratingPerformance) ? f.authorName : null;
   const hasCoach = !!f.coachSubmittedAt;
+  // Strip "Mister" etc. do coach name antes de prepender "Mister " (evita "Mister Mister X")
+  const authorName = rawAuthorName && hasCoach ? stripCoachPrefix(rawAuthorName) : rawAuthorName;
 
   // Physical scales (merged)
   const physicalPairs: { category: string; label: string }[] = [];
@@ -268,9 +296,7 @@ function FeedbackCard({ feedback: f }: { feedback: TrainingFeedbackWithPlayer })
               )}
             </div>
             {authorName && (
-              <span className="text-[11px] text-muted-foreground">
-                {hasCoach ? `Mister ${authorName}` : authorName}
-              </span>
+              <span className="text-[11px] text-muted-foreground">{authorName}</span>
             )}
           </div>
           <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white', dotColor)}>
