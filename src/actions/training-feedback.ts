@@ -1037,8 +1037,9 @@ export async function updateTrainingEvaluation(input: {
 
   if (!existing) return { success: false, error: 'Treino não encontrado' };
 
-  // Permission: author or admin
-  if (existing.author_id !== userId && role !== 'admin') {
+  // Permission: qualquer admin/editor/recruiter pode avaliar, mesmo que não tenha sido quem agendou.
+  // author_id passa a refletir quem avaliou (ver update abaixo), não quem criou a linha.
+  if (role !== 'admin' && role !== 'editor' && role !== 'recruiter') {
     return { success: false, error: 'Sem permissão para editar este treino' };
   }
 
@@ -1047,7 +1048,9 @@ export async function updateTrainingEvaluation(input: {
     || parsed.data.ratingPotential != null
     || (parsed.data.feedback && parsed.data.feedback.trim().length > 0);
 
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  // author_id = quem está a avaliar agora (não quem agendou o treino).
+  // Evita que o display mostre o nome de quem agendou como se tivesse feito o relatório.
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString(), author_id: userId };
   if (parsed.data.feedback !== undefined) updates.feedback = parsed.data.feedback || null;
   if (parsed.data.ratingPerformance !== undefined) updates.rating_performance = parsed.data.ratingPerformance;
   if (parsed.data.ratingPotential !== undefined) updates.rating_potential = parsed.data.ratingPotential;
