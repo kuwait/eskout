@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { coachFeedbackSchema } from '@/lib/validators';
+import { stripCoachPrefix } from '@/lib/utils/author-name';
 
 /* ───────────── GET: Load feedback context for the coach ───────────── */
 
@@ -104,6 +105,10 @@ export async function POST(
   const data = parsed.data;
   const now = new Date().toISOString();
 
+  // Normaliza coach_name: strip prefixos ("Mister", "Mr.", etc.) + trim.
+  // O display prepende "Mister " — guardar a versão limpa evita duplicação e ajuda a dedup.
+  const cleanedCoachName = data.coachName ? stripCoachPrefix(data.coachName) || null : null;
+
   // Update training_feedback with coach data
   // Migration 107: coach submit → status=realizado (transição implícita)
   const { error: updateError } = await supabase
@@ -122,7 +127,7 @@ export async function POST(
       coach_intensity_scale: data.intensityScale ?? null,
       coach_tags: data.tags,
       coach_observed_position: data.observedPosition || null,
-      coach_name: data.coachName || null,
+      coach_name: cleanedCoachName,
       coach_submitted_at: now,
     })
     .eq('id', share.feedback_id);
@@ -134,7 +139,7 @@ export async function POST(
   // Mark token as used
   await supabase
     .from('feedback_share_tokens')
-    .update({ used_at: now, coach_name: data.coachName || null })
+    .update({ used_at: now, coach_name: cleanedCoachName })
     .eq('id', share.id);
 
   return NextResponse.json({ success: true });
