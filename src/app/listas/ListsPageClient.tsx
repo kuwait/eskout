@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Plus, MoreHorizontal, Pencil, Trash2, Users, X } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Users, X, ChevronRight, Share2, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,19 @@ import type { PlayerList } from '@/lib/types';
 /* ───────────── Constants ───────────── */
 
 const EMOJI_OPTIONS = ['📋', '👁', '⭐', '🎯', '🔥', '💎', '⚡', '🏆', '📌', '🔖', '💡', '🎪', '🛡️', '⚽', '🥅', '🏃', '📊', '🗂️', '🔍', '❤️'];
+
+// App status palette (matches pipeline + department_opinion colors in CLAUDE.md).
+// Full Tailwind class strings so the JIT scanner picks them up — do NOT build dynamically.
+const LIST_PALETTE = [
+  'bg-emerald-100 ring-emerald-300 dark:bg-emerald-950/60 dark:ring-emerald-800',
+  'bg-blue-100 ring-blue-300 dark:bg-blue-950/60 dark:ring-blue-800',
+  'bg-yellow-100 ring-yellow-300 dark:bg-yellow-950/60 dark:ring-yellow-800',
+  'bg-orange-100 ring-orange-300 dark:bg-orange-950/60 dark:ring-orange-800',
+  'bg-red-100 ring-red-300 dark:bg-red-950/60 dark:ring-red-800',
+  'bg-purple-100 ring-purple-300 dark:bg-purple-950/60 dark:ring-purple-800',
+  'bg-cyan-100 ring-cyan-300 dark:bg-cyan-950/60 dark:ring-cyan-800',
+  'bg-slate-100 ring-slate-300 dark:bg-slate-800/60 dark:ring-slate-700',
+];
 
 /* ───────────── Component ───────────── */
 
@@ -69,6 +82,22 @@ export function ListsPageClient({
     if (days < 7) return `há ${days} dias`;
     if (days < 30) return `há ${Math.floor(days / 7)} sem.`;
     return new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
+  }
+
+  // Stable per-list color from a string hash, picking from the app's status palette
+  // (same hues used in pipeline/squads/department-opinion). Tailwind v4 keeps these
+  // class strings reachable because they appear as literals here.
+  function classForList(seed: string): string {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+    return LIST_PALETTE[Math.abs(h) % LIST_PALETTE.length];
+  }
+
+  // "João Carlos Silva" → "João S." — keeps share pills compact on mobile
+  function shortName(full: string): string {
+    const parts = full.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]} ${parts[parts.length - 1][0]}.`;
   }
 
   /* ───────────── Delete handler ───────────── */
@@ -113,85 +142,131 @@ export function ListsPageClient({
         </div>
       </div>
 
-      {/* Lists grid */}
+      {/* Lists — vertical, dense, fresh */}
       {myLists.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground mb-3">Ainda não tens listas</p>
-          <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            Criar lista
+        <div className="rounded-2xl border border-dashed bg-card/50 p-12 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Plus className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium mb-1">Ainda não tens listas</p>
+          <p className="text-xs text-muted-foreground mb-5">Cria a tua primeira para começar a organizar jogadores</p>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Criar primeira lista
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {myLists.map((list) => (
-            <div key={list.id} className="group relative h-full">
-              <Link
-                href={`/listas/${list.id}`}
-                className="flex h-full items-start gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
-              >
-                {/* Emoji */}
-                <span className="text-2xl leading-none mt-0.5">{list.emoji}</span>
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold truncate">{list.name}</h2>
-                    {list.isSystem && (
-                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                        Sistema
-                      </span>
-                    )}
+        <div className="space-y-2">
+          {myLists.map((list) => {
+            const colorClass = classForList(`${list.id}-${list.name}`);
+            return (
+              <div key={list.id} className="group relative">
+                <Link
+                  href={`/listas/${list.id}`}
+                  className="flex items-center gap-3 rounded-xl border bg-card px-3.5 py-2.5 transition-all hover:-translate-y-0.5 hover:border-foreground/15 hover:shadow-sm"
+                >
+                  {/* Emoji disc — color from app status palette (hash-stable per list) */}
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base shadow-sm ring-1 ${colorClass}`}>
+                    {list.emoji}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {list.itemCount} {list.itemCount === 1 ? 'jogador' : 'jogadores'}
-                  </p>
-                  {list.lastAddedAt && (
-                    <p className="text-[11px] text-muted-foreground/60 mt-1">
-                      Última adição {formatRelativeDate(list.lastAddedAt)}
-                    </p>
-                  )}
-                </div>
-              </Link>
 
-              {/* Actions menu — custom lists only */}
-              {!list.isSystem && (
-                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setRenameTarget(list)}>
-                        <Pencil className="mr-2 h-3.5 w-3.5" />
-                        Renomear
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setDeleteTarget(list)}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        <Trash2 className="mr-2 h-3.5 w-3.5" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
-            </div>
-          ))}
+                  {/* Title + meta */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="truncate text-[13px] font-semibold leading-tight">{list.name}</h2>
+                      {list.isSystem && (
+                        <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                          Sistema
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      {list.lastAddedAt
+                        ? <>Última adição <span className="text-foreground/70">{formatRelativeDate(list.lastAddedAt)}</span></>
+                        : 'Sem jogadores ainda'}
+                    </div>
+                    {/* Sharing indicator — only when relevant */}
+                    {list.isSharedWithMe && list.ownerName ? (
+                      <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:ring-blue-900">
+                        <UserCheck className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">De {list.ownerName}</span>
+                      </span>
+                    ) : list.sharedWith && list.sharedWith.length > 0 ? (
+                      <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-900">
+                        <Share2 className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">
+                          {list.sharedWith.length === 1
+                            ? `Partilhada com ${shortName(list.sharedWith[0].userName)}`
+                            : list.sharedWith.length === 2
+                              ? `Partilhada com ${shortName(list.sharedWith[0].userName)} e ${shortName(list.sharedWith[1].userName)}`
+                              : `Partilhada com ${list.sharedWith.length} pessoas`}
+                        </span>
+                      </span>
+                    ) : null}
+                  </div>
 
-          {/* Create list card */}
+                  {/* Number — right-aligned */}
+                  <div className="hidden sm:flex shrink-0 flex-col items-end pr-0.5">
+                    <span className="text-lg font-bold tabular-nums leading-none">
+                      {list.itemCount}
+                    </span>
+                    <span className="mt-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                      {list.itemCount === 1 ? 'jogador' : 'jogadores'}
+                    </span>
+                  </div>
+                  {/* Mobile: inline count */}
+                  <span className="sm:hidden text-xs font-semibold tabular-nums text-foreground/80">
+                    {list.itemCount}
+                  </span>
+
+                  {/* Chevron — subtle nav affordance, animates on hover */}
+                  <ChevronRight className="hidden sm:block h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-foreground/60" />
+                </Link>
+
+                {/* Actions menu — custom lists only */}
+                {!list.isSystem && (
+                  <div className="absolute right-10 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-card text-muted-foreground shadow-sm ring-1 ring-border hover:bg-accent hover:text-accent-foreground"
+                          aria-label="Ações"
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setRenameTarget(list)}>
+                          <Pencil className="mr-2 h-3.5 w-3.5" />
+                          Renomear
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setDeleteTarget(list)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Create list — same row style, dashed */}
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="flex items-center justify-center gap-2 rounded-lg border border-dashed bg-card p-4 text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary min-h-[88px]"
+            className="flex w-full items-center gap-3 rounded-xl border border-dashed bg-transparent px-3.5 py-2.5 text-[13px] text-muted-foreground transition-all hover:border-foreground/30 hover:bg-accent/30 hover:text-foreground"
           >
-            <Plus className="h-4 w-4" />
-            Nova Lista
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed">
+              <Plus className="h-4 w-4" />
+            </div>
+            <span className="font-medium">Nova lista</span>
           </button>
         </div>
       )}
@@ -429,27 +504,45 @@ function AllListsPanel({
   lists: PlayerList[];
   onClose: () => void;
 }) {
-  /* Group by owner */
-  const owners = useMemo(() => {
-    const map = new Map<string, { name: string; lists: PlayerList[] }>();
+  /* Group by user — each user sees their owned lists + lists shared with them.
+     This mirrors what the user actually has access to in their /listas page. */
+  type UserGroup = {
+    userId: string;
+    name: string;
+    owned: PlayerList[];
+    sharedIn: { list: PlayerList; ownerName: string }[];
+  };
+
+  const users = useMemo(() => {
+    const map = new Map<string, UserGroup>();
+
+    // 1) Owned lists per user
     for (const l of lists) {
-      const key = l.userId;
-      const existing = map.get(key);
-      if (existing) {
-        existing.lists.push(l);
-      } else {
-        map.set(key, { name: l.ownerName ?? '—', lists: [l] });
+      const existing = map.get(l.userId);
+      if (existing) existing.owned.push(l);
+      else map.set(l.userId, { userId: l.userId, name: l.ownerName ?? '—', owned: [l], sharedIn: [] });
+    }
+
+    // 2) For each share, attribute the list under the recipient too
+    for (const l of lists) {
+      if (!l.sharedWith) continue;
+      for (const share of l.sharedWith) {
+        const existing = map.get(share.userId);
+        const entry = { list: l, ownerName: l.ownerName ?? '—' };
+        if (existing) existing.sharedIn.push(entry);
+        else map.set(share.userId, { userId: share.userId, name: share.userName, owned: [], sharedIn: [entry] });
       }
     }
+
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt'));
   }, [lists]);
 
-  const [selectedOwner, setSelectedOwner] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
 
-  const selectedLists = useMemo(() => {
-    if (!selectedOwner) return [];
-    return owners.find((o) => o.name === selectedOwner)?.lists ?? [];
-  }, [owners, selectedOwner]);
+  const selectedUser = useMemo(
+    () => users.find((u) => u.userId === selectedUserId) ?? null,
+    [users, selectedUserId],
+  );
 
   return (
     <>
@@ -458,7 +551,7 @@ function AllListsPanel({
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
             <h2 className="text-lg font-bold">Todas as Listas</h2>
-            <p className="text-xs text-muted-foreground">{owners.length} utilizadores · {lists.length} listas</p>
+            <p className="text-xs text-muted-foreground">{users.length} utilizadores · {lists.length} listas</p>
           </div>
           <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent shrink-0" aria-label="Fechar">
             <X className="h-4 w-4" />
@@ -467,47 +560,85 @@ function AllListsPanel({
 
         {/* User selector */}
         <div className="border-b px-5 py-3">
-          <Select value={selectedOwner} onValueChange={setSelectedOwner}>
+          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecionar utilizador…" />
             </SelectTrigger>
             <SelectContent>
-              {owners.map((o) => (
-                <SelectItem key={o.name} value={o.name}>
-                  {o.name} ({o.lists.length} {o.lists.length === 1 ? 'lista' : 'listas'})
-                </SelectItem>
-              ))}
+              {users.map((u) => {
+                const total = u.owned.length + u.sharedIn.length;
+                return (
+                  <SelectItem key={u.userId} value={u.userId}>
+                    {u.name} ({total} {total === 1 ? 'lista' : 'listas'})
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {!selectedOwner ? (
+          {!selectedUser ? (
             <p className="text-center text-sm text-muted-foreground py-12">Seleciona um utilizador</p>
-          ) : selectedLists.length === 0 ? (
+          ) : selectedUser.owned.length === 0 && selectedUser.sharedIn.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-12">Sem listas</p>
           ) : (
-            <div className="space-y-2">
-              {selectedLists.map((l) => (
-                <Link
-                  key={l.id}
-                  href={`/listas/${l.id}`}
-                  className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/50"
-                >
-                  <span className="text-xl">{l.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{l.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {l.itemCount} {l.itemCount === 1 ? 'jogador' : 'jogadores'}
-                    </p>
-                  </div>
-                  {l.isSystem && (
-                    <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      Sistema
-                    </span>
-                  )}
-                </Link>
-              ))}
+            <div className="space-y-4">
+              {/* Owned lists */}
+              {selectedUser.owned.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Próprias ({selectedUser.owned.length})
+                  </p>
+                  {selectedUser.owned.map((l) => (
+                    <Link
+                      key={l.id}
+                      href={`/listas/${l.id}`}
+                      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                    >
+                      <span className="text-xl">{l.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{l.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {l.itemCount} {l.itemCount === 1 ? 'jogador' : 'jogadores'}
+                          {l.sharedWith && l.sharedWith.length > 0 && (
+                            <> · partilhada com {l.sharedWith.length}</>
+                          )}
+                        </p>
+                      </div>
+                      {l.isSystem && (
+                        <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          Sistema
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Lists shared with this user */}
+              {selectedUser.sharedIn.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Partilhadas com ele ({selectedUser.sharedIn.length})
+                  </p>
+                  {selectedUser.sharedIn.map(({ list: l, ownerName }) => (
+                    <Link
+                      key={l.id}
+                      href={`/listas/${l.id}`}
+                      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                    >
+                      <span className="text-xl">{l.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{l.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {l.itemCount} {l.itemCount === 1 ? 'jogador' : 'jogadores'} · de <span className="text-foreground/70">{ownerName}</span>
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

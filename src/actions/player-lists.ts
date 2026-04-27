@@ -131,6 +131,38 @@ export async function getMyLists(): Promise<PlayerList[]> {
     }
   }
 
+  // Bulk-fetch shares for the user's own (non-system) lists so we can show
+  // "partilhada com X" pills on the index page without N+1 queries.
+  const ownedNonSystemIds = lists.filter((l) => !l.is_system).map((l) => l.id);
+  const sharesByList = new Map<number, PlayerListShare[]>();
+  if (ownedNonSystemIds.length > 0) {
+    const { data: shareRows } = await supabase
+      .from('player_list_shares')
+      .select('id, list_id, user_id, shared_by, created_at')
+      .in('list_id', ownedNonSystemIds);
+
+    if (shareRows?.length) {
+      // Resolve shared-user names via service client (profiles RLS may restrict cross-user reads)
+      const service = await createServiceClient();
+      const targetIds = [...new Set(shareRows.map((s) => s.user_id))];
+      const { data: targetProfiles } = await service.from('profiles').select('id, full_name').in('id', targetIds);
+      const nameMap = new Map((targetProfiles ?? []).map((p) => [p.id, p.full_name]));
+
+      for (const row of shareRows) {
+        const list = sharesByList.get(row.list_id) ?? [];
+        list.push({
+          id: row.id,
+          listId: row.list_id,
+          userId: row.user_id,
+          userName: nameMap.get(row.user_id) ?? 'Desconhecido',
+          sharedBy: row.shared_by,
+          createdAt: row.created_at,
+        });
+        sharesByList.set(row.list_id, list);
+      }
+    }
+  }
+
   const myLists: PlayerList[] = lists.map((row) => {
     const stats = statsMap.get(row.id);
     return {
@@ -144,6 +176,7 @@ export async function getMyLists(): Promise<PlayerList[]> {
       updatedAt: row.updated_at,
       itemCount: stats?.count ?? 0,
       lastAddedAt: stats?.lastAddedAt ?? null,
+      sharedWith: sharesByList.get(row.id),
     };
   });
 
@@ -241,6 +274,36 @@ export async function getAllLists(): Promise<PlayerList[]> {
     }
   }
 
+  // Bulk-fetch shares for non-system lists so admins can see who has access to what,
+  // and so a user's "shared with me" lists also surface in the per-user grouping.
+  const nonSystemIds = lists.filter((l) => !l.is_system).map((l) => l.id);
+  const sharesByList = new Map<number, PlayerListShare[]>();
+  if (nonSystemIds.length > 0) {
+    const { data: shareRows } = await supabase
+      .from('player_list_shares')
+      .select('id, list_id, user_id, shared_by, created_at')
+      .in('list_id', nonSystemIds);
+
+    if (shareRows?.length) {
+      const targetIds = [...new Set(shareRows.map((s) => s.user_id))];
+      const { data: targetProfiles } = await supabase.from('profiles').select('id, full_name').in('id', targetIds);
+      const nameMap = new Map((targetProfiles ?? []).map((p) => [p.id, p.full_name]));
+
+      for (const row of shareRows) {
+        const arr = sharesByList.get(row.list_id) ?? [];
+        arr.push({
+          id: row.id,
+          listId: row.list_id,
+          userId: row.user_id,
+          userName: nameMap.get(row.user_id) ?? 'Desconhecido',
+          sharedBy: row.shared_by,
+          createdAt: row.created_at,
+        });
+        sharesByList.set(row.list_id, arr);
+      }
+    }
+  }
+
   return lists.map((row) => {
     const stats = statsMap.get(row.id);
     const profile = row.profiles as unknown as { full_name: string } | null;
@@ -256,6 +319,7 @@ export async function getAllLists(): Promise<PlayerList[]> {
       itemCount: stats?.count ?? 0,
       lastAddedAt: stats?.lastAddedAt ?? null,
       ownerName: profile?.full_name ?? '—',
+      sharedWith: sharesByList.get(row.id),
     };
   });
 }
