@@ -5,7 +5,8 @@
 
 'use server';
 
-import { browserHeaders, decodeHtmlEntities } from '../helpers';
+import { decodeHtmlEntities } from '../helpers';
+import { fpfFetch, FpfRateLimitError } from '../fpf-fetch';
 import { FPF_RESULTS_BASE, FPF_CURRENT_SEASON_ID } from '@/lib/constants';
 import type { ActionResponse } from '@/lib/types';
 import { getAuthContext } from '@/lib/supabase/club-context';
@@ -13,15 +14,23 @@ import type { FpfBrowseMatch, FpfBrowseCompetition } from './fpf-data';
 
 /* ───────────── Retry Helper ───────────── */
 
-/** Retry with exponential backoff. Returns null after all retries fail. */
+/** Retry with exponential backoff. Aborts on rate limit (429). */
 async function withRetry<T>(
   fn: () => Promise<T | null>,
   retries = 3,
   baseDelay = 3000,
 ): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const result = await fn();
-    if (result !== null) return result;
+    try {
+      const result = await fn();
+      if (result !== null) return result;
+    } catch (e) {
+      if (e instanceof FpfRateLimitError) {
+        console.warn(`[FPF Browse Date] 429 rate-limited — abortar.`);
+        return null;
+      }
+      throw e;
+    }
     if (attempt < retries) {
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 2000;
       console.log(`[FPF Browse Date] Attempt ${attempt + 1} failed, waiting ${Math.round(delay / 1000)}s…`);
@@ -34,20 +43,13 @@ async function withRetry<T>(
 /* ───────────── Fetch HTML ───────────── */
 
 async function fetchHtml(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: browserHeaders(),
-      next: { revalidate: 0 },
-    });
-    if (!res.ok) {
-      console.warn(`[FPF Browse Date] ${res.status} for ${url}`);
-      return null;
-    }
-    return await res.text();
-  } catch (e) {
-    console.warn(`[FPF Browse Date] Fetch error:`, e);
+  const res = await fpfFetch(url);
+  if (!res) return null;
+  if (!res.ok) {
+    console.warn(`[FPF Browse Date] ${res.status} for ${url}`);
     return null;
   }
+  return await res.text();
 }
 
 /* ───────────── Parse Escalão from Competition Name ───────────── */

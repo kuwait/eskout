@@ -5,22 +5,33 @@
 
 'use server';
 
-import { browserHeaders, decodeHtmlEntities } from '../helpers';
+import { decodeHtmlEntities } from '../helpers';
+import { fpfFetch, FpfRateLimitError } from '../fpf-fetch';
 import { FPF_RESULTS_BASE } from '@/lib/constants';
 import type { ActionResponse } from '@/lib/types';
 import type { FpfCompetitionBrowse, FpfFixtureInfo, FpfFixtureMatch } from './fpf-data';
 
 /* ───────────── Retry Helper ───────────── */
 
-/** Retry with exponential backoff. Returns null after all retries fail. */
+/** Retry with exponential backoff. Returns null after all retries fail.
+ *  Aborts immediately on FpfRateLimitError — retrying a 429 only escalates the
+ *  ban (Cloudflare 1015 zone-level lockout). */
 async function withRetry<T>(
   fn: () => Promise<T | null>,
   retries = 3,
-  baseDelay = 3000,
+  baseDelay = 10000,
 ): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const result = await fn();
-    if (result !== null) return result;
+    try {
+      const result = await fn();
+      if (result !== null) return result;
+    } catch (e) {
+      if (e instanceof FpfRateLimitError) {
+        console.warn(`[FPF Comp] 429 rate-limited — abortar (sem retry). Tentar daqui a 15-60 min.`);
+        return null;
+      }
+      throw e;
+    }
     if (attempt < retries) {
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 2000;
       console.log(`[FPF Comp Retry] Attempt ${attempt + 1} failed, waiting ${Math.round(delay / 1000)}s…`);
@@ -33,20 +44,13 @@ async function withRetry<T>(
 /* ───────────── Fetch HTML Helper ───────────── */
 
 async function fetchHtml(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: browserHeaders(),
-      next: { revalidate: 0 },
-    });
-    if (!res.ok) {
-      console.warn(`[FPF Browse] ${res.status} for ${url}`);
-      return null;
-    }
-    return await res.text();
-  } catch (e) {
-    console.warn(`[FPF Browse] Fetch error:`, e);
+  const res = await fpfFetch(url);
+  if (!res) return null;
+  if (!res.ok) {
+    console.warn(`[FPF Browse] ${res.status} for ${url}`);
     return null;
   }
+  return await res.text();
 }
 
 /* ───────────── Get Association Competitions ───────────── */

@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // cycletls ships a Go binary loaded via __dirname — bundling breaks the relative
+  // path (Next rewrites it to /ROOT/...). Mark as external so it stays CommonJS.
+  serverExternalPackages: ['cycletls'],
   images: {
     // Only allow images from known sources — no wildcard **
     remotePatterns: [

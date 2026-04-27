@@ -194,6 +194,8 @@ export async function scrapeOneFixture(
   const t0 = Date.now();
 
   // Fetch matches for this fixture from FPF
+  // Throttle the first hit per fixture — FPF rate-limits this endpoint aggressively (429).
+  await humanDelay(4000, 7000);
   log.push({ event: 'info', message: `A buscar jogos de ${fixtureName} (${seriesName || phaseName})…` });
   const matchesRes = await getFixtureMatches(fixtureId);
   if (!matchesRes.success || !matchesRes.data) {

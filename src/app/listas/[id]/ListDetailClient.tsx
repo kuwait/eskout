@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, Plus, Search, X, Pencil, Trash2, Users, Download, LayoutGrid, ChevronLeft, ChevronRight, Loader2, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -97,8 +97,16 @@ export function ListDetailClient({
   }, []);
 
   /* ───────────── Grouped by club → birth year ───────────── */
+  /* Stable order of club groups — captured the first time the user enters Por clube view.
+   * Subsequent removals/additions don't reshuffle the layout (avoids "jumping" when count changes).
+   * Cleared when the toggle goes off so re-entering re-computes a fresh order. */
+  const groupOrderRef = useRef<string[] | null>(null);
+
   const clubGroups = useMemo(() => {
-    if (!groupByClub) return null;
+    if (!groupByClub) {
+      groupOrderRef.current = null;
+      return null;
+    }
     const groups = new Map<string, { club: string; logoUrl: string | null; items: PlayerListItem[] }>();
     for (const item of items) {
       const club = item.playerClub || 'Sem clube';
@@ -107,10 +115,32 @@ export function ListDetailClient({
       }
       groups.get(club)!.items.push(item);
     }
-    // Sort groups by number of players (most first), then alphabetically
-    return Array.from(groups.values()).sort((a, b) =>
-      b.items.length - a.items.length || a.club.localeCompare(b.club, 'pt'),
-    );
+
+    // First time computing → establish stable order (most populated first, then alpha)
+    if (!groupOrderRef.current) {
+      const initial = Array.from(groups.values()).sort((a, b) =>
+        b.items.length - a.items.length || a.club.localeCompare(b.club, 'pt'),
+      );
+      groupOrderRef.current = initial.map((g) => g.club);
+      return initial;
+    }
+
+    // Subsequent renders → respect the locked order; new clubs (rare) appended at the end
+    const lockedOrder = groupOrderRef.current;
+    const lockedSet = new Set(lockedOrder);
+    type Group = { club: string; logoUrl: string | null; items: PlayerListItem[] };
+    const result: Group[] = [];
+    for (const club of lockedOrder) {
+      const g = groups.get(club);
+      if (g) result.push(g); // skip clubs that were fully removed
+    }
+    for (const g of groups.values()) {
+      if (!lockedSet.has(g.club)) {
+        result.push(g);
+        lockedOrder.push(g.club); // extend the lock so this new club stays in place too
+      }
+    }
+    return result;
   }, [items, groupByClub]);
 
   /** Sub-group items within a club by birth year (descending — most recent first) */
@@ -216,33 +246,33 @@ export function ListDetailClient({
   return (
     <div className="p-4 lg:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <Link
             href="/listas"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
             aria-label="Voltar às listas"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-xl font-bold lg:text-2xl flex items-center gap-2">
-              <span>{list.emoji}</span>
+          <span className="text-xl shrink-0">{list.emoji}</span>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base font-bold lg:text-lg truncate leading-tight">
               {list.name}
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-none">
               {items.length} {items.length === 1 ? 'jogador' : 'jogadores'}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Group by club toggle */}
           {items.length > 1 && (
             <button
               type="button"
               onClick={() => setGroupByClub((v) => { const next = !v; localStorage.setItem('eskout:list-group-by-club', next ? '1' : '0'); return next; })}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
                 groupByClub
                   ? 'border-primary/30 bg-primary/5 text-primary'
                   : 'border-neutral-200 text-muted-foreground hover:border-neutral-300 hover:text-neutral-600',
@@ -250,7 +280,7 @@ export function ListDetailClient({
               title={groupByClub ? 'Desagrupar' : 'Agrupar por clube'}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Por clube</span>
+              <span className="hidden md:inline">Por clube</span>
             </button>
           )}
           {/* Export — admin/editor only */}
@@ -259,10 +289,11 @@ export function ListDetailClient({
               type="button"
               onClick={handleExport}
               disabled={exporting}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-neutral-300 hover:text-neutral-600 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-neutral-300 hover:text-neutral-600 disabled:opacity-50 whitespace-nowrap"
+              title="Exportar"
             >
               <Download className="h-3.5 w-3.5" />
-              Exportar
+              <span className="hidden md:inline">Exportar</span>
             </button>
           )}
           {/* Clear all */}
@@ -270,10 +301,11 @@ export function ListDetailClient({
             <button
               type="button"
               onClick={() => setClearConfirm(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:border-red-300 hover:bg-red-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-red-500 transition-colors hover:border-red-300 hover:bg-red-50 whitespace-nowrap"
+              title="Limpar lista"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Limpar</span>
+              <span className="hidden md:inline">Limpar</span>
             </button>
           )}
           {/* Duplicate */}
@@ -281,10 +313,11 @@ export function ListDetailClient({
             <button
               type="button"
               onClick={() => setDuplicateConfirm(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-neutral-300 hover:text-neutral-600"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-neutral-300 hover:text-neutral-600 whitespace-nowrap"
+              title="Duplicar"
             >
               <Copy className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Duplicar</span>
+              <span className="hidden md:inline">Duplicar</span>
             </button>
           )}
           {/* Share — owner only, not system lists */}
@@ -293,14 +326,15 @@ export function ListDetailClient({
               type="button"
               onClick={() => setShareDialogOpen(true)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap',
                 localShares.length > 0
                   ? 'border-blue-200 bg-blue-50 text-blue-700'
                   : 'border-neutral-200 text-muted-foreground hover:border-neutral-300 hover:text-neutral-600',
               )}
+              title="Partilhar"
             >
               <Users className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Partilhar</span>
+              <span className="hidden md:inline">Partilhar</span>
               {localShares.length > 0 && (
                 <span className="rounded-full bg-blue-200 px-1.5 py-px text-[10px] font-bold text-blue-800">
                   {localShares.length}
@@ -346,7 +380,7 @@ export function ListDetailClient({
 
       {/* Items — flat list (compact rows with club), sorted by club then name */}
       {items.length > 0 && !clubGroups && (
-        <div className="space-y-1">
+        <div className="rounded-xl border bg-card p-1.5 space-y-0.5">
           {sortedItems.map((item) => (
             <PlayerListRow
               key={item.id}
@@ -369,19 +403,19 @@ export function ListDetailClient({
         </div>
       )}
 
-      {/* Grouped by club — 1 club per column, rows inside */}
+      {/* Grouped by club — masonry columns, each card = one club */}
       {items.length > 0 && clubGroups && (
-        <div className="gap-3" style={{ columns: '320px' }}>
+        <div className="gap-3" style={{ columns: '360px' }}>
           {clubGroups.map((group) => {
             const yearGroups = groupByBirthYear(group.items);
             const hasMultipleYears = yearGroups.length > 1;
             return (
-              <div key={group.club} className="rounded-lg border bg-card break-inside-avoid mb-3">
-                {/* Club header */}
-                <div className="flex items-center gap-2 px-3 py-2.5 border-b">
-                  <ClubBadge club={group.club} logoUrl={group.logoUrl} size="sm" className="text-sm font-semibold" />
-                  <span className="text-xs text-muted-foreground">
-                    ({group.items.length})
+              <div key={group.club} className="rounded-xl border bg-card break-inside-avoid mb-3 overflow-hidden">
+                {/* Club header — visually distinct: bg muted, club badge md, count chip */}
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+                  <ClubBadge club={group.club} logoUrl={group.logoUrl} size="md" className="text-[13px] font-semibold min-w-0" />
+                  <span className="shrink-0 rounded-full bg-foreground/5 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-foreground/70">
+                    {group.items.length}
                   </span>
                 </div>
                 {/* Players — sub-grouped by birth year */}
@@ -389,7 +423,7 @@ export function ListDetailClient({
                   {yearGroups.map(({ year, items: yearItems }, yi) => (
                     <div key={year}>
                       {hasMultipleYears && (
-                        <p className={cn('text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 px-2 pb-0.5', yi > 0 && 'pt-2')}>
+                        <p className={cn('text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-2 pb-1', yi > 0 && 'pt-2')}>
                           {year}
                         </p>
                       )}
@@ -617,9 +651,87 @@ interface PlayerCardProps {
 }
 
 /** Compact row — used in both flat list and club-grouped view */
+/** Parse the auto-generated stats note (e.g. "1839 min · 24 jogos (24 tit) · 1 golo · U.D. Sousense").
+ *  Returns structured stats so we can render them as visual chips instead of italic text.
+ *  Returns null when the note doesn't match the pattern (free-form user notes are rendered as-is). */
+function parseStatsNote(note: string | null): { min: number; games: number; starts: number | null; goals: number } | null {
+  if (!note) return null;
+  const minMatch = note.match(/(\d+)\s*min/);
+  const gamesMatch = note.match(/(\d+)\s*jogos?/);
+  const startsMatch = note.match(/\((\d+)\s*tit\)/);
+  const goalsMatch = note.match(/(\d+)\s*golos?/);
+  if (!minMatch || !gamesMatch) return null;
+  return {
+    min: parseInt(minMatch[1], 10),
+    games: parseInt(gamesMatch[1], 10),
+    starts: startsMatch ? parseInt(startsMatch[1], 10) : null,
+    goals: goalsMatch ? parseInt(goalsMatch[1], 10) : 0,
+  };
+}
+
+/** Stats chips with full-word labels — used inline (right of row) or stacked below name.
+ *  Always shows all three pills (min · jogos[·tit] · golos). The goals pill switches to a
+ *  muted style when goals = 0 so it doesn't visually claim "scored".
+ *  When nowrap=true (e.g. inside the cramped Por clube card), pills stay on a single line
+ *  and overflow is hidden — never wraps. */
+function StatsPills({ stats, nowrap }: { stats: { min: number; games: number; starts: number | null; goals: number }; nowrap?: boolean }) {
+  const hasGoals = stats.goals > 0;
+  return (
+    <div className={cn('flex items-center gap-0.5 text-[10px] tabular-nums', nowrap ? 'flex-nowrap min-w-0 overflow-hidden' : 'flex-wrap')}>
+      <span className="rounded bg-muted px-1.5 py-0.5 whitespace-nowrap shrink-0" title={`${stats.min} minutos jogados`}>
+        <span className="font-semibold text-foreground">{stats.min}</span>
+        <span className="ml-0.5 text-muted-foreground/70 font-normal">min</span>
+      </span>
+      <span className="rounded bg-muted px-1.5 py-0.5 whitespace-nowrap shrink-0" title={stats.starts != null ? `${stats.games} jogos · ${stats.starts} titular` : `${stats.games} jogos`}>
+        <span className="font-semibold text-foreground">{stats.games}</span>
+        <span className="ml-0.5 text-muted-foreground/70 font-normal">{stats.games === 1 ? 'jogo' : 'jogos'}</span>
+        {stats.starts != null && (
+          <span className="ml-0.5 text-muted-foreground/60 font-normal">· {stats.starts} tit</span>
+        )}
+      </span>
+      <span
+        className={
+          hasGoals
+            ? 'rounded bg-emerald-50 px-1.5 py-0.5 ring-1 ring-emerald-200/70 dark:bg-emerald-950/40 dark:ring-emerald-800 whitespace-nowrap shrink-0'
+            : 'rounded bg-muted px-1.5 py-0.5 whitespace-nowrap shrink-0'
+        }
+        title={`${stats.goals} golos marcados`}
+      >
+        <span
+          className={
+            hasGoals
+              ? 'font-semibold text-emerald-700 dark:text-emerald-300'
+              : 'font-semibold text-foreground'
+          }
+        >
+          {stats.goals}
+        </span>
+        <span
+          className={
+            hasGoals
+              ? 'ml-1 text-emerald-700/70 dark:text-emerald-400/70 font-normal'
+              : 'ml-1 text-muted-foreground/70 font-normal'
+          }
+        >
+          {stats.goals === 1 ? 'golo' : 'golos'}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function PlayerListRow(props: PlayerCardProps & { showClub?: boolean }) {
   const { item, processing, editingNote, noteText, localNote, isSeen, onToggleSeen, onEditNote, onCancelEdit, onSaveNote, onNoteChange, onRemove, showClub } = props;
-  const displayNote = localNote !== undefined ? localNote : item.note;
+  const rawNote = localNote !== undefined ? localNote : item.note;
+
+  /* Strip redundant trailing " · {club}" — already shown elsewhere in the row/card. */
+  const trimmedNote = (() => {
+    if (!rawNote || !item.playerClub) return rawNote;
+    const suffix = ` · ${item.playerClub}`;
+    return rawNote.endsWith(suffix) ? rawNote.slice(0, -suffix.length) : rawNote;
+  })();
+
+  const stats = parseStatsNote(trimmedNote);
 
   /* Show first + last name only (e.g. "Carlos Silva" from "Carlos Rafael Peres Conceição Da Silva") */
   const shortName = (() => {
@@ -629,8 +741,11 @@ function PlayerListRow(props: PlayerCardProps & { showClub?: boolean }) {
   })();
 
   return (
-    <div className={showClub ? 'rounded-lg bg-muted/30' : ''}>
-      <div className={cn('group/row flex items-center gap-2 rounded-md px-2.5 py-2 transition-colors hover:bg-accent/40', isSeen && 'opacity-50')}>
+    <div>
+      <div className={cn(
+        'group/row flex items-center gap-2.5 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-border/60 hover:bg-accent/40',
+        isSeen && 'opacity-50',
+      )}>
         {/* Seen checkbox */}
         <button
           type="button"
@@ -642,51 +757,107 @@ function PlayerListRow(props: PlayerCardProps & { showClub?: boolean }) {
               : 'border-muted-foreground/30 hover:border-muted-foreground/60',
           )}
           title={isSeen ? 'Marcar como não visto' : 'Marcar como visto'}
+          aria-label={isSeen ? 'Marcar como não visto' : 'Marcar como visto'}
         >
           {isSeen && <span className="text-[10px] leading-none">✓</span>}
         </button>
-        {/* Photo — small circle */}
+
+        {/* Photo — rounded-xl, matches PlayerTable visual language */}
         <Link href={`/jogadores/${item.playerId}`} className="shrink-0">
-          <div className="h-8 w-8 rounded-full bg-neutral-100 overflow-hidden flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-muted overflow-hidden flex items-center justify-center ring-1 ring-border/50">
             {item.playerPhotoUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={item.playerPhotoUrl}
                 alt=""
-                className="h-8 w-8 object-cover"
+                className="h-10 w-10 object-cover"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
               />
             ) : null}
-            <Users className={`h-3.5 w-3.5 text-neutral-300 ${item.playerPhotoUrl ? 'hidden' : ''}`} />
+            <Users className={`h-4 w-4 text-muted-foreground/40 ${item.playerPhotoUrl ? 'hidden' : ''}`} />
           </div>
         </Link>
-        {/* Name + position + club + actions — all inline */}
-        <Link href={`/jogadores/${item.playerId}`} className="flex items-center gap-1.5 min-w-0">
-          <span className="inline-flex items-center gap-0.5 min-w-0">
-            {item.playerNationality && (
-              <span className="text-xs shrink-0">{getNationalityFlag(item.playerNationality)}</span>
-            )}
-            <span className="text-[13px] font-medium whitespace-nowrap">{shortName}</span>
-          </span>
-          {item.playerPosition && (() => {
-            const s = POSITION_STYLES[item.playerPosition] ?? POS_DEFAULT;
-            return (
-              <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold leading-none ${s.bg} ${s.text}`}>
-                {item.playerPosition}
-              </span>
-            );
-          })()}
-          {showClub && (
-            <span className="hidden sm:inline text-[11px] text-muted-foreground/50 whitespace-nowrap">· {item.playerClub}</span>
+
+        {/* Identity + stats.
+         *  Flat list view (showClub=true) is responsive across 3 breakpoints to make
+         *  use of the wider container — nome+clube inline at sm+, pills jump to the right at lg+.
+         *  Por clube view keeps the simple stacked layout (cards are narrow). */}
+        <div
+          className={cn(
+            'flex-1 min-w-0',
+            showClub && 'flex flex-col lg:flex-row lg:items-center lg:gap-3',
           )}
-        </Link>
-        {/* Actions — right after content */}
-        <div className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:group-hover/row:opacity-100 transition-opacity">
+        >
+          {/* Identity block — nome+pos+clube */}
+          <div
+            className={cn(
+              'min-w-0',
+              showClub && 'flex flex-col sm:flex-row sm:items-center sm:gap-2 lg:shrink',
+            )}
+          >
+            <Link href={`/jogadores/${item.playerId}`} className="flex items-center gap-1.5 min-w-0">
+              {item.playerNationality && (
+                <span className="text-xs shrink-0 leading-none">{getNationalityFlag(item.playerNationality)}</span>
+              )}
+              <span className="text-sm font-semibold truncate leading-tight">{shortName}</span>
+              {item.playerPosition && (() => {
+                const s = POSITION_STYLES[item.playerPosition] ?? POS_DEFAULT;
+                return (
+                  <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold leading-none ${s.bg} ${s.text}`}>
+                    {item.playerPosition}
+                  </span>
+                );
+              })()}
+            </Link>
+            {showClub && (
+              <div className="mt-1 sm:mt-0 sm:shrink-0">
+                <ClubBadge
+                  club={item.playerClub}
+                  logoUrl={item.playerClubLogoUrl}
+                  size="xs"
+                  className="text-[11px] text-muted-foreground"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Stats pills — flat list: responsive (below → right). Por clube: always below. */}
+          {stats && (
+            <div
+              className={cn(
+                'mt-1.5 min-w-0',
+                showClub && 'lg:mt-0 lg:ml-auto lg:shrink-0',
+              )}
+            >
+              <StatsPills stats={stats} nowrap />
+            </div>
+          )}
+
+          {/* Free-form note — só quando a nota não bate o pattern auto-stats */}
+          {!stats && trimmedNote && editingNote !== item.playerId && (
+            <button
+              type="button"
+              onClick={() => onEditNote(item)}
+              className={cn(
+                'block w-full text-left mt-0.5 group/note',
+                showClub && 'lg:basis-full',
+              )}
+              title={trimmedNote}
+            >
+              <p className="text-[11px] text-muted-foreground/80 truncate group-hover/note:text-foreground transition-colors leading-tight">
+                {trimmedNote}
+              </p>
+            </button>
+          )}
+        </div>
+
+        {/* Actions — always present (no layout shift); fade subtle → bold on row hover */}
+        <div className="flex items-center gap-0.5 shrink-0 opacity-30 transition-opacity group-hover/row:opacity-100">
           <button
             type="button"
             onClick={() => editingNote === item.playerId ? onCancelEdit() : onEditNote(item)}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-neutral-300 transition-colors hover:text-neutral-500 hover:bg-neutral-100"
-            title={displayNote ? 'Editar nota' : 'Adicionar nota'}
+            className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+            title={trimmedNote ? 'Editar nota' : 'Adicionar nota'}
           >
             <Pencil className="h-3 w-3" />
           </button>
@@ -694,26 +865,17 @@ function PlayerListRow(props: PlayerCardProps & { showClub?: boolean }) {
             type="button"
             onClick={() => onRemove(item)}
             disabled={processing === item.playerId}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-neutral-300 transition-colors hover:text-neutral-500 hover:bg-neutral-100 disabled:opacity-50"
+            className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground transition-colors hover:text-red-500 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
             title="Remover da lista"
           >
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
       </div>
-      {/* Inline note — click to edit */}
-      {displayNote && editingNote !== item.playerId && (
-        <button
-          type="button"
-          onClick={() => onEditNote(item)}
-          className="w-full text-left pl-12 pr-2 -mt-0.5 group/note"
-        >
-          <p className="text-[11px] text-muted-foreground/50 italic group-hover/note:text-foreground transition-colors">{displayNote}</p>
-        </button>
-      )}
-      {/* Note editor */}
+
+      {/* Note editor — full width, only when editing */}
       {editingNote === item.playerId && (
-        <div className="pl-12 pr-2 pb-1.5">
+        <div className="pl-13 pr-2 pb-1.5" style={{ paddingLeft: '3.5rem' }}>
           <Textarea
             value={noteText}
             onChange={(e) => onNoteChange(e.target.value)}

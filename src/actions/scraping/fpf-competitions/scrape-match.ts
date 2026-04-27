@@ -3,7 +3,8 @@
 // Extracts: starting XI, subs, substitutions with minute, goals, cards, player IDs
 // RELEVANT FILES: src/actions/scraping/fpf-competitions/browse.ts, src/actions/scraping/helpers.ts
 
-import { browserHeaders, decodeHtmlEntities } from '../helpers';
+import { decodeHtmlEntities } from '../helpers';
+import { fpfFetch, FpfRateLimitError } from '../fpf-fetch';
 import { FPF_RESULTS_BASE } from '@/lib/constants';
 import type { FpfMatchEventType } from '@/lib/types';
 
@@ -15,8 +16,16 @@ async function withRetry<T>(
   baseDelay = 3000,
 ): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const result = await fn();
-    if (result !== null) return result;
+    try {
+      const result = await fn();
+      if (result !== null) return result;
+    } catch (e) {
+      if (e instanceof FpfRateLimitError) {
+        console.warn(`[FPF Match] 429 rate-limited — abortar.`);
+        return null;
+      }
+      throw e;
+    }
     if (attempt < retries) {
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 2000;
       await new Promise((r) => setTimeout(r, delay));
@@ -66,16 +75,9 @@ export interface ParsedMatch {
 
 async function fetchMatchHtml(matchId: number): Promise<string | null> {
   const url = `${FPF_RESULTS_BASE}/Match/GetMatchInformation?matchId=${matchId}`;
-  try {
-    const res = await fetch(url, {
-      headers: browserHeaders(),
-      next: { revalidate: 0 },
-    });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
+  const res = await fpfFetch(url);
+  if (!res || !res.ok) return null;
+  return await res.text();
 }
 
 /* ───────────── Parser ───────────── */

@@ -12,6 +12,8 @@ const config: Config.InitialOptions = {
   testMatch: ['**/__tests__/**/*.test.ts?(x)'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // server-only throws when imported outside RSC; in Jest (node env) we no-op it
+    '^server-only$': '<rootDir>/src/__mocks__/server-only.ts',
   },
   clearMocks: true,
   // Ignore Next.js build output and node_modules

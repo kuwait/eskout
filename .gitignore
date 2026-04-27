@@ -57,6 +57,9 @@ venv/
 *-sa-key.json
 service-account*.json
 
+# One-off triage script outputs (regenerated on demand from scripts/triage_*.ts)
+data/triage_*
+
 # Misc
 *.log
 *.pem
