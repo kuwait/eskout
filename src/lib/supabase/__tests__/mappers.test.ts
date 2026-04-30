@@ -402,6 +402,8 @@ describe('mapUserTaskRow', () => {
         name: 'Pedro Santos',
         contact: null,
         club: 'Leixões SC',
+        photo_url: null,
+        zz_photo_url: null,
         meeting_date: null,
         signing_date: null,
         meeting_attendees: null,

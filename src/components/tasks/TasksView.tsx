@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useMemo, useRef, useTransition } from 'react';
+import { useState, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronDown, ChevronsUpDown, ListTodo, Plus, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,24 +28,15 @@ interface TasksViewProps {
   flaggedNotes?: FlaggedNote[];
   /** Current user role — admin gets user picker */
   userRole?: string;
-  /** Club members for admin user picker */
-  clubMembers?: { id: string; fullName: string }[];
-  /** Player photos for task row avatars (only players referenced in tasks) */
-  playerPhotos?: { id: number; photoUrl: string | null }[];
+  /** Current logged-in user's id (used by reassign picker to label "Eu") */
+  currentUserId?: string;
+  /** Club members for admin user picker + reassign picker (role included so we can filter scouts) */
+  clubMembers?: { id: string; fullName: string; role?: string }[];
 }
 
-export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor', clubMembers = [], playerPhotos = [] }: TasksViewProps) {
+export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor', currentUserId, clubMembers = [] }: TasksViewProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
-
-  // Lookup map: playerId → photoUrl (for task row avatars)
-  const playerPhotoMap = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const p of playerPhotos) {
-      if (p.photoUrl) map.set(p.id, p.photoUrl);
-    }
-    return map;
-  }, [playerPhotos]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [, startTransition] = useTransition();
@@ -161,10 +152,16 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
   // Edit task state
   const [editingTask, setEditingTask] = useState<UserTask | null>(null);
 
-  function handleEdit(taskId: number, updates: { title?: string; dueDate?: string | null; playerId?: number | null; playerName?: string | null }) {
+  function handleEdit(taskId: number, updates: { title?: string; dueDate?: string | null; playerId?: number | null; playerName?: string | null; assignedToUserId?: string }) {
+    // Reassignment removes the task from the current view (the list is filtered by user_id).
+    // For admin viewing another user, the list filters by that user — so removal still applies.
+    const viewedUserId = targetUserId ?? currentUserId;
+    const reassignedAway = updates.assignedToUserId !== undefined && updates.assignedToUserId !== viewedUserId;
+
     // Optimistic update
-    setTasks((cur) =>
-      cur.map((t) => {
+    setTasks((cur) => {
+      if (reassignedAway) return cur.filter((t) => t.id !== taskId);
+      return cur.map((t) => {
         if (t.id !== taskId) return t;
         const updated = { ...t };
         if (updates.title !== undefined) updated.title = updates.title;
@@ -174,8 +171,8 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
           updated.playerName = updates.playerName ?? null;
         }
         return updated;
-      })
-    );
+      });
+    });
     setEditingTask(null);
 
     busyRef.current = true;
@@ -280,7 +277,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
           {overdueTasks.length > 0 && (
             <TaskSection label="Atrasadas" count={overdueTasks.length} accent="red">
               {overdueTasks.map((task) => (
-                <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerId ? playerPhotoMap.get(task.playerId) : undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
+                <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerPhotoUrl ?? undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
               ))}
             </TaskSection>
           )}
@@ -289,7 +286,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
           {todayTasks.length > 0 && (
             <TaskSection label="Hoje" count={todayTasks.length} accent="amber">
               {todayTasks.map((task) => (
-                <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerId ? playerPhotoMap.get(task.playerId) : undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
+                <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerPhotoUrl ?? undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
               ))}
             </TaskSection>
           )}
@@ -298,7 +295,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
           {upcomingTasks.length > 0 && (
             <TaskSection label={hasGroups ? 'Próximas' : undefined} count={hasGroups ? upcomingTasks.length : undefined}>
               {upcomingTasks.map((task) => (
-                <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerId ? playerPhotoMap.get(task.playerId) : undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
+                <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerPhotoUrl ?? undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
               ))}
             </TaskSection>
           )}
@@ -317,7 +314,7 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
               {showCompleted && (
                 <TaskSection>
                   {completed.map((task) => (
-                    <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerId ? playerPhotoMap.get(task.playerId) : undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
+                    <TaskRow key={task.id} task={task} playerPhotoUrl={task.playerPhotoUrl ?? undefined} clubMembers={clubMembers} onToggle={handleToggle} onEdit={setEditingTask} onDelete={handleDelete} />
                   ))}
                 </TaskSection>
               )}
@@ -340,14 +337,17 @@ export function TasksView({ initialTasks, flaggedNotes = [], userRole = 'editor'
         onSave={(title, opts) => handleCreate(title, opts)}
       />
 
-      {/* Edit task dialog */}
+      {/* Edit task dialog — assignee picker enabled, scouts filtered out (no task list for them) */}
       {editingTask && (
         <TaskFormDialog
           mode="edit"
           open
           onOpenChange={(open) => { if (!open) setEditingTask(null); }}
-  
           task={editingTask}
+          currentUserId={currentUserId}
+          members={clubMembers
+            .filter((m) => m.role !== 'scout')
+            .map((m) => ({ id: m.id, fullName: m.fullName, role: m.role ?? 'editor' }))}
           onSave={(title, opts) => handleEdit(editingTask.id, { title, ...opts })}
         />
       )}

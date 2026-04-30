@@ -317,6 +317,8 @@ export function makeUserTaskRow(overrides?: Partial<UserTaskRow>): UserTaskRow {
       name: 'João Silva',
       contact: '912345678',
       club: 'Boavista FC',
+      photo_url: null,
+      zz_photo_url: null,
       meeting_date: '2026-03-20',
       signing_date: '2026-04-01',
       meeting_attendees: ['user-111', 'user-222'],

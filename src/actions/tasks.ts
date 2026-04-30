@@ -25,7 +25,7 @@ export async function getMyTasks(targetUserId?: string): Promise<UserTask[]> {
 
   const { data, error } = await supabase
     .from('user_tasks')
-    .select('*, players(name, contact, club, meeting_date, signing_date, meeting_attendees, signing_attendees)')
+    .select('*, players(name, contact, club, photo_url, zz_photo_url, meeting_date, signing_date, meeting_attendees, signing_attendees)')
     .eq('club_id', clubId)
     .eq('user_id', queryUserId)
     .order('completed', { ascending: true })
@@ -217,18 +217,18 @@ export async function toggleTask(taskId: number): Promise<ActionResponse> {
   return { success: true };
 }
 
-/** Update a task (title, due date, player) */
+/** Update a task (title, due date, player, assignee). Owner or admin only. */
 export async function updateTask(
   taskId: number,
-  updates: { title?: string; dueDate?: string | null; playerId?: number | null }
+  updates: { title?: string; dueDate?: string | null; playerId?: number | null; assignedToUserId?: string }
 ): Promise<ActionResponse> {
   const { clubId, userId, role } = await getAuthContext();
   const supabase = await createClient();
 
-  // Check ownership
+  // Fetch existing for permission + reassignment context
   const { data: task } = await supabase
     .from('user_tasks')
-    .select('user_id')
+    .select('user_id, source, title, player_id, due_date')
     .eq('id', taskId)
     .eq('club_id', clubId)
     .single();
@@ -240,6 +240,24 @@ export async function updateTask(
     return { success: false, error: 'Sem permissão' };
   }
 
+  // Resolve reassignment target. Reject scout assignees — scouts have no task list (getMyTasks returns []).
+  let reassignTo: string | null = null;
+  if (updates.assignedToUserId !== undefined && updates.assignedToUserId !== task.user_id) {
+    const { data: targetMembership } = await supabase
+      .from('club_memberships')
+      .select('role')
+      .eq('club_id', clubId)
+      .eq('user_id', updates.assignedToUserId)
+      .single();
+    if (!targetMembership) {
+      return { success: false, error: 'Utilizador não pertence ao clube' };
+    }
+    if (targetMembership.role === 'scout') {
+      return { success: false, error: 'Não é possível atribuir tarefas a observadores' };
+    }
+    reassignTo = updates.assignedToUserId;
+  }
+
   const payload: Record<string, unknown> = {};
   if (updates.title !== undefined) {
     if (!updates.title.trim()) return { success: false, error: 'Título obrigatório' };
@@ -247,6 +265,7 @@ export async function updateTask(
   }
   if (updates.dueDate !== undefined) payload.due_date = updates.dueDate;
   if (updates.playerId !== undefined) payload.player_id = updates.playerId;
+  if (reassignTo) payload.user_id = reassignTo;
 
   if (Object.keys(payload).length === 0) {
     return { success: true };
@@ -263,6 +282,66 @@ export async function updateTask(
 
   revalidatePath('/tarefas');
   await broadcastRowMutation(clubId, 'user_tasks', 'UPDATE', userId, taskId);
+
+  // Notify the new assignee on reassignment (fire-and-forget)
+  if (reassignTo) {
+    const finalTitle = (payload.title as string | undefined) ?? task.title;
+    const finalDueDate = (payload.due_date as string | null | undefined) ?? task.due_date;
+    const finalPlayerId = (payload.player_id as number | null | undefined) ?? task.player_id;
+
+    const [{ data: assignerProfile }, { data: clubData }] = await Promise.all([
+      supabase.from('profiles').select('full_name').eq('id', userId).single(),
+      supabase.from('clubs').select('name').eq('id', clubId).single(),
+    ]);
+
+    let playerName: string | null = null;
+    let playerClub: string | null = null;
+    let playerContact: string | null = null;
+    let playerPosition: string | null = null;
+    let playerDob: string | null = null;
+    let playerFoot: string | null = null;
+    let playerFpfLink: string | null = null;
+    let playerZzLink: string | null = null;
+    let playerPhotoUrl: string | null = null;
+    if (finalPlayerId) {
+      const { data: playerData } = await supabase
+        .from('players')
+        .select('name, club, contact, position_normalized, dob, foot, fpf_link, zerozero_link, photo_url, zz_photo_url')
+        .eq('id', finalPlayerId)
+        .single();
+      playerName = playerData?.name ?? null;
+      playerClub = playerData?.club ?? null;
+      playerContact = playerData?.contact ?? null;
+      playerPosition = playerData?.position_normalized ?? null;
+      playerDob = playerData?.dob ?? null;
+      playerFoot = playerData?.foot ?? null;
+      playerFpfLink = playerData?.fpf_link ?? null;
+      playerZzLink = playerData?.zerozero_link ?? null;
+      playerPhotoUrl = playerData?.photo_url ?? playerData?.zz_photo_url ?? null;
+    }
+
+    notifyTaskAssigned({
+      clubId,
+      clubName: clubData?.name ?? 'Eskout',
+      assignedByUserId: userId,
+      assignedByName: assignerProfile?.full_name ?? 'Eskout',
+      targetUserId: reassignTo,
+      taskTitle: finalTitle,
+      taskSource: (task.source as string) ?? 'manual',
+      playerName,
+      playerClub,
+      playerPhotoUrl,
+      playerContact,
+      playerPosition,
+      playerDob,
+      playerFoot,
+      playerFpfLink,
+      playerZzLink,
+      contactPurpose: null,
+      dueDate: finalDueDate ?? null,
+      trainingEscalao: null,
+    });
+  }
 
   return { success: true };
 }
