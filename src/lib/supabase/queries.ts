@@ -474,10 +474,12 @@ export async function getCalendarEvents(
     start = dateRange.start;
     end = dateRange.end;
   } else {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // last day of month
-    start = startDate.toISOString().split('T')[0];
-    end = endDate.toISOString().split('T')[0];
+    // Build date strings directly — avoid toISOString() which shifts to UTC
+    // and produces wrong dates when server is in a non-UTC timezone (e.g. Europe/Lisbon)
+    const lastDay = new Date(year, month, 0).getDate(); // local day-of-month is TZ-safe
+    const mm = String(month).padStart(2, '0');
+    start = `${year}-${mm}-01`;
+    end = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`;
   }
 
   // 1. Fetch manual calendar events
