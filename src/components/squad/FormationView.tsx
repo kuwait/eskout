@@ -276,16 +276,19 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
       return;
     }
 
-    const list = byPosition[sourceSlot] ?? [];
-    const overIndex = list.findIndex((p) => p.id === overPlayerId);
+    // Same-section reorder: source list lives in specialSections (not byPosition) when sourceSlot is special
+    const sourceList = isSpecialSection(sourceSlot)
+      ? (specialSections?.[sourceSlot] ?? [])
+      : (byPosition[sourceSlot] ?? []);
+    const overIndex = sourceList.findIndex((p) => p.id === overPlayerId);
 
     onDragEnd({
       playerId,
       sourcePosition: sourceSlot,
       targetPosition: sourceSlot,
-      newIndex: overIndex >= 0 ? overIndex : list.length,
+      newIndex: overIndex >= 0 ? overIndex : sourceList.length,
     });
-  }, [byPosition, onDragEnd, dragVirtual, playerSlotMap]);
+  }, [byPosition, specialSections, onDragEnd, dragVirtual, playerSlotMap]);
 
   /** Render a single formation slot */
   const renderSlot = (slotId: FormationSlotId) => {

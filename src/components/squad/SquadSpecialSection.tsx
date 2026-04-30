@@ -10,7 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Plus, Trash2, User } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -350,7 +350,7 @@ export function SquadSpecialSection({
             {styles.emptyText}
           </p>
         ) : (
-          <SortableContext items={players.map((p) => `player-${p.id}`)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={players.map((p) => `player-${p.id}`)} strategy={rectSortingStrategy}>
             <div className="flex flex-wrap items-start gap-2">
               {players.map((player) => (
                 <SectionPlayerCard

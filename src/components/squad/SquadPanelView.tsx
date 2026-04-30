@@ -548,13 +548,22 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     }
   }
 
-  function handleDragEnd(info: DragEndInfo, squadId: number | null, byPos: Record<string, Player[]>) {
+  function handleDragEnd(
+    info: DragEndInfo,
+    squadId: number | null,
+    byPos: Record<string, Player[]>,
+    sections?: Record<string, Player[]>,
+  ) {
     markMutation();
     const { playerId, sourcePosition, targetPosition, newIndex } = info;
     const squadMap = squadId ? allSquadPlayersMap.get(squadId) : null;
 
     if (sourcePosition === targetPosition) {
-      const currentList = [...(byPos[sourcePosition] ?? [])];
+      // For special sections (Dúvida / Possibilidades), the source list lives in `sections`, not `byPos`
+      const sourceList = isSpecialSection(sourcePosition)
+        ? (sections?.[sourcePosition] ?? [])
+        : (byPos[sourcePosition] ?? []);
+      const currentList = [...sourceList];
       const draggedIdx = currentList.findIndex((p) => p.id === playerId);
       if (draggedIdx < 0 || draggedIdx === newIndex) return;
       const [moved] = currentList.splice(draggedIdx, 1);
@@ -803,7 +812,7 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
   function renderSquadContent(squad: Squad, byPos: Record<string, Player[]>, showName: boolean, sections?: Record<string, Player[]>) {
     const openAdd = (pos: string) => { setDialogPosition(pos); setDialogSquadId(squad.id); setDialogOpen(true); };
     const remove = (pid: number) => handleRemove(pid, squad.id);
-    const dragEnd = (info: DragEndInfo) => handleDragEnd(info, squad.id, byPos);
+    const dragEnd = (info: DragEndInfo) => handleDragEnd(info, squad.id, byPos, sections);
     const toggleDoubt = (pid: number, isDoubt: boolean) => handleToggleDoubt(pid, squad.id, isDoubt);
     const setSignStatus = (pid: number, status: SquadSignStatus) => handleSetSignStatus(pid, squad.id, status);
     const togglePreseason = (pid: number, isPreseason: boolean) => handleTogglePreseason(pid, squad.id, isPreseason);
