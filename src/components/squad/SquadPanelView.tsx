@@ -878,6 +878,8 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     const exportData = { squadType, ageGroupLabel: resolveAgeGroupLabel(squad.ageGroupId), byPosition: byPos, squadName: squad.name };
     const pitchPlayers = Object.values(byPos).flat();
     const totalCount = pitchPlayers.length;
+    // Note: this whole render is already gated on `mounted` at the call site (the multi-squad branch
+    // checks mounted before rendering MultiShadowSquadView), so the count is safe from hydration mismatches.
     return (
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -885,13 +887,13 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
             {squad.name}
           </h3>
           {squad.description && (
-            <Badge variant="secondary" className="rounded-md px-3 py-1 text-sm uppercase tracking-wide" suppressHydrationWarning>
-              <span suppressHydrationWarning>{squad.description}</span>
+            <Badge variant="secondary" className="rounded-md px-3 py-1 text-sm uppercase tracking-wide">
+              <span>{squad.description}</span>
             </Badge>
           )}
-          <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900" suppressHydrationWarning>
+          <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900">
             {totalCount}
-            <span className="font-normal opacity-70" suppressHydrationWarning>{totalCount === 1 ? 'atleta' : 'atletas'}</span>
+            <span className="font-normal opacity-70">{totalCount === 1 ? 'atleta' : 'atletas'}</span>
           </span>
         </div>
         <SquadExportMenu data={exportData} captureRef={squadContentRef} />
@@ -944,22 +946,29 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
               {/* Player count + doubt count.
                   suppressHydrationWarning: the active squad is chosen from localStorage on the client,
                   so the counts can differ from the server-rendered default on first paint. */}
-              <div className="flex items-center gap-1.5" suppressHydrationWarning>
-                <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900" suppressHydrationWarning>
-                  {totalCount}
-                  <span className="font-normal opacity-70" suppressHydrationWarning>{totalCount === 1 ? 'atleta' : 'atletas'}</span>
-                </span>
-                {doubtCount > 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white" suppressHydrationWarning>
-                    {doubtCount}
-                    <span className="font-normal opacity-80" suppressHydrationWarning>{doubtCount === 1 ? 'dúvida' : 'dúvidas'}</span>
-                  </span>
-                )}
-                {preseasonCount > 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-sky-500 px-2.5 py-1 text-xs font-semibold text-white" suppressHydrationWarning>
-                    {preseasonCount}
-                    <span className="font-normal opacity-80" suppressHydrationWarning>pré-época</span>
-                  </span>
+              <div className="flex items-center gap-1.5">
+                {/* Counts are gated on `mounted` because the active squad is resolved from localStorage
+                    on the client. Rendering them on the server would cause hydration mismatches
+                    (structural — extra children — which suppressHydrationWarning does not cover). */}
+                {mounted && (
+                  <>
+                    <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900">
+                      {totalCount}
+                      <span className="font-normal opacity-70">{totalCount === 1 ? 'atleta' : 'atletas'}</span>
+                    </span>
+                    {doubtCount > 0 && (
+                      <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
+                        {doubtCount}
+                        <span className="font-normal opacity-80">{doubtCount === 1 ? 'dúvida' : 'dúvidas'}</span>
+                      </span>
+                    )}
+                    {preseasonCount > 0 && (
+                      <span className="flex items-center gap-1 rounded-full bg-sky-500 px-2.5 py-1 text-xs font-semibold text-white">
+                        {preseasonCount}
+                        <span className="font-normal opacity-80">pré-época</span>
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             </div>
