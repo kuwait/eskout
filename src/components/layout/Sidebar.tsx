@@ -5,7 +5,6 @@
 
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -14,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { filterNavItems, filterAdminItems } from '@/components/layout/nav-items';
+import { usePersistedBoolean } from '@/hooks/usePersistedBoolean';
 import type { AlertCounts, ClubInfo, SidebarList } from '@/components/layout/AppShell';
 
 export function Sidebar({
@@ -34,9 +34,9 @@ export function Sidebar({
   sidebarLists?: SidebarList[];
 }) {
   const pathname = usePathname();
-  /* Lists sub-items expanded by default when user is on a /listas page */
-  const [listsExpanded, setListsExpanded] = useState(true);
-  const [sharedListsExpanded, setSharedListsExpanded] = useState(true);
+  /* Lists sub-items expanded by default; user choice persisted in localStorage */
+  const [listsExpanded, setListsExpanded] = usePersistedBoolean('eskout-sidebar-lists-expanded', true);
+  const [sharedListsExpanded, setSharedListsExpanded] = usePersistedBoolean('eskout-sidebar-shared-lists-expanded', true);
 
   const ownLists = sidebarLists.filter(l => !l.isSharedWithMe);
   const sharedLists = sidebarLists.filter(l => l.isSharedWithMe);

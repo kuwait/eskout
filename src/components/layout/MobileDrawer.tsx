@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { logout } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import { filterNavItems, filterAdminItems } from '@/components/layout/nav-items';
+import { usePersistedBoolean } from '@/hooks/usePersistedBoolean';
 import type { AlertCounts, ClubInfo, SidebarList } from '@/components/layout/AppShell';
 
 /* ───────────── Component ───────────── */
@@ -40,8 +41,9 @@ export function MobileDrawer({
   sidebarLists?: SidebarList[];
 }) {
   const pathname = usePathname();
-  const [listsExpanded, setListsExpanded] = useState(true);
-  const [sharedListsExpanded, setSharedListsExpanded] = useState(true);
+  /* Persisted across reloads; shares keys with desktop Sidebar */
+  const [listsExpanded, setListsExpanded] = usePersistedBoolean('eskout-sidebar-lists-expanded', true);
+  const [sharedListsExpanded, setSharedListsExpanded] = usePersistedBoolean('eskout-sidebar-shared-lists-expanded', true);
 
   const ownLists = sidebarLists.filter(l => !l.isSharedWithMe);
   const sharedLists = sidebarLists.filter(l => l.isSharedWithMe);
