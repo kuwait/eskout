@@ -162,18 +162,30 @@ function TaskPlayerPickerDialog({
 
 /* ───────────── Unified Task Form Dialog (create + edit) ───────────── */
 
+export interface TaskAssignableMember {
+  id: string;
+  fullName: string;
+  role: string;
+}
+
 export function TaskFormDialog({
   mode,
   open,
   onOpenChange,
   task,
   onSave,
+  currentUserId,
+  members = [],
 }: {
   mode: 'create' | 'edit';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task?: UserTask;
-  onSave: (title: string, opts: { dueDate?: string | null; playerId?: number | null; playerName?: string | null }) => void;
+  onSave: (title: string, opts: { dueDate?: string | null; playerId?: number | null; playerName?: string | null; assignedToUserId?: string }) => void;
+  /** Current logged-in user's ID — needed to label "Eu" and detect reassignment */
+  currentUserId?: string;
+  /** Club members eligible to be assigned (scouts excluded by caller) */
+  members?: TaskAssignableMember[];
 }) {
   const isCreate = mode === 'create';
 
@@ -185,12 +197,16 @@ export function TaskFormDialog({
   const [playerId, setPlayerId] = useState<number | null>(task?.playerId ?? null);
   const [playerName, setPlayerName] = useState<string | null>(task?.playerName ?? null);
   const [playerPickerOpen, setPlayerPickerOpen] = useState(false);
+  // Default assignee = current owner of the task (or current user if creating)
+  const [assignedToUserId, setAssignedToUserId] = useState<string | undefined>(task?.userId ?? currentUserId);
+  const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
 
   // Reset form when opening the create dialog
   /* eslint-disable react-hooks/set-state-in-effect -- resets form state when dialog opens/closes */
   useEffect(() => {
     if (open && isCreate) {
       setTitle(''); setDueDate(''); setDueTime(''); setPlayerId(null); setPlayerName(null);
+      setAssignedToUserId(currentUserId);
     }
     if (open && !isCreate && task) {
       setTitle(task.title);
@@ -198,8 +214,9 @@ export function TaskFormDialog({
       setDueTime(task.dueDate?.includes('T') ? task.dueDate.slice(11, 16) : '');
       setPlayerId(task.playerId);
       setPlayerName(task.playerName ?? null);
+      setAssignedToUserId(task.userId);
     }
-  }, [open, isCreate, task]);
+  }, [open, isCreate, task, currentUserId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   function handleSubmit() {
@@ -207,8 +224,25 @@ export function TaskFormDialog({
     const combinedDate = dueDate
       ? (dueTime ? `${dueDate}T${dueTime}` : dueDate)
       : null;
-    onSave(title.trim(), { dueDate: combinedDate, playerId, playerName });
+    // Only forward assignedToUserId when the dialog actually has the picker enabled (members provided)
+    // and the value differs from the original owner — saves a redundant DB read on the server side.
+    const opts: { dueDate?: string | null; playerId?: number | null; playerName?: string | null; assignedToUserId?: string } = {
+      dueDate: combinedDate,
+      playerId,
+      playerName,
+    };
+    if (members.length > 0 && assignedToUserId && assignedToUserId !== (task?.userId ?? currentUserId)) {
+      opts.assignedToUserId = assignedToUserId;
+    }
+    onSave(title.trim(), opts);
   }
+
+  const currentAssignee = members.find((m) => m.id === assignedToUserId);
+  const assigneeLabel = !assignedToUserId
+    ? 'Eu'
+    : assignedToUserId === currentUserId
+      ? 'Eu'
+      : currentAssignee?.fullName ?? 'Outro';
 
   return (
     <>
@@ -280,6 +314,28 @@ export function TaskFormDialog({
                 )}
               </div>
             </div>
+
+            {/* Assignee picker — only when caller provides club members */}
+            {members.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Atribuído a</Label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAssigneePickerOpen(true)}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-accent/50',
+                      assignedToUserId && assignedToUserId !== currentUserId
+                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    <User className="h-3.5 w-3.5" />
+                    {assigneeLabel}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Cancelar</Button>
@@ -296,6 +352,79 @@ export function TaskFormDialog({
         onOpenChange={setPlayerPickerOpen}
         onSelect={(id, name) => { setPlayerId(id); setPlayerName(name); setPlayerPickerOpen(false); }}
       />
+
+      {/* Assignee picker sub-dialog */}
+      <AssigneePickerDialog
+        open={assigneePickerOpen}
+        onOpenChange={setAssigneePickerOpen}
+        members={members}
+        currentUserId={currentUserId}
+        selectedUserId={assignedToUserId}
+        onSelect={(userId) => { setAssignedToUserId(userId); setAssigneePickerOpen(false); }}
+      />
     </>
+  );
+}
+
+/* ───────────── Assignee Picker Dialog ───────────── */
+
+function AssigneePickerDialog({
+  open,
+  onOpenChange,
+  members,
+  currentUserId,
+  selectedUserId,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  members: TaskAssignableMember[];
+  currentUserId?: string;
+  selectedUserId?: string;
+  onSelect: (userId: string) => void;
+}) {
+  // Reorder so the current user is always first ("Eu"), then others alphabetical
+  const ordered = [...members].sort((a, b) => {
+    if (a.id === currentUserId) return -1;
+    if (b.id === currentUserId) return 1;
+    return a.fullName.localeCompare(b.fullName, 'pt-PT');
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Atribuir tarefa</DialogTitle>
+          <DialogDescription className="sr-only">Escolher um utilizador para esta tarefa</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] space-y-1 overflow-y-auto">
+          {ordered.length === 0 && (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Nenhum utilizador disponível.
+            </p>
+          )}
+          {ordered.map((m) => {
+            const isMe = m.id === currentUserId;
+            const isSelected = m.id === selectedUserId;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onSelect(m.id)}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50',
+                  isSelected ? 'border-amber-200 bg-amber-50' : ''
+                )}
+              >
+                <span className="truncate font-medium">{isMe ? 'Eu' : m.fullName}</span>
+                {!isMe && (
+                  <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">{m.role}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
