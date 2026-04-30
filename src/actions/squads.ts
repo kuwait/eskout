@@ -704,6 +704,82 @@ export async function moveSquadPlayerPosition(
   return { success: true };
 }
 
+/* ───────────── Move Player Across Squads (same age group) ───────────── */
+
+/**
+ * Atomically move a player from one squad to another by updating their squad_players row.
+ * Used for cross-squad drag in the multi-shadow-squad view.
+ * The unique constraint on (squad_id, player_id) prevents duplicates if the player
+ * already exists in the target squad — caller should ensure that's not the case.
+ */
+export async function moveSquadPlayerToOtherSquad(
+  playerId: number,
+  fromSquadId: number,
+  toSquadId: number,
+  newPosition: string,
+  newOrder: number,
+): Promise<ActionResponse> {
+  const { clubId, userId, role } = await getAuthContext();
+  if (role === 'scout') {
+    return { success: false, error: 'Sem permissão para gerir plantéis' };
+  }
+  if (fromSquadId === toSquadId) {
+    return { success: false, error: 'Plantel de origem e destino são iguais' };
+  }
+  const supabase = await createClient();
+
+  // Validate both squads belong to this club + are the same type (defence in depth — UI already enforces)
+  const { data: squads } = await supabase
+    .from('squads')
+    .select('id, name, squad_type, age_group_id')
+    .in('id', [fromSquadId, toSquadId])
+    .eq('club_id', clubId);
+
+  if (!squads || squads.length !== 2) {
+    return { success: false, error: 'Plantéis não encontrados' };
+  }
+  const fromSquad = squads.find((s) => s.id === fromSquadId);
+  const toSquad = squads.find((s) => s.id === toSquadId);
+  if (!fromSquad || !toSquad) {
+    return { success: false, error: 'Plantéis não encontrados' };
+  }
+  if (fromSquad.squad_type !== toSquad.squad_type) {
+    return { success: false, error: 'Não é possível mover entre tipos de plantel diferentes' };
+  }
+
+  // Update squad_id (and position/order) — single statement, atomic
+  const { error } = await supabase
+    .from('squad_players')
+    .update({ squad_id: toSquadId, position: newPosition, sort_order: newOrder })
+    .eq('squad_id', fromSquadId)
+    .eq('player_id', playerId);
+
+  if (error) {
+    if (error.code === '23505') {
+      return { success: false, error: 'Jogador já existe no plantel de destino' };
+    }
+    return { success: false, error: `Erro ao mover jogador: ${error.message}` };
+  }
+
+  // Keep legacy boolean flags in sync — `position` field reflects the latest squad assignment
+  await syncLegacyFlags(supabase, clubId, playerId, toSquad.squad_type as SquadType, newPosition);
+
+  // Log change with both squad names for context
+  await logStatusChange(
+    supabase, clubId, playerId,
+    toSquad.squad_type === 'shadow' ? 'shadow_position' : 'real_squad_position',
+    fromSquad.name, toSquad.name, userId,
+    `Movido de "${fromSquad.name}" para "${toSquad.name}" na posição ${newPosition}`
+  );
+
+  revalidatePath('/campo');
+  revalidatePath('/posicoes');
+  revalidatePath(`/jogadores/${playerId}`);
+  await broadcastRowMutation(clubId, 'squad_players', 'UPDATE', userId, playerId);
+  await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
+  return { success: true };
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    BACKWARD COMPAT — Legacy actions delegate to new squad_players system
    These maintain the old boolean flags on players table for views that

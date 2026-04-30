@@ -17,6 +17,7 @@ import { PageSpinner } from '@/components/ui/page-spinner';
 import { AgeGroupSelector } from '@/components/layout/AgeGroupSelector';
 import { SquadSelector } from '@/components/squad/SquadSelector';
 import { FormationView, type DragEndInfo } from '@/components/squad/FormationView';
+import { MultiShadowSquadView } from '@/components/squad/MultiShadowSquadView';
 import { SquadListView } from '@/components/squad/SquadListView';
 import { SquadCompareView } from '@/components/squad/SquadCompareView';
 import { AddToSquadDialog } from '@/components/squad/AddToSquadDialog';
@@ -24,7 +25,7 @@ import { SquadSpecialSection } from '@/components/squad/SquadSpecialSection';
 import {
   addToShadowSquad, removeFromShadowSquad, toggleRealSquad,
   addPlayerToSquad, removePlayerFromSquad,
-  bulkReorderSquad, moveSquadPlayerPosition,
+  bulkReorderSquad, moveSquadPlayerPosition, moveSquadPlayerToOtherSquad,
   toggleSquadPlayerDoubt, setSquadPlayerSignStatus, toggleSquadPlayerPreseason,
   setSquadPlayerDoubtReason, setSquadPlayerPossibilityReason,
 } from '@/actions/squads';
@@ -771,6 +772,70 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     });
   }
 
+  /** Cross-squad drag end — move a player from squadA to squadB at a given position+index */
+  function handleCrossSquadDragEnd(
+    playerId: number,
+    fromSquadId: number,
+    toSquadId: number,
+    newPosition: string,
+    newIndex: number,
+  ) {
+    markMutation();
+
+    // Build the post-move target list to recompute sort_order for all affected rows
+    const targetSquadMap = allSquadPlayersMap.get(toSquadId) ?? new Map();
+    const targetList: { playerId: number }[] = Array.from(targetSquadMap.entries())
+      .filter(([, sp]) => sp.position === newPosition)
+      .sort((a, b) => a[1].sortOrder - b[1].sortOrder)
+      .map(([pid]) => ({ playerId: pid }));
+    const insertAt = Math.min(newIndex, targetList.length);
+    targetList.splice(insertAt, 0, { playerId });
+    const reorderUpdates = targetList.map((p, i) => ({ playerId: p.playerId, order: i }));
+
+    // Optimistic: remove from source, insert in target with the new sort_order
+    setAllSquadPlayersMap((prev) => {
+      const next = new Map(prev);
+      const fromMap = new Map(next.get(fromSquadId) ?? new Map());
+      const moved = fromMap.get(playerId);
+      fromMap.delete(playerId);
+      next.set(fromSquadId, fromMap);
+
+      const toMap = new Map(next.get(toSquadId) ?? new Map());
+      toMap.set(playerId, {
+        position: newPosition,
+        sortOrder: insertAt,
+        // Carry forward squad-context flags so the player keeps Dúvida/Pré-Época etc. when moved
+        isDoubt: moved?.isDoubt ?? false,
+        isSigned: moved?.isSigned ?? false,
+        isWillSign: moved?.isWillSign ?? false,
+        isPreseason: moved?.isPreseason ?? false,
+        doubtReason: moved?.doubtReason ?? null,
+        doubtReasonCustom: moved?.doubtReasonCustom ?? null,
+        doubtReasonColor: moved?.doubtReasonColor ?? null,
+        possibilityReasonCustom: moved?.possibilityReasonCustom ?? null,
+        possibilityReasonColor: moved?.possibilityReasonColor ?? null,
+      });
+      // Bump sort_order for everyone after insertAt
+      for (const upd of reorderUpdates) {
+        if (upd.playerId === playerId) continue;
+        const existing = toMap.get(upd.playerId);
+        if (existing) toMap.set(upd.playerId, { ...existing, sortOrder: upd.order });
+      }
+      next.set(toSquadId, toMap);
+      return next;
+    });
+
+    moveSquadPlayerToOtherSquad(playerId, fromSquadId, toSquadId, newPosition, insertAt).then((res) => {
+      if (!res.success) {
+        alert(`Erro ao mover: ${res.error}`);
+        fetchAllSquadData();
+        return;
+      }
+      // Persist the new sort_orders on the target squad
+      bulkReorderSquad(reorderUpdates, squadType, toSquadId);
+    });
+  }
+
   /* ───────────── Render ───────────── */
 
   const labelFn = squadType === 'shadow'
@@ -807,6 +872,32 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     if (!ag) return ageGroupLabel;
     return squadType === 'shadow' ? String(ag.generationYear) : ag.name;
   };
+
+  /** Header for each squad inside the multi-shadow-squad campo view (name pill + counts + export menu) */
+  function renderShadowMultiSquadHeader(squad: Squad, byPos: Record<string, Player[]>) {
+    const exportData = { squadType, ageGroupLabel: resolveAgeGroupLabel(squad.ageGroupId), byPosition: byPos, squadName: squad.name };
+    const pitchPlayers = Object.values(byPos).flat();
+    const totalCount = pitchPlayers.length;
+    return (
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-neutral-800">
+            {squad.name}
+          </h3>
+          {squad.description && (
+            <Badge variant="secondary" className="rounded-md px-3 py-1 text-sm uppercase tracking-wide" suppressHydrationWarning>
+              <span suppressHydrationWarning>{squad.description}</span>
+            </Badge>
+          )}
+          <span className="flex items-center gap-1 rounded-full bg-neutral-800 px-2.5 py-1 text-xs font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900" suppressHydrationWarning>
+            {totalCount}
+            <span className="font-normal opacity-70" suppressHydrationWarning>{totalCount === 1 ? 'atleta' : 'atletas'}</span>
+          </span>
+        </div>
+        <SquadExportMenu data={exportData} captureRef={squadContentRef} />
+      </div>
+    );
+  }
 
   /** Render one squad's formation/list */
   function renderSquadContent(squad: Squad, byPos: Record<string, Player[]>, showName: boolean, sections?: Record<string, Player[]>) {
@@ -1054,8 +1145,32 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
         {/* Custom squads — campo/lista views */}
         {hasCustomSquads && viewMode !== 'comparar' && (
           visibleSquadSections.length > 0
-            ? visibleSquadSections.map(({ squad, byPos, specialSections }) =>
-                renderSquadContent(squad, byPos, visibleSquadSections.length > 1, specialSections)
+            ? (
+                /* Shadow + campo + 2+ squads → unified DndContext for cross-squad drag.
+                   All other cases (real, single-squad, list view) use the standard per-squad render. */
+                squadType === 'shadow' && viewMode === 'campo' && visibleSquadSections.length > 1 && mounted
+                  ? (
+                    <MultiShadowSquadView
+                      squads={visibleSquadSections.map(({ squad, byPos }) => ({
+                        squad,
+                        byPos,
+                        header: renderShadowMultiSquadHeader(squad, byPos),
+                        footer: (
+                          <p data-export-hide className="text-center text-xs text-muted-foreground italic">
+                            Jogadores mais acima = primeira opção. Arraste para reordenar.
+                          </p>
+                        ),
+                      }))}
+                      onAdd={(squadId, position) => { setDialogPosition(position); setDialogSquadId(squadId); setDialogOpen(true); }}
+                      onRemovePlayer={(squadId, playerId) => handleRemove(playerId, squadId)}
+                      onPlayerClick={handlePlayerClick}
+                      onSameSquadDragEnd={(info, squadId, byPos) => handleDragEnd(info, squadId, byPos)}
+                      onCrossSquadDragEnd={handleCrossSquadDragEnd}
+                    />
+                  )
+                  : visibleSquadSections.map(({ squad, byPos, specialSections }) =>
+                      renderSquadContent(squad, byPos, visibleSquadSections.length > 1, specialSections)
+                    )
               )
             : (
               <p className="py-8 text-center text-muted-foreground">

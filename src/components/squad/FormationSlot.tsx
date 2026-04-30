@@ -41,6 +41,8 @@ interface FormationSlotProps {
   onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
   /** Move player to a special section (Dúvida / Possibilidades) — real squads only */
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
+  /** Optional scope (e.g. squad ID) to disambiguate dnd IDs across sibling DndContexts */
+  idScope?: number;
 }
 
 /* ───────────── Rank styling for shadow squad priority ───────────── */
@@ -101,6 +103,7 @@ function DraggablePlayerCard({
   onSetSignStatus,
   onTogglePreseason,
   onMoveToSection,
+  idScope,
 }: {
   player: Player;
   index: number;
@@ -110,8 +113,9 @@ function DraggablePlayerCard({
   onSetSignStatus?: (playerId: number, status: SquadSignStatus) => void;
   onTogglePreseason?: (playerId: number, isPreseason: boolean) => void;
   onMoveToSection?: (playerId: number, section: SpecialSquadSection) => void;
+  idScope?: number;
 }) {
-  const dragId = `player-${player.id}`;
+  const dragId = idScope !== undefined ? `player-${idScope}-${player.id}` : `player-${player.id}`;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dragId });
   const [showActions, setShowActions] = useState(false);
 
@@ -415,16 +419,17 @@ function DraggablePlayerCard({
 /* ───────────── Formation Slot (droppable + sortable container) ───────────── */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- onPlayerClick kept in interface for backward compat, Link replaced onClick
-export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onSetSignStatus, onTogglePreseason, onMoveToSection }: FormationSlotProps) {
+export function FormationSlot({ position, slotId, positionLabel, players, squadType, onAdd, onRemovePlayer, onPlayerClick, onToggleDoubt, onSetSignStatus, onTogglePreseason, onMoveToSection, idScope }: FormationSlotProps) {
   const label = positionLabel ?? ((POSITION_LABELS as Record<string, string>)[position] ?? position);
   const displayCode = positionLabel ?? position;
   const dndId = slotId ?? position;
 
   // Make this slot a droppable target for cross-position drops
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `droppable-${dndId}` });
+  const droppableId = idScope !== undefined ? `droppable-${idScope}-${dndId}` : `droppable-${dndId}`;
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: droppableId });
 
-  // IDs for SortableContext — player-{id} format enables cross-position drag
-  const sortableIds = players.map((p) => `player-${p.id}`);
+  // IDs for SortableContext — must match the IDs used by useSortable in DraggablePlayerCard
+  const sortableIds = players.map((p) => (idScope !== undefined ? `player-${idScope}-${p.id}` : `player-${p.id}`));
 
   return (
     <div
@@ -451,6 +456,7 @@ export function FormationSlot({ position, slotId, positionLabel, players, squadT
             onSetSignStatus={onSetSignStatus}
             onTogglePreseason={onTogglePreseason}
             onMoveToSection={onMoveToSection}
+            idScope={idScope}
           />
         ))}
       </SortableContext>

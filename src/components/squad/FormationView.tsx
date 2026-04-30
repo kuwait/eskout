@@ -91,11 +91,46 @@ interface FormationViewProps {
   children?: React.ReactNode;
 }
 
-/** Parse drag ID format "player-{id}" → player ID */
-function parseDragPlayerId(id: string): number | null {
+/** Parse drag ID — supports scoped (`player-{scope}-{id}`) and unscoped (`player-{id}`) */
+export function parsePlayerDragId(id: string): { scope: number | null; playerId: number } | null {
   if (!id.startsWith('player-')) return null;
-  const num = parseInt(id.replace('player-', ''), 10);
-  return isNaN(num) ? null : num;
+  const rest = id.slice('player-'.length);
+  const dashIdx = rest.indexOf('-');
+  if (dashIdx > 0) {
+    const scopeStr = rest.slice(0, dashIdx);
+    const playerStr = rest.slice(dashIdx + 1);
+    const scope = parseInt(scopeStr, 10);
+    const playerId = parseInt(playerStr, 10);
+    // Strict integer match — parseInt is lenient ("7a" → 7), so we cross-check via toString
+    if (!isNaN(scope) && String(scope) === scopeStr && !isNaN(playerId) && String(playerId) === playerStr) {
+      return { scope, playerId };
+    }
+    return null;
+  }
+  const playerId = parseInt(rest, 10);
+  if (isNaN(playerId) || String(playerId) !== rest) return null;
+  return { scope: null, playerId };
+}
+
+/** Parse droppable ID — supports scoped (`droppable-{scope}-{slot}`) and unscoped (`droppable-{slot}`) */
+export function parseDroppableId(id: string): { scope: number | null; slot: string } | null {
+  if (!id.startsWith('droppable-')) return null;
+  const rest = id.slice('droppable-'.length);
+  const dashIdx = rest.indexOf('-');
+  if (dashIdx > 0) {
+    const scopeStr = rest.slice(0, dashIdx);
+    const scope = parseInt(scopeStr, 10);
+    if (!isNaN(scope) && String(scope) === scopeStr) {
+      return { scope, slot: rest.slice(dashIdx + 1) };
+    }
+  }
+  return { scope: null, slot: rest };
+}
+
+/** Backward-compat helper: parses unscoped ID → playerId, returns null otherwise */
+function parseDragPlayerId(id: string): number | null {
+  const parsed = parsePlayerDragId(id);
+  return parsed ? parsed.playerId : null;
 }
 
 /** true when viewport ≥ 1024px (lg breakpoint) — drives conditional render to avoid duplicate DnD IDs */
