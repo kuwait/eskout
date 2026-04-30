@@ -238,6 +238,7 @@ export interface UserTask {
   playerName: string | null;
   playerContact: string | null;
   playerClub: string | null;
+  playerPhotoUrl: string | null;
   playerMeetingDate: string | null;
   playerSigningDate: string | null;
   playerMeetingAttendees: string[];
@@ -264,7 +265,7 @@ export interface UserTaskRow {
   source: string;
   pinned: boolean;
   created_at: string;
-  players?: { name: string; contact: string | null; club: string | null; meeting_date: string | null; signing_date: string | null; meeting_attendees: string[] | null; signing_attendees: string[] | null } | null;
+  players?: { name: string; contact: string | null; club: string | null; photo_url: string | null; zz_photo_url: string | null; meeting_date: string | null; signing_date: string | null; meeting_attendees: string[] | null; signing_attendees: string[] | null } | null;
 }
 
 /* ───────────── Scouting Report ───────────── */

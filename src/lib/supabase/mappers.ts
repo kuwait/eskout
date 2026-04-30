@@ -6,6 +6,14 @@
 import type { CalendarEvent, CalendarEventRow, DepartmentOpinion, GameObservationTarget, GameObservationTargetRow, Player, PlayerRow, ScoutAssignment, ScoutAssignmentRow, ScoutAvailability, ScoutAvailabilityRow, ScoutingGame, ScoutingGameRow, ScoutingReport, ScoutingReportRow, ScoutingRound, ScoutingRoundRow, Squad, SquadRow, SquadPlayer, SquadPlayerRow, TrainingFeedback, TrainingFeedbackRow, UserTask, UserTaskRow } from '@/lib/types';
 import { detectPlayingUp } from '@/lib/utils/playing-up';
 
+/** Pick first absolute http(s) URL, rejecting placeholders and relative paths */
+function pickValidPhotoUrl(urls: (string | null | undefined)[]): string | null {
+  for (const url of urls) {
+    if (url && url.startsWith('http') && !url.includes('placeholder')) return url;
+  }
+  return null;
+}
+
 /** Safely cast department_opinion from DB (could be TEXT[], single string, JSON-encoded, or null) */
 function castToOpinionArray(raw: string[] | string | null): DepartmentOpinion[] {
   if (!raw) return [];
@@ -436,6 +444,7 @@ export function mapUserTaskRow(row: UserTaskRow): UserTask {
     playerName: row.players?.name ?? null,
     playerContact: row.players?.contact ?? null,
     playerClub: row.players?.club ?? null,
+    playerPhotoUrl: pickValidPhotoUrl([row.players?.photo_url, row.players?.zz_photo_url]),
     playerMeetingDate: row.players?.meeting_date ?? null,
     playerSigningDate: row.players?.signing_date ?? null,
     playerMeetingAttendees: Array.isArray(row.players?.meeting_attendees) ? row.players.meeting_attendees : [],
