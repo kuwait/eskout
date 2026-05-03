@@ -120,3 +120,47 @@ describe('parseMatchHtml — AVS 5-0 Tirsense', () => {
     expect(yellows.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+/* ───────────── Apostrophe variant regression ───────────── */
+
+// FPF historically rendered minute markers as `45&#39;` (HTML-encoded apostrophe) but
+// some pages (e.g. AF Porto Sub-17 II Divisão matches scraped April 2026) serve a literal
+// `'` instead. The regex used to be hard-coded to `&#39;` only and silently dropped goals,
+// substitutions, and cards from any match using literal apostrophes — which in turn caused
+// substituted-in players to never appear in fpf_match_players (filter at insert time
+// requires the player to be a starter OR have minutes/sub-in event). This regression test
+// rewrites the existing fixture's apostrophes to the literal form and asserts the parser
+// still extracts the same events.
+describe('parseMatchHtml — apostrophe variant tolerance', () => {
+  const literalApostropheHtml = html.replace(/&#39;/g, "'");
+  const literalResult = parseMatchHtml(literalApostropheHtml);
+
+  it('extracts the same number of goals regardless of apostrophe encoding', () => {
+    const encodedGoals = result.events.filter(
+      (e) => e.eventType === 'goal' || e.eventType === 'penalty_goal',
+    ).length;
+    const literalGoals = literalResult.events.filter(
+      (e) => e.eventType === 'goal' || e.eventType === 'penalty_goal',
+    ).length;
+    expect(literalGoals).toBe(encodedGoals);
+    expect(literalGoals).toBeGreaterThan(0);
+  });
+
+  it('extracts substitutions when minutes use literal apostrophes', () => {
+    const subsIn = literalResult.events.filter((e) => e.eventType === 'substitution_in');
+    expect(subsIn.length).toBeGreaterThanOrEqual(1);
+    // Each sub-in must have a minute (the apostrophe regex feeds this)
+    for (const sub of subsIn) {
+      expect(sub.minute).not.toBeNull();
+      expect(sub.playerName.length).toBeGreaterThan(0);
+      expect(sub.relatedPlayerName?.length ?? 0).toBeGreaterThan(0);
+    }
+  });
+
+  it('produces matching event timelines (encoded vs literal apostrophe)', () => {
+    // Same set of events should come out, just rendered differently in HTML.
+    const encodedEvents = result.events.map((e) => `${e.eventType}@${e.minute}:${e.playerName}`).sort();
+    const literalEvents = literalResult.events.map((e) => `${e.eventType}@${e.minute}:${e.playerName}`).sort();
+    expect(literalEvents).toEqual(encodedEvents);
+  });
+});
