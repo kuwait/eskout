@@ -384,7 +384,9 @@ function extractGoals(html: string, homeTeam: string, awayTeam: string, events: 
   const awayCol = goalBlock.match(/text-left">([\s\S]*?)(?=<\/div>)/i);
 
   // Parse goals from each column: <span>36' Pedro Portilha </span>
-  const goalSpanRegex = /<span>(\d+)&#39;\s*([^<]+)<\/span>/g;
+  // Apostrophe can appear as &#39; (HTML-encoded) or as a literal '/'/'/′ depending on
+  // how FPF renders the page. Accept any common form so we don't silently drop events.
+  const goalSpanRegex = /<span>(\d+)(?:&#39;|'|'|′|‘)\s*([^<]+)<\/span>/g;
 
   if (homeCol) {
     let match;
@@ -424,14 +426,28 @@ function extractGoals(html: string, homeTeam: string, awayTeam: string, events: 
 }
 
 function extractSubstitutions(html: string, events: ParsedEvent[]) {
-  // Substitutions from timeline: each timeline-item with icon-substitution.png contains:
+  // Substitutions live inside `<div class="timeline-item">` blocks. Each block contains:
   //   <span class="tag top-tag ...">MINUTE' </span>
   //   <img src="/Images/icon-substitution.png" />
-  //   <span class="... substitution-tag ..."><span class="in">PLAYER IN</span><span class="out">PLAYER OUT</span></span>
-  const timelineRegex = /timeline-item[\s\S]*?(\d+)&#39;\s*[\s\S]*?icon-substitution[\s\S]*?class="in">([^<]+)<\/span>\s*<span class="out">([^<]+)<\/span>/g;
-  let match;
+  //   <span class="... substitution-tag ..."><span class="in">IN</span><span class="out">OUT</span></span>
+  // Earlier we ran a single regex across the whole HTML, but `[\s\S]*?` would happily
+  // bridge across multiple timeline-item divs — capturing the minute from a goal event
+  // earlier in the timeline and the in/out from a later sub event. Fix: split into
+  // individual timeline-item divs first, then parse each in isolation.
+  const blockRegex = /<div class="timeline-item"[\s\S]*?(?=<div class="timeline-item"|<\/div>\s*<\/div>\s*<\/div>)/g;
+  // Apostrophe forms: HTML-encoded (&#39;) OR literal '/'/'/′ (FPF varies by page).
+  const APOS = /(?:&#39;|'|'|′|‘)/.source;
+  const minuteRegex = new RegExp(`(\\d+)\\s*${APOS}`);
+  const subRegex = /icon-substitution[\s\S]*?class="in">([^<]+)<\/span>\s*<span class="out">([^<]+)<\/span>/;
 
-  while ((match = timelineRegex.exec(html)) !== null) {
+  for (const block of html.matchAll(blockRegex)) {
+    const blockText = block[0];
+    if (!subRegex.test(blockText)) continue; // not a substitution event
+    const minMatch = blockText.match(minuteRegex);
+    const subMatch = blockText.match(subRegex);
+    if (!minMatch || !subMatch) continue;
+
+    const match = [block[0], minMatch[1], subMatch[1], subMatch[2]];
     const minute = parseInt(match[1], 10);
     const playerIn = decodeHtmlEntities(match[2].trim());
     const playerOut = decodeHtmlEntities(match[3].trim());

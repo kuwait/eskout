@@ -11,20 +11,31 @@ import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import { broadcastBulkMutation } from '@/lib/realtime/broadcast';
 import { revalidatePath } from 'next/cache';
 import { fetchFpfData } from './fpf';
-import { HEADERS, getFpfSeasonId } from './helpers';
+import { fpfFetch, FpfRateLimitError } from './fpf-fetch';
+import { getFpfSeasonId } from './helpers';
 import type { ActionResponse } from '@/lib/types';
 
 /* ───────────── Retry Helper ───────────── */
 
-/** Retry an async function with exponential backoff. Returns null after all retries fail. */
+/** Retry an async function with exponential backoff. Returns null after all retries fail.
+ *  Aborts immediately on FpfRateLimitError — retrying a 429 only escalates the
+ *  ban (Cloudflare 1015 zone-level lockout). Same pattern as browse.ts withRetry. */
 async function withRetry<T>(
   fn: () => Promise<T | null>,
   retries = 3,
   baseDelay = 3000,
 ): Promise<T | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const result = await fn();
-    if (result !== null) return result;
+    try {
+      const result = await fn();
+      if (result !== null) return result;
+    } catch (e) {
+      if (e instanceof FpfRateLimitError) {
+        console.warn('[FPF Club Import] 429 rate-limited — abortar (sem retry).');
+        return null;
+      }
+      throw e;
+    }
     if (attempt < retries) {
       // Exponential backoff: 3s, 6s, 12s + jitter — gives FPF time to unblock
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 2000;
@@ -79,23 +90,30 @@ export async function searchFpfClubs(searchText: string): Promise<ActionResponse
   }
 
   try {
-    const res = await fetch(`${FPF_BASE}/DesktopModules/MVC/SearchClubs/Default/GetClubsByName`, {
-      method: 'POST',
-      headers: {
-        ...HEADERS,
-        ...CLUB_SEARCH_HEADERS,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Referer': `${FPF_BASE}/pt/competicoes/clubes`,
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: JSON.stringify({ searchText: searchText.trim() }),
-      next: { revalidate: 0 },
-    });
+    let res;
+    try {
+      res = await fpfFetch(`${FPF_BASE}/DesktopModules/MVC/SearchClubs/Default/GetClubsByName`, {
+        method: 'POST',
+        headers: {
+          ...CLUB_SEARCH_HEADERS,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Referer': `${FPF_BASE}/pt/competicoes/clubes`,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ searchText: searchText.trim() }),
+      });
+    } catch (e) {
+      if (e instanceof FpfRateLimitError) {
+        return { success: false, error: 'FPF rate-limited — espera 15-60 min' };
+      }
+      throw e;
+    }
 
+    if (!res) return { success: false, error: 'FPF não respondeu' };
     if (!res.ok) return { success: false, error: `Erro FPF: ${res.status}` };
 
-    const data = await res.json() as { Id: number; Text: string; Url: string }[];
+    const data = await res.json<{ Id: number; Text: string; Url: string }[]>();
     const clubs: FpfClubSearchResult[] = data.map((c) => ({
       id: c.Id,
       name: c.Text,
@@ -128,34 +146,32 @@ export async function getFpfClubPlayers(
       clubId: String(clubId),
     });
 
-    // Retry the entire fetch (cookie + player list) — FPF may block intermittently
+    // Retry the entire fetch (cookie + player list) — FPF may block intermittently.
+    // withRetry aborts on FpfRateLimitError so 429 propagates as null (no retry storm).
     const players = await withRetry<FpfClubPlayer[]>(async () => {
-      // Need a session cookie from FPF — fetch club page first to get cookies
-      const pageRes = await fetch(`${FPF_BASE}/pt/Clubes/Detalhe-de-clube/Club/${clubId}`, {
-        headers: HEADERS,
-        next: { revalidate: 0 },
-      });
-      const cookies = pageRes.headers.getSetCookie?.() ?? [];
-      const cookieStr = cookies.map((c) => c.split(';')[0]).join('; ');
+      // Need a DNN session cookie from FPF — fetch club page first to capture Set-Cookie.
+      // (cf_clearance is added automatically by fpfFetch when env vars are set.)
+      const pageRes = await fpfFetch(`${FPF_BASE}/pt/Clubes/Detalhe-de-clube/Club/${clubId}`);
+      if (!pageRes) return null;
+      const cookieStr = pageRes.setCookies.map((c) => c.split(';')[0]).join('; ');
 
-      const res = await fetch(
+      const res = await fpfFetch(
         `${FPF_BASE}/DesktopModules/MVC/ClubDetail/Default/GetClubPlayers?${params}`,
         {
           headers: {
-            ...HEADERS,
             ...CLUB_DETAIL_HEADERS,
             'Accept': 'application/json',
             'Referer': `${FPF_BASE}/pt/Clubes/Detalhe-de-clube/Club/${clubId}`,
             'X-Requested-With': 'XMLHttpRequest',
+            // fpfFetch merges this with cf_clearance (when set) so both cookies are sent
             ...(cookieStr ? { Cookie: cookieStr } : {}),
           },
-          next: { revalidate: 0 },
         },
       );
 
-      if (!res.ok) return null; // Trigger retry on non-200
+      if (!res || !res.ok) return null; // Trigger retry on non-200
 
-      const data = await res.json() as { Name: string; Birthdate: string; Url: string; PhotoUrl: string | null }[];
+      const data = await res.json<{ Name: string; Birthdate: string; Url: string; PhotoUrl: string | null }[]>();
       return data.map((p) => ({
         name: p.Name,
         birthdate: p.Birthdate ? p.Birthdate.slice(0, 10) : '', // "2011-01-28T00:00:00" → "2011-01-28"

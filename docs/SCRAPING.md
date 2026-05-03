@@ -102,7 +102,34 @@ python scripts/extract_reports.py --retry-errors
 
 ---
 
-## 6. In-App Scraping (Server Actions)
+## 6. FPF HTTP Layer (`fpf-fetch.ts` + `fpf-playwright.ts`)
+
+**⚠️ Local-dev only.** All FPF scraping (player profiles, club imports, competition match sheets, image proxy fallback) routes through the user's local Brave browser via Chrome DevTools Protocol (CDP). Cloudflare blocks any server-side TLS fingerprint we tried (cycletls JA3, plain Node fetch) — the only deterministic bypass is driving the user's real, logged-in browser. **This means FPF features do not work in production (Vercel) — they only work when the dev server runs locally with Brave open via CDP.**
+
+### Setup
+
+```bash
+./scripts/fpf_browser.sh   # Relaunches Brave with --remote-debugging-port=9222 on user's real profile
+```
+
+While that Brave window stays open, `fpfFetchViaPlaywright` connects via CDP and reuses the user's real session (cookies, cf_clearance, fingerprint, history). When the script isn't run, the code falls back to `chromium.launchPersistentContext` with stealth init scripts, but Cloudflare will likely block it.
+
+### Single entry point: `fpfFetch(url, options)`
+
+`src/actions/scraping/fpf-fetch.ts` is the unified HTTP layer for all `*.fpf.pt` calls. Routes to Playwright/CDP for everything FPF (both `www.fpf.pt` and `resultados.fpf.pt`). Features:
+
+- **Global throttle:** 3s minimum spacing between requests, serialized via promise queue (prevents N parallel workers firing simultaneously). Shared across all FPF subdomains.
+- **`FpfRateLimitError`:** Thrown on 429. Callers MUST NOT retry — retrying a 429 only extends the Cloudflare 1015 ban window. `withRetry` helpers across the codebase abort immediately on this error.
+- **Cookie merging:** When session cookies are passed by callers (e.g. DNN sessions), they're appended to `cf_clearance` instead of replacing it.
+- **`FpfFetchResult`:** Fetch-like API + parsed `setCookies: string[]`.
+
+### Image proxy fallback (`/api/image-proxy`)
+
+When plain `fetch(url)` fails for FPF-hosted images (Cloudflare 403), falls back to `fpfFetchBinaryViaPlaywright` which loads the image through the user's Brave page (same network stack as `<img src=…>`). Used by the photo-match feature in the competition stats UI.
+
+---
+
+## 7. In-App Scraping (Server Actions)
 
 Server actions in `src/actions/scraping.ts` scrape FPF and ZeroZero directly from the app:
 
@@ -211,7 +238,7 @@ FPF for name/DOB/nationality/birthCountry, ZeroZero for position/foot/height/wei
 
 ---
 
-## 6. FPF Competition Scraping (`src/actions/scraping/fpf-competitions/`)
+## 8. FPF Competition Scraping (`src/actions/scraping/fpf-competitions/`)
 
 **Purpose:** Scrape FPF competition match sheets — lineups, goals, cards, substitutions, minutes. Detect "playing up" players and provide player linking to eskout DB.
 
@@ -238,33 +265,53 @@ Parses HTML from `resultados.fpf.pt/Match/GetMatchInformation?matchId=XXX`:
 - **Team names:** From `game-resume` section `<strong>` tags, OG meta title, or Club/Logo alt attributes
 - **Lineups:** From `lineup-team home-team` / `lineup-team away-team` divs, `<div class="player">` entries
 - **Goals:** From `info-goals` section (home=text-right, away=text-left columns)
-- **Substitutions:** From timeline `icon-substitution.png` + `<span class="in/out">` tags
+- **Substitutions:** Each `<div class="timeline-item">` block parsed in isolation (avoids cross-event leakage where minute from earlier event was paired with later sub)
 - **Cards:** From lineup section `icon-yellowcard`/`icon-redcard` CSS classes (no minute available)
 - **Player FPF IDs:** From `/Player/Logo/{id}` (logo ID, NOT profile ID — these are different systems)
+
+**Apostrophe encoding tolerance:** Minute markers come from FPF in two forms — HTML-encoded `45&#39;` and literal `45'` (varies by page, e.g. AF Porto Sub-17 II Divisão uses literal). Goal/substitution/card regexes accept both, plus typographic variants (`'`/`'`/`′`/`'`). Regression tests in `__tests__/parse-match-2376960.test.ts` (literal-apostrophe fixture) and `parse-match.test.ts` (apostrophe variant tolerance).
+
+**Recovery action:** `reparseCompetitionMatches(competitionId)` re-fetches every match in a competition and re-runs the parser, preserving existing `eskout_player_id` mappings. Used after parser fixes to recover suplentes that were silently dropped (e.g. apostrophe regression). Triggered by "Re-parse jogos" button in `CompetitionStatsClient.tsx`.
+
+### FPF Player ID Extraction (`src/lib/fpf/extract-fpf-id.ts`)
+
+Pure helper (no `'use server'`) for parsing FPF player IDs out of any FPF URL. Three recognized patterns:
+- `/Player/Logo/<id>` — match-sheet photos (`resultados.fpf.pt`)
+- `/playerId/<id>` — `Ficha-de-Jogador` profile URLs (`www.fpf.pt`)
+- `?id=<id>` — `imagehandler.fpf.pt/ScoreImageHandler.ashx` photos (only matched on this host to avoid tracking-param false positives)
+
+Used by `link-players.ts` to resolve eskout players whose `fpf_link` and `photo_url` may carry different IDs (FPF rotates IDs over time).
 
 ### Player Linking (`link-players.ts`)
 
 Auto-link strategies (in order):
-1. **FPF player ID** — exact numeric match (most reliable, but Logo ID ≠ Profile ID)
-2. **FPF link URL** — extract ID from `fpf_link` on eskout player
-3. **Exact name + club + age** — case-insensitive name, `clubsMatch()`, AND age validation vs competition escalão. Rejects candidates born +3 years after expected (almost certainly wrong link). Duplicate names after filtering → manual.
+1. **FPF player ID** — exact numeric match against `players.fpf_player_id`, `fpf_link` parsed via `extractFpfPlayerIdFromUrl`, AND `photo_url` parsed for legacy imports without `fpf_player_id`
+2. **Strategy 2 (name + club + age) DISABLED** — same name at same club too often means siblings, not the same person. Players without an FPF ID match end up in "Não Ligados" for manual review.
 
-Manual linking via "Links Pendentes" tab (last tab):
-- Suggestions filtered by same club first, cross-club fallback marked with "clube ≠"
-- Inline fuzzy search (multi-word across name + club)
-- FPF photo + eskout photo shown for visual comparison
-- FPF profile link for verification
-- Tab hidden when 0 unlinked players remain
+**Auth:** `requireSuperadmin()` returns a service-role client (bypasses RLS) — eskout players span all clubs and the regular client would only see players in the active club, missing cross-club matches.
+
+**Pagination:** All match-ID fetches use `getAllMatchIds()` (paginated 1000 at a time) — Postgrest's default cap was silently dropping rows on competitions with > 1000 matches.
+
+**Sanity filter:** `isAgeCompatible(dob)` rejects biologically impossible candidates from auto-link (e.g. a 2016-born player in a Sub-17 competition).
+
+**Recovery:** `unlinkSuspiciousPlayers(competitionId)` removes existing eskout links where the linked player's DOB is implausible for the competition — used to clean up legacy garbage from before strategy 2 was disabled.
+
+Manual linking via "Não Ligados" tab:
+- **Match direto** (autoLink): exact FPF ID or DOB match — one-click submit
+- **Dúvidas** (ambiguous): multiple candidates, manual pick. Includes "🖼️ Auto-match por foto" button — hashes (SHA-256) all candidate photos via `/api/image-proxy`, auto-links when exactly 1 candidate has identical bytes
+- **Provavelmente novos** (crossClubOnly): candidates exist but all from different clubs. Collapsed by default — usually new players sharing a name with existing ones, but expandable for actual transfers
+- **Sem match** (noMatch): grouped by club, no candidates found
 
 ### Playing Up Detection (`playing-up.ts`)
 
 - Uses a **PostgreSQL RPC** (`get_playing_up_players`) for performance — single SQL query replaces ~15 sequential HTTP requests
-- SQL function in `supabase/migrations/067_playing_up_rpc.sql`
+- SQL function in `supabase/migrations/067_playing_up_rpc.sql`, `p_offset` added in `114_playing_up_pagination.sql`
+- Server action paginates via `p_offset` (1000-row chunks) — Postgrest caps at `db-max-rows`, default 1000, so competitions with many series previously dropped rows silently
+- Default limit raised to 10000 (was 500 — internal admin tool, payload size not a concern)
 - Aggregates match_players + joins players table for DOB in one query
 - Two DOB strategies: (1) `eskout_player_id` direct link, (2) `fpf_player_id` string match
 - Players born AFTER `expected_birth_year_end` → "playing up" (e.g. 2012 in Sub-15 = +1 year)
-- Returns `series_name`, `fpf_link`, `zerozero_link`, `eskout_club` per player
-- UI groups by series (collapsible) → team (collapsible), shows FPF/ZZ favicon links, club change indicator
+- UI: birth-year filter chips, sortable columns, paginated render (PAGE_SIZE=100), sanity guard caps `years_above` at 4 (filters out impossible linkages from bad legacy auto-links)
 
 ### Future Matches
 

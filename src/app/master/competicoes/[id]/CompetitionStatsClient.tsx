@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'rea
 import Link from 'next/link';
 import {
   ArrowLeft, TrendingUp, Clock, AlertTriangle, Shield, Search, X,
-  Loader2, Goal, CalendarDays, Unlink, ChevronDown, ChevronRight,
+  Loader2, Goal, CalendarDays, Unlink, ChevronDown, ChevronRight, ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,11 +18,13 @@ import {
   type PlayerStatRow, type SeriesClassification,
 } from '@/actions/scraping/fpf-competitions/stats';
 import { getPlayingUpPlayers, type PlayingUpPlayer } from '@/actions/scraping/fpf-competitions/playing-up';
+import { reparseCompetitionMatches } from '@/actions/scraping/fpf-competitions/scrape-competition';
 import {
   getUnlinkedWithSuggestions, bulkLinkPlayers, searchEskoutPlayers,
   type UnlinkedWithSuggestions, type BulkLinkEntry, type PlayerSuggestion,
 } from '@/actions/scraping/fpf-competitions/link-players';
 import { decodeHtmlEntities } from '@/actions/scraping/helpers';
+import { hashImagesInParallel } from '@/lib/utils/photo-hash';
 import type { ActionResponse, FpfCompetitionRow, FpfMatchRow } from '@/lib/types';
 import { ImportClubsButton } from './ImportClubsDialog';
 
@@ -103,7 +105,10 @@ export function CompetitionStatsClient({ competition }: { competition: FpfCompet
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h1 className="text-lg font-bold lg:text-xl">{competition.name}</h1>
-            <ImportClubsButton competitionId={competition.id} escalao={competition.escalao} />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <ReparseButton competitionId={competition.id} />
+              <ImportClubsButton competitionId={competition.id} escalao={competition.escalao} />
+            </div>
           </div>
           <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
             <span>{competition.season}</span>
@@ -221,226 +226,332 @@ function ClubChangeNote({ teamName, eskoutClub }: { teamName: string; eskoutClub
 
 /* ───────────── Playing Up Tab ───────────── */
 
+/** Sortable column keys for the playing-up table */
+type PlayingUpSortKey = 'name' | 'team' | 'series' | 'birthYear' | 'yearsAbove' | 'totalGames' | 'totalMinutes' | 'goals' | 'yellowCards';
+
 function PlayingUpTab({ competitionId }: { competitionId: number }) {
   const { data, error, loading } = useServerAction<PlayingUpPlayer[]>(
     useCallback(() => getPlayingUpPlayers(competitionId), [competitionId]),
   );
-  // Track expanded items (all start collapsed)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const toggle = useCallback((key: string) => {
-    setExpanded((prev) => {
+
+  // Pagination — render at most this many rows. "Mostrar mais" extends; resets on filter/sort change.
+  const PAGE_SIZE = 100;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Birth-year filter chips — multi-select. Empty = show all.
+  // Filter changes reset pagination so users don't stay on a stale offset.
+  const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set());
+  const toggleYear = useCallback((year: number) => {
+    setVisibleCount(PAGE_SIZE);
+    setSelectedYears((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      if (next.has(year)) next.delete(year); else next.add(year);
       return next;
     });
   }, []);
+  const clearYears = useCallback(() => {
+    setVisibleCount(PAGE_SIZE);
+    setSelectedYears(new Set());
+  }, []);
 
-  /* Group players by phase → series → team */
+  // Sort state — default by total minutes descending (most-playing first)
+  const [sortKey, setSortKey] = useState<PlayingUpSortKey>('totalMinutes');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const onSort = useCallback((key: PlayingUpSortKey) => {
+    setVisibleCount(PAGE_SIZE);
+    setSortKey((prevKey) => {
+      if (prevKey === key) {
+        // Toggle direction on same column
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return key;
+      }
+      // New column — sensible default: text columns ASC, numeric DESC
+      const isText = key === 'name' || key === 'team' || key === 'series';
+      setSortDir(isText ? 'asc' : 'desc');
+      return key;
+    });
+  }, []);
+
+  // Sanity guard: cap "years above" at 4 to filter out impossible linkages from bad
+  // auto-links. A 9-year-old (born 2016) appearing in Sub-17 means a player record
+  // got mis-linked — biological cap for academy competitions is ~4 years above natural.
+  const MAX_PLAUSIBLE_YEARS_ABOVE = 4;
+  const sanitized = useMemo(
+    () => (data ?? []).filter((p) => p.yearsAbove <= MAX_PLAUSIBLE_YEARS_ABOVE),
+    [data],
+  );
+  const droppedCount = (data?.length ?? 0) - sanitized.length;
+
+  // Available years + counts — sorted descending (younger/more-playing-up first)
+  const yearChips = useMemo(() => {
+    if (!sanitized.length) return [];
+    const counts = new Map<number, number>();
+    for (const p of sanitized) {
+      if (p.birthYear == null) continue;
+      counts.set(p.birthYear, (counts.get(p.birthYear) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([year, count]) => ({ year, count }));
+  }, [sanitized]);
+
+  // Apply year filter + sort. Phase grouping kept (rare multi-phase competitions)
+  // but within a phase everything is flat + sortable.
+  const filteredAndSorted = useMemo(() => {
+    if (!sanitized.length) return [];
+    const filtered = selectedYears.size === 0
+      ? sanitized
+      : sanitized.filter((p) => p.birthYear != null && selectedYears.has(p.birthYear));
+
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const sorted = [...filtered].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case 'name': cmp = a.playerName.localeCompare(b.playerName); break;
+        case 'team': cmp = a.teamName.localeCompare(b.teamName); break;
+        case 'series': cmp = (a.seriesName ?? '').localeCompare(b.seriesName ?? ''); break;
+        case 'birthYear': cmp = (a.birthYear ?? 0) - (b.birthYear ?? 0); break;
+        case 'yearsAbove': cmp = a.yearsAbove - b.yearsAbove; break;
+        case 'totalGames': cmp = a.totalGames - b.totalGames; break;
+        case 'totalMinutes': cmp = a.totalMinutes - b.totalMinutes; break;
+        case 'goals': cmp = a.goals - b.goals; break;
+        case 'yellowCards': cmp = a.yellowCards - b.yellowCards; break;
+      }
+      // Tie-break by minutes desc, then name asc — stable secondary order
+      if (cmp === 0) cmp = b.totalMinutes - a.totalMinutes;
+      if (cmp === 0) cmp = a.playerName.localeCompare(b.playerName);
+      return cmp * dir;
+    });
+    return sorted;
+  }, [sanitized, selectedYears, sortKey, sortDir]);
+
+  // Slice for current page — applied AFTER sort+filter so pagination follows order.
+  // Reset is handled in the toggleYear/clearYears/onSort callbacks (no useEffect needed).
+  const visibleSlice = useMemo(
+    () => filteredAndSorted.slice(0, visibleCount),
+    [filteredAndSorted, visibleCount],
+  );
+  const hasMore = visibleCount < filteredAndSorted.length;
+  const remaining = filteredAndSorted.length - visibleCount;
+
+  // Group by phase only when there are multiple phases — most district competitions have 1.
   const phaseGroups = useMemo(() => {
-    if (!data?.length) return [];
-    // Group by phase first
     const byPhase = new Map<string, PlayingUpPlayer[]>();
-    for (const p of data) {
-      const phase = p.phaseName || 'Geral';
+    for (const p of visibleSlice) {
+      const phase = p.phaseName || '';
       if (!byPhase.has(phase)) byPhase.set(phase, []);
       byPhase.get(phase)!.push(p);
     }
-    // For each phase, group by series, then team
-    return [...byPhase.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([phase, phasePlayers]) => {
-        const bySeries = new Map<string, PlayingUpPlayer[]>();
-        for (const p of phasePlayers) {
-          const series = p.seriesName || 'Geral';
-          if (!bySeries.has(series)) bySeries.set(series, []);
-          bySeries.get(series)!.push(p);
-        }
-        const seriesGroups = [...bySeries.entries()]
-          .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([series, seriesPlayers]) => {
-            const byTeam = new Map<string, PlayingUpPlayer[]>();
-            for (const p of seriesPlayers) {
-              const team = p.teamName;
-              if (!byTeam.has(team)) byTeam.set(team, []);
-              byTeam.get(team)!.push(p);
-            }
-            const teams = [...byTeam.entries()]
-              .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-              .map(([team, tp]) => ({
-                team: decodeHtmlEntities(team),
-                rawTeam: team,
-                players: tp.sort((a, b) => b.totalMinutes - a.totalMinutes),
-              }));
-            return { series, teams, totalPlayers: seriesPlayers.length };
-          });
-        return { phase, seriesGroups, totalPlayers: phasePlayers.length };
-      });
-  }, [data]);
-
+    return [...byPhase.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [visibleSlice]);
   const hasPhases = phaseGroups.length > 1;
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
   if (!data?.length) return <EmptyState message="Nenhum jogador a jogar acima do escalão detetado." />;
 
   return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground mb-3">
-        {data.length} jogadores a jogar acima do seu escalão
-        {hasPhases && ` — ${phaseGroups.length} fases`}
-      </p>
+    <div className="space-y-3">
+      {/* Counter line */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground">
+          {filteredAndSorted.length === sanitized.length
+            ? `${sanitized.length} jogadores a jogar acima do seu escalão`
+            : `${filteredAndSorted.length} de ${sanitized.length} jogadores`}
+        </p>
 
-      {phaseGroups.map(({ phase, seriesGroups, totalPlayers: phaseTotalPlayers }) => {
-        const phaseKey = `phase:${phase}`;
-        const phaseOpen = !hasPhases || expanded.has(phaseKey);
-        const showSeriesHeaders = seriesGroups.length > 1 || (seriesGroups.length === 1 && seriesGroups[0].series !== 'Geral');
+        {droppedCount > 0 && (
+          <p className="text-[11px] text-amber-600" title="Jogadores com anos-acima implausíveis (>4) — provavelmente links errados em fpf_match_players.">
+            ⚠ {droppedCount} entradas escondidas (idade implausível)
+          </p>
+        )}
+      </div>
 
-        return (
-          <div key={phase} className="space-y-1">
-            {/* Phase header (only if multiple phases) */}
-            {hasPhases && (
+      {/* Year filter chips */}
+      {yearChips.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Ano:</span>
+          {yearChips.map(({ year, count }) => {
+            const active = selectedYears.has(year);
+            return (
               <button
+                key={year}
                 type="button"
-                onClick={() => toggle(phaseKey)}
-                className="flex items-center gap-1.5 pt-3 pb-1 border-b-2 border-foreground/20 w-full text-left"
+                onClick={() => toggleYear(year)}
+                className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
+                  active
+                    ? 'border-purple-300 bg-purple-100 text-purple-700'
+                    : 'border-neutral-200 bg-background text-muted-foreground hover:bg-muted'
+                }`}
               >
-                {phaseOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <h2 className="text-sm font-bold">{phase}</h2>
-                <span className="text-xs text-muted-foreground">{phaseTotalPlayers} jogadores</span>
+                {year} <span className="opacity-60">({count})</span>
               </button>
-            )}
+            );
+          })}
+          {selectedYears.size > 0 && (
+            <button
+              type="button"
+              onClick={clearYears}
+              className="text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              limpar
+            </button>
+          )}
+        </div>
+      )}
 
-            {phaseOpen && seriesGroups.map(({ series, teams, totalPlayers }) => {
-              const seriesKey = `series:${phase}:${series}`;
-              const seriesOpen = !showSeriesHeaders || expanded.has(seriesKey);
+      {filteredAndSorted.length === 0 && (
+        <p className="rounded-lg border border-dashed py-6 text-center text-xs text-muted-foreground">
+          Nenhum jogador nos anos selecionados
+        </p>
+      )}
 
-              return (
-                <div key={seriesKey} className="space-y-1">
-                  {/* Series header */}
-                  {showSeriesHeaders && (
-                    <button
-                      type="button"
-                      onClick={() => toggle(seriesKey)}
-                      className="flex items-center gap-1.5 pt-2 pb-1 border-b border-purple-200 w-full text-left ml-2"
-                    >
-                      {seriesOpen ? <ChevronDown className="h-3.5 w-3.5 text-purple-500" /> : <ChevronRight className="h-3.5 w-3.5 text-purple-500" />}
-                      <span className="text-sm font-bold text-purple-700">{series}</span>
-                      <span className="text-xs text-muted-foreground">{totalPlayers} jogadores em {teams.length} equipas</span>
-                    </button>
-                  )}
+      {/* Pagination summary — shows "X de Y" so users know there's more */}
+      {filteredAndSorted.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          {hasMore
+            ? `A mostrar ${visibleSlice.length} de ${filteredAndSorted.length}`
+            : `A mostrar todos (${filteredAndSorted.length})`}
+        </p>
+      )}
 
-                  {/* Desktop table */}
-                  {seriesOpen && (
-                  <div className="hidden sm:block overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b text-left text-muted-foreground">
-                          <th className="pb-2 pr-3 font-medium">Jogador</th>
-                          <th className="pb-2 pr-3 font-medium text-center">Ano</th>
-                          <th className="pb-2 pr-3 font-medium text-center">Escalão Natural</th>
-                          <th className="pb-2 pr-3 font-medium text-center">+Anos</th>
-                          <th className="pb-2 pr-3 font-medium text-right">J</th>
-                          <th className="pb-2 pr-3 font-medium text-right">Min</th>
-                          <th className="pb-2 pr-3 font-medium text-right">G</th>
-                          <th className="pb-2 font-medium text-right">AM</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {teams.map(({ team, rawTeam, players }) => {
-                          const teamKey = `team:${phase}:${series}:${rawTeam}`;
-                          const isOpen = expanded.has(teamKey);
-                          return (
-                            <Fragment key={`group-${teamKey}`}>
-                              <tr className="cursor-pointer select-none hover:bg-muted/30" onClick={() => toggle(teamKey)}>
-                                <td colSpan={8} className="pt-4 pb-1.5">
-                                  <span className="inline-flex items-center gap-1">
-                                    {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                                    <span className="text-sm font-semibold">{team}</span>
-                                    <span className="text-xs text-muted-foreground">{players.length}</span>
-                                  </span>
-                                </td>
-                              </tr>
-                              {isOpen && players.map((p, i) => (
-                                <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
-                                  <td className="py-1.5 pr-3">
-                                    <span className="flex items-center gap-1">
-                                      <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
-                                      <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
-                                    </span>
-                                    <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
-                                  </td>
-                                  <td className="py-1.5 pr-3 text-center">{p.birthYear}</td>
-                                  <td className="py-1.5 pr-3 text-center">{p.naturalEscalao ?? '?'}</td>
-                                  <td className="py-1.5 pr-3 text-center">
-                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">+{p.yearsAbove}</span>
-                                  </td>
-                                  <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
-                                  <td className="py-1.5 pr-3 text-right tabular-nums font-medium">{p.totalMinutes}&apos;</td>
-                                  <td className="py-1.5 pr-3 text-right tabular-nums">{p.goals || ''}</td>
-                                  <td className="py-1.5 text-right tabular-nums">{p.yellowCards || ''}</td>
-                                </tr>
-                              ))}
-                            </Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  )}
+      {phaseGroups.map(([phase, players]) => (
+        <div key={phase || 'all'} className="space-y-2">
+          {hasPhases && (
+            <h2 className="border-b-2 border-foreground/20 pb-1 pt-2 text-sm font-bold">
+              {phase || 'Geral'}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">{players.length} jogadores</span>
+            </h2>
+          )}
 
-                  {/* Mobile */}
-                  {seriesOpen && (
-                  <div className="space-y-3 sm:hidden">
-                    {teams.map(({ team, rawTeam, players }) => {
-                      const teamKey = `team:${phase}:${series}:${rawTeam}`;
-                      const isOpen = expanded.has(teamKey);
-                      return (
-                        <div key={team}>
-                          <button type="button" onClick={() => toggle(teamKey)} className="flex items-center gap-1.5 mb-1.5 w-full text-left">
-                            {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                            <h3 className="text-sm font-semibold">{team}</h3>
-                            <span className="text-[11px] text-muted-foreground">{players.length}</span>
-                          </button>
-                          {isOpen && (
-                            <div className="space-y-2">
-                              {players.map((p, i) => (
-                                <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="rounded-lg border p-3 space-y-1">
-                                  <div className="flex items-start justify-between">
-                                    <div>
-                                      <span className="flex items-center gap-1">
-                                        <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
-                                        <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
-                                      </span>
-                                      <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
-                                    </div>
-                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-                                      +{p.yearsAbove} {p.yearsAbove > 1 ? 'anos' : 'ano'}
-                                    </span>
-                                  </div>
-                                  <div className="flex gap-4 text-[11px] text-muted-foreground">
-                                    <span>Nasc. {p.birthYear}</span>
-                                    <span>Natural: {p.naturalEscalao ?? '?'}</span>
-                                  </div>
-                                  <div className="flex gap-4 text-xs">
-                                    <span><strong>{p.totalGames}</strong> jogos</span>
-                                    <span><strong>{p.totalMinutes}&apos;</strong></span>
-                                    {p.goals > 0 && <span><strong>{p.goals}</strong> golos</span>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  )}
-                </div>
-              );
-            })}
+          {/* Desktop table — flat, sortable */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b text-left">
+                  <SortHeader label="Jogador" colKey="name" align="left" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="Equipa" colKey="team" align="left" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="Série" colKey="series" align="left" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="Ano" colKey="birthYear" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="+Anos" colKey="yearsAbove" align="center" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="J" colKey="totalGames" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="Min" colKey="totalMinutes" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="G" colKey="goals" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader label="AM" colKey="yellowCards" align="right" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                </tr>
+              </thead>
+              <tbody>
+                {players.map((p, i) => (
+                  <tr key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="py-1.5 pr-3">
+                      <span className="flex items-center gap-1">
+                        <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
+                        <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
+                      </span>
+                      <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
+                    </td>
+                    <td className="py-1.5 pr-3">{decodeHtmlEntities(p.teamName)}</td>
+                    <td className="py-1.5 pr-3">
+                      {p.seriesName && (
+                        <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">{p.seriesName}</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-3 text-center tabular-nums">{p.birthYear}</td>
+                    <td className="py-1.5 pr-3 text-center">
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">+{p.yearsAbove}</span>
+                    </td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{p.totalGames}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums font-medium">{p.totalMinutes}&apos;</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{p.goals || ''}</td>
+                    <td className="py-1.5 text-right tabular-nums">{p.yellowCards || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        );
-      })}
+
+          {/* Mobile — flat list of compact cards (no team grouping) */}
+          <div className="space-y-2 sm:hidden">
+            {players.map((p, i) => (
+              <div key={`${p.fpfPlayerId ?? p.playerName}-${i}`} className="rounded-lg border p-3 space-y-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1">
+                      <ExternalLinks fpfLink={p.fpfLink} zerozeroLink={p.zerozeroLink} />
+                      <PlayerLink name={decodeHtmlEntities(p.playerName)} eskoutId={p.eskoutPlayerId} isInEskout={p.isInEskout} />
+                    </span>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {decodeHtmlEntities(p.teamName)}
+                      {p.seriesName && <span className="ml-1.5 text-purple-600">· {p.seriesName}</span>}
+                    </p>
+                    <ClubChangeNote teamName={p.teamName} eskoutClub={p.eskoutClub} />
+                  </div>
+                  <span className="shrink-0 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                    +{p.yearsAbove} {p.yearsAbove > 1 ? 'anos' : 'ano'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                  <span>{p.birthYear}</span>
+                  <span>· {p.naturalEscalao ?? '?'}</span>
+                  <span>· <strong className="text-foreground">{p.totalGames}</strong> jogos</span>
+                  <span>· <strong className="text-foreground">{p.totalMinutes}&apos;</strong></span>
+                  {p.goals > 0 && <span>· <strong className="text-foreground">{p.goals}</strong> golos</span>}
+                  {p.yellowCards > 0 && <span>· {p.yellowCards} AM</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Load-more controls */}
+      {hasMore && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+          >
+            Mostrar mais {Math.min(PAGE_SIZE, remaining)}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setVisibleCount(filteredAndSorted.length)}
+          >
+            Mostrar tudo ({remaining} restantes)
+          </Button>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Sortable column header — shows direction arrow when active */
+function SortHeader({
+  label, colKey, align, sortKey, sortDir, onSort,
+}: {
+  label: string;
+  colKey: PlayingUpSortKey;
+  align: 'left' | 'center' | 'right';
+  sortKey: PlayingUpSortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (key: PlayingUpSortKey) => void;
+}) {
+  const isActive = sortKey === colKey;
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+  const justifyCls = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start';
+  return (
+    <th className={`pb-2 pr-3 font-medium ${alignCls}`}>
+      <button
+        type="button"
+        onClick={() => onSort(colKey)}
+        className={`inline-flex items-center gap-0.5 hover:text-foreground ${justifyCls} ${isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
+      >
+        {label}
+        {isActive && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+      </button>
+    </th>
   );
 }
 
@@ -1095,6 +1206,9 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
   const [selections, setSelections] = useState<Map<number, number>>(new Map());
   // Track auto-linked count after bulk link
   const [autoLinkedCount, setAutoLinkedCount] = useState(0);
+  // Photo-match state: progress bar + result message
+  const [photoMatching, setPhotoMatching] = useState(false);
+  const [photoMatchProgress, setPhotoMatchProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Fetch unlinked players with fuzzy suggestions
   useEffect(() => {
@@ -1113,27 +1227,35 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
     return () => { cancelled = true; };
   }, [competitionId, onCountChange]);
 
-  // Categorize players into 3 groups
+  // Categorize players into 4 groups:
+  //   autoLink — single same-club candidate, score ≥ 70 (commit immediately)
+  //   ambiguous — at least 1 same-club candidate, needs manual pick
+  //   crossClubOnly — has candidates but ALL are from different clubs (likely a new player,
+  //                   the candidates are different real people who share the name)
+  //   noMatch — zero candidates (definitely a new player)
   const categorized = useMemo(() => {
     if (!players) return null;
 
     const autoLink: (UnlinkedWithSuggestions & { originalIdx: number })[] = [];
     const ambiguous: (UnlinkedWithSuggestions & { originalIdx: number })[] = [];
+    const crossClubOnly: (UnlinkedWithSuggestions & { originalIdx: number })[] = [];
     const noMatch: UnlinkedWithSuggestions[] = [];
 
     players.forEach((p, i) => {
-      if (p.suggestions.length === 1 && p.suggestions[0].score >= 70 && !p.suggestions[0].crossClub) {
-        // Single strong match from same club → auto-link
-        autoLink.push({ ...p, originalIdx: i });
-      } else if (p.suggestions.length > 1) {
-        // Multiple matches → needs manual selection
-        ambiguous.push({ ...p, originalIdx: i });
-      } else if (p.suggestions.length === 1) {
-        // Single weak match → also ambiguous, show for confirmation
-        ambiguous.push({ ...p, originalIdx: i });
-      } else {
-        // No match at all
+      if (p.suggestions.length === 0) {
         noMatch.push(p);
+        return;
+      }
+      const allCrossClub = p.suggestions.every((s) => s.crossClub);
+      // Auto-link only when the FPF player ID matches definitively (score 100).
+      // Fuzzy name+club matches always require manual confirmation — same name at same
+      // club is often a sibling, not the same person.
+      if (p.suggestions.length === 1 && p.suggestions[0].score === 100 && !p.suggestions[0].crossClub) {
+        autoLink.push({ ...p, originalIdx: i });
+      } else if (allCrossClub) {
+        crossClubOnly.push({ ...p, originalIdx: i });
+      } else {
+        ambiguous.push({ ...p, originalIdx: i });
       }
     });
 
@@ -1146,7 +1268,7 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
       noMatchByClub.set(club, list);
     }
 
-    return { autoLink, ambiguous, noMatch, noMatchByClub };
+    return { autoLink, ambiguous, crossClubOnly, noMatch, noMatchByClub };
   }, [players]);
 
   const handleSelect = (playerIdx: number, eskoutPlayerId: number) => {
@@ -1159,6 +1281,93 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
       }
       return next;
     });
+  };
+
+  // Auto-match by photo: hash all unique images (doubts + candidates), find doubts
+  // where exactly 1 candidate has matching SHA-256, bulk-link them.
+  // Skips ambiguous cases (0 matches or >1 matches) — user keeps reviewing those manually.
+  const handleAutoMatchByPhoto = async () => {
+    if (!categorized || categorized.ambiguous.length === 0) return;
+    setPhotoMatching(true);
+    setSubmitResult(null);
+    setPhotoMatchProgress({ done: 0, total: 0 });
+
+    // Build URL → owner map. Doubt URLs use FPF Player/Logo pattern; candidates use stored photo_url.
+    const doubtUrlByPlayerKey = new Map<string, string>();
+    const uniqueUrls = new Set<string>();
+
+    for (const doubt of categorized.ambiguous) {
+      if (!doubt.fpfPlayerId) continue; // no FPF ID → can't build doubt photo URL
+      const url = `https://resultados.fpf.pt/Player/Logo/${doubt.fpfPlayerId}`;
+      doubtUrlByPlayerKey.set(`${doubt.originalIdx}`, url);
+      uniqueUrls.add(url);
+      for (const sug of doubt.suggestions) {
+        if (sug.eskoutPhotoUrl) uniqueUrls.add(sug.eskoutPhotoUrl);
+      }
+    }
+
+    if (uniqueUrls.size === 0) {
+      setPhotoMatching(false);
+      setSubmitResult('Nenhuma foto disponível para comparar');
+      return;
+    }
+
+    // Hash all unique URLs in parallel
+    const urls = Array.from(uniqueUrls);
+    setPhotoMatchProgress({ done: 0, total: urls.length });
+    const hashes = await hashImagesInParallel(urls, 10, (done, total) => {
+      setPhotoMatchProgress({ done, total });
+    });
+
+    // For each doubt, find candidates with matching hash. Auto-link only if exactly 1 match.
+    const entries: BulkLinkEntry[] = [];
+    const linkedIndices = new Set<number>();
+    for (const doubt of categorized.ambiguous) {
+      const doubtUrl = doubtUrlByPlayerKey.get(`${doubt.originalIdx}`);
+      if (!doubtUrl) continue;
+      const doubtHash = hashes.get(doubtUrl);
+      if (!doubtHash) continue;
+
+      const matches = doubt.suggestions.filter(
+        (s) => s.eskoutPhotoUrl && hashes.get(s.eskoutPhotoUrl) === doubtHash,
+      );
+      if (matches.length === 1) {
+        entries.push({
+          fpfPlayerId: doubt.fpfPlayerId,
+          playerName: doubt.playerName,
+          teamName: doubt.teamName,
+          eskoutPlayerId: matches[0].eskoutPlayerId,
+        });
+        linkedIndices.add(doubt.originalIdx);
+      }
+    }
+
+    if (entries.length === 0) {
+      setPhotoMatching(false);
+      setPhotoMatchProgress(null);
+      setSubmitResult('Nenhum match por foto encontrado');
+      return;
+    }
+
+    const res = await bulkLinkPlayers(competitionId, entries);
+    setPhotoMatching(false);
+    setPhotoMatchProgress(null);
+
+    if (res.success) {
+      const linked = res.data!.linked;
+      setAutoLinkedCount((prev) => prev + linked);
+      setSubmitResult(`✓ ${linked} jogadores ligados por foto`);
+      // Remove linked doubts from list
+      setPlayers((prev) => prev?.filter((_, i) => !linkedIndices.has(i)) ?? null);
+      // Drop any pending manual selections that were just auto-linked
+      setSelections((prev) => {
+        const next = new Map(prev);
+        for (const idx of linkedIndices) next.delete(idx);
+        return next;
+      });
+    } else {
+      setSubmitResult(`Erro: ${res.error}`);
+    }
   };
 
   // Submit: auto-link direct matches + manual selections
@@ -1221,6 +1430,7 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
 
   const totalAutoLink = categorized.autoLink.length;
   const totalAmbiguous = categorized.ambiguous.length;
+  const totalCrossClub = categorized.crossClubOnly.length;
   const totalNoMatch = categorized.noMatch.length;
   const totalActionable = totalAutoLink + selections.size;
 
@@ -1228,13 +1438,12 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
     <div className="space-y-4">
       {/* Summary */}
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
           {totalAutoLink > 0 && <span className="text-emerald-600 font-medium">{totalAutoLink} match direto</span>}
-          {totalAutoLink > 0 && totalAmbiguous > 0 && ' · '}
-          {totalAmbiguous > 0 && <span className="text-amber-600 font-medium">{totalAmbiguous} dúvida{totalAmbiguous > 1 ? 's' : ''}</span>}
-          {(totalAutoLink > 0 || totalAmbiguous > 0) && totalNoMatch > 0 && ' · '}
-          {totalNoMatch > 0 && <span className="text-muted-foreground">{totalNoMatch} sem match</span>}
-          {autoLinkedCount > 0 && <span className="text-emerald-600"> · {autoLinkedCount} já ligados</span>}
+          {totalAmbiguous > 0 && <span className="text-amber-600 font-medium">· {totalAmbiguous} dúvida{totalAmbiguous > 1 ? 's' : ''}</span>}
+          {totalCrossClub > 0 && <span className="text-blue-600">· {totalCrossClub} provavelmente novos</span>}
+          {totalNoMatch > 0 && <span>· {totalNoMatch} sem match</span>}
+          {autoLinkedCount > 0 && <span className="text-emerald-600">· {autoLinkedCount} já ligados</span>}
         </p>
       </div>
 
@@ -1256,7 +1465,28 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
       {/* ── Ambiguous section: needs manual selection ── */}
       {totalAmbiguous > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-amber-600">Dúvidas — selecionar o jogador correto:</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-amber-600">Dúvidas — selecionar o jogador correto:</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleAutoMatchByPhoto}
+              disabled={photoMatching || submitting}
+              className="h-7 text-xs"
+              title="Compara as fotos das dúvidas com as dos candidatos. Liga automaticamente quando exatamente 1 candidato tem foto idêntica."
+            >
+              {photoMatching ? (
+                <>
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  {photoMatchProgress
+                    ? `${photoMatchProgress.done}/${photoMatchProgress.total} fotos…`
+                    : 'A processar…'}
+                </>
+              ) : (
+                <>🖼️ Auto-match por foto</>
+              )}
+            </Button>
+          </div>
           {categorized.ambiguous.map((p) => {
             const selected = selections.get(p.originalIdx);
 
@@ -1302,6 +1532,18 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
         </div>
       )}
 
+
+      {/* ── CrossClub-only section: candidates exist but all from different clubs.
+           Almost certainly a new player whose name is shared with other eskout players.
+           Collapsed by default since they rarely need manual review.  ── */}
+      {totalCrossClub > 0 && (
+        <CrossClubSection
+          players={categorized.crossClubOnly}
+          onPickSuggestion={(originalIdx, eskoutId) => handleSelect(originalIdx, eskoutId)}
+          selections={selections}
+        />
+      )}
+
       {/* ── No match section: grouped by club ── */}
       {totalNoMatch > 0 && (
         <div className="space-y-2">
@@ -1341,6 +1583,156 @@ function UnlinkedPlayersTab({ competitionId, onCountChange }: { competitionId: n
               <>Ligar {totalActionable} jogador{totalActionable > 1 ? 'es' : ''}</>
             )}
           </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────────── Reparse Button ───────────── */
+
+/** Re-fetches every match in this competition and re-runs the parser. Used when a parser
+ *  bug was fixed (e.g. literal-apostrophe regex) — recovers missing match_players (suplentes
+ *  who came on, etc.) without losing existing eskout_player_id auto-link work. */
+function ReparseButton({ competitionId }: { competitionId: number }) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  return (
+    <div className="flex items-center gap-2">
+      {result && (
+        <span className={`text-[11px] ${result.startsWith('✓') ? 'text-emerald-600' : 'text-red-600'}`}>
+          {result}
+        </span>
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={running}
+        title="Re-fetcha cada jogo e re-parse os jogadores. Mantém os eskout_player_id já ligados. Apanha suplentes que o parser antigo perdia. Demora 15-30 min para competições grandes."
+        onClick={async () => {
+          if (!confirm('Re-parse de TODOS os jogos desta competição. Demora vários minutos. Mantém auto-links existentes mas substitui players. Continuar?')) return;
+          setRunning(true);
+          setResult(null);
+          const res = await reparseCompetitionMatches(competitionId);
+          setRunning(false);
+          if (res.success) {
+            const d = res.data!;
+            setResult(`✓ ${d.matchesProcessed} jogos · +${d.newPlayersAdded} novos players · ${d.linksPreserved} links preservados${d.errors > 0 ? ` · ${d.errors} erros` : ''}`);
+          } else {
+            setResult(`Erro: ${res.error}`);
+          }
+        }}
+      >
+        {running ? (
+          <>
+            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            A re-parse…
+          </>
+        ) : (
+          'Re-parse jogos'
+        )}
+      </Button>
+    </div>
+  );
+}
+
+
+/* ───────────── CrossClub-only section ───────────── */
+
+/** Collapsible block for unlinked players whose only candidates are from other clubs.
+ *  Shown muted by default — these are usually new players sharing a name with someone
+ *  in eskout, not actual duplicates. User can still expand to manually pick if it's the
+ *  same person who transferred clubs. */
+function CrossClubSection({
+  players,
+  onPickSuggestion,
+  selections,
+}: {
+  players: (UnlinkedWithSuggestions & { originalIdx: number })[];
+  onPickSuggestion: (originalIdx: number, eskoutId: number) => void;
+  selections: Map<number, number>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const selectedCount = players.filter((p) => selections.has(p.originalIdx)).length;
+
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50/40 dark:bg-blue-900/10 dark:border-blue-800">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+      >
+        {expanded ? <ChevronDown className="h-3.5 w-3.5 text-blue-600" /> : <ChevronRight className="h-3.5 w-3.5 text-blue-600" />}
+        <p className="text-xs font-medium text-blue-700 dark:text-blue-400">
+          {players.length} provavelmente novos jogadores
+        </p>
+        <span className="text-[10px] text-blue-600/70">
+          (candidatos eskout existem mas todos noutros clubes)
+        </span>
+        {selectedCount > 0 && (
+          <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+            {selectedCount} selecionado{selectedCount > 1 ? 's' : ''}
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="space-y-2 border-t border-blue-200 dark:border-blue-800 p-3">
+          <p className="text-[11px] text-muted-foreground">
+            Se algum destes for o mesmo jogador (ex: mudou de clube), seleciona — vai para a lista de Submit.
+          </p>
+          {players.map((p) => {
+            const selected = selections.get(p.originalIdx);
+            return (
+              <div key={`${p.fpfPlayerId ?? p.playerName}-${p.teamName}-${p.originalIdx}`} className="rounded border bg-background p-2 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  {p.fpfPlayerId && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`https://resultados.fpf.pt/Player/Logo/${p.fpfPlayerId}`}
+                      alt=""
+                      className="h-7 w-7 rounded-full object-cover bg-muted shrink-0"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  )}
+                  <p className="text-xs font-medium">
+                    {decodeHtmlEntities(p.playerName)}
+                    <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                      ({decodeHtmlEntities(p.teamName)} · {p.totalGames}j)
+                    </span>
+                  </p>
+                  {selected != null && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                </div>
+                <div className="flex flex-wrap gap-1 pl-9">
+                  {p.suggestions.slice(0, 5).map((s) => (
+                    <button
+                      key={s.eskoutPlayerId}
+                      type="button"
+                      onClick={() => onPickSuggestion(p.originalIdx, s.eskoutPlayerId)}
+                      className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] transition-colors ${
+                        selected === s.eskoutPlayerId
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                          : 'border-neutral-200 bg-background hover:bg-muted'
+                      }`}
+                    >
+                      {s.eskoutPhotoUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={s.eskoutPhotoUrl}
+                          alt=""
+                          className="h-4 w-4 rounded-full object-cover bg-muted shrink-0"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      )}
+                      <span>{s.eskoutName}</span>
+                      {s.eskoutClub && <span className="text-muted-foreground">· {s.eskoutClub}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

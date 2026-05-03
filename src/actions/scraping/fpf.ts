@@ -8,7 +8,8 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthContext } from '@/lib/supabase/club-context';
-import { HEADERS, clubsMatch } from './helpers';
+import { clubsMatch } from './helpers';
+import { fpfFetch, FpfRateLimitError } from './fpf-fetch';
 
 /* ───────────── Types ───────────── */
 
@@ -35,11 +36,20 @@ function getCurrentFpfSeason(): string {
 
 /* ───────────── FPF Parser ───────────── */
 
-/** Parse FPF player page — extracts data from embedded `var model = {...}` JSON */
+/** Parse FPF player page — extracts data from embedded `var model = {...}` JSON.
+ *  Routes through fpfFetch so it shares the global throttle + Cloudflare bypass with
+ *  resultados.fpf.pt callers. Catches FpfRateLimitError → returns null (preserves
+ *  the legacy null-on-failure contract that bulk callers depend on). */
 export async function fetchFpfData(fpfLink: string) {
   try {
-    const res = await fetch(fpfLink, { headers: HEADERS, next: { revalidate: 0 } });
-    if (!res.ok) return null;
+    let res;
+    try {
+      res = await fpfFetch(fpfLink);
+    } catch (e) {
+      if (e instanceof FpfRateLimitError) return null;
+      throw e;
+    }
+    if (!res || !res.ok) return null;
 
     const html = await res.text();
 
