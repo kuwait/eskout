@@ -81,20 +81,37 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(url, { next: { revalidate: 86400 } }); // cache 24h
-    if (!res.ok) {
+    let buffer: ArrayBuffer | Buffer | null = null;
+    let contentType = '';
+
+    // Plain fetch first — fast path for non-protected hosts (ZeroZero, Supabase, googleapis).
+    const plainRes = await fetch(url, { next: { revalidate: 86400 } }); // cache 24h
+    if (plainRes.ok) {
+      const ct = plainRes.headers.get('content-type') || '';
+      if (ct.startsWith('image/')) {
+        buffer = await plainRes.arrayBuffer();
+        contentType = ct;
+      }
+    }
+
+    // Cloudflare-protected FPF hosts often return 403/502 to server-side fetch even
+    // though they work in the user's browser. Fall back to the Playwright/CDP path
+    // which uses the user's logged-in browser session.
+    if (!buffer && parsed.hostname.endsWith('.fpf.pt')) {
+      const { fpfFetchBinaryViaPlaywright } = await import('@/actions/scraping/fpf-playwright');
+      const pw = await fpfFetchBinaryViaPlaywright(url);
+      if (pw && pw.ok && pw.contentType.startsWith('image/')) {
+        buffer = pw.body;
+        contentType = pw.contentType;
+      }
+    }
+
+    if (!buffer) {
       return NextResponse.json({ error: 'Fetch failed' }, { status: 502 });
     }
 
-    // Validate content-type is actually an image
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.startsWith('image/')) {
-      return NextResponse.json({ error: 'Not an image' }, { status: 400 });
-    }
-
-    const buffer = await res.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
-
+    // Buffer.from accepts both ArrayBuffer and Node Buffer; cast widens TS's view.
+    const base64 = Buffer.from(buffer as ArrayBuffer).toString('base64');
     return NextResponse.json({ dataUrl: `data:${contentType};base64,${base64}` });
   } catch {
     return NextResponse.json({ error: 'Proxy error' }, { status: 500 });

@@ -46,6 +46,9 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 
+# Playwright persistent browser context for FPF scraping (cf_clearance cookies, cache)
+/.playwright-fpf-data/
+
 # Python
 __pycache__/
 *.pyc
