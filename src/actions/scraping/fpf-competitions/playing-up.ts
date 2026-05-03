@@ -66,26 +66,41 @@ export interface PlayingUpPlayer {
  *  Uses a single SQL RPC that does aggregation + DOB join + filtering server-side. */
 export async function getPlayingUpPlayers(
   competitionId: number,
-  limit: number = 500,
+  // High default — competitions with many series can have 1000+ playing-up players,
+  // and an arbitrary 500 cap silently drops entire series with low-minute players.
+  // Internal admin tool, payload size not a concern.
+  limit: number = 10000,
 ): Promise<ActionResponse<PlayingUpPlayer[]>> {
   const supabase = await requireCompetitionAccess();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  const { data, error } = await supabase.rpc('get_playing_up_players', {
-    p_competition_id: competitionId,
-    p_limit: limit,
-  });
+  // PostgREST caps RPC responses at db-max-rows (1000). To get more, paginate
+  // via the function's p_offset parameter and accumulate client-side.
+  const PAGE = 1000;
+  const allRows: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < limit; offset += PAGE) {
+    const pageLimit = Math.min(PAGE, limit - offset);
+    const { data, error } = await supabase.rpc('get_playing_up_players', {
+      p_competition_id: competitionId,
+      p_limit: pageLimit,
+      p_offset: offset,
+    });
 
-  if (error) {
-    // Graceful fallback for missing escalão
-    if (error.message?.includes('escalão')) {
-      return { success: false, error: 'Competição sem escalão definido — não é possível detetar "jogar acima"' };
+    if (error) {
+      if (error.message?.includes('escalão')) {
+        return { success: false, error: 'Competição sem escalão definido — não é possível detetar "jogar acima"' };
+      }
+      return { success: false, error: error.message };
     }
-    return { success: false, error: error.message };
+
+    if (!data?.length) break;
+    allRows.push(...data);
+    if (data.length < pageLimit) break; // last page
   }
+  const data = allRows;
 
   // Map DB snake_case rows to camelCase PlayingUpPlayer
-  const result: PlayingUpPlayer[] = (data ?? []).map((r: Record<string, unknown>) => ({
+  const result: PlayingUpPlayer[] = data.map((r: Record<string, unknown>) => ({
     fpfPlayerId: r.fpf_player_id as number | null,
     playerName: r.player_name as string,
     teamName: r.team_name as string,

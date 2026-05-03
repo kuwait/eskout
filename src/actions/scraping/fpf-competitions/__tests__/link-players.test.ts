@@ -39,6 +39,11 @@ jest.mock('@/lib/supabase/server', () => ({
     auth: { getUser: () => mockGetUser() },
     from: (...args: unknown[]) => mockFrom(...args),
   }),
+  // Service client mirrors the regular client in tests — bypasses RLS in production
+  // but the mock has no RLS, so behaviour is identical.
+  createServiceClient: jest.fn().mockResolvedValue({
+    from: (...args: unknown[]) => mockFrom(...args),
+  }),
 }));
 
 jest.mock('@/lib/supabase/club-context', () => ({
@@ -206,9 +211,9 @@ describe('linkMatchPlayersToEskout', () => {
     expect(updateMock).toHaveBeenCalledWith({ eskout_player_id: 55 });
   });
 
-  /* ───────────── Strategy 2: Name match ───────────── */
+  /* ───────────── Strategy 2 disabled: name match no longer auto-links ───────────── */
 
-  it('links by exact name match when club matches', async () => {
+  it('does NOT auto-link by name+club match alone (siblings often share both)', async () => {
     const updateMock = jest.fn().mockReturnValue({
       in: jest.fn().mockResolvedValue({ error: null }),
     });
@@ -221,6 +226,7 @@ describe('linkMatchPlayersToEskout', () => {
         return { ...c, update: updateMock };
       }
       if (table === 'players') {
+        // Same name + same club but no FPF ID match — could be a sibling, never auto-link
         return mockChain([{ id: 33, name: 'Martim Costa', club: 'S.C. Freamunde', fpf_player_id: null, fpf_link: null }]);
       }
       return mockChain([]);
@@ -228,8 +234,8 @@ describe('linkMatchPlayersToEskout', () => {
 
     const res = await linkMatchPlayersToEskout(1);
     expect(res.success).toBe(true);
-    expect(res.data!.linked).toBe(1);
-    expect(updateMock).toHaveBeenCalledWith({ eskout_player_id: 33 });
+    expect(res.data!.linked).toBe(0); // intentionally NOT auto-linked
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
   it('does NOT link by name when clubs differ (David Martins Águias ≠ Dragon Force)', async () => {

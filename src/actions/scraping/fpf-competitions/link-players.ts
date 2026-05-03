@@ -5,8 +5,9 @@
 
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getAuthContext } from '@/lib/supabase/club-context';
+import { extractFpfPlayerIdFromUrl } from '@/lib/fpf/extract-fpf-id';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
 import { fetchFpfData } from '@/actions/scraping/fpf';
 import type { ActionResponse } from '@/lib/types';
@@ -30,8 +31,25 @@ async function withRetry<T>(
   return null;
 }
 
+/* ───────────── Stats Refresh ───────────── */
+
+/** Trigger denormalized stats recompute (linked/unlinked counts on the competition row).
+ *  Lazy-imports updateCompetitionStats to avoid a circular import with scrape-competition.ts. */
+async function refreshStats(competitionId: number): Promise<void> {
+  try {
+    const { updateCompetitionStats } = await import('./scrape-competition');
+    await updateCompetitionStats(competitionId, true);
+  } catch (e) {
+    console.warn('[refreshStats] failed:', e);
+  }
+}
+
 /* ───────────── Auth Helper ───────────── */
 
+/** Verify the caller is a superadmin and return a service-role client.
+ *  Service role bypasses RLS — required because eskout players span all clubs
+ *  and the regular client would only return players in the active club, missing
+ *  cross-club matches (e.g. Panther Force player when active club is Boavista). */
 async function requireSuperadmin() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -44,7 +62,9 @@ async function requireSuperadmin() {
     .single();
 
   if (!profile?.is_superadmin) return null;
-  return supabase;
+  // Authenticated as superadmin → use service-role client for the actual data
+  // queries so RLS doesn't filter out players from other clubs.
+  return createServiceClient();
 }
 
 /* ───────────── Log Types ───────────── */
@@ -57,6 +77,29 @@ export interface LinkLogEntry {
 export interface ImportLogEntry {
   event: 'import_ok' | 'import_skip' | 'import_fail' | 'import_info';
   message: string;
+}
+
+/* ───────────── Pagination Helper ───────────── */
+
+/** Fetch ALL match IDs for a competition. Postgrest caps at 1000 rows by default,
+ *  so competitions with > 1000 matches silently drop rows without pagination. */
+async function getAllMatchIds(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  competitionId: number,
+): Promise<number[]> {
+  const PAGE = 1000;
+  const ids: number[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await supabase
+      .from('fpf_matches')
+      .select('id')
+      .eq('competition_id', competitionId)
+      .range(offset, offset + PAGE - 1);
+    if (!data?.length) break;
+    ids.push(...data.map((m: { id: number }) => m.id));
+    if (data.length < PAGE) break;
+  }
+  return ids;
 }
 
 /* ───────────── Staff Filter ───────────── */
@@ -99,14 +142,9 @@ export async function linkMatchPlayersToEskout(
     .single();
   const expectedBirthYearEnd = comp?.expected_birth_year_end as number | null;
 
-  // Get all match IDs for this competition
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id')
-    .eq('competition_id', competitionId);
-
-  if (!matches?.length) return { success: true, data: { linked: 0, total: 0, unlinked: 0, log } };
-  const matchIds = matches.map((m: { id: number }) => m.id);
+  // Get ALL match IDs for this competition (paginated — Postgrest caps at 1000 by default)
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: true, data: { linked: 0, total: 0, unlinked: 0, log } };
 
   // Count how many are already linked (for the log)
   const { count: alreadyLinkedCount } = await supabase
@@ -162,12 +200,14 @@ export async function linkMatchPlayersToEskout(
   const staffNote = staffCount > 0 ? `, ${staffCount} staff ignorados` : '';
   log.push({ event: 'link_info', message: `🔍 ${realPlayers.size} jogadores não ligados${staffNote}` });
 
-  // Get all eskout players with their names, club, DOB, FPF IDs and FPF links for matching
-  const allPlayers: { id: number; name: string; club: string | null; dob: string | null; fpf_player_id: string | null; fpf_link: string | null }[] = [];
+  // Get all eskout players with their names, club, DOB, FPF IDs and FPF links for matching.
+  // photo_url is included so we can extract FPF IDs embedded in image URLs (some legacy
+  // imports never set fpf_player_id but the photo_url contains the id, e.g. ?id=12345).
+  const allPlayers: { id: number; name: string; club: string | null; dob: string | null; fpf_player_id: string | null; fpf_link: string | null; photo_url: string | null }[] = [];
   for (let offset = 0; ; offset += PAGE) {
     const { data } = await supabase
       .from('players')
-      .select('id, name, club, dob, fpf_player_id, fpf_link')
+      .select('id, name, club, dob, fpf_player_id, fpf_link, photo_url')
       .range(offset, offset + PAGE - 1);
 
     if (!data?.length) break;
@@ -175,12 +215,22 @@ export async function linkMatchPlayersToEskout(
     if (data.length < PAGE) break;
   }
 
+  // Sanity check used to filter biologically impossible candidates from auto-link
+  // (e.g. a 6-year-old can't be a real Sub-17 player — that's data corruption).
+  const isAgeCompatible = (dob: string | null): boolean => {
+    if (!expectedBirthYearEnd || !dob) return true;
+    const birthYear = parseInt(dob.slice(0, 4), 10);
+    if (isNaN(birthYear)) return true;
+    return birthYear >= expectedBirthYearEnd - 1 && birthYear <= expectedBirthYearEnd + 4;
+  };
+
   // Build lookup maps
   // nameToPlayers: stores ALL players per name (may have duplicates)
   const nameToPlayers = new Map<string, { id: number; name: string; club: string | null; dob: string | null }[]>();
   const fpfIdToPlayer = new Map<number, { id: number; name: string }>();
 
   for (const p of allPlayers) {
+    if (!isAgeCompatible(p.dob)) continue;
     const nameKey = p.name.toLowerCase().trim();
     const list = nameToPlayers.get(nameKey) ?? [];
     list.push({ id: p.id, name: p.name, club: p.club, dob: p.dob });
@@ -192,11 +242,16 @@ export async function linkMatchPlayersToEskout(
     }
 
     if (p.fpf_link) {
-      const idMatch = p.fpf_link.match(/\/(\d+)(?:[/?#]|$)/);
-      if (idMatch) {
-        const linkId = parseInt(idMatch[1], 10);
-        if (!fpfIdToPlayer.has(linkId)) fpfIdToPlayer.set(linkId, { id: p.id, name: p.name });
+      const linkId = extractFpfPlayerIdFromUrl(p.fpf_link);
+      if (linkId && !fpfIdToPlayer.has(linkId)) {
+        fpfIdToPlayer.set(linkId, { id: p.id, name: p.name });
       }
+    }
+
+    // Photo URLs from FPF often embed the player ID — catches legacy imports without fpf_player_id
+    const photoId = extractFpfPlayerIdFromUrl(p.photo_url);
+    if (photoId && !fpfIdToPlayer.has(photoId)) {
+      fpfIdToPlayer.set(photoId, { id: p.id, name: p.name });
     }
   }
 
@@ -222,30 +277,9 @@ export async function linkMatchPlayersToEskout(
     //   b) Their age is compatible with the competition escalão (if known), AND
     //   c) Exactly 1 candidate remains after filtering
     // If multiple players share the name, or club/age doesn't match → "Não Ligados" for manual.
-    if (!match) {
-      const candidates = nameToPlayers.get(player.name.toLowerCase().trim());
-      if (candidates) {
-        // Filter by club match
-        let filtered = candidates.filter((c) => c.club && clubsMatch(player.teamName, c.club));
-        // Filter by age compatibility: reject players whose DOB makes them too young for this competition
-        // Allow up to 2 years above (playing up by 1-2 years is real, +3 is almost certainly wrong link)
-        if (expectedBirthYearEnd && filtered.length > 1) {
-          const ageFiltered = filtered.filter((c) => {
-            if (!c.dob) return true; // no DOB = can't validate, keep as candidate
-            const birthYear = parseInt(c.dob.slice(0, 4), 10);
-            if (isNaN(birthYear)) return true;
-            // Reject if born more than 2 years after the expected youngest year
-            return birthYear <= expectedBirthYearEnd + 2;
-          });
-          // Only apply age filter if it narrows results (don't discard all candidates)
-          if (ageFiltered.length > 0) filtered = ageFiltered;
-        }
-        if (filtered.length === 1) {
-          match = filtered[0];
-          method = 'nome+idade';
-        }
-      }
-    }
+    // Strategy 2 (name match) intentionally NOT used for auto-link any more — same name
+    // at same club often means siblings, not the same person. Players without an FPF ID
+    // match end up in "Não Ligados" / dúvidas where the user picks manually.
 
     if (match) {
       const { error } = await supabase
@@ -275,6 +309,7 @@ export async function linkMatchPlayersToEskout(
     message: `🔗 Resultado: ${linked} ligados, ${notFound} não encontrados`,
   });
 
+  if (linked > 0) await refreshStats(competitionId);
   return { success: true, data: { linked, total: realPlayers.size, unlinked: notFound, log } };
 }
 
@@ -303,13 +338,8 @@ export async function importUnlinkedPlayers(
   const log: ImportLogEntry[] = [];
 
   // Get all match IDs for this competition
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id')
-    .eq('competition_id', competitionId);
-
-  if (!matches?.length) return { success: true, data: { imported: 0, skipped: 0, errors: 0, results: [], log } };
-  const matchIds = matches.map((m: { id: number }) => m.id);
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: true, data: { imported: 0, skipped: 0, errors: 0, results: [], log } };
 
   // Get unlinked match players that have fpf_player_id (can't import without it)
   const PAGE = 1000;
@@ -511,12 +541,8 @@ export async function getCompetitionPlayersWithLinkStatus(
   const supabase = await requireSuperadmin();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id')
-    .eq('competition_id', competitionId);
-  if (!matches?.length) return { success: true, data: [] };
-  const matchIds = matches.map((m: { id: number }) => m.id);
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: true, data: [] };
 
   // Fetch ALL match players (linked + unlinked)
   const PAGE = 1000;
@@ -586,13 +612,8 @@ export async function unlinkAllPlayers(
   const supabase = await requireSuperadmin();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id')
-    .eq('competition_id', competitionId);
-
-  if (!matches?.length) return { success: true, data: { unlinked: 0 } };
-  const matchIds = matches.map((m: { id: number }) => m.id);
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: true, data: { unlinked: 0 } };
 
   const { data, error } = await supabase
     .from('fpf_match_players')
@@ -602,7 +623,140 @@ export async function unlinkAllPlayers(
     .select('id');
 
   if (error) return { success: false, error: error.message };
-  return { success: true, data: { unlinked: data?.length ?? 0 } };
+  const unlinkedCount = data?.length ?? 0;
+  if (unlinkedCount > 0) await refreshStats(competitionId);
+  return { success: true, data: { unlinked: unlinkedCount } };
+}
+
+/* ───────────── Unlink Suspicious ───────────── */
+
+/** Remove eskout links where the eskout player's DOB is implausible for this competition.
+ *  Catches bad auto-links (e.g. an eskout 9-year-old wrongly linked to a Sub-17 match because
+ *  they share a name + club with the actual player). Run this AFTER tightening the auto-link
+ *  rules to clean up legacy garbage. */
+export async function unlinkSuspiciousPlayers(
+  competitionId: number,
+): Promise<ActionResponse<{ unlinked: number; checked: number }>> {
+  const supabase = await requireSuperadmin();
+  if (!supabase) return { success: false, error: 'Acesso negado' };
+
+  // Get competition's expected birth year
+  const { data: comp } = await supabase
+    .from('fpf_competitions')
+    .select('expected_birth_year_end')
+    .eq('id', competitionId)
+    .single();
+  const expected = comp?.expected_birth_year_end as number | null;
+  if (!expected) return { success: false, error: 'Competição sem expected_birth_year_end' };
+
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: true, data: { unlinked: 0, checked: 0 } };
+
+  // Fetch linked match_players + their eskout player's DOB (paginated)
+  const PAGE = 1000;
+  type Row = { id: number; eskout_player_id: number; players: { dob: string | null } | null };
+  const linked: Row[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await supabase
+      .from('fpf_match_players')
+      .select('id, eskout_player_id, players(dob)')
+      .in('match_id', matchIds)
+      .not('eskout_player_id', 'is', null)
+      .range(offset, offset + PAGE - 1);
+    if (!data?.length) break;
+    linked.push(...(data as unknown as Row[]));
+    if (data.length < PAGE) break;
+  }
+
+  // Identify rows where the eskout DOB is outside the plausible window
+  const suspicious = linked.filter((r) => {
+    const dob = r.players?.dob;
+    if (!dob) return false; // unknown DOB — keep the link (can't tell)
+    const birthYear = parseInt(dob.slice(0, 4), 10);
+    if (isNaN(birthYear)) return false;
+    return birthYear < expected - 1 || birthYear > expected + 4;
+  });
+
+  if (suspicious.length === 0) return { success: true, data: { unlinked: 0, checked: linked.length } };
+
+  // Bulk-clear those links
+  const { error } = await supabase
+    .from('fpf_match_players')
+    .update({ eskout_player_id: null })
+    .in('id', suspicious.map((r) => r.id));
+
+  if (error) return { success: false, error: error.message };
+  await refreshStats(competitionId);
+  return { success: true, data: { unlinked: suspicious.length, checked: linked.length } };
+}
+
+/* ───────────── Unlink Fuzzy ───────────── */
+
+/** Remove links where the eskout player has NO trace of the match's FPF player ID
+ *  in any of its identifier fields (fpf_player_id, fpf_link, photo_url). These are
+ *  fuzzy name+club matches — often wrong (siblings sharing name+club). Keep only
+ *  links backed by definitive FPF ID evidence. */
+export async function unlinkFuzzyLinks(
+  competitionId: number,
+): Promise<ActionResponse<{ unlinked: number; checked: number }>> {
+  const supabase = await requireSuperadmin();
+  if (!supabase) return { success: false, error: 'Acesso negado' };
+
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: true, data: { unlinked: 0, checked: 0 } };
+
+  // Fetch all linked match_players + the joined eskout player's identifying fields
+  const PAGE = 1000;
+  type Row = {
+    id: number;
+    fpf_player_id: number | null;
+    eskout_player_id: number;
+    players: { fpf_player_id: string | null; fpf_link: string | null; photo_url: string | null } | null;
+  };
+  const linked: Row[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await supabase
+      .from('fpf_match_players')
+      .select('id, fpf_player_id, eskout_player_id, players(fpf_player_id, fpf_link, photo_url)')
+      .in('match_id', matchIds)
+      .not('eskout_player_id', 'is', null)
+      .not('fpf_player_id', 'is', null)
+      .range(offset, offset + PAGE - 1);
+    if (!data?.length) break;
+    linked.push(...(data as unknown as Row[]));
+    if (data.length < PAGE) break;
+  }
+
+  // For each link, check whether the eskout's fields contain match.fpf_player_id
+  const fuzzyOnly = linked.filter((r) => {
+    const matchFpfId = r.fpf_player_id;
+    if (!matchFpfId) return false; // can't verify, keep
+    const ep = r.players;
+    if (!ep) return false;
+
+    // Direct fpf_player_id column match
+    if (ep.fpf_player_id && parseInt(ep.fpf_player_id, 10) === matchFpfId) return false;
+    // fpf_link contains the ID
+    const linkId = extractFpfPlayerIdFromUrl(ep.fpf_link);
+    if (linkId === matchFpfId) return false;
+    // photo_url contains the ID
+    const photoId = extractFpfPlayerIdFromUrl(ep.photo_url);
+    if (photoId === matchFpfId) return false;
+
+    return true; // no trace of FPF ID match → fuzzy/wrong
+  });
+
+  if (fuzzyOnly.length === 0) return { success: true, data: { unlinked: 0, checked: linked.length } };
+
+  // Bulk-clear those links
+  const { error } = await supabase
+    .from('fpf_match_players')
+    .update({ eskout_player_id: null })
+    .in('id', fuzzyOnly.map((r) => r.id));
+
+  if (error) return { success: false, error: error.message };
+  await refreshStats(competitionId);
+  return { success: true, data: { unlinked: fuzzyOnly.length, checked: linked.length } };
 }
 
 /* ───────────── Manual Link ───────────── */
@@ -620,13 +774,8 @@ export async function manualLinkPlayer(
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
   // Get match IDs for this competition
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id')
-    .eq('competition_id', competitionId);
-
-  if (!matches?.length) return { success: false, error: 'Competição sem jogos' };
-  const matchIds = matches.map((m: { id: number }) => m.id);
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: false, error: 'Competição sem jogos' };
 
   // Find all match_player rows to update
   let query = supabase
@@ -653,6 +802,7 @@ export async function manualLinkPlayer(
     .in('id', ids);
 
   if (error) return { success: false, error: error.message };
+  await refreshStats(competitionId);
   return { success: true, data: { updated: ids.length } };
 }
 
@@ -674,7 +824,7 @@ function normalizeClub(club: string): string {
   return club
     .toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\b(fc|f\.c\.|f\.c|s\.c\.|s\.c|sc|cf|cd|ud|ad|gd|gdrc|ac|cs|us|sr|sl|sad|clube|club|futebol|sport|sporting|associacao|uniao|grupo|desportivo|recreativo)\b/g, '')
+    .replace(/\b(fc|f\.c\.|f\.c|s\.c\.|s\.c|sc|cf|cd|ud|ad|gd|gdrc|ac|cs|us|sr|sl|sad|clube|club|futebol|sport|sporting|associacao|uniao|grupo|desportivo|recreativo|de|da|do|dos|das)\b/g, '')
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -748,21 +898,26 @@ export interface UnlinkedWithSuggestions {
 }
 
 /** Get unlinked players with fuzzy name suggestions from the eskout DB.
- *  Fetches all eskout players once, then scores each against unlinked competition players. */
+ *  Fetches all eskout players once, then scores each against unlinked competition players.
+ *  Candidates with biologically implausible age for this competition are excluded
+ *  (e.g. an eskout player born 2020 will never be a real Sub-17 match). */
 export async function getUnlinkedWithSuggestions(
   competitionId: number,
 ): Promise<ActionResponse<UnlinkedWithSuggestions[]>> {
   const supabase = await requireSuperadmin();
   if (!supabase) return { success: false, error: 'Acesso negado' };
 
-  // Get competition matches
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id')
-    .eq('competition_id', competitionId);
+  // Fetch competition info — used to filter out age-implausible candidates
+  const { data: comp } = await supabase
+    .from('fpf_competitions')
+    .select('expected_birth_year_end')
+    .eq('id', competitionId)
+    .single();
+  const expectedBirthYearEnd = comp?.expected_birth_year_end as number | null;
 
-  if (!matches?.length) return { success: true, data: [] };
-  const matchIds = matches.map((m: { id: number }) => m.id);
+  // Get competition matches
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: true, data: [] };
 
   // Fetch unlinked match players
   const PAGE = 1000;
@@ -800,11 +955,13 @@ export async function getUnlinkedWithSuggestions(
   if (realUnlinked.length === 0) return { success: true, data: [] };
 
   // Fetch all eskout players (name + club + fpf IDs + photo) for matching
-  const eskoutPlayers: { id: number; name: string; club: string | null; fpf_player_id: string | null; fpf_link: string | null; photo_url: string | null }[] = [];
+  // dob included so we can reject age-implausible candidates (e.g. a 6-year-old can't
+  // be a real Sub-17 player — same name + same club but different person, like a sibling).
+  const eskoutPlayers: { id: number; name: string; club: string | null; dob: string | null; fpf_player_id: string | null; fpf_link: string | null; photo_url: string | null }[] = [];
   for (let offset = 0; ; offset += PAGE) {
     const { data } = await supabase
       .from('players')
-      .select('id, name, club, fpf_player_id, fpf_link, photo_url')
+      .select('id, name, club, dob, fpf_player_id, fpf_link, photo_url')
       .range(offset, offset + PAGE - 1);
 
     if (!data?.length) break;
@@ -812,20 +969,30 @@ export async function getUnlinkedWithSuggestions(
     if (data.length < PAGE) break;
   }
 
-  // Build FPF ID → eskout player lookup for instant matching
+  /** Sanity check used to filter biologically impossible candidates from suggestions
+   *  (e.g. an eskout 6-year-old can't be a real Sub-17 match — that's data corruption). */
+  const isAgeCompatible = (dob: string | null): boolean => {
+    if (!expectedBirthYearEnd || !dob) return true;
+    const birthYear = parseInt(dob.slice(0, 4), 10);
+    if (isNaN(birthYear)) return true;
+    return birthYear >= expectedBirthYearEnd - 1 && birthYear <= expectedBirthYearEnd + 4;
+  };
+
+  // Build FPF ID → eskout player lookup for instant matching.
+  // We harvest the ID from 3 places: fpf_player_id column, fpf_link URL, and photo_url URL.
+  // Last one catches legacy imports that have an FPF photo URL but never set fpf_player_id.
+  // Age-implausible eskout players are skipped — they can't be the right match anyway.
   const fpfIdToEskout = new Map<number, { id: number; name: string; club: string | null; fpf_link: string | null; photo_url: string | null }>();
   for (const ep of eskoutPlayers) {
+    if (!isAgeCompatible(ep.dob)) continue;
     if (ep.fpf_player_id) {
       const numId = parseInt(ep.fpf_player_id, 10);
       if (!isNaN(numId)) fpfIdToEskout.set(numId, ep);
     }
-    if (ep.fpf_link) {
-      const idMatch = ep.fpf_link.match(/\/(\d+)(?:[/?#]|$)/);
-      if (idMatch) {
-        const linkId = parseInt(idMatch[1], 10);
-        if (!fpfIdToEskout.has(linkId)) fpfIdToEskout.set(linkId, ep);
-      }
-    }
+    const linkId = extractFpfPlayerIdFromUrl(ep.fpf_link);
+    if (linkId && !fpfIdToEskout.has(linkId)) fpfIdToEskout.set(linkId, ep);
+    const photoId = extractFpfPlayerIdFromUrl(ep.photo_url);
+    if (photoId && !fpfIdToEskout.has(photoId)) fpfIdToEskout.set(photoId, ep);
   }
 
   // For each unlinked player, find suggestions.
@@ -855,11 +1022,14 @@ export async function getUnlinkedWithSuggestions(
         }
       }
 
-      // Strategy 2: name + club fuzzy match
+      // Strategy 2: name + club fuzzy match — produces SUGGESTIONS for manual review,
+      // never auto-link. Same name + same club at academies often means siblings sharing
+      // both, not the same person. The user picks the right candidate manually.
       const sameClub: PlayerSuggestion[] = [];
       const otherClub: PlayerSuggestion[] = [];
 
       for (const ep of eskoutPlayers) {
+        if (!isAgeCompatible(ep.dob)) continue;
         const score = nameMatchScore(player.name, ep.name);
         if (score < MIN_SCORE) continue;
 
@@ -915,13 +1085,8 @@ export async function bulkLinkPlayers(
 
   if (entries.length === 0) return { success: true, data: { linked: 0 } };
 
-  const { data: matches } = await supabase
-    .from('fpf_matches')
-    .select('id')
-    .eq('competition_id', competitionId);
-
-  if (!matches?.length) return { success: false, error: 'Competição sem jogos' };
-  const matchIds = matches.map((m: { id: number }) => m.id);
+  const matchIds = await getAllMatchIds(supabase, competitionId);
+  if (!matchIds.length) return { success: false, error: 'Competição sem jogos' };
 
   let linked = 0;
 
@@ -951,6 +1116,7 @@ export async function bulkLinkPlayers(
     if (!error) linked++;
   }
 
+  if (linked > 0) await refreshStats(competitionId);
   return { success: true, data: { linked } };
 }
 

@@ -435,6 +435,190 @@ export async function scrapeOneFixture(
   return { success: true, data: { log, newMatches, skipped, errors, newMatchIds } };
 }
 
+/* ───────────── Reparse (apply parser fixes to existing matches) ───────────── */
+
+/** Progress event from reparseCompetitionMatches. */
+export interface ReparseProgress {
+  done: number;
+  total: number;
+  currentMatch?: string;
+  newPlayersAdded: number;
+  linksPreserved: number;
+  errors: number;
+}
+
+/** Re-fetch every match in a competition and re-populate fpf_match_players using the
+ *  current parser. Existing eskout_player_id links are preserved when the same
+ *  fpf_player_id is found in the new parse — so suplentes that the old parser missed
+ *  (e.g. due to the literal-apostrophe bug) get inserted without losing manual links.
+ *
+ *  This is the recovery path for matches scraped before a parser fix. Slow but safe:
+ *  one HTTP call per match, throttled by fpfFetch's global queue. */
+export async function reparseCompetitionMatches(
+  competitionId: number,
+): Promise<ActionResponse<{
+  matchesProcessed: number;
+  newPlayersAdded: number;
+  linksPreserved: number;
+  errors: number;
+}>> {
+  const auth = await requireSuperadmin();
+  if (!auth) return { success: false, error: 'Acesso negado' };
+  const sb = auth.supabase;
+
+  // Get competition's match duration for accurate minutes calculation
+  const { data: comp } = await sb
+    .from('fpf_competitions')
+    .select('match_duration_minutes')
+    .eq('id', competitionId)
+    .single();
+  const matchDuration = comp?.match_duration_minutes ?? 90;
+
+  // Fetch all matches (paginated to bypass Postgrest's 1000-row cap)
+  const PAGE = 1000;
+  const matches: { id: number; fpf_match_id: number; home_team: string; away_team: string }[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await sb
+      .from('fpf_matches')
+      .select('id, fpf_match_id, home_team, away_team')
+      .eq('competition_id', competitionId)
+      .range(offset, offset + PAGE - 1);
+    if (!data?.length) break;
+    matches.push(...data);
+    if (data.length < PAGE) break;
+  }
+
+  if (matches.length === 0) {
+    return { success: true, data: { matchesProcessed: 0, newPlayersAdded: 0, linksPreserved: 0, errors: 0 } };
+  }
+
+  let newPlayersAdded = 0;
+  let linksPreserved = 0;
+  let errors = 0;
+
+  for (const m of matches) {
+    try {
+      // 1. Capture existing eskout_player_id mappings BEFORE delete, keyed by fpf_player_id
+      const { data: existingPlayers } = await sb
+        .from('fpf_match_players')
+        .select('fpf_player_id, eskout_player_id, player_name')
+        .eq('match_id', m.id);
+      const eskoutByFpfId = new Map<number, number>();
+      const eskoutByName = new Map<string, number>();
+      for (const ep of existingPlayers ?? []) {
+        if (ep.eskout_player_id == null) continue;
+        if (ep.fpf_player_id != null) eskoutByFpfId.set(ep.fpf_player_id, ep.eskout_player_id);
+        if (ep.player_name) eskoutByName.set(ep.player_name.toLowerCase().trim(), ep.eskout_player_id);
+      }
+      const oldCount = existingPlayers?.length ?? 0;
+
+      // 2. Re-fetch + re-parse the match sheet
+      const parsed = await scrapeMatch(m.fpf_match_id);
+      if (!parsed || !parsed.hasLineupData) {
+        errors++;
+        continue;
+      }
+
+      // Patch team names if parser failed to extract them (use DB values)
+      const realHome = parsed.homeTeam || m.home_team;
+      const realAway = parsed.awayTeam || m.away_team;
+      if (!parsed.homeTeam || !parsed.awayTeam) {
+        const oldHome = parsed.homeTeam || '';
+        const oldAway = parsed.awayTeam || '';
+        for (const p of parsed.players) {
+          if (p.teamName === oldHome) p.teamName = realHome;
+          else if (p.teamName === oldAway) p.teamName = realAway;
+        }
+        for (const e of parsed.events) {
+          if (e.teamName === oldHome) e.teamName = realHome;
+          else if (e.teamName === oldAway) e.teamName = realAway;
+        }
+      }
+
+      // 3. Build per-player aggregations (same logic as scrapeOneFixture insert path)
+      const minutesMap = calculateMinutes(parsed.players, parsed.events, matchDuration);
+      const playerGoals = new Map<string, number>();
+      const playerPenalties = new Map<string, number>();
+      const playerOwnGoals = new Map<string, number>();
+      const playerYellows = new Map<string, number>();
+      const playerReds = new Map<string, number>();
+      const playerRedMinute = new Map<string, number>();
+      const playerSubInMinute = new Map<string, number>();
+      const playerSubOutMinute = new Map<string, number>();
+      for (const event of parsed.events) {
+        const inc = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) ?? 0) + 1);
+        switch (event.eventType) {
+          case 'goal': inc(playerGoals, event.playerName); break;
+          case 'penalty_goal': inc(playerPenalties, event.playerName); inc(playerGoals, event.playerName); break;
+          case 'own_goal': inc(playerOwnGoals, event.playerName); break;
+          case 'yellow_card': inc(playerYellows, event.playerName); break;
+          case 'red_card':
+            inc(playerReds, event.playerName);
+            if (event.minute != null) playerRedMinute.set(event.playerName, event.minute);
+            break;
+          case 'substitution_in':
+            if (event.minute != null) playerSubInMinute.set(event.playerName, event.minute);
+            break;
+          case 'substitution_out':
+            if (event.minute != null) playerSubOutMinute.set(event.playerName, event.minute);
+            break;
+        }
+      }
+
+      // 4. Build new player rows, preserving eskout_player_id by fpf_player_id (or name fallback)
+      const newRows = parsed.players
+        .filter((p) => p.isStarter || minutesMap.has(p.playerName) || playerSubInMinute.has(p.playerName))
+        .map((p) => {
+          const eskoutId = (p.fpfPlayerId != null ? eskoutByFpfId.get(p.fpfPlayerId) : undefined)
+            ?? eskoutByName.get(p.playerName.toLowerCase().trim())
+            ?? null;
+          if (eskoutId != null) linksPreserved++;
+          return {
+            match_id: m.id,
+            fpf_player_id: p.fpfPlayerId,
+            player_name: p.playerName,
+            shirt_number: p.shirtNumber,
+            team_name: p.teamName,
+            is_starter: p.isStarter,
+            is_substitute: p.isSubstitute,
+            subbed_in_minute: playerSubInMinute.get(p.playerName) ?? null,
+            subbed_out_minute: playerSubOutMinute.get(p.playerName) ?? null,
+            minutes_played: minutesMap.get(p.playerName) ?? 0,
+            goals: playerGoals.get(p.playerName) ?? 0,
+            penalty_goals: playerPenalties.get(p.playerName) ?? 0,
+            own_goals: playerOwnGoals.get(p.playerName) ?? 0,
+            yellow_cards: playerYellows.get(p.playerName) ?? 0,
+            red_cards: playerReds.get(p.playerName) ?? 0,
+            red_card_minute: playerRedMinute.get(p.playerName) ?? null,
+            eskout_player_id: eskoutId,
+          };
+        });
+
+      // 5. Replace old rows atomically (delete then insert)
+      await sb.from('fpf_match_players').delete().eq('match_id', m.id);
+      if (newRows.length > 0) {
+        await sb.from('fpf_match_players').insert(newRows);
+      }
+
+      const delta = Math.max(0, newRows.length - oldCount);
+      newPlayersAdded += delta;
+    } catch (e) {
+      console.warn(`[reparse] match ${m.fpf_match_id} failed:`, e);
+      errors++;
+    }
+  }
+
+  // Refresh denormalized stats on the competition row
+  await updateCompetitionStats(competitionId, true);
+
+  return { success: true, data: {
+    matchesProcessed: matches.length,
+    newPlayersAdded,
+    linksPreserved,
+    errors,
+  } };
+}
+
 /** Update competition stats after scraping (called by client when done or between fixtures). */
 export async function updateCompetitionStats(
   competitionId: number,
