@@ -191,7 +191,12 @@ function DraggablePlayerCard({
       {...listeners}
       // Must come AFTER {...listeners} so our composed handler wins (it still forwards to dnd-kit)
       onPointerDown={composedOnPointerDown}
-      className={`relative w-[140px] cursor-grab rounded-md shadow-sm touch-none active:cursor-grabbing lg:w-[180px] ${
+      className={`relative cursor-grab rounded-md shadow-sm touch-none active:cursor-grabbing lg:w-[180px] ${
+        // Mobile-only widening when expanded — fits "Possibilidades" button + dates without
+        // the absolute corner badges hanging off (which are also hidden while expanded).
+        // Desktop is always w-[180px].
+        showActions ? 'w-[180px]' : 'w-[140px]'
+      } ${
         player.isDoubt
           ? 'border border-dashed border-amber-400 bg-amber-50/90 opacity-80'
           : player.isPreseason
@@ -206,8 +211,10 @@ function DraggablePlayerCard({
       }`}
       onClick={handleCardClick}
     >
-      {/* Status flag — bottom-right corner (priority: Dúvida > Pré-Época > Assinou > Vai Assinar) */}
-      {player.isDoubt ? (
+      {/* Status flag — bottom-right corner (priority: Dúvida > Pré-Época > Assinou > Vai Assinar).
+          Hidden while expanded — the same info is shown as toggle buttons inside the panel,
+          and the corner pin floats off the bottom of a tall expanded card looking detached. */}
+      {!showActions && (player.isDoubt ? (
         <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-amber-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Dúvida">
           Dúvida
         </span>
@@ -223,7 +230,7 @@ function DraggablePlayerCard({
         <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-green-400 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Vai Assinar">
           Vai Assinar
         </span>
-      ) : null}
+      ) : null)}
 
       {/* Rank corner badge — top-right */}
       {squadType === 'shadow' && (
