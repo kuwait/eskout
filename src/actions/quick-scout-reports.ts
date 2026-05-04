@@ -92,22 +92,23 @@ export async function submitQuickReport(input: QuickScoutReportData): Promise<Ac
           .in('game_id', myGameIds);
 
         if (targets?.length) {
-          // Check which ones don't have a QSR yet
-          for (const t of targets) {
-            const { count } = await supabase
-              .from('quick_scout_reports')
-              .select('id', { count: 'exact', head: true })
-              .eq('game_id', t.game_id)
-              .eq('player_id', d.playerId);
+          // Single batched query for all existing QSRs (was N count queries — one per target,
+          // sequential. With 5+ targets that's 5+ round-trips just to find the first un-QSR'd
+          // game). One IN-list fetch + JS Set diff is constant 1 round-trip.
+          const targetGameIds = targets.map(t => t.game_id);
+          const { data: existingQsrs } = await supabase
+            .from('quick_scout_reports')
+            .select('game_id')
+            .eq('player_id', d.playerId)
+            .in('game_id', targetGameIds);
+          const usedGameIds = new Set((existingQsrs ?? []).map(r => r.game_id));
+          const firstFreeTarget = targets.find(t => !usedGameIds.has(t.game_id));
 
-            if (!count || count === 0) {
-              // Link this QSR to the pending target's game
-              await supabase
-                .from('quick_scout_reports')
-                .update({ game_id: t.game_id })
-                .eq('id', data.id);
-              break; // Link to first pending target only
-            }
+          if (firstFreeTarget) {
+            await supabase
+              .from('quick_scout_reports')
+              .update({ game_id: firstFreeTarget.game_id })
+              .eq('id', data.id);
           }
         }
       }

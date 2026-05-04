@@ -571,30 +571,33 @@ export async function bulkReorderSquad(
   }
   const supabase = await createClient();
 
+  // Parallel updates — rows are independent. Sequential was N round-trips per drop
+  // (e.g. reordering a 20-player squad = 20 sequential queries).
   if (squadId) {
-    // New path: update squad_players
-    for (const { playerId, order } of updates) {
-      const { error } = await supabase
+    const results = await Promise.all(updates.map(({ playerId, order }) =>
+      supabase
         .from('squad_players')
         .update({ sort_order: order })
         .eq('squad_id', squadId)
-        .eq('player_id', playerId);
-      if (error) {
-        return { success: false, error: `Erro ao reordenar jogador ${playerId}: ${error.message}` };
-      }
+        .eq('player_id', playerId),
+    ));
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      return { success: false, error: `Erro ao reordenar: ${failed.error.message}` };
     }
   } else {
     // Legacy path: update players table directly
     const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
-    for (const { playerId, order } of updates) {
-      const { error } = await supabase
+    const results = await Promise.all(updates.map(({ playerId, order }) =>
+      supabase
         .from('players')
         .update({ [orderField]: order })
         .eq('id', playerId)
-        .eq('club_id', clubId);
-      if (error) {
-        return { success: false, error: `Erro ao reordenar jogador ${playerId}: ${error.message}` };
-      }
+        .eq('club_id', clubId),
+    ));
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      return { success: false, error: `Erro ao reordenar: ${failed.error.message}` };
     }
   }
 

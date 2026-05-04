@@ -328,10 +328,11 @@ export async function updateRecruitmentStatus(
   }
   if (newStatus === 'reuniao_marcada' && player?.meeting_attendees?.length) {
     const taskTitle = `🤝 Reunião — ${playerName}`;
-    for (const attendeeId of player.meeting_attendees) {
+    // Attendees are independent — parallel upserts (was sequential, N round-trips per move)
+    await Promise.all(player.meeting_attendees.map(async (attendeeId: string) => {
       await upsertAutoTask(supabase, clubId, attendeeId, playerId, taskTitle, 'pipeline_meeting', player.meeting_date);
       notifyCtx(attendeeId, taskTitle, 'pipeline_meeting', { dueDate: player.meeting_date });
-    }
+    }));
   }
   if (newStatus === 'vir_treinar' && player?.contact_assigned_to) {
     const taskTitle = `⚽ Registar feedback do treino`;
@@ -340,10 +341,10 @@ export async function updateRecruitmentStatus(
   }
   if (newStatus === 'confirmado' && player?.signing_attendees?.length) {
     const taskTitle = `✍️ Assinatura — ${playerName}`;
-    for (const attendeeId of player.signing_attendees) {
+    await Promise.all(player.signing_attendees.map(async (attendeeId: string) => {
       await upsertAutoTask(supabase, clubId, attendeeId, playerId, taskTitle, 'pipeline_signing', player.signing_date);
       notifyCtx(attendeeId, taskTitle, 'pipeline_signing', { dueDate: player.signing_date });
-    }
+    }));
   }
 
   revalidatePath('/pipeline');
@@ -374,16 +375,17 @@ export async function reorderPipelineCards(
   }
   const supabase = await createClient();
 
-  // Small N per column, sequential is fine
-  for (const { playerId, order } of updates) {
-    const { error } = await supabase
+  // Parallel updates — rows are independent. Sequential was N round-trips per drag.
+  const results = await Promise.all(updates.map(({ playerId, order }) =>
+    supabase
       .from('players')
       .update({ pipeline_order: order })
       .eq('id', playerId)
-      .eq('club_id', clubId);
-    if (error) {
-      return { success: false, error: `Erro ao reordenar jogador ${playerId}: ${error.message}` };
-    }
+      .eq('club_id', clubId),
+  ));
+  const failed = results.find((r) => r.error);
+  if (failed?.error) {
+    return { success: false, error: `Erro ao reordenar: ${failed.error.message}` };
   }
 
   revalidatePath('/pipeline');
@@ -562,42 +564,40 @@ export async function updateMeetingAttendees(
     .single();
   const assignerName = assignerProfile?.full_name ?? 'Eskout';
 
-  // Create auto-tasks + send email for new attendees
+  // Create auto-tasks + send email for new attendees (parallel — N independent upserts)
   const playerName = player?.name ?? `Jogador #${playerId}`;
   const oldAttendees = new Set((player?.meeting_attendees ?? []) as string[]);
-  for (const id of attendeeIds) {
-    if (!oldAttendees.has(id)) {
-      const taskTitle = `🤝 Reunião — ${playerName}`;
-      await upsertAutoTask(supabase, clubId, id, playerId, taskTitle, 'pipeline_meeting', player?.meeting_date);
-      notifyTaskAssigned({
-        clubId, clubName: club.name,
-        assignedByUserId: userId, assignedByName: assignerName,
-        targetUserId: id, taskTitle, taskSource: 'pipeline_meeting',
-        playerName, playerClub: player?.club ?? null,
-        playerPhotoUrl: player?.photo_url ?? player?.zz_photo_url ?? null,
-        playerContact: player?.contact ?? null,
-        playerPosition: player?.position_normalized ?? null,
-        playerDob: player?.dob ?? null,
-        playerFoot: player?.foot ?? null,
-        playerFpfLink: player?.fpf_link ?? null,
-        playerZzLink: player?.zerozero_link ?? null,
-        contactPurpose: null, dueDate: player?.meeting_date ?? null, trainingEscalao: null,
-      });
-    }
-  }
-  // Auto-complete tasks for removed attendees
+  const addedAttendees = attendeeIds.filter((id) => !oldAttendees.has(id));
+  await Promise.all(addedAttendees.map(async (id) => {
+    const taskTitle = `🤝 Reunião — ${playerName}`;
+    await upsertAutoTask(supabase, clubId, id, playerId, taskTitle, 'pipeline_meeting', player?.meeting_date);
+    notifyTaskAssigned({
+      clubId, clubName: club.name,
+      assignedByUserId: userId, assignedByName: assignerName,
+      targetUserId: id, taskTitle, taskSource: 'pipeline_meeting',
+      playerName, playerClub: player?.club ?? null,
+      playerPhotoUrl: player?.photo_url ?? player?.zz_photo_url ?? null,
+      playerContact: player?.contact ?? null,
+      playerPosition: player?.position_normalized ?? null,
+      playerDob: player?.dob ?? null,
+      playerFoot: player?.foot ?? null,
+      playerFpfLink: player?.fpf_link ?? null,
+      playerZzLink: player?.zerozero_link ?? null,
+      contactPurpose: null, dueDate: player?.meeting_date ?? null, trainingEscalao: null,
+    });
+  }));
+  // Auto-complete tasks for removed attendees (parallel — independent updates)
   const newAttendees = new Set(attendeeIds);
-  for (const id of oldAttendees) {
-    if (!newAttendees.has(id)) {
-      await supabase
-        .from('user_tasks')
-        .update({ completed: true, completed_at: new Date().toISOString() })
-        .eq('player_id', playerId)
-        .eq('user_id', id)
-        .eq('source', 'pipeline_meeting')
-        .eq('completed', false);
-    }
-  }
+  const removedAttendees = Array.from(oldAttendees).filter((id) => !newAttendees.has(id));
+  await Promise.all(removedAttendees.map((id) =>
+    supabase
+      .from('user_tasks')
+      .update({ completed: true, completed_at: new Date().toISOString() })
+      .eq('player_id', playerId)
+      .eq('user_id', id)
+      .eq('source', 'pipeline_meeting')
+      .eq('completed', false),
+  ));
 
   revalidatePath('/pipeline');
   revalidatePath('/tarefas');
@@ -637,27 +637,25 @@ export async function updateSigningAttendees(
     return { success: false, error: `Erro ao atualizar responsáveis: ${error.message}` };
   }
 
-  // Create auto-tasks for new attendees
+  // Create auto-tasks for new attendees (parallel — N independent upserts)
   const playerName = player?.name ?? `Jogador #${playerId}`;
   const oldAttendees = new Set((player?.signing_attendees ?? []) as string[]);
-  for (const id of attendeeIds) {
-    if (!oldAttendees.has(id)) {
-      await upsertAutoTask(supabase, clubId, id, playerId, `✍️ Assinatura — ${playerName}`, 'pipeline_signing', player?.signing_date);
-    }
-  }
-  // Auto-complete tasks for removed attendees
+  const addedAttendees = attendeeIds.filter((id) => !oldAttendees.has(id));
+  await Promise.all(addedAttendees.map((id) =>
+    upsertAutoTask(supabase, clubId, id, playerId, `✍️ Assinatura — ${playerName}`, 'pipeline_signing', player?.signing_date),
+  ));
+  // Auto-complete tasks for removed attendees (parallel — independent updates)
   const newAttendees = new Set(attendeeIds);
-  for (const id of oldAttendees) {
-    if (!newAttendees.has(id)) {
-      await supabase
-        .from('user_tasks')
-        .update({ completed: true, completed_at: new Date().toISOString() })
-        .eq('player_id', playerId)
-        .eq('user_id', id)
-        .eq('source', 'pipeline_signing')
-        .eq('completed', false);
-    }
-  }
+  const removedAttendees = Array.from(oldAttendees).filter((id) => !newAttendees.has(id));
+  await Promise.all(removedAttendees.map((id) =>
+    supabase
+      .from('user_tasks')
+      .update({ completed: true, completed_at: new Date().toISOString() })
+      .eq('player_id', playerId)
+      .eq('user_id', id)
+      .eq('source', 'pipeline_signing')
+      .eq('completed', false),
+  ));
 
   revalidatePath('/pipeline');
   revalidatePath('/tarefas');
