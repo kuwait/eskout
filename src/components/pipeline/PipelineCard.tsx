@@ -107,8 +107,6 @@ const DATE_STATUS_CONFIG = {
 } as const;
 
 import { shortName } from '@/lib/utils';
-// Re-export for consumers that imported from here
-export { shortName } from '@/lib/utils';
 
 export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel, contactPurposes = [], trainingSessions }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
