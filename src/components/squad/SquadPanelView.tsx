@@ -1136,8 +1136,13 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
                   key={mode}
                   type="button"
                   onClick={() => setViewMode(mode)}
+                  // Gate the active class on `mounted` so SSR and first client paint match.
+                  // viewMode is read from localStorage which is unavailable on the server,
+                  // so the SSR render always has all buttons inactive; once mounted the real
+                  // value drives the active styling.
+                  suppressHydrationWarning
                   className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    viewMode === mode ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-neutral-700'
+                    mounted && viewMode === mode ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-neutral-700'
                   }`}
                   title={label}
                 >
