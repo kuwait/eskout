@@ -6,25 +6,52 @@
 -- properly in the future if/when needed (sandbox club + read-only RLS, not flag-based).
 --
 -- This migration:
---   1. Deletes the demo club + cascade-deletes its data (players, squads, etc).
---   2. Deletes the demo user from auth.users (cascades to profile).
---   3. Drops the clubs.is_demo column.
+--   1. Adds ON DELETE CASCADE to squads.club_id + squad_players.club_id (P1 audit fix —
+--      migration 059 created these without a cascade clause, blocking club deletion).
+--   2. Deletes the demo club + cascade-deletes its data (players, squads, etc).
+--   3. Clears any auth.users references from the demo user that lack ON DELETE clauses.
+--   4. Deletes the demo user from auth.users.
+--   5. Drops the clubs.is_demo column.
 --
--- Safe in any environment — uses WHERE filters that target only the seed data.
--- Re-running on a DB without demo data is a no-op.
+-- Idempotent — safe to re-run on a DB without demo data.
 -- RELEVANT FILES: src/lib/supabase/club-context.ts (was using is_demo), src/components/layout/AppShell.tsx
 
-/* ───────────── 1. Delete demo club (cascade clears related data) ───────────── */
+/* ───────────── 1. Fix missing CASCADE on squads/squad_players → clubs FK ───────────── */
 
--- The demo club was seeded as "FC Atlético Demo" with slug 'fc-atletico-demo'.
--- All FK references to clubs(id) use ON DELETE CASCADE, so this purges the demo data.
+ALTER TABLE squads DROP CONSTRAINT IF EXISTS squads_club_id_fkey;
+ALTER TABLE squads
+  ADD CONSTRAINT squads_club_id_fkey
+  FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+ALTER TABLE squad_players DROP CONSTRAINT IF EXISTS squad_players_club_id_fkey;
+ALTER TABLE squad_players
+  ADD CONSTRAINT squad_players_club_id_fkey
+  FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+/* ───────────── 2. Delete demo club (cascade clears related data) ───────────── */
+
 DELETE FROM clubs WHERE is_demo = true;
 
-/* ───────────── 2. Delete demo user from auth.users ───────────── */
+/* ───────────── 3-4. Clear auth.users refs + delete demo user ───────────── */
 
--- profile row cascades from auth.users on delete (PK = auth.users.id).
-DELETE FROM auth.users WHERE email = 'demo@eskout.com';
+-- Demo user may have created rows in tables whose created_by/changed_by/author_id FKs
+-- to auth.users lack ON DELETE clauses. Null them out before deleting the user.
+DO $$
+DECLARE demo_user_id UUID;
+BEGIN
+  SELECT id INTO demo_user_id FROM auth.users WHERE email = 'demo@eskout.com';
+  IF demo_user_id IS NULL THEN RETURN; END IF;
 
-/* ───────────── 3. Drop the is_demo column ───────────── */
+  UPDATE status_history     SET changed_by = NULL WHERE changed_by = demo_user_id;
+  UPDATE observation_notes  SET author_id  = NULL WHERE author_id  = demo_user_id;
+  UPDATE calendar_events    SET created_by = NULL WHERE created_by = demo_user_id;
+  UPDATE players            SET created_by = NULL WHERE created_by = demo_user_id;
+
+  -- profile.id is FK to auth.users(id) without ON DELETE — must delete profile first.
+  DELETE FROM profiles WHERE id = demo_user_id;
+  DELETE FROM auth.users WHERE id = demo_user_id;
+END $$;
+
+/* ───────────── 5. Drop the is_demo column ───────────── */
 
 ALTER TABLE clubs DROP COLUMN IF EXISTS is_demo;
