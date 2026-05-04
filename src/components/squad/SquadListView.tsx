@@ -5,12 +5,12 @@
 
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Footprints, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { SQUAD_SLOTS, POSITION_LABELS } from '@/lib/constants';
+import { SQUAD_SLOTS, POSITION_LABELS, POSITION_CHIP_SOLID } from '@/lib/constants';
 import type { Player, PositionCode } from '@/lib/types';
 import type { SquadSignStatus } from '@/actions/squads';
 
@@ -65,10 +65,11 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
 
         return (
           <div key={slot} className="rounded-lg border bg-white">
-            {/* Position header */}
+            {/* Position header — slot pill hidden on mobile (the textual label already says it).
+                Desktop keeps the pill to mirror the visual hierarchy of the formation grid. */}
             <div className="flex items-center justify-between border-b px-3 py-2">
               <div className="flex items-center gap-2">
-                <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs font-bold text-white">
+                <span className="hidden rounded bg-neutral-800 px-2 py-0.5 text-xs font-bold text-white lg:inline-block">
                   {slot}
                 </span>
                 <span className="text-sm font-semibold">{label}</span>
@@ -96,17 +97,17 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
               <div className="divide-y">
                 {players.map((player, index) => {
                   const photoUrl = player.photoUrl || player.zzPhotoUrl;
-                  const posLabel = player.positionNormalized
-                    ? (POSITION_LABELS[player.positionNormalized as PositionCode] ?? player.positionNormalized)
-                    : null;
-                  const dobLabel = player.dob
-                    ? (() => { try { return new Date(player.dob!).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return player.dob; } })()
+                  const posCode = player.positionNormalized as PositionCode | undefined;
+                  const posLabel = posCode ? (POSITION_LABELS[posCode] ?? posCode) : null;
+                  // Compact dd/MM/yy keeps the meta strip on a single line on mobile.
+                  const dobShort = player.dob
+                    ? (() => { try { return new Date(player.dob!).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: '2-digit' }); } catch { return player.dob; } })()
                     : null;
 
                   return (
                     <div
                       key={player.id}
-                      className={`group relative flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-neutral-50 ${
+                      className={`group relative transition-colors hover:bg-neutral-50 ${
                         player.isDoubt
                           ? 'border border-dashed border-amber-400 bg-amber-50/50'
                           : player.isPreseason
@@ -117,7 +118,6 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                       } ${
                         squadType === 'shadow' ? (RANK_BORDER[index] ?? 'border-l-2 border-l-neutral-200') : ''
                       }`}
-                      onClick={() => onPlayerClick?.(player.id)}
                     >
                       {/* Rank corner */}
                       {squadType === 'shadow' && (
@@ -126,129 +126,219 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                         </span>
                       )}
 
-                      {/* Photo */}
-                      <PlayerAvatar
-                        player={{
-                          name: player.name,
-                          photoUrl,
-                          club: player.club,
-                          position: player.positionNormalized,
-                          dob: player.dob,
-                          foot: player.foot,
-                        }}
-                        size={44}
-                      />
+                      {/* Top row: photo + info + (desktop-only hover actions) */}
+                      <div
+                        className="flex cursor-pointer items-start gap-3 p-3 lg:items-center"
+                        onClick={() => onPlayerClick?.(player.id)}
+                      >
+                        {/* Photo */}
+                        <PlayerAvatar
+                          player={{
+                            name: player.name,
+                            photoUrl,
+                            club: player.club,
+                            position: player.positionNormalized,
+                            dob: player.dob,
+                            foot: player.foot,
+                          }}
+                          size={44}
+                        />
 
-                      {/* Info */}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-neutral-900">
-                          {displayName(player.name)}
-                        </p>
-                        <p className="mt-0.5 truncate text-xs text-neutral-500">
-                          {player.club || '—'}
-                        </p>
-                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px]">
-                          {posLabel && (
-                            <span>
-                              <span className="text-neutral-400">Pos: </span>
-                              <span className="font-medium text-neutral-600">{posLabel}</span>
-                            </span>
+                        {/* Info */}
+                        <div className="min-w-0 flex-1">
+                          {/* Mobile: name + club share one truncated line (saves vertical room).
+                              Desktop: name on top, club below (more breathable on wide rows). */}
+                          <p className="truncate text-sm font-semibold text-neutral-900 lg:hidden">
+                            {displayName(player.name)}
+                            {player.club && (
+                              <span className="ml-1.5 text-xs font-normal text-neutral-500">· {player.club}</span>
+                            )}
+                          </p>
+                          <p className="hidden truncate text-sm font-semibold text-neutral-900 lg:block">
+                            {displayName(player.name)}
+                          </p>
+                          <p className="mt-0.5 hidden truncate text-xs text-neutral-500 lg:block">
+                            {player.club || '—'}
+                          </p>
+                          {/* Meta strip — colored position chip, foot icon, DOB icon. Tighter than labelled
+                              "Pos:/Pé:/Nasc:" so it fits on one line on mobile (≥ iPhone SE 375px). */}
+                          {(posCode || player.foot || dobShort) && (
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                              {posCode && (
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white ${POSITION_CHIP_SOLID[posCode] ?? 'bg-neutral-700'}`}
+                                  title={posLabel ?? posCode}
+                                >
+                                  {posCode}
+                                </span>
+                              )}
+                              {player.foot && (
+                                <span className="flex items-center gap-0.5 text-neutral-600">
+                                  <Footprints className="h-3 w-3 text-neutral-400" aria-hidden="true" />
+                                  <span className="font-medium">{player.foot}</span>
+                                </span>
+                              )}
+                              {dobShort && (
+                                <span className="flex items-center gap-0.5 text-neutral-600">
+                                  <Calendar className="h-3 w-3 text-neutral-400" aria-hidden="true" />
+                                  <span className="font-medium whitespace-nowrap">{dobShort}</span>
+                                </span>
+                              )}
+                            </div>
                           )}
-                          {player.foot && (
-                            <span>
-                              <span className="text-neutral-400">Pé: </span>
-                              <span className="font-medium text-neutral-600">{player.foot}</span>
-                            </span>
-                          )}
-                          {dobLabel && (
-                            <span>
-                              <span className="text-neutral-400">Nasc: </span>
-                              <span className="font-medium text-neutral-600">{dobLabel}</span>
-                            </span>
-                          )}
+                          {/* Opinion / status / state pills — desktop only. Mobile shows the same
+                              info via colored borders + the bottom action bar (toggle states). */}
+                          <div className="mt-1.5 hidden flex-wrap gap-1 lg:flex">
+                            <OpinionBadge opinion={player.departmentOpinion} className="px-1 py-0 text-[9px]" />
+                            {player.recruitmentStatus && (
+                              <StatusBadge status={player.recruitmentStatus} className="px-1 py-0 text-[9px]" />
+                            )}
+                            {player.isDoubt && (
+                              <span className="rounded bg-amber-100 px-1 py-0 text-[9px] font-medium text-amber-700">DÚVIDA</span>
+                            )}
+                            {!player.isDoubt && player.isPreseason && (
+                              <span className="rounded bg-sky-100 px-1 py-0 text-[9px] font-medium text-sky-700">PRÉ-ÉPOCA</span>
+                            )}
+                            {!player.isDoubt && !player.isPreseason && player.isSigned && (
+                              <span className="rounded bg-green-100 px-1 py-0 text-[9px] font-medium text-green-700">ASSINOU</span>
+                            )}
+                            {!player.isDoubt && !player.isPreseason && !player.isSigned && player.isWillSign && (
+                              <span className="rounded bg-green-50 px-1 py-0 text-[9px] font-medium text-green-600">VAI ASSINAR</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          <OpinionBadge opinion={player.departmentOpinion} className="px-1 py-0 text-[9px]" />
-                          {player.recruitmentStatus && (
-                            <StatusBadge status={player.recruitmentStatus} className="px-1 py-0 text-[9px]" />
+
+                        {/* Desktop hover-reveal action buttons — hidden on mobile (use the bottom row instead) */}
+                        <div className="hidden shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 lg:flex">
+                          {onToggleDoubt && (
+                            <button
+                              className={`rounded px-2 py-1 text-[10px] font-medium ${
+                                player.isDoubt
+                                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                  : 'text-amber-600 hover:bg-amber-50'
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); onToggleDoubt(player.id, !player.isDoubt); }}
+                              aria-label={player.isDoubt ? 'Remover dúvida' : 'Marcar como dúvida'}
+                            >
+                              {player.isDoubt ? '✓ Dúvida' : '? Dúvida'}
+                            </button>
                           )}
-                          {player.isDoubt && (
-                            <span className="rounded bg-amber-100 px-1 py-0 text-[9px] font-medium text-amber-700">DÚVIDA</span>
+                          {onTogglePreseason && (
+                            <button
+                              className={`rounded px-2 py-1 text-[10px] font-medium ${
+                                player.isPreseason
+                                  ? 'bg-sky-100 text-sky-700 hover:bg-sky-200'
+                                  : 'text-sky-600 hover:bg-sky-50'
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); onTogglePreseason(player.id, !player.isPreseason); }}
+                              aria-label={player.isPreseason ? 'Remover pré-época' : 'Marcar como pré-época'}
+                            >
+                              {player.isPreseason ? '✓ Pré-Época' : '○ Pré-Época'}
+                            </button>
                           )}
-                          {!player.isDoubt && player.isPreseason && (
-                            <span className="rounded bg-sky-100 px-1 py-0 text-[9px] font-medium text-sky-700">PRÉ-ÉPOCA</span>
+                          {onSetSignStatus && (
+                            <button
+                              // 3-state cycle: none → will_sign → signed → none
+                              className={`rounded px-2 py-1 text-[10px] font-medium ${
+                                player.isSigned
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : player.isWillSign
+                                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                    : 'text-green-600 hover:bg-green-50'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSetSignStatus(player.id, nextSignStatus(player.isWillSign, player.isSigned));
+                              }}
+                              aria-label={
+                                player.isSigned
+                                  ? 'Remover assinatura'
+                                  : player.isWillSign
+                                    ? 'Marcar como assinou'
+                                    : 'Marcar como vai assinar'
+                              }
+                            >
+                              {player.isSigned ? '✓ Assinou' : player.isWillSign ? '⏳ Vai Assinar' : '✍ Assinou'}
+                            </button>
                           )}
-                          {!player.isDoubt && !player.isPreseason && player.isSigned && (
-                            <span className="rounded bg-green-100 px-1 py-0 text-[9px] font-medium text-green-700">ASSINOU</span>
-                          )}
-                          {!player.isDoubt && !player.isPreseason && !player.isSigned && player.isWillSign && (
-                            <span className="rounded bg-green-50 px-1 py-0 text-[9px] font-medium text-green-600">VAI ASSINAR</span>
-                          )}
+                          <button
+                            className="flex items-center gap-0.5 rounded bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100"
+                            onClick={(e) => { e.stopPropagation(); onRemovePlayer(player.id); }}
+                            aria-label={`Remover ${player.name}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span className="hidden sm:inline">Remover</span>
+                          </button>
                         </div>
                       </div>
 
-                      {/* Action buttons */}
-                      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        {onToggleDoubt && (
+                      {/* Mobile-only action bar — always visible (no hover on touch). Tap-friendly,
+                          full-width row with toggle pills + remove on the right. lg:hidden so desktop
+                          keeps its hover-revealed actions intact. */}
+                      <div className="flex items-stretch gap-1 border-t bg-neutral-50/60 px-2 py-1.5 lg:hidden">
+                          {onToggleDoubt && (
+                            <button
+                              type="button"
+                              className={`flex-1 rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                                player.isDoubt
+                                  ? 'border-amber-400 bg-amber-500 text-white'
+                                  : 'border-amber-300 bg-white text-amber-600'
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); onToggleDoubt(player.id, !player.isDoubt); }}
+                              aria-label={player.isDoubt ? 'Remover dúvida' : 'Marcar como dúvida'}
+                            >
+                              Dúvida{player.isDoubt && ' ✓'}
+                            </button>
+                          )}
+                          {onTogglePreseason && (
+                            <button
+                              type="button"
+                              className={`flex-1 rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                                player.isPreseason
+                                  ? 'border-sky-400 bg-sky-500 text-white'
+                                  : 'border-sky-300 bg-white text-sky-600'
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); onTogglePreseason(player.id, !player.isPreseason); }}
+                              aria-label={player.isPreseason ? 'Remover pré-época' : 'Marcar como pré-época'}
+                            >
+                              Pré-Época{player.isPreseason && ' ✓'}
+                            </button>
+                          )}
+                          {onSetSignStatus && (
+                            <button
+                              type="button"
+                              // 3-state cycle: none → will_sign → signed → none
+                              className={`flex-1 rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                                player.isSigned
+                                  ? 'border-green-400 bg-green-500 text-white'
+                                  : player.isWillSign
+                                    ? 'border-green-400 bg-green-400 text-white'
+                                    : 'border-green-300 bg-white text-green-600'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSetSignStatus(player.id, nextSignStatus(player.isWillSign, player.isSigned));
+                              }}
+                              aria-label={
+                                player.isSigned
+                                  ? 'Remover assinatura'
+                                  : player.isWillSign
+                                    ? 'Marcar como assinou'
+                                    : 'Marcar como vai assinar'
+                              }
+                            >
+                              {player.isSigned ? 'Assinou ✓' : player.isWillSign ? 'Vai Assinar' : 'Assinou'}
+                            </button>
+                          )}
                           <button
-                            className={`rounded px-2 py-1 text-[10px] font-medium ${
-                              player.isDoubt
-                                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                : 'text-amber-600 hover:bg-amber-50'
-                            }`}
-                            onClick={(e) => { e.stopPropagation(); onToggleDoubt(player.id, !player.isDoubt); }}
-                            aria-label={player.isDoubt ? 'Remover dúvida' : 'Marcar como dúvida'}
+                            type="button"
+                            className="flex shrink-0 items-center justify-center rounded-md border border-red-200 bg-white px-2 py-1.5 text-red-600"
+                            onClick={(e) => { e.stopPropagation(); onRemovePlayer(player.id); }}
+                            aria-label={`Remover ${player.name}`}
                           >
-                            {player.isDoubt ? '✓ Dúvida' : '? Dúvida'}
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
-                        )}
-                        {onTogglePreseason && (
-                          <button
-                            className={`rounded px-2 py-1 text-[10px] font-medium ${
-                              player.isPreseason
-                                ? 'bg-sky-100 text-sky-700 hover:bg-sky-200'
-                                : 'text-sky-600 hover:bg-sky-50'
-                            }`}
-                            onClick={(e) => { e.stopPropagation(); onTogglePreseason(player.id, !player.isPreseason); }}
-                            aria-label={player.isPreseason ? 'Remover pré-época' : 'Marcar como pré-época'}
-                          >
-                            {player.isPreseason ? '✓ Pré-Época' : '○ Pré-Época'}
-                          </button>
-                        )}
-                        {onSetSignStatus && (
-                          <button
-                            // 3-state cycle: none → will_sign → signed → none
-                            className={`rounded px-2 py-1 text-[10px] font-medium ${
-                              player.isSigned
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                : player.isWillSign
-                                  ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                                  : 'text-green-600 hover:bg-green-50'
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSetSignStatus(player.id, nextSignStatus(player.isWillSign, player.isSigned));
-                            }}
-                            aria-label={
-                              player.isSigned
-                                ? 'Remover assinatura'
-                                : player.isWillSign
-                                  ? 'Marcar como assinou'
-                                  : 'Marcar como vai assinar'
-                            }
-                          >
-                            {player.isSigned ? '✓ Assinou' : player.isWillSign ? '⏳ Vai Assinar' : '✍ Assinou'}
-                          </button>
-                        )}
-                        <button
-                          className="flex items-center gap-0.5 rounded bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-100"
-                          onClick={(e) => { e.stopPropagation(); onRemovePlayer(player.id); }}
-                          aria-label={`Remover ${player.name}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          <span className="hidden sm:inline">Remover</span>
-                        </button>
-                      </div>
+                        </div>
                     </div>
                   );
                 })}
