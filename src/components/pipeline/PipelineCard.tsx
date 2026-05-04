@@ -358,10 +358,10 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               }}
             />
             <div className="flex justify-end gap-1">
-              <button type="button" onClick={() => { setEditingNote(false); setNoteDraft(localNote); }} className="rounded p-0.5 text-muted-foreground hover:bg-neutral-100">
+              <button type="button" onClick={() => { setEditingNote(false); setNoteDraft(localNote); }} className="rounded p-0.5 text-muted-foreground hover:bg-neutral-100" aria-label="Cancelar edição da nota">
                 <X className="h-3 w-3" />
               </button>
-              <button type="button" onClick={() => saveNote(noteDraft.trim())} className="rounded p-0.5 text-amber-600 hover:bg-amber-100">
+              <button type="button" onClick={() => saveNote(noteDraft.trim())} className="rounded p-0.5 text-amber-600 hover:bg-amber-100" aria-label="Guardar nota">
                 <Check className="h-3 w-3" />
               </button>
             </div>

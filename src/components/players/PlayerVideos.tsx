@@ -188,6 +188,7 @@ function VideoRow({
           onClick={onDelete}
           className="shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:text-destructive opacity-0 group-hover:opacity-100"
           title="Eliminar"
+          aria-label="Eliminar vídeo"
         >
           <X className="h-3 w-3" />
         </button>

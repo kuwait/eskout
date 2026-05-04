@@ -294,7 +294,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
             </p>
           </div>
           {canDelete && (
-            <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="rounded p-1 text-neutral-400 hover:text-red-500 transition" aria-label="Eliminar feedback"><Trash2 className="h-3.5 w-3.5" /></button>
           )}
         </div>
         {shareLink && (
@@ -354,7 +354,7 @@ function FeedbackEntry({ entry, canDelete, onDelete, isPending, shareLink }: {
         </div>
 
         {canDelete && (
-          <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="shrink-0 rounded p-1 text-neutral-400 hover:text-red-500 transition"><Trash2 className="h-3.5 w-3.5" /></button>
+          <button type="button" onClick={() => setConfirmDelete(true)} disabled={isPending} className="shrink-0 rounded p-1 text-neutral-400 hover:text-red-500 transition" aria-label="Eliminar feedback"><Trash2 className="h-3.5 w-3.5" /></button>
         )}
       </div>
 
