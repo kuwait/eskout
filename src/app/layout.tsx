@@ -10,19 +10,26 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from '@/lib/theme';
 
+// Inter is the default theme font — preload so first paint has correct typography.
 const inter = Inter({
   variable: '--font-inter',
   subsets: ['latin'],
 });
 
+// DM Sans & Space Grotesk are theme-only (8 themes total, only 2 use these). preload: false
+// skips the <link rel="preload"> hint — the browser fetches the woff2 only when the user
+// actually switches to a theme that references the CSS variable. Saves ~30-60KB on every
+// initial page load for the ~75% of users who stay on the default Inter-based theme.
 const dmSans = DM_Sans({
   variable: '--font-dm-sans',
   subsets: ['latin'],
+  preload: false,
 });
 
 const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
   subsets: ['latin'],
+  preload: false,
 });
 
 /* viewport-fit=cover enables env(safe-area-inset-*) for iPhone notch/dynamic island */
