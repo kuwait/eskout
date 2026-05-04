@@ -34,7 +34,6 @@ export interface ClubInfo {
   slug: string;
   logoUrl: string | null;
   features: Record<string, boolean>;
-  isDemo: boolean;
 }
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
@@ -79,7 +78,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           .single(),
         supabase
           .from('clubs')
-          .select('id, name, slug, logo_url, features, is_demo')
+          .select('id, name, slug, logo_url, features')
           .eq('id', clubId)
           .single(),
         supabase
@@ -123,7 +122,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           slug: clubRes.data.slug,
           logoUrl: clubRes.data.logo_url,
           features: (clubRes.data.features ?? {}) as Record<string, boolean>,
-          isDemo: clubRes.data.is_demo ?? false,
         };
       }
 

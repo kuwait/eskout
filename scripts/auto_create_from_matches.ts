@@ -272,11 +272,10 @@ function normalizePosition(raw: string | null): string | null {
 /* ───────────── Main ───────────── */
 
 async function main() {
-  // 1. Get the club ID (use first non-demo club)
+  // 1. Get the club ID (first available — demo mode was removed)
   const { data: clubs } = await supabase
     .from('clubs')
     .select('id, name')
-    .eq('is_demo', false)
     .limit(1)
     .single();
 

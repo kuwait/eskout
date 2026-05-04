@@ -22,7 +22,6 @@ export function Sidebar({
   clubInfo,
   isSuperadmin,
   canViewCompetitions = false,
-  isDemo = false,
   sidebarLists = [],
 }: {
   alertCounts: AlertCounts;
@@ -30,7 +29,6 @@ export function Sidebar({
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
   canViewCompetitions?: boolean;
-  isDemo?: boolean;
   sidebarLists?: SidebarList[];
 }) {
   const pathname = usePathname();
@@ -433,7 +431,7 @@ export function Sidebar({
         <form action={logout}>
           <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" type="submit">
             <LogOut className="h-4 w-4" />
-            {isDemo ? 'Sair da Demo' : 'Sair'}
+            Sair
           </Button>
         </form>
       </div>

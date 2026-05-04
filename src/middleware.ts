@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const CLUB_COOKIE = 'eskout-club-id';
 
-const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/demo', '/feedback'];
+const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/feedback'];
 // Routes that require admin role — editors and scouts are redirected
 const ADMIN_ONLY_ROUTES = ['/admin'];
 // Scouts can ONLY access these routes — everything else is blocked

@@ -23,7 +23,6 @@ export interface ClubContext {
   };
   userId: string;
   isSuperadmin: boolean;
-  isDemo: boolean;
 }
 
 /* ───────────── Lightweight Auth Context (0 DB queries) ───────────── */
@@ -95,7 +94,7 @@ export async function getActiveClub(): Promise<ClubContext> {
   // Fetch membership + club in one query
   const { data: membership, error } = await supabase
     .from('club_memberships')
-    .select('role, clubs(id, name, slug, logo_url, features, settings, is_demo)')
+    .select('role, clubs(id, name, slug, logo_url, features, settings)')
     .eq('user_id', user.id)
     .eq('club_id', clubId)
     .single();
@@ -107,7 +106,7 @@ export async function getActiveClub(): Promise<ClubContext> {
   const club = membership.clubs as unknown as {
     id: string; name: string; slug: string;
     logo_url: string | null; features: Record<string, boolean>;
-    settings: Record<string, unknown>; is_demo: boolean;
+    settings: Record<string, unknown>;
   };
 
   // Read superadmin from JWT claims — no extra DB query needed
@@ -133,7 +132,6 @@ export async function getActiveClub(): Promise<ClubContext> {
     },
     userId: user.id,
     isSuperadmin,
-    isDemo: club.is_demo ?? false,
   };
 }
 

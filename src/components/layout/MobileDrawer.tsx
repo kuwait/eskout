@@ -27,7 +27,6 @@ export function MobileDrawer({
   clubInfo,
   isSuperadmin,
   canViewCompetitions = false,
-  isDemo = false,
   sidebarLists = [],
 }: {
   open: boolean;
@@ -37,7 +36,6 @@ export function MobileDrawer({
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
   canViewCompetitions?: boolean;
-  isDemo?: boolean;
   sidebarLists?: SidebarList[];
 }) {
   const pathname = usePathname();
@@ -507,7 +505,7 @@ export function MobileDrawer({
           <form action={logout}>
             <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" type="submit">
               <LogOut className="h-5 w-5" />
-              {isDemo ? 'Sair da Demo' : 'Sair'}
+              Sair
             </Button>
           </form>
         </div>

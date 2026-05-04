@@ -1,7 +1,7 @@
 // scripts/triage_2011_h2.ts
 // Extract players born 2011-07-07 to 2011-12-31 in Diogo's club, dump to markdown grouped by club.
 // One-off triage helper to build the "Sub-15 — Inscrição 2026/27" list.
-// RELEVANT FILES: scripts/seed_demo.ts, scripts/insert_triage_to_list.ts, src/actions/player-lists.ts
+// RELEVANT FILES: scripts/insert_triage_to_list.ts, src/actions/player-lists.ts
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -64,20 +64,20 @@ async function main() {
 
   const { data: memberships, error: me } = await supabase
     .from('club_memberships')
-    .select('club_id, role, clubs!inner(id, name, slug, is_demo)')
+    .select('club_id, role, clubs!inner(id, name, slug)')
     .eq('user_id', profile.id);
   if (me) throw me;
 
-  const realClubs = (memberships || []).filter((m: any) => !m.clubs.is_demo);
+  const allClubs = memberships || [];
   console.log(`User: ${profile.full_name} (${profile.id})`);
-  console.log(`Clubs: ${realClubs.map((m: any) => `${m.clubs.name} [${m.role}]`).join(', ')}`);
+  console.log(`Clubs: ${allClubs.map((m: any) => `${m.clubs.name} [${m.role}]`).join(', ')}`);
 
-  if (realClubs.length === 0) throw new Error('No non-demo club membership found');
-  if (realClubs.length > 1) {
-    console.warn('Multiple clubs; using first:', (realClubs[0] as any).clubs.name);
+  if (allClubs.length === 0) throw new Error('No club membership found');
+  if (allClubs.length > 1) {
+    console.warn('Multiple clubs; using first:', (allClubs[0] as any).clubs.name);
   }
-  const clubId = realClubs[0].club_id;
-  const clubName = (realClubs[0] as any).clubs.name;
+  const clubId = allClubs[0].club_id;
+  const clubName = (allClubs[0] as any).clubs.name;
 
   // 2. Fetch all players in DOB window for this club
   const all: any[] = [];

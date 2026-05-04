@@ -5,7 +5,7 @@
 
 /* ───────────── Route Constants (mirrored from middleware.ts) ───────────── */
 
-const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/demo', '/feedback'];
+const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/feedback'];
 const ADMIN_ONLY_ROUTES = ['/admin'];
 const SCOUT_ALLOWED_ROUTES = ['/', '/avaliacoes', '/submeter', '/mais', '/preferencias', '/jogadores/novo', '/meus-jogos', '/observacoes', '/listas'];
 const RECRUITER_BLOCKED_ROUTES = ['/exportar', '/avaliacoes', '/submeter', '/admin', '/alertas'];
@@ -161,10 +161,6 @@ describe('middleware routing — unauthenticated', () => {
     expect(result).toEqual({ action: 'pass' });
   });
 
-  it('allows /demo', () => {
-    const result = resolveRoute({ pathname: '/demo', user: null, clubCookieId: null, roleOverrideCookie: null });
-    expect(result).toEqual({ action: 'pass' });
-  });
 });
 
 /* ───────────── Authenticated — redirect away from login ───────────── */

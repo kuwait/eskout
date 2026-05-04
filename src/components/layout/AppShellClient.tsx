@@ -15,13 +15,11 @@ import { useRealtimeBadges } from '@/hooks/useRealtimeBadges';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileDrawer } from '@/components/layout/MobileDrawer';
 import { RoleImpersonator } from '@/components/layout/RoleImpersonator';
-import { DemoBanner } from '@/components/layout/DemoBanner';
-import { DemoProvider } from '@/lib/demo-context';
 import { updateLastSeen } from '@/actions/presence';
 import type { AgeGroup } from '@/lib/types';
 import type { AlertCounts, ClubInfo, SidebarList } from '@/components/layout/AppShell';
 
-const PUBLIC_ROUTES = ['/login', '/demo'];
+const PUBLIC_ROUTES = ['/login'];
 const NO_SHELL_ROUTES = ['/escolher-clube', '/master'];
 
 export function AppShellClient({
@@ -51,15 +49,12 @@ export function AppShellClient({
   const isPublic = PUBLIC_ROUTES.includes(pathname);
   const isNoShell = NO_SHELL_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
 
-  const isDemo = clubInfo?.isDemo ?? false;
-
-  // Heartbeat: update presence every 5 minutes (page, device, last_seen_at)
-  // Skip in demo mode — demo user doesn't need presence tracking
+  // Heartbeat: update presence every 15 minutes (page, device, last_seen_at)
   // pathname tracked via ref to avoid re-firing on every navigation (was causing duplicate POSTs)
   const pathnameRef = useRef(pathname);
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => {
-    if (isPublic || !userId || isDemo) return;
+    if (isPublic || !userId) return;
     const device = window.innerWidth < 768 ? 'mobile' : 'desktop';
     // Fire immediately on mount
     updateLastSeen(pathnameRef.current, device);
@@ -68,34 +63,31 @@ export function AppShellClient({
       updateLastSeen(pathnameRef.current, dev);
     }, 900_000); // 15 minutes — reduced from 5 min to save Vercel CPU + Supabase queries
     return () => clearInterval(interval);
-  }, [isPublic, userId, isDemo]); // eslint-disable-line react-hooks/exhaustive-deps -- pathname tracked via ref
+  }, [isPublic, userId]); // eslint-disable-line react-hooks/exhaustive-deps -- pathname tracked via ref
 
   // No shell on public routes or club picker
   if (isPublic || isNoShell) {
     return <>{children}</>;
   }
 
-  // Wrap with RealtimeProvider only when we have a club context (skip in demo — no realtime needed)
+  // Wrap with RealtimeProvider only when we have a club context
   const shell = (
     <AgeGroupProvider ageGroups={ageGroups}>
-      <DemoProvider value={isDemo}>
-        <ShellContent
-          alertCounts={alertCounts}
-          userRole={userRole}
-          userId={userId}
-          clubInfo={clubInfo}
-          isSuperadmin={isSuperadmin}
-          canViewCompetitions={canViewCompetitions}
-          isDemo={isDemo}
-          sidebarLists={sidebarLists}
-        >
-          {children}
-        </ShellContent>
-      </DemoProvider>
+      <ShellContent
+        alertCounts={alertCounts}
+        userRole={userRole}
+        userId={userId}
+        clubInfo={clubInfo}
+        isSuperadmin={isSuperadmin}
+        canViewCompetitions={canViewCompetitions}
+        sidebarLists={sidebarLists}
+      >
+        {children}
+      </ShellContent>
     </AgeGroupProvider>
   );
 
-  if (clubInfo?.id && userId && !isDemo) {
+  if (clubInfo?.id && userId) {
     return (
       <RealtimeProvider
         clubId={clubInfo.id}
@@ -121,7 +113,6 @@ function ShellContent({
   clubInfo,
   isSuperadmin,
   canViewCompetitions = false,
-  isDemo,
   sidebarLists = [],
 }: {
   children: React.ReactNode;
@@ -131,7 +122,6 @@ function ShellContent({
   clubInfo: ClubInfo | null;
   isSuperadmin: boolean;
   canViewCompetitions?: boolean;
-  isDemo: boolean;
   sidebarLists?: SidebarList[];
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -141,8 +131,7 @@ function ShellContent({
 
   return (
     <>
-      {isDemo && <DemoBanner />}
-      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} canViewCompetitions={canViewCompetitions} isDemo={isDemo} sidebarLists={sidebarLists} />
+      <Sidebar alertCounts={alertCounts} userRole={userRole} clubInfo={clubInfo} isSuperadmin={isSuperadmin} canViewCompetitions={canViewCompetitions} sidebarLists={sidebarLists} />
 
       {/* Mobile header with hamburger */}
       <header className="sticky top-0 z-40 flex items-center border-b bg-card px-4 py-3 lg:hidden">
@@ -175,7 +164,6 @@ function ShellContent({
         clubInfo={clubInfo}
         isSuperadmin={isSuperadmin}
         canViewCompetitions={canViewCompetitions}
-        isDemo={isDemo}
         sidebarLists={sidebarLists}
       />
 
