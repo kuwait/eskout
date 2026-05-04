@@ -209,39 +209,45 @@ function SectionPlayerCard({
           className={`relative w-full min-w-[100px] max-w-[160px] cursor-grab rounded-md border bg-white/95 shadow-sm touch-none active:cursor-grabbing ${borderClass}`}
           onClick={handleCardClick}
         >
-          {/* Compact card: photo + name + club + position */}
-          <div className="flex items-center gap-1.5 p-1.5">
-            {photoUrl ? (
-              <Image
-                src={photoUrl}
-                alt=""
-                width={28}
-                height={28}
-                unoptimized
-                className="h-7 w-7 shrink-0 rounded object-cover shadow-md ring-1 ring-black/20"
-              />
-            ) : (
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-neutral-100 text-neutral-400 shadow-md ring-1 ring-black/20 dark:bg-neutral-700">
-                <User className="h-3.5 w-3.5" />
-              </span>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-semibold leading-tight text-neutral-900 dark:text-neutral-100">
-                {displayName(player.name)}
-              </p>
-              <p className="truncate text-[9px] leading-tight text-neutral-500 dark:text-neutral-400">
-                {player.club || '—'}
-              </p>
+          {/* Compact card: photo flush left (full row height) + name + club + position chip.
+              Photo's top-left rounds to match the card's rounded-md; bottom-left stays square
+              because the bottom strip (doubt-reason/possibility) sits below the compact row. */}
+          <div className="flex min-h-[40px] items-stretch">
+            <div className="relative w-10 shrink-0 self-stretch overflow-hidden rounded-tl-md bg-neutral-100 dark:bg-neutral-800">
+              {photoUrl ? (
+                <Image
+                  src={photoUrl}
+                  alt=""
+                  fill
+                  unoptimized
+                  sizes="40px"
+                  className="object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-neutral-400">
+                  <User className="h-4 w-4" />
+                </div>
+              )}
             </div>
-            {/* Position code chip — tactical-role colored. Slimmer padding than pitch card to save horizontal space */}
-            {posLabel && player.positionNormalized && (
-              <span
-                className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold tracking-wide text-white ${POSITION_CHIP_SOLID[player.positionNormalized] ?? 'bg-neutral-700'}`}
-                title={posLabel}
-              >
-                {player.positionNormalized}
-              </span>
-            )}
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 p-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] font-semibold leading-tight text-neutral-900 dark:text-neutral-100">
+                  {displayName(player.name)}
+                </p>
+                <p className="truncate text-[9px] leading-tight text-neutral-500 dark:text-neutral-400">
+                  {player.club || '—'}
+                </p>
+              </div>
+              {/* Position code chip — tactical-role colored. Slimmer padding than pitch card to save horizontal space */}
+              {posLabel && player.positionNormalized && (
+                <span
+                  className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold tracking-wide text-white ${POSITION_CHIP_SOLID[player.positionNormalized] ?? 'bg-neutral-700'}`}
+                  title={posLabel}
+                >
+                  {player.positionNormalized}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Bottom strip —

@@ -27,11 +27,6 @@ const RATING_COLORS: Record<number, { num: string; bg: string; border: string }>
 };
 const RATING_DEFAULT = { num: 'text-neutral-400', bg: 'bg-neutral-50', border: 'border-neutral-200' };
 
-/** Parse "4 - Muito Bom" → { label: "Muito Bom" } */
-function parseEvalLabel(value: string): string {
-  return value.replace(/^\d\s*-\s*/, '');
-}
-
 interface PlayerCardProps {
   player: Player;
   hideEvaluations?: boolean;
@@ -51,31 +46,45 @@ export function PlayerCard({ player, hideEvaluations = false, hideScoutingData =
     player.tertiaryPosition,
   ].filter(Boolean);
 
+  const ratingColors = ratingInt ? (RATING_COLORS[ratingInt] ?? RATING_DEFAULT) : RATING_DEFAULT;
+  const ratingValue = primary ? (primary.isAverage ? primary.value.toFixed(1) : String(primary.value)) : null;
+
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 transition-colors hover:bg-accent/50 active:bg-accent">
+    <div className="flex items-stretch overflow-hidden rounded-lg border bg-card transition-colors hover:bg-accent/50 active:bg-accent">
       {/* Navigable area — everything except bookmark */}
-      <Link href={`/jogadores/${player.id}`} className="flex items-center gap-2.5 min-w-0 flex-1">
-        {/* Square rating badge — matches desktop EvalCell (hidden for recruiters) */}
-        {!hideEvaluations && <EvalBadge primary={primary} ratingInt={ratingInt} player={player} />}
+      <Link href={`/jogadores/${player.id}`} className="flex min-h-[68px] min-w-0 flex-1 items-stretch">
+        {/* Photo flush left, full card height — magazine-card feel. Rating sticker at top-left
+            of the photo (when not hidden) keeps the eval readable without claiming a separate
+            column on the left. */}
+        <div className="relative w-[72px] shrink-0 self-stretch bg-neutral-100 dark:bg-neutral-800">
+          {photoUrl ? (
+            <Image
+              src={photoUrl}
+              alt=""
+              fill
+              unoptimized
+              sizes="72px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-neutral-400">
+              <User className="h-6 w-6" />
+            </div>
+          )}
+          {!hideEvaluations && primary && ratingValue && (
+            <div
+              className={`absolute bottom-1 left-1 flex flex-col items-center justify-center rounded-md border px-1 py-0.5 shadow-sm ${ratingColors.bg} ${ratingColors.border}`}
+              title={primary.isAverage ? `${player.reportRatingCount} avaliações` : (player.observerEval ?? '')}
+            >
+              <span className={`text-[13px] font-black leading-none ${ratingColors.num}`}>
+                {ratingValue}
+              </span>
+            </div>
+          )}
+        </div>
 
-        {/* Photo — same size and shape as rating badge */}
-        {photoUrl ? (
-          <Image
-            src={photoUrl}
-            alt=""
-            width={50}
-            height={50}
-            className="h-[50px] w-[50px] shrink-0 rounded-xl object-cover"
-            unoptimized
-          />
-        ) : (
-          <span className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-400">
-            <User className="h-5 w-5" />
-          </span>
-        )}
-
-        {/* Content — 3 lines */}
-        <div className="min-w-0 flex-1">
+        {/* Content — padded, vertically centered. 3 lines. */}
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 p-2.5">
           {/* Line 1: name + observation badge */}
           <p className="flex items-center gap-1.5 truncate text-sm font-medium">
             {!hideScoutingData && <ObservationBadge player={player} />}
@@ -85,13 +94,11 @@ export function PlayerCard({ player, hideEvaluations = false, hideScoutingData =
 
           {/* Line 2: club */}
           {player.club && (
-            <div className="mt-0.5">
-              <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
-            </div>
+            <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
           )}
 
           {/* Line 3: DOB + position badges */}
-          <div className="mt-0.5 flex items-center gap-2">
+          <div className="flex items-center gap-2">
             {player.dob && (
               <span className="text-xs text-muted-foreground">{formatDate(player.dob)}</span>
             )}
@@ -110,38 +117,9 @@ export function PlayerCard({ player, hideEvaluations = false, hideScoutingData =
       </Link>
 
       {/* Bookmark — add to list (outside Link to prevent navigation) */}
-      <div className="shrink-0">
+      <div className="shrink-0 self-center pr-2.5">
         <ListBookmarkDropdown playerId={player.id} compact lazy />
       </div>
-    </div>
-  );
-}
-
-/* ───────────── Square Rating Badge (matches desktop PlayerTable EvalCell) ───────────── */
-
-function EvalBadge({ primary, ratingInt, player }: {
-  primary: ReturnType<typeof getPrimaryRating>;
-  ratingInt: number;
-  player: Player;
-}) {
-  if (!primary) {
-    return (
-      <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50">
-        <span className="text-xs text-neutral-300">—</span>
-      </div>
-    );
-  }
-
-  const c = RATING_COLORS[ratingInt] ?? RATING_DEFAULT;
-  const displayValue = primary.isAverage ? primary.value.toFixed(1) : String(primary.value);
-  const label = primary.isAverage
-    ? `${player.reportRatingCount} aval.`
-    : (player.observerEval ? parseEvalLabel(player.observerEval) : '');
-
-  return (
-    <div className={`flex h-[50px] w-[50px] shrink-0 flex-col items-center justify-center rounded-xl border ${c.bg} ${c.border}`}>
-      <span className={`text-base font-black leading-tight ${c.num}`}>{displayValue}</span>
-      {label && <span className={`text-[8px] font-semibold leading-tight ${c.num} opacity-70`}>{label}</span>}
     </div>
   );
 }
