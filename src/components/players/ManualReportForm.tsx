@@ -139,8 +139,9 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
         <span className="text-sm font-semibold">Contexto do Jogo</span>
 
         <div>
-          <label className="text-xs text-muted-foreground">Competição</label>
+          <label htmlFor="manual-report-competition" className="text-xs text-muted-foreground">Competição</label>
           <Input
+            id="manual-report-competition"
             value={form.competition}
             onChange={e => update('competition', e.target.value)}
             placeholder="Ex: Campeonato Nacional Sub-14"
@@ -149,9 +150,10 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
         </div>
 
         <div>
-          <label className="text-xs text-muted-foreground">Jogo</label>
+          <label htmlFor="manual-report-home-team" className="text-xs text-muted-foreground">Jogo</label>
           <div className="mt-1 flex items-center gap-2">
             <Input
+              id="manual-report-home-team"
               value={form.homeTeam}
               onChange={e => update('homeTeam', e.target.value)}
               placeholder="Equipa casa"
@@ -159,6 +161,7 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
             />
             <span className="text-xs font-medium text-muted-foreground shrink-0">vs</span>
             <Input
+              aria-label="Equipa fora"
               value={form.awayTeam}
               onChange={e => update('awayTeam', e.target.value)}
               placeholder="Equipa fora"
@@ -169,8 +172,9 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
 
         <div className="flex gap-3">
           <div className="flex-1">
-            <label className="text-xs text-muted-foreground">Data do jogo</label>
+            <label htmlFor="manual-report-match-date" className="text-xs text-muted-foreground">Data do jogo</label>
             <Input
+              id="manual-report-match-date"
               type="date"
               value={form.matchDate}
               onChange={e => update('matchDate', e.target.value)}
@@ -178,9 +182,11 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
             />
           </div>
           <div className="w-28">
-            <label className="text-xs text-muted-foreground">Resultado</label>
+            <label htmlFor="manual-report-result-home" className="text-xs text-muted-foreground">Resultado</label>
             <div className="mt-1 flex items-center gap-1">
               <Input
+                id="manual-report-result-home"
+                inputMode="numeric"
                 value={form.resultHome}
                 onChange={e => update('resultHome', e.target.value.replace(/\D/g, ''))}
                 placeholder="0"
@@ -189,6 +195,8 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
               />
               <span className="text-xs text-muted-foreground">-</span>
               <Input
+                aria-label="Resultado equipa fora"
+                inputMode="numeric"
                 value={form.resultAway}
                 onChange={e => update('resultAway', e.target.value.replace(/\D/g, ''))}
                 placeholder="0"
@@ -205,8 +213,9 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
         <span className="text-sm font-semibold">Avaliação</span>
 
         <div>
-          <label className="text-xs text-muted-foreground">Perfil físico</label>
+          <label htmlFor="manual-report-physical-profile" className="text-xs text-muted-foreground">Perfil físico</label>
           <Textarea
+            id="manual-report-physical-profile"
             value={form.physicalProfile}
             onChange={e => update('physicalProfile', e.target.value)}
             placeholder="Descrição do perfil físico do jogador..."
@@ -216,8 +225,9 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
         </div>
 
         <div>
-          <label className="text-xs text-muted-foreground">Pontos fortes</label>
+          <label htmlFor="manual-report-strengths" className="text-xs text-muted-foreground">Pontos fortes</label>
           <Textarea
+            id="manual-report-strengths"
             value={form.strengths}
             onChange={e => update('strengths', e.target.value)}
             placeholder="Principais qualidades observadas..."
@@ -227,8 +237,9 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
         </div>
 
         <div>
-          <label className="text-xs text-muted-foreground">Pontos fracos</label>
+          <label htmlFor="manual-report-weaknesses" className="text-xs text-muted-foreground">Pontos fracos</label>
           <Textarea
+            id="manual-report-weaknesses"
             value={form.weaknesses}
             onChange={e => update('weaknesses', e.target.value)}
             placeholder="Aspetos a melhorar..."
@@ -238,8 +249,9 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
         </div>
 
         <div>
-          <label className="text-xs text-muted-foreground">Análise geral</label>
+          <label htmlFor="manual-report-analysis" className="text-xs text-muted-foreground">Análise geral</label>
           <Textarea
+            id="manual-report-analysis"
             value={form.analysis}
             onChange={e => update('analysis', e.target.value)}
             placeholder="Resumo da observação..."
@@ -286,8 +298,11 @@ export function ManualReportForm({ playerId, playerName, onSuccess, onCancel, on
 
         {/* Contact */}
         <div>
-          <label className="text-xs text-muted-foreground">Contacto</label>
+          <label htmlFor="manual-report-contact" className="text-xs text-muted-foreground">Contacto</label>
           <Input
+            id="manual-report-contact"
+            type="tel"
+            inputMode="tel"
             value={form.contactInfo}
             onChange={e => update('contactInfo', e.target.value)}
             placeholder="Nº de telefone"

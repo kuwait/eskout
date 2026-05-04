@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getAuthContext } from '@/lib/supabase/club-context';
 import { playerFormSchema } from '@/lib/validators';
 import { birthYearToAgeGroup, CURRENT_SEASON } from '@/lib/constants';
-import { broadcastRowMutation, broadcastBulkMutation } from '@/lib/realtime/broadcast';
+import { broadcastRowMutation } from '@/lib/realtime/broadcast';
 import type { ActionResponse } from '@/lib/types';
 
 export async function createPlayer(formData: FormData): Promise<ActionResponse<{ id: number; pendingApproval: boolean; redirectTo: string }>> {
@@ -141,7 +141,6 @@ export async function createPlayer(formData: FormData): Promise<ActionResponse<{
   }
 
   revalidatePath('/jogadores');
-  revalidatePath('/admin/pendentes');
   revalidatePath('/meus-jogadores');
 
   // Broadcast to other clients
@@ -164,12 +163,17 @@ export async function deletePlayer(playerId: number): Promise<ActionResponse> {
 
   const supabase = await createClient();
 
-  // Delete/nullify related records — clear all FK references before deleting player
-  await supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId);
-  await supabase.from('status_history').delete().eq('player_id', playerId).eq('club_id', clubId);
-  await supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId);
-  // Nullify FPF match player links (SET NULL — cross-club data, not owned by club)
-  await supabase.from('fpf_match_players').update({ eskout_player_id: null }).eq('eskout_player_id', playerId);
+  // Delete/nullify related records — clear all FK references before deleting player.
+  // Independent tables → parallel (was 4 sequential round-trips).
+  await Promise.all([
+    supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId),
+    supabase.from('status_history').delete().eq('player_id', playerId).eq('club_id', clubId),
+    supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId),
+    // Nullify FPF match player links (SET NULL — cross-club data, not owned by club).
+    // Note: migration 116 also added ON DELETE SET NULL on this FK so cascade would handle
+    // it too, but explicit clear documents intent and works for older DBs.
+    supabase.from('fpf_match_players').update({ eskout_player_id: null }).eq('eskout_player_id', playerId),
+  ]);
 
   const { error } = await supabase.from('players').delete().eq('id', playerId).eq('club_id', clubId);
   if (error) {
@@ -203,13 +207,7 @@ export async function approvePlayer(playerId: number): Promise<ActionResponse> {
 
   if (error) return { success: false, error: error.message };
 
-  // Auto-dismiss for the approver (they don't need to see it anymore)
-  await supabase
-    .from('player_added_dismissals')
-    .upsert({ user_id: userId, player_id: playerId }, { onConflict: 'user_id,player_id' });
-
   revalidatePath('/jogadores');
-  revalidatePath('/admin/pendentes');
   await broadcastRowMutation(clubId, 'players', 'UPDATE', userId, playerId);
   return { success: true };
 }
@@ -223,9 +221,11 @@ export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
 
   const supabase = await createClient();
 
-  // Delete related records first
-  await supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId);
-  await supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId);
+  // Delete related records first (parallel — independent tables).
+  await Promise.all([
+    supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId),
+    supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId),
+  ]);
 
   const { error } = await supabase
     .from('players')
@@ -236,68 +236,7 @@ export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
 
   if (error) return { success: false, error: error.message };
 
-  revalidatePath('/admin/pendentes');
   await broadcastRowMutation(clubId, 'players', 'DELETE', userId, playerId);
-  return { success: true };
-}
-
-/** Dismiss a player from the current user's "Jogadores Adicionados" list (per-user) */
-export async function dismissPlayerReview(playerId: number): Promise<ActionResponse> {
-  const { clubId, role, userId } = await getAuthContext();
-  if (role !== 'admin' && role !== 'editor') {
-    return { success: false, error: 'Sem permissão' };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('player_added_dismissals')
-    .upsert({ user_id: userId, player_id: playerId }, { onConflict: 'user_id,player_id' });
-
-  if (error) return { success: false, error: error.message };
-
-  revalidatePath('/admin/pendentes');
-  await broadcastRowMutation(clubId, 'player_added_dismissals', 'INSERT', userId, playerId);
-  return { success: true };
-}
-
-/** Dismiss all players from the current user's "Jogadores Adicionados" list */
-export async function dismissAllPlayerReviews(): Promise<ActionResponse> {
-  const { clubId, role, userId } = await getAuthContext();
-  if (role !== 'admin' && role !== 'editor') {
-    return { success: false, error: 'Sem permissão' };
-  }
-
-  const supabase = await createClient();
-
-  // Fetch all player IDs the user hasn't dismissed yet (created by others in this club)
-  const { data: dismissed } = await supabase
-    .from('player_added_dismissals')
-    .select('player_id')
-    .eq('user_id', userId);
-  const dismissedIds = new Set((dismissed ?? []).map((d) => d.player_id));
-
-  const { data: players } = await supabase
-    .from('players')
-    .select('id')
-    .eq('club_id', clubId)
-    .neq('created_by', userId);
-
-  if (!players) return { success: true };
-
-  const toDismiss = players
-    .filter((p) => !dismissedIds.has(p.id))
-    .map((p) => ({ user_id: userId, player_id: p.id }));
-
-  if (toDismiss.length > 0) {
-    const { error } = await supabase
-      .from('player_added_dismissals')
-      .upsert(toDismiss, { onConflict: 'user_id,player_id' });
-
-    if (error) return { success: false, error: error.message };
-  }
-
-  revalidatePath('/admin/pendentes');
-  await broadcastBulkMutation(clubId, 'player_added_dismissals', userId);
   return { success: true };
 }
 

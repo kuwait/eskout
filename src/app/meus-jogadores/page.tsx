@@ -1,7 +1,7 @@
 // src/app/meus-jogadores/page.tsx
 // Personal player list for scouts and recruiters — shows players they've added
 // Scouts see pending/approved status; recruiters see all their additions
-// RELEVANT FILES: src/actions/players.ts, src/app/jogadores/novo/page.tsx, src/app/admin/pendentes/page.tsx
+// RELEVANT FILES: src/actions/players.ts, src/app/jogadores/novo/page.tsx
 
 import { getAuthContext } from '@/lib/supabase/club-context';
 import { createClient } from '@/lib/supabase/server';

@@ -552,6 +552,7 @@ export default function SubmeterPage() {
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
+                      inputMode="numeric"
                       min={0}
                       max={99}
                       placeholder="0"
@@ -565,6 +566,7 @@ export default function SubmeterPage() {
                     <span className="text-sm font-bold text-muted-foreground">-</span>
                     <Input
                       type="number"
+                      inputMode="numeric"
                       min={0}
                       max={99}
                       placeholder="0"

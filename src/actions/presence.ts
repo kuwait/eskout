@@ -14,7 +14,7 @@ const SESSION_GAP_MS = 5 * 60 * 1000; // 5 minutes
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
- * Update the current user's presence — called every 60s from AppShellClient.
+ * Update the current user's presence — called every 15min from AppShellClient.
  * Also updates daily peak online count.
  */
 export async function updateLastSeen(page?: string, device?: string): Promise<void> {
@@ -22,15 +22,6 @@ export async function updateLastSeen(page?: string, device?: string): Promise<vo
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-
-  // Skip presence tracking for demo users — no writes needed
-  const { data: membership } = await supabase
-    .from('club_memberships')
-    .select('clubs!inner(is_demo)')
-    .eq('user_id', user.id)
-    .limit(1)
-    .maybeSingle();
-  if ((membership?.clubs as unknown as { is_demo: boolean })?.is_demo) return;
 
   const service = await createServiceClient();
   const now = new Date();

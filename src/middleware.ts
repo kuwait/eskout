@@ -8,7 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const CLUB_COOKIE = 'eskout-club-id';
 
-const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/demo', '/feedback'];
+const PUBLIC_ROUTES = ['/login', '/auth/confirm', '/definir-password', '/feedback'];
 // Routes that require admin role — editors and scouts are redirected
 const ADMIN_ONLY_ROUTES = ['/admin'];
 // Scouts can ONLY access these routes — everything else is blocked
@@ -161,9 +161,8 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse;
     }
 
-    // Admin-only pages — editors can access /admin/pendentes
-    const isEditorAllowedAdmin = role === 'editor' && pathname.startsWith('/admin/pendentes');
-    if (isAdminRoute && role !== 'admin' && !isEditorAllowedAdmin) {
+    // Admin-only pages — editors not allowed
+    if (isAdminRoute && role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       return NextResponse.redirect(url);

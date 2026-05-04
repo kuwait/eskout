@@ -217,15 +217,22 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
   });
   // For real squads: which squad is currently selected in the navigator
   // Priority: initialSquadId (direct link) > localStorage > null
+  // SSR + initial client paint: derive from server data only (no localStorage). Reading
+  // localStorage in the initializer breaks SSR/client agreement and, combined with
+  // suppressHydrationWarning on the SquadSelector trigger, leaves the trigger text frozen
+  // at the SSR value while Radix's internal state moves to the localStorage value — so
+  // the ✓ ends up on a different item than what the trigger displays. Apply localStorage
+  // post-mount via the useEffect below instead.
   const [selectedSquadId, setSelectedSquadIdState] = useState<number | null>(
-    () => {
-      const stored = initialSquadId ?? getStoredSquadId(squadType);
-      if (stored) return stored;
-      // Auto-select first real squad from server data
-      if (squadType === 'real' && initialData?.squads?.[0]) return initialData.squads[0].id;
-      return null;
-    }
+    () => initialSquadId ?? (squadType === 'real' && initialData?.squads?.[0] ? initialData.squads[0].id : null),
   );
+  // Apply localStorage selection once mounted (client-only).
+  useEffect(() => {
+    if (initialSquadId != null) return; // explicit URL squad wins
+    const stored = getStoredSquadId(squadType);
+    if (stored != null) setSelectedSquadIdState(stored);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount per squadType
+  }, [squadType]);
   /** Persist squad selection to localStorage when changed */
   const setSelectedSquadId = useCallback((idOrFn: number | null | ((prev: number | null) => number | null)) => {
     setSelectedSquadIdState((prev) => {

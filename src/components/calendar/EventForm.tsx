@@ -192,7 +192,7 @@ export function EventForm({ event, prefillDate, profiles, onClose }: EventFormPr
             <h2 className="text-lg font-bold">
               {isEditing ? 'Editar Evento' : 'Novo Evento'}
             </h2>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Fechar">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -314,6 +314,7 @@ export function EventForm({ event, prefillDate, profiles, onClose }: EventFormPr
                         size="icon"
                         className="h-7 w-7 text-neutral-400"
                         onClick={() => setSelectedPlayer(null)}
+                        aria-label="Remover jogador selecionado"
                       >
                         <X className="h-3 w-3" />
                       </Button>

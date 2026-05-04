@@ -4,6 +4,7 @@
 // RELEVANT FILES: src/components/squad/SquadExportMenu.tsx, src/lib/constants.ts, src/lib/types/index.ts
 
 import { SQUAD_SLOTS, type SquadSlot } from '@/lib/constants';
+import { shortName } from '@/lib/utils';
 import type { Player } from '@/lib/types';
 
 /* ───────────── Types ───────────── */
@@ -17,13 +18,6 @@ export interface ExportSquadData {
 }
 
 /* ───────────── Helpers ───────────── */
-
-/** First + last name for long names */
-function shortName(name: string): string {
-  const parts = name.trim().split(' ');
-  if (parts.length <= 2) return name;
-  return `${parts[0]} ${parts[parts.length - 1]}`;
-}
 
 /** Format DOB as dd/MM/yyyy */
 function formatDob(dob: string | null): string {

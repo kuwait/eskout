@@ -1,5 +1,5 @@
 // src/hooks/useRealtimeBadges.ts
-// Hook to live-update nav badge counts (alerts, pending reports, pending players)
+// Hook to live-update nav badge counts (alerts, pending reports, pending tasks, etc.)
 // Only refetches counts relevant to the table that changed — avoids cascading queries
 // RELEVANT FILES: src/lib/realtime/RealtimeProvider.tsx, src/components/layout/AppShell.tsx, src/components/layout/Sidebar.tsx
 
@@ -17,8 +17,6 @@ import type { MutationEvent } from '@/lib/realtime/types';
 const TABLE_TO_BADGES: Record<string, (keyof AlertCounts)[]> = {
   observation_notes: ['urgente', 'importante'],
   scouting_reports: ['pendingReports'],
-  players: ['pendingPlayers'],
-  player_added_dismissals: ['pendingPlayers'],
   user_tasks: ['pendingTasks'],
   player_lists: ['observationCount'],
   player_list_items: ['observationCount'],
@@ -39,7 +37,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
   const listIdsRef = useRef<number[]>([]);
 
   /* Sync with server-rendered counts when they change (e.g. after router.refresh()) */
-  const initialKey = `${initialCounts.pendingTasks}-${initialCounts.pendingReports}-${initialCounts.pendingPlayers}-${initialCounts.urgente}-${initialCounts.importante}-${initialCounts.observationCount}-${initialCounts.newFeedbacks}`;
+  const initialKey = `${initialCounts.pendingTasks}-${initialCounts.pendingReports}-${initialCounts.urgente}-${initialCounts.importante}-${initialCounts.observationCount}-${initialCounts.newFeedbacks}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- stable key comparison
   useEffect(() => { setCounts(initialCounts); }, [initialKey]);
 
@@ -61,16 +59,6 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
     const { count } = await supabase.from('scouting_reports').select('id', { count: 'exact', head: true }).eq('club_id', clubId).eq('status', 'pendente');
     setCounts((prev) => ({ ...prev, pendingReports: count ?? 0 }));
   }, [clubId]);
-
-  const fetchPlayers = useCallback(async () => {
-    if (!clubId) return;
-    const supabase = createClient();
-    const [playersRes, dismissedRes] = await Promise.all([
-      supabase.from('players').select('id', { count: 'exact', head: true }).eq('club_id', clubId).neq('created_by', userId),
-      supabase.from('player_added_dismissals').select('player_id', { count: 'exact', head: true }).eq('user_id', userId),
-    ]);
-    setCounts((prev) => ({ ...prev, pendingPlayers: Math.max(0, (playersRes.count ?? 0) - (dismissedRes.count ?? 0)) }));
-  }, [clubId, userId]);
 
   const fetchTasks = useCallback(async () => {
     if (!clubId) return;
@@ -128,7 +116,6 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
     urgente: fetchNotes,
     importante: fetchNotes,
     pendingReports: fetchReports,
-    pendingPlayers: fetchPlayers,
     pendingTasks: fetchTasks,
     observationCount: fetchObservationCount,
     newFeedbacks: fetchNewFeedbacks,
@@ -146,7 +133,7 @@ export function useRealtimeBadges(initialCounts: AlertCounts, userId: string, cl
       fetcher().catch((err) => console.error('[Realtime] badge refetch failed:', err));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fetcherMap is stable via its callbacks
-  }, [fetchNotes, fetchReports, fetchPlayers, fetchTasks, fetchObservationCount, fetchNewFeedbacks]);
+  }, [fetchNotes, fetchReports, fetchTasks, fetchObservationCount, fetchNewFeedbacks]);
 
   useRealtimeAny(handleEvent);
 

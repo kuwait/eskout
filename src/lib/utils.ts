@@ -1,3 +1,8 @@
+// src/lib/utils.ts
+// Shared low-level helpers: tailwind className merge (cn), accent stripping,
+// and shortName abbreviation used across the app.
+// RELEVANT FILES: src/lib/utils/player-name.ts, src/lib/utils/positions.ts, src/lib/utils/dates.ts
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 

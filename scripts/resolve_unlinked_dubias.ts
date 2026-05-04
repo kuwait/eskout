@@ -519,7 +519,7 @@ function appendLog(e: LogEntry) {
 }
 
 async function main() {
-  const { data: clubs } = await supabase.from('clubs').select('id, name').eq('is_demo', false).limit(1).single();
+  const { data: clubs } = await supabase.from('clubs').select('id, name').limit(1).single();
   if (!clubs) { console.error('No club'); return; }
   const clubId = clubs.id as string;
 

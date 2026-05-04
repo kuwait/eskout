@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Calendar, Check, ChevronRight, Clock, Crosshair, Globe, MapPin, Pencil, Plus, Search, Sun, Trash2, UserPlus, Users, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, shortName } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -1051,12 +1051,6 @@ function ScoutGameCard({ game, gameTargets }: { game: ScoutingGame; gameTargets:
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  function shortName(fullName: string): string {
-    const parts = fullName.trim().split(/\s+/);
-    if (parts.length <= 2) return fullName;
-    return `${parts[0]} ${parts[parts.length - 1]}`;
-  }
-
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       <div className="px-4 py-3">
@@ -1441,13 +1435,6 @@ function GameTargetsSection({ game, targets, canManage, isClosed, roundId, onTar
     params.set('opponent', `${game.homeTeam} vs ${game.awayTeam}`);
     if (game.matchDate) params.set('matchDate', game.matchDate);
     return `/jogadores/${target.playerId}?${params.toString()}`;
-  }
-
-  // Short name: first + last
-  function shortName(fullName: string): string {
-    const parts = fullName.trim().split(/\s+/);
-    if (parts.length <= 2) return fullName;
-    return `${parts[0]} ${parts[parts.length - 1]}`;
   }
 
   return (

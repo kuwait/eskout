@@ -54,7 +54,10 @@ let _lastFpfRequestAt = 0;
 // Serialize concurrent callers — without this, N parallel workers all see "elapsed > spacing"
 // at the same instant and fire together. The chained promise creates a true queue.
 let _fpfQueue: Promise<void> = Promise.resolve();
-let _queueDepth = 0; // [TEMP DEBUG] track concurrent waiters
+let _queueDepth = 0; // dev-only telemetry, gated below
+// Dev-only verbose logging. FPF scraping is local-dev-only anyway (CDP/Brave), but the
+// throttle/fetch paths can still run server-side on Vercel; silencing in prod keeps logs clean.
+const FPF_DEBUG = process.env.NODE_ENV !== 'production';
 async function fpfThrottle() {
   _queueDepth++;
   const myDepth = _queueDepth;
@@ -63,8 +66,7 @@ async function fpfThrottle() {
     const elapsed = now - _lastFpfRequestAt;
     if (elapsed < FPF_MIN_SPACING_MS) {
       const wait = FPF_MIN_SPACING_MS - elapsed + Math.random() * 500;
-      // [TEMP DEBUG] visibility into the throttle queue
-      console.log(`[FPF Throttle] waiting ${Math.round(wait)}ms (queue=${myDepth})`);
+      if (FPF_DEBUG) console.log(`[FPF Throttle] waiting ${Math.round(wait)}ms (queue=${myDepth})`);
       await new Promise((r) => setTimeout(r, wait));
     }
     _lastFpfRequestAt = Date.now();
@@ -168,8 +170,9 @@ export async function fpfFetch(
   const method = options.method ?? 'GET';
   const cookie = process.env.FPF_CF_COOKIE;
   const ua = process.env.FPF_USER_AGENT;
-  const t0 = Date.now(); // [TEMP DEBUG]
-  const shortUrl = url.length > 90 ? url.slice(0, 87) + '…' : url; // [TEMP DEBUG]
+  // Tracking variables only used by the dev-only console logs below — cheap to keep.
+  const t0 = Date.now();
+  const shortUrl = url.length > 90 ? url.slice(0, 87) + '…' : url;
 
   await fpfThrottle();
 
@@ -211,8 +214,7 @@ export async function fpfFetch(
         },
         method.toLowerCase(),
       );
-      // [TEMP DEBUG] log every cycletls request outcome
-      console.log(`[FPF cycletls] ${method} ${res.status} ${Date.now() - t0}ms ${shortUrl}`);
+      if (FPF_DEBUG) console.log(`[FPF cycletls] ${method} ${res.status} ${Date.now() - t0}ms ${shortUrl}`);
       if (res.status === 429) throw new FpfRateLimitError(url);
       return {
         status: res.status,
@@ -236,8 +238,7 @@ export async function fpfFetch(
       body: options.body,
       next: { revalidate: 0 },
     });
-    // [TEMP DEBUG] log every plain fetch outcome
-    console.log(`[FPF fetch] ${method} ${res.status} ${Date.now() - t0}ms ${shortUrl}`);
+    if (FPF_DEBUG) console.log(`[FPF fetch] ${method} ${res.status} ${Date.now() - t0}ms ${shortUrl}`);
     if (res.status === 429) throw new FpfRateLimitError(url);
     return {
       status: res.status,

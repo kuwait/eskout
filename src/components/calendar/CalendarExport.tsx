@@ -167,7 +167,7 @@ export function CalendarExport({ events, monthName, onClose }: CalendarExportPro
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">Exportar Calendário</h2>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Fechar">
             <X className="h-4 w-4" />
           </Button>
         </div>

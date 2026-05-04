@@ -107,8 +107,6 @@ const DATE_STATUS_CONFIG = {
 } as const;
 
 import { shortName } from '@/lib/utils';
-// Re-export for consumers that imported from here
-export { shortName } from '@/lib/utils';
 
 export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, onDateChange, clubMembers = [], onStatusChange, onDecisionSideChange, contactPurposeLabel, contactPurposes = [], trainingSessions }: PipelineCardProps) {
   // Extract birth year from dob for display when all age groups selected
@@ -360,10 +358,10 @@ export function PipelineCard({ player, showBirthYear, onPlayerClick, onRemove, o
               }}
             />
             <div className="flex justify-end gap-1">
-              <button type="button" onClick={() => { setEditingNote(false); setNoteDraft(localNote); }} className="rounded p-0.5 text-muted-foreground hover:bg-neutral-100">
+              <button type="button" onClick={() => { setEditingNote(false); setNoteDraft(localNote); }} className="rounded p-0.5 text-muted-foreground hover:bg-neutral-100" aria-label="Cancelar edição da nota">
                 <X className="h-3 w-3" />
               </button>
-              <button type="button" onClick={() => saveNote(noteDraft.trim())} className="rounded p-0.5 text-amber-600 hover:bg-amber-100">
+              <button type="button" onClick={() => saveNote(noteDraft.trim())} className="rounded p-0.5 text-amber-600 hover:bg-amber-100" aria-label="Guardar nota">
                 <Check className="h-3 w-3" />
               </button>
             </div>

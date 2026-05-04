@@ -571,30 +571,40 @@ export async function bulkReorderSquad(
   }
   const supabase = await createClient();
 
+  // Parallel updates — rows are independent. Sequential was N round-trips per drop
+  // (e.g. reordering a 20-player squad = 20 sequential queries).
+  // allSettled (not all) so a single failure doesn't hide partial success.
   if (squadId) {
-    // New path: update squad_players
-    for (const { playerId, order } of updates) {
-      const { error } = await supabase
+    const results = await Promise.allSettled(updates.map(({ playerId, order }) =>
+      supabase
         .from('squad_players')
         .update({ sort_order: order })
         .eq('squad_id', squadId)
-        .eq('player_id', playerId);
-      if (error) {
-        return { success: false, error: `Erro ao reordenar jogador ${playerId}: ${error.message}` };
-      }
+        .eq('player_id', playerId),
+    ));
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
+    if (failed.length > 0) {
+      const firstErr = failed[0].status === 'rejected'
+        ? (failed[0].reason as Error).message
+        : (failed[0].value.error as { message: string }).message;
+      return { success: false, error: `Erro ao reordenar (${failed.length}/${updates.length} falharam): ${firstErr}` };
     }
   } else {
     // Legacy path: update players table directly
     const orderField = squadType === 'shadow' ? 'shadow_order' : 'real_order';
-    for (const { playerId, order } of updates) {
-      const { error } = await supabase
+    const results = await Promise.allSettled(updates.map(({ playerId, order }) =>
+      supabase
         .from('players')
         .update({ [orderField]: order })
         .eq('id', playerId)
-        .eq('club_id', clubId);
-      if (error) {
-        return { success: false, error: `Erro ao reordenar jogador ${playerId}: ${error.message}` };
-      }
+        .eq('club_id', clubId),
+    ));
+    const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
+    if (failed.length > 0) {
+      const firstErr = failed[0].status === 'rejected'
+        ? (failed[0].reason as Error).message
+        : (failed[0].value.error as { message: string }).message;
+      return { success: false, error: `Erro ao reordenar (${failed.length}/${updates.length} falharam): ${firstErr}` };
     }
   }
 

@@ -775,6 +775,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                         <Ruler className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
                         <Input
                           type="number"
+                          inputMode="numeric"
                           min={0}
                           max={250}
                           value={draft.height ?? ''}
@@ -789,6 +790,7 @@ export function PlayerProfile({ player, userRole, notes = [], statusHistory = []
                         <Weight className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
                         <Input
                           type="number"
+                          inputMode="numeric"
                           min={0}
                           max={200}
                           value={draft.weight ?? ''}

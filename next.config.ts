@@ -3,7 +3,21 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // cycletls ships a Go binary loaded via __dirname — bundling breaks the relative
   // path (Next rewrites it to /ROOT/...). Mark as external so it stays CommonJS.
-  serverExternalPackages: ['cycletls'],
+  // playwright is now a runtime dep (fpf-playwright.ts) — externalize so its native
+  // CDP binary path resolution works in serverless lambdas.
+  serverExternalPackages: ['cycletls', 'playwright'],
+  // Tree-shake heavy libs that re-export everything from index. Without this, importing
+  // a single icon/component from these packages drags in everything they re-export.
+  // lucide-react has 1000+ icons; radix-ui + @dnd-kit have many subcomponents.
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'radix-ui',
+      '@dnd-kit/core',
+      '@dnd-kit/sortable',
+      '@dnd-kit/utilities',
+    ],
+  },
   images: {
     // Only allow images from known sources — no wildcard **
     remotePatterns: [
