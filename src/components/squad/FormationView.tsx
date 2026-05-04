@@ -149,11 +149,51 @@ function useIsDesktop() {
 }
 
 /** Virtual cross-position move during drag */
-interface DragVirtual {
+export interface DragVirtual {
   playerId: number;
   fromSlot: string;
   toSlot: string;
   toIndex: number;
+}
+
+/** Compute the per-slot display lists during a cross-position drag.
+ *  Pulls `activePlayer` out of the source slot and inserts it at the target index — gives
+ *  the user a "this is where it'll go" preview as they hover.
+ *
+ *  Special-section sources (POSSIBILIDADE / DUVIDA) are intentionally NOT previewed: those
+ *  cards are rendered from `specialSections` by code outside FormationView (passed in via
+ *  `children`), so we can't filter the source render from here. Inserting the player into a
+ *  pitch slot too would create the same `useSortable` id under two SortableContexts in the
+ *  same DndContext — dnd-kit treats that as a duplicate and crashes the drag. The DragOverlay
+ *  still floats the picked-up card so the user keeps visual feedback. */
+export function computeDisplayByPosition(
+  byPosition: Record<string, Player[]>,
+  specialSections: Record<string, Player[]> | undefined,
+  dragVirtual: DragVirtual | null,
+  activePlayer: Player | null,
+): Record<string, Player[]> {
+  if (!dragVirtual || !activePlayer) return byPosition;
+
+  // Source is a special section → skip the destination preview to avoid duplicate
+  // useSortable IDs (see function-level comment).
+  if (specialSections && dragVirtual.fromSlot in specialSections) return byPosition;
+
+  const result: Record<string, Player[]> = {};
+  for (const [key, players] of Object.entries(byPosition)) {
+    result[key] = [...players];
+  }
+  // Remove from source pitch slot
+  if (result[dragVirtual.fromSlot]) {
+    result[dragVirtual.fromSlot] = result[dragVirtual.fromSlot].filter(
+      (p) => p.id !== dragVirtual.playerId,
+    );
+  }
+  // Insert into target slot at index
+  if (!result[dragVirtual.toSlot]) result[dragVirtual.toSlot] = [];
+  const targetList = [...result[dragVirtual.toSlot]];
+  targetList.splice(dragVirtual.toIndex, 0, activePlayer);
+  result[dragVirtual.toSlot] = targetList;
+  return result;
 }
 
 export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, onPlayerClick, onDragEnd, onToggleDoubt, onSetSignStatus, onTogglePreseason, onMoveToSection, specialSections, children }: FormationViewProps) {
@@ -182,25 +222,11 @@ export function FormationView({ byPosition, squadType, onAdd, onRemovePlayer, on
   }, [byPosition, specialSections]);
 
   // Display positions: during cross-position drag, player is virtually moved to target slot
-  const displayByPosition = useMemo(() => {
-    if (!dragVirtual || !activePlayer) return byPosition;
-    const result: Record<string, Player[]> = {};
-    for (const [key, players] of Object.entries(byPosition)) {
-      result[key] = [...players];
-    }
-    // Remove from source
-    if (result[dragVirtual.fromSlot]) {
-      result[dragVirtual.fromSlot] = result[dragVirtual.fromSlot].filter(
-        (p) => p.id !== dragVirtual.playerId
-      );
-    }
-    // Insert into target at index
-    if (!result[dragVirtual.toSlot]) result[dragVirtual.toSlot] = [];
-    const targetList = [...result[dragVirtual.toSlot]];
-    targetList.splice(dragVirtual.toIndex, 0, activePlayer);
-    result[dragVirtual.toSlot] = targetList;
-    return result;
-  }, [byPosition, dragVirtual, activePlayer]);
+  // (see computeDisplayByPosition for the special-section duplicate-id avoidance)
+  const displayByPosition = useMemo(
+    () => computeDisplayByPosition(byPosition, specialSections, dragVirtual, activePlayer),
+    [byPosition, specialSections, dragVirtual, activePlayer],
+  );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const playerId = parseDragPlayerId(String(event.active.id));
