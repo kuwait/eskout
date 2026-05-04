@@ -14,7 +14,6 @@ export const REALTIME_TABLES = [
   'status_history',
   'calendar_events',
   'club_memberships',
-  'player_added_dismissals',
   'user_tasks',
   'training_feedback',
   'user_observation_list',

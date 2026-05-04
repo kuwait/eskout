@@ -102,9 +102,8 @@ function resolveRoute(input: RoutingInput): RoutingResult {
       return { action: 'redirect_clear_club', to: '/escolher-clube' };
     }
 
-    // Admin-only pages — editors can access /admin/pendentes
-    const isEditorAllowedAdmin = role === 'editor' && pathname.startsWith('/admin/pendentes');
-    if (isAdminRoute && role !== 'admin' && !isEditorAllowedAdmin) {
+    // Admin-only pages — editors not allowed
+    if (isAdminRoute && role !== 'admin') {
       return { action: 'redirect', to: '/' };
     }
 
@@ -259,11 +258,6 @@ describe('middleware routing — editor', () => {
   it('blocks editor from /admin/utilizadores', () => {
     const result = resolveRoute({ pathname: '/admin/utilizadores', user: editorUser, clubCookieId: BOAVISTA_ID, roleOverrideCookie: null });
     expect(result).toEqual({ action: 'redirect', to: '/' });
-  });
-
-  it('allows editor to /admin/pendentes', () => {
-    const result = resolveRoute({ pathname: '/admin/pendentes', user: editorUser, clubCookieId: BOAVISTA_ID, roleOverrideCookie: null });
-    expect(result).toEqual({ action: 'pass' });
   });
 
   it('allows editor to /jogadores', () => {

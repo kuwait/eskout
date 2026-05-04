@@ -22,7 +22,6 @@ export interface AlertCounts {
   urgente: number;
   importante: number;
   pendingReports: number;
-  pendingPlayers: number;
   pendingTasks: number;
   newFeedbacks: number;
   observationCount: number;
@@ -38,7 +37,7 @@ export interface ClubInfo {
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   let ageGroups: AgeGroup[] = [];
-  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingPlayers: 0, pendingTasks: 0, newFeedbacks: 0, observationCount: 0 };
+  let alertCounts: AlertCounts = { urgente: 0, importante: 0, pendingReports: 0, pendingTasks: 0, newFeedbacks: 0, observationCount: 0 };
   let userRole = 'scout';
   let userId = '';
   let userName = '';
@@ -163,12 +162,11 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           : Promise.resolve({ data: null }),
       ]);
 
-      const c = countsRes.data as { urgente: number; importante: number; pending_reports: number; pending_tasks: number; observation_count: number; pending_players: number; new_feedbacks: number } | null;
+      const c = countsRes.data as { urgente: number; importante: number; pending_reports: number; pending_tasks: number; observation_count: number; new_feedbacks: number } | null;
       alertCounts = {
         urgente: c?.urgente ?? 0,
         importante: c?.importante ?? 0,
         pendingReports: c?.pending_reports ?? 0,
-        pendingPlayers: c?.pending_players ?? 0,
         pendingTasks: c?.pending_tasks ?? 0,
         newFeedbacks: c?.new_feedbacks ?? 0,
         observationCount: c?.observation_count ?? 0,

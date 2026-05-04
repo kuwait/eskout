@@ -161,9 +161,8 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse;
     }
 
-    // Admin-only pages — editors can access /admin/pendentes
-    const isEditorAllowedAdmin = role === 'editor' && pathname.startsWith('/admin/pendentes');
-    if (isAdminRoute && role !== 'admin' && !isEditorAllowedAdmin) {
+    // Admin-only pages — editors not allowed
+    if (isAdminRoute && role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       return NextResponse.redirect(url);

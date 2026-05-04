@@ -24,7 +24,6 @@ const PAGE_LABELS: Record<string, string> = {
   '/meus-jogadores': 'Meus Jogadores',
   '/preferencias': 'Preferências',
   '/definicoes': 'Definições',
-  '/admin/pendentes': 'Pendentes',
   '/admin/relatorios': 'Relatórios Admin',
   '/master': 'Gestão',
   '/master/online': 'Online',
