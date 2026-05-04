@@ -929,20 +929,25 @@ export function SquadPanelView({ squadType, initialSquadId, clubId, initialData 
     return (
       <div key={squad.id} className="space-y-4">
         {(showName || squadType === 'shadow' || squad.description) && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {(showName || squadType === 'shadow') && (
-                <h3 className={squadType === 'shadow'
-                  ? 'rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-neutral-800'
-                  : 'text-sm font-semibold text-foreground'}
-                >{squad.name}</h3>
-              )}
-              {squad.description && (
-                /* suppressHydrationWarning: squad is chosen from localStorage on the client, so description may differ from the server-rendered default */
-                <Badge variant="secondary" className="rounded-md px-3 py-1 text-sm uppercase tracking-wide" suppressHydrationWarning>
-                  <span suppressHydrationWarning>{squad.description}</span>
-                </Badge>
-              )}
+          <div className="flex items-center justify-between gap-2">
+            {/* flex-wrap drops the count pills to a second line on mobile when name + description
+                already fill the row. lg+ has plenty of width so it stays in one line. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              {/* Name + description grouped so they never split across two lines */}
+              <div className="flex items-center gap-2">
+                {(showName || squadType === 'shadow') && (
+                  <h3 className={squadType === 'shadow'
+                    ? 'rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-neutral-800'
+                    : 'text-sm font-semibold text-foreground'}
+                  >{squad.name}</h3>
+                )}
+                {squad.description && (
+                  /* suppressHydrationWarning: squad is chosen from localStorage on the client, so description may differ from the server-rendered default */
+                  <Badge variant="secondary" className="rounded-md px-3 py-1 text-sm uppercase tracking-wide" suppressHydrationWarning>
+                    <span suppressHydrationWarning>{squad.description}</span>
+                  </Badge>
+                )}
+              </div>
               {/* Player count + doubt count.
                   suppressHydrationWarning: the active squad is chosen from localStorage on the client,
                   so the counts can differ from the server-rendered default on first paint. */}
