@@ -14,7 +14,7 @@ const SESSION_GAP_MS = 5 * 60 * 1000; // 5 minutes
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
- * Update the current user's presence — called every 60s from AppShellClient.
+ * Update the current user's presence — called every 15min from AppShellClient.
  * Also updates daily peak online count.
  */
 export async function updateLastSeen(page?: string, device?: string): Promise<void> {

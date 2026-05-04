@@ -328,8 +328,11 @@ export async function updateRecruitmentStatus(
   }
   if (newStatus === 'reuniao_marcada' && player?.meeting_attendees?.length) {
     const taskTitle = `🤝 Reunião — ${playerName}`;
-    // Attendees are independent — parallel upserts (was sequential, N round-trips per move)
-    await Promise.all(player.meeting_attendees.map(async (attendeeId: string) => {
+    // Dedupe + parallel upserts. Without dedupe, the same userId twice in the array races
+    // upsertAutoTask in Promise.all (both SELECT see existing=null → both INSERT → duplicate
+    // tasks for same user_id+player_id+source). user_tasks has no UNIQUE constraint.
+    const meetingAttendees = Array.from(new Set(player.meeting_attendees as string[]));
+    await Promise.all(meetingAttendees.map(async (attendeeId) => {
       await upsertAutoTask(supabase, clubId, attendeeId, playerId, taskTitle, 'pipeline_meeting', player.meeting_date);
       notifyCtx(attendeeId, taskTitle, 'pipeline_meeting', { dueDate: player.meeting_date });
     }));
@@ -341,7 +344,8 @@ export async function updateRecruitmentStatus(
   }
   if (newStatus === 'confirmado' && player?.signing_attendees?.length) {
     const taskTitle = `✍️ Assinatura — ${playerName}`;
-    await Promise.all(player.signing_attendees.map(async (attendeeId: string) => {
+    const signingAttendees = Array.from(new Set(player.signing_attendees as string[]));
+    await Promise.all(signingAttendees.map(async (attendeeId) => {
       await upsertAutoTask(supabase, clubId, attendeeId, playerId, taskTitle, 'pipeline_signing', player.signing_date);
       notifyCtx(attendeeId, taskTitle, 'pipeline_signing', { dueDate: player.signing_date });
     }));
@@ -376,16 +380,21 @@ export async function reorderPipelineCards(
   const supabase = await createClient();
 
   // Parallel updates — rows are independent. Sequential was N round-trips per drag.
-  const results = await Promise.all(updates.map(({ playerId, order }) =>
+  // allSettled (not all) so a single failure doesn't hide the fact that the others
+  // already wrote — we surface partial-success info in the error message.
+  const results = await Promise.allSettled(updates.map(({ playerId, order }) =>
     supabase
       .from('players')
       .update({ pipeline_order: order })
       .eq('id', playerId)
       .eq('club_id', clubId),
   ));
-  const failed = results.find((r) => r.error);
-  if (failed?.error) {
-    return { success: false, error: `Erro ao reordenar: ${failed.error.message}` };
+  const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
+  if (failed.length > 0) {
+    const firstErr = failed[0].status === 'rejected'
+      ? (failed[0].reason as Error).message
+      : (failed[0].value.error as { message: string }).message;
+    return { success: false, error: `Erro ao reordenar (${failed.length}/${updates.length} falharam): ${firstErr}` };
   }
 
   revalidatePath('/pipeline');
@@ -539,6 +548,11 @@ export async function updateMeetingAttendees(
   }
   const supabase = await createClient();
 
+  // Dedupe — same userId twice in the array would race upsertAutoTask in Promise.all
+  // (both see existing=null + insert). The schema has no UNIQUE on user_tasks
+  // (user_id, player_id, source) so duplicates would actually be created.
+  attendeeIds = Array.from(new Set(attendeeIds));
+
   const { data: player } = await supabase
     .from('players')
     .select('name, club, contact, position_normalized, dob, foot, fpf_link, zerozero_link, photo_url, zz_photo_url, meeting_attendees, meeting_date')
@@ -619,6 +633,9 @@ export async function updateSigningAttendees(
     return { success: false, error: 'Sem permissão para alterar pipeline' };
   }
   const supabase = await createClient();
+
+  // Dedupe — see updateMeetingAttendees for rationale (race in upsertAutoTask).
+  attendeeIds = Array.from(new Set(attendeeIds));
 
   const { data: player } = await supabase
     .from('players')

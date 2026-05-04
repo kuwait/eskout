@@ -22,7 +22,6 @@ const ADMIN_ROUTES = [
   '/posicoes',
   '/exportar',
   '/preferencias',
-  '/admin/pendentes',
   '/admin/utilizadores',
   '/admin/relatorios',
 ];
