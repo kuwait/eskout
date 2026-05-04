@@ -164,12 +164,17 @@ export async function deletePlayer(playerId: number): Promise<ActionResponse> {
 
   const supabase = await createClient();
 
-  // Delete/nullify related records — clear all FK references before deleting player
-  await supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId);
-  await supabase.from('status_history').delete().eq('player_id', playerId).eq('club_id', clubId);
-  await supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId);
-  // Nullify FPF match player links (SET NULL — cross-club data, not owned by club)
-  await supabase.from('fpf_match_players').update({ eskout_player_id: null }).eq('eskout_player_id', playerId);
+  // Delete/nullify related records — clear all FK references before deleting player.
+  // Independent tables → parallel (was 4 sequential round-trips).
+  await Promise.all([
+    supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId),
+    supabase.from('status_history').delete().eq('player_id', playerId).eq('club_id', clubId),
+    supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId),
+    // Nullify FPF match player links (SET NULL — cross-club data, not owned by club).
+    // Note: migration 116 also added ON DELETE SET NULL on this FK so cascade would handle
+    // it too, but explicit clear documents intent and works for older DBs.
+    supabase.from('fpf_match_players').update({ eskout_player_id: null }).eq('eskout_player_id', playerId),
+  ]);
 
   const { error } = await supabase.from('players').delete().eq('id', playerId).eq('club_id', clubId);
   if (error) {
@@ -223,9 +228,11 @@ export async function rejectPlayer(playerId: number): Promise<ActionResponse> {
 
   const supabase = await createClient();
 
-  // Delete related records first
-  await supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId);
-  await supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId);
+  // Delete related records first (parallel — independent tables).
+  await Promise.all([
+    supabase.from('observation_notes').delete().eq('player_id', playerId).eq('club_id', clubId),
+    supabase.from('scouting_reports').delete().eq('player_id', playerId).eq('club_id', clubId),
+  ]);
 
   const { error } = await supabase
     .from('players')

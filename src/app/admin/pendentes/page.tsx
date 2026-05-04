@@ -33,22 +33,23 @@ export default async function PendentesPage() {
     approved_by: string | null;
   }
 
-  // Paginated fetch — bypasses Supabase's 1000-row default limit
+  // Paginated fetch — bypasses Supabase's 1000-row default limit. ONE pass over all
+  // manually-created players (created_by IS NOT NULL); we derive both `others` (for the
+  // inbox) and the full set (for creator/approver name resolution) in JS instead of two
+  // separate paginated fetches (was 2N round-trips, now N).
   const FETCH_PAGE = 1000;
-  async function fetchPlayerPages(filter: 'others' | 'manual') {
+  async function fetchManualPlayers() {
     const all: PlayerRow[] = [];
     let page = 0;
     let hasMore = true;
     while (hasMore) {
-      let query = supabase
+      const { data } = await supabase
         .from('players')
         .select(playerColumns)
         .eq('club_id', ctx.clubId)
+        .not('created_by', 'is', null)
         .order('created_at', { ascending: false })
         .range(page * FETCH_PAGE, (page + 1) * FETCH_PAGE - 1);
-      if (filter === 'others') query = query.neq('created_by', userId);
-      if (filter === 'manual') query = query.not('created_by', 'is', null);
-      const { data } = await query;
       const rows = (data ?? []) as PlayerRow[];
       all.push(...rows);
       hasMore = rows.length === FETCH_PAGE;
@@ -57,13 +58,13 @@ export default async function PendentesPage() {
     return all;
   }
 
-  // Fetch dismissals + player pages in parallel (dismissals was sequential before)
-  const [dismissedRes, otherPlayers, allClubPlayers] = await Promise.all([
+  // Fetch dismissals + manual players in parallel
+  const [dismissedRes, allClubPlayers] = await Promise.all([
     supabase.from('player_added_dismissals').select('player_id').eq('user_id', userId),
-    fetchPlayerPages('others'),
-    fetchPlayerPages('manual'),
+    fetchManualPlayers(),
   ]);
   const dismissedIds = new Set((dismissedRes.data ?? []).map((d) => d.player_id));
+  const otherPlayers = allClubPlayers.filter((p) => p.created_by !== userId);
 
   // Editor: exclude players created by admins (editors only see notifications from equal/lower roles)
   let filteredOthers = otherPlayers;
