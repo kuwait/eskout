@@ -28,6 +28,7 @@ import { createList, renameList, deleteList } from '@/actions/player-lists';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
+import { firstNameWithLastInitial } from '@/lib/utils/player-name';
 import type { PlayerList } from '@/lib/types';
 
 /* ───────────── Constants ───────────── */
@@ -91,13 +92,6 @@ export function ListsPageClient({
     let h = 0;
     for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
     return LIST_PALETTE[Math.abs(h) % LIST_PALETTE.length];
-  }
-
-  // "João Carlos Silva" → "João S." — keeps share pills compact on mobile
-  function shortName(full: string): string {
-    const parts = full.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0];
-    return `${parts[0]} ${parts[parts.length - 1][0]}.`;
   }
 
   /* ───────────── Delete handler ───────────── */
@@ -196,9 +190,9 @@ export function ListsPageClient({
                         <Share2 className="h-2.5 w-2.5 shrink-0" />
                         <span className="truncate">
                           {list.sharedWith.length === 1
-                            ? `Partilhada com ${shortName(list.sharedWith[0].userName)}`
+                            ? `Partilhada com ${firstNameWithLastInitial(list.sharedWith[0].userName)}`
                             : list.sharedWith.length === 2
-                              ? `Partilhada com ${shortName(list.sharedWith[0].userName)} e ${shortName(list.sharedWith[1].userName)}`
+                              ? `Partilhada com ${firstNameWithLastInitial(list.sharedWith[0].userName)} e ${firstNameWithLastInitial(list.sharedWith[1].userName)}`
                               : `Partilhada com ${list.sharedWith.length} pessoas`}
                         </span>
                       </span>

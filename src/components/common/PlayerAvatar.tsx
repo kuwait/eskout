@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import { User } from 'lucide-react';
 import { POSITION_LABELS } from '@/lib/constants';
+import { shortName } from '@/lib/utils';
 import type { PositionCode } from '@/lib/types';
 
 /* ───────────── Types ───────────── */
@@ -32,13 +33,6 @@ interface PlayerAvatarProps {
 }
 
 /* ───────────── Helpers ───────────── */
-
-/** First + last name (e.g. "Afonso Filipe Oliveira Rodrigues" -> "Afonso Rodrigues") */
-function shortName(full: string): string {
-  const parts = full.trim().split(/\s+/);
-  if (parts.length <= 2) return full;
-  return `${parts[0]} ${parts[parts.length - 1]}`;
-}
 
 /** Format dob to dd/MM/yyyy */
 function formatDob(dob: string): string {

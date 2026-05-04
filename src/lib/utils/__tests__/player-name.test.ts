@@ -3,7 +3,7 @@
 // Wrong abbreviation here would make name display inconsistent across views
 // RELEVANT FILES: src/lib/utils/player-name.ts, src/components/squad/FormationSlot.tsx
 
-import { compactName } from '../player-name';
+import { compactName, firstNameWithLastInitial } from '../player-name';
 
 describe('compactName', () => {
   it('returns single-word names unchanged', () => {
@@ -39,5 +39,30 @@ describe('compactName', () => {
   it('uses the first character (including accents) for the initial', () => {
     expect(compactName('Álvaro Pereira')).toBe('Á. Pereira');
     expect(compactName('Émile Smith')).toBe('É. Smith');
+  });
+});
+
+describe('firstNameWithLastInitial', () => {
+  it('returns single-word names unchanged', () => {
+    expect(firstNameWithLastInitial('Pelé')).toBe('Pelé');
+    expect(firstNameWithLastInitial('Ronaldinho')).toBe('Ronaldinho');
+  });
+
+  it('returns "First L." for two-word names', () => {
+    expect(firstNameWithLastInitial('João Silva')).toBe('João S.');
+    expect(firstNameWithLastInitial('Cristiano Ronaldo')).toBe('Cristiano R.');
+  });
+
+  it('drops middle names — first word + initial of last only', () => {
+    expect(firstNameWithLastInitial('João Carlos Silva')).toBe('João S.');
+    expect(firstNameWithLastInitial('Cristiano Ronaldo dos Santos Aveiro')).toBe('Cristiano A.');
+  });
+
+  it('handles extra whitespace', () => {
+    expect(firstNameWithLastInitial('  João   Silva  ')).toBe('João S.');
+  });
+
+  it('keeps accented first name intact', () => {
+    expect(firstNameWithLastInitial('André Costa')).toBe('André C.');
   });
 });

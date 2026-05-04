@@ -9,7 +9,7 @@ import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Binoculars, Calendar, Check, ChevronRight, Crosshair, Pencil, Plus, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, shortName } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -374,12 +374,6 @@ function ScoutRoundCard({ round, games, targets, initialAvailability, canManage 
     return days;
   }, [round.startDate, round.endDate]);
   const hasGames = games.length > 0;
-
-  function shortName(fullName: string): string {
-    const parts = fullName.trim().split(/\s+/);
-    if (parts.length <= 2) return fullName;
-    return `${parts[0]} ${parts[parts.length - 1]}`;
-  }
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
