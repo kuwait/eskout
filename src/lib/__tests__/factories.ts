@@ -8,8 +8,11 @@ import type {
   ContactPurpose,
   Player,
   PlayerRow,
+  QuickScoutReport,
   ScoutingReportRow,
   StatusHistoryEntry,
+  Squad,
+  SquadPlayer,
   TrainingFeedbackRow,
   UserTaskRow,
 } from '@/lib/types';
@@ -356,6 +359,92 @@ export function makeStatusHistoryEntry(overrides?: Partial<StatusHistoryEntry>):
     createdAt: '2026-03-15T10:00:00Z',
     contactPurposeId: null,
     contactPurposeCustom: null,
+    ...overrides,
+  };
+}
+
+/* ───────────── Squad (domain) ───────────── */
+
+export function makeSquad(overrides?: Partial<Squad>): Squad {
+  return {
+    id: 1,
+    clubId: 'club-abc',
+    name: 'Plantel Sub-15',
+    description: null,
+    squadType: 'real',
+    ageGroupId: 10,
+    sortOrder: 0,
+    createdBy: 'user-abc',
+    createdAt: '2026-01-01T10:00:00Z',
+    ...overrides,
+  };
+}
+
+/* ───────────── SquadPlayer (domain) ───────────── */
+
+export function makeSquadPlayer(overrides?: Partial<SquadPlayer>): SquadPlayer {
+  return {
+    id: 1,
+    squadId: 1,
+    playerId: 42,
+    clubId: 'club-abc',
+    position: 'DC_E',
+    sortOrder: 0,
+    isDoubt: false,
+    isSigned: false,
+    isWillSign: false,
+    isPreseason: false,
+    doubtReason: null,
+    doubtReasonCustom: null,
+    doubtReasonColor: null,
+    possibilityReasonCustom: null,
+    possibilityReasonColor: null,
+    addedAt: '2026-01-01T10:00:00Z',
+    ...overrides,
+  };
+}
+
+/* ───────────── QuickScoutReport (domain) ───────────── */
+
+export function makeQuickScoutReport(overrides?: Partial<QuickScoutReport>): QuickScoutReport {
+  return {
+    id: 1,
+    clubId: 'club-abc',
+    playerId: 42,
+    authorId: 'user-abc',
+    authorName: 'Carlos Lopes',
+    ratingTecnica: 4,
+    ratingTatica: 3,
+    ratingFisico: 4,
+    ratingMentalidade: 4,
+    ratingPotencial: 5,
+    ratingOverall: 4,
+    recommendation: 'Acompanhar',
+    tagsTecnica: [],
+    tagsTatica: [],
+    tagsFisico: [],
+    tagsMentalidade: [],
+    tagsPotencial: [],
+    maturation: null,
+    observedFoot: null,
+    heightScale: null,
+    buildScale: null,
+    speedScale: null,
+    intensityScale: null,
+    maturationScale: null,
+    opponentLevel: null,
+    observedPosition: null,
+    minutesObserved: null,
+    standoutLevel: null,
+    starter: null,
+    subMinute: null,
+    conditions: [],
+    competition: null,
+    opponent: null,
+    matchDate: null,
+    notes: null,
+    createdAt: '2026-03-10T18:00:00Z',
+    updatedAt: '2026-03-10T18:00:00Z',
     ...overrides,
   };
 }
