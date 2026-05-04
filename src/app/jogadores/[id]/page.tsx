@@ -4,7 +4,6 @@
 // RELEVANT FILES: src/lib/supabase/queries.ts, src/components/players/PlayerProfile.tsx, src/lib/supabase/mappers.ts
 
 import type { Metadata } from 'next';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
 import { getCurrentUserRole } from '@/lib/supabase/queries';
 import { getPlayerFpfPlayingUp } from '@/actions/players';
@@ -15,7 +14,6 @@ import { createClient } from '@/lib/supabase/server';
 import { getActiveClubId } from '@/lib/supabase/club-context';
 import { mapPlayerRow, mapScoutingReportRow, mapSquadPlayerRow, mapSquadRow } from '@/lib/supabase/mappers';
 import { PlayerProfile } from '@/components/players/PlayerProfile';
-import { getPositionLabel } from '@/lib/constants';
 import type { PlayerRow, ScoutingReportRow, SquadPlayerRow, SquadRow, ObservationNote, StatusHistoryEntry, ScoutEvaluation, QuickScoutReport, TrainingFeedback, PlayerVideo } from '@/lib/types';
 
 interface PageProps {
@@ -25,43 +23,19 @@ interface PageProps {
 
 /* ───────────── Open Graph metadata for WhatsApp/social sharing ───────────── */
 
-/** Lightweight query using service role — works without user session (for social crawlers) */
-async function getPlayerForOg(playerId: number) {
-  const supabase = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-  const { data } = await supabase
-    .from('players')
-    .select('name, dob, club, position_normalized, photo_url, zz_photo_url')
-    .eq('id', playerId)
-    .single();
-  return data;
-}
-
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { id } = await params;
-  const playerId = parseInt(id, 10);
-  if (isNaN(playerId)) return {};
-
-  const player = await getPlayerForOg(playerId);
-  if (!player) return {};
-
-  const position = getPositionLabel(player.position_normalized);
-  const age = player.dob ? `${new Date().getFullYear() - new Date(player.dob).getFullYear()} anos` : '';
-  const parts = [position, player.club, age].filter(Boolean);
-  const description = parts.join(' · ');
-  const photoUrl = player.photo_url?.startsWith('http') ? player.photo_url
-    : player.zz_photo_url?.startsWith('http') ? player.zz_photo_url
-    : undefined;
-
+/**
+ * Generic OG metadata only — was previously leaking PII (player name, DOB, club, photo)
+ * via service-role lookup with no auth, accessible to anyone with a player ID.
+ * Player photos and personal data are sensitive (often minors). Real preview happens
+ * after login, which is the right boundary for any rich data.
+ */
+export function generateMetadata(): Metadata {
   return {
-    title: `${player.name} — Eskout`,
-    description,
+    title: 'Eskout — Perfil de jogador',
+    description: 'Plataforma de scouting e recrutamento de formação',
     openGraph: {
-      title: player.name,
-      description,
-      ...(photoUrl && { images: [{ url: photoUrl, width: 200, height: 200 }] }),
+      title: 'Eskout',
+      description: 'Plataforma de scouting e recrutamento de formação',
     },
   };
 }

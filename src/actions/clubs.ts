@@ -302,6 +302,11 @@ export async function updateMembershipRole(
 
   if (!membership) return { success: false, error: 'Membro não encontrado' };
 
+  // Authorization: caller must be admin of the same club, or a superadmin.
+  // Without this any authenticated user could update any membership role in any club
+  // they (or someone else) belongs to. Self-demotion still blocked further down.
+  const callerAuth = await getCallerClubAuthorization(supabase, user.id, membership.club_id);
+  if (!callerAuth.canManage) return { success: false, error: 'Acesso negado' };
 
   // Prevent self-demotion
   if (membership.user_id === user.id) {
@@ -339,6 +344,9 @@ export async function removeMembership(
 
   if (!membership) return { success: false, error: 'Membro não encontrado' };
 
+  // Authorization: caller must be admin of the same club, or a superadmin.
+  const callerAuth = await getCallerClubAuthorization(supabase, user.id, membership.club_id);
+  if (!callerAuth.canManage) return { success: false, error: 'Acesso negado' };
 
   // Prevent self-removal
   if (membership.user_id === user.id) {
@@ -356,9 +364,40 @@ export async function removeMembership(
   return { success: true };
 }
 
+/** Check if `userId` can manage memberships of `clubId` — must be club admin or superadmin.
+ *  Reads from profiles + club_memberships in parallel. Used by updateMembershipRole and
+ *  removeMembership to prevent privilege escalation across clubs. */
+async function getCallerClubAuthorization(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  clubId: string,
+): Promise<{ canManage: boolean }> {
+  const [profileRes, membershipRes] = await Promise.all([
+    supabase.from('profiles').select('is_superadmin').eq('id', userId).single(),
+    supabase.from('club_memberships').select('role').eq('user_id', userId).eq('club_id', clubId).single(),
+  ]);
+  const isSuperadmin = profileRes.data?.is_superadmin ?? false;
+  const isClubAdmin = membershipRes.data?.role === 'admin';
+  return { canManage: isSuperadmin || isClubAdmin };
+}
+
 /* ───────────── Seed Age Groups for Club ───────────── */
 
 export async function seedAgeGroupsForClub(clubId: string): Promise<ActionResponse> {
+  // Superadmin-only — called from /master/clubes after createClub. Without this guard
+  // any authenticated user could invoke the action with any clubId and bulk-insert
+  // age_groups (junk data + DoS).
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: 'Não autenticado' };
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_superadmin')
+    .eq('id', user.id)
+    .single();
+  if (!profile?.is_superadmin) return { success: false, error: 'Acesso negado' };
+
   const service = await createServiceClient();
 
   // Dynamic age group calculation (same logic as constants.ts)
