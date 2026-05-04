@@ -5,10 +5,10 @@
 
 'use client';
 
-import { Plus, Trash2, Footprints, Calendar } from 'lucide-react';
+import Image from 'next/image';
+import { Plus, Trash2, Footprints, Calendar, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OpinionBadge } from '@/components/common/OpinionBadge';
-import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SQUAD_SLOTS, POSITION_LABELS, POSITION_CHIP_SOLID } from '@/lib/constants';
 import type { Player, PositionCode } from '@/lib/types';
@@ -107,7 +107,7 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                   return (
                     <div
                       key={player.id}
-                      className={`group relative transition-colors hover:bg-neutral-50 ${
+                      className={`group relative overflow-hidden transition-colors hover:bg-neutral-50 ${
                         player.isDoubt
                           ? 'border border-dashed border-amber-400 bg-amber-50/50'
                           : player.isPreseason
@@ -121,31 +121,39 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                     >
                       {/* Rank corner */}
                       {squadType === 'shadow' && (
-                        <span className={`absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-bl-md text-[10px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
+                        <span className={`absolute top-0 right-0 z-10 flex h-5 w-5 items-center justify-center rounded-bl-md text-[10px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
                           {index + 1}
                         </span>
                       )}
 
-                      {/* Top row: photo + info + (desktop-only hover actions) */}
+                      {/* Top row: photo (flush left, full row height) + info + desktop hover
+                          actions. items-stretch lets the photo div fill the row vertically;
+                          min-h-[60px] keeps a sensible card height when text content is short. */}
                       <div
-                        className="flex cursor-pointer items-start gap-3 p-3 lg:items-center"
+                        className="flex min-h-[60px] cursor-pointer items-stretch"
                         onClick={() => onPlayerClick?.(player.id)}
                       >
-                        {/* Photo */}
-                        <PlayerAvatar
-                          player={{
-                            name: player.name,
-                            photoUrl,
-                            club: player.club,
-                            position: player.positionNormalized,
-                            dob: player.dob,
-                            foot: player.foot,
-                          }}
-                          size={44}
-                        />
+                        {/* Photo flush left, full row height — magazine-card feel.
+                            Wider on desktop where there's room (lg:w-24 ≈ 96px). */}
+                        <div className="relative w-20 shrink-0 self-stretch bg-neutral-100 lg:w-24 dark:bg-neutral-800">
+                          {photoUrl ? (
+                            <Image
+                              src={photoUrl}
+                              alt=""
+                              fill
+                              unoptimized
+                              sizes="(min-width: 1024px) 96px, 80px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-neutral-400">
+                              <User className="h-6 w-6" />
+                            </div>
+                          )}
+                        </div>
 
-                        {/* Info */}
-                        <div className="min-w-0 flex-1">
+                        {/* Info — padded, vertically centered */}
+                        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 p-3">
                           {/* Mobile: name + club share one truncated line (saves vertical room).
                               Desktop: name on top, club below (more breathable on wide rows). */}
                           <p className="truncate text-sm font-semibold text-neutral-900 lg:hidden">
@@ -208,8 +216,10 @@ export function SquadListView({ byPosition, squadType, onAdd, onRemovePlayer, on
                           </div>
                         </div>
 
-                        {/* Desktop hover-reveal action buttons — hidden on mobile (use the bottom row instead) */}
-                        <div className="hidden shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 lg:flex">
+                        {/* Desktop hover-reveal action buttons — hidden on mobile (use the bottom row instead).
+                            self-center + pr-3 keeps them vertically centered with the info column now
+                            that the row uses items-stretch. */}
+                        <div className="hidden shrink-0 items-center gap-1 self-center pr-3 opacity-0 transition-opacity group-hover:opacity-100 lg:flex">
                           {onToggleDoubt && (
                             <button
                               className={`rounded px-2 py-1 text-[10px] font-medium ${

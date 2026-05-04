@@ -25,7 +25,7 @@ import { ListBookmarkDropdown } from '@/components/players/ListBookmarkDropdown'
 import type { Player, PositionCode } from '@/lib/types';
 import { ArrowUpDown } from 'lucide-react';
 
-type SortKey = 'eval' | 'name' | 'dob' | 'position' | 'opinion' | 'status' | 'notes';
+type SortKey = 'name' | 'dob' | 'position' | 'opinion' | 'status' | 'notes';
 type SortDir = 'asc' | 'desc';
 
 interface PlayerTableProps {
@@ -46,21 +46,12 @@ const RATING_COLORS: Record<number, { num: string; bg: string; border: string }>
 };
 const RATING_DEFAULT = { num: 'text-neutral-400', bg: 'bg-neutral-50', border: 'border-neutral-200' };
 
-/** Parse "4 - Muito Bom" → { rating: 4, label: "Muito Bom" } */
-function parseEval(value: string): { rating: number; label: string } {
-  const m = value.match(/^(\d)/);
-  const rating = m ? parseInt(m[1], 10) : 0;
-  const label = value.replace(/^\d\s*-\s*/, '');
-  return { rating, label };
-}
-
 /* ───────────── Column Config ───────────── */
 
-const COLUMN_KEYS: SortKey[] = ['eval', 'name', 'dob', 'position', 'opinion', 'status', 'notes'];
+const COLUMN_KEYS: SortKey[] = ['name', 'dob', 'position', 'opinion', 'status', 'notes'];
 
 const DEFAULT_WIDTHS: Record<string, number> = {
-  eval: 78,
-  name: 240,
+  name: 280,
   dob: 120,
   position: 130,
   opinion: 115,
@@ -69,7 +60,6 @@ const DEFAULT_WIDTHS: Record<string, number> = {
 };
 
 const COLUMN_LABELS: Record<SortKey, string> = {
-  eval: 'Avaliação',
   name: 'Nome',
   dob: 'Nasc.',
   position: 'Posição',
@@ -97,19 +87,17 @@ function SortHeader({ label, sortKeyName, onSort }: {
 
 export function PlayerTable({ players, hideEvaluations = false, hideScoutingData = false }: PlayerTableProps) {
   const router = useRouter();
-  const [sortKey, setSortKey] = useState<SortKey>(hideScoutingData ? 'name' : 'eval');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   // Filter out columns based on role
   const hiddenCols = new Set<SortKey>();
-  if (hideEvaluations || hideScoutingData) hiddenCols.add('eval');
   if (hideScoutingData) { hiddenCols.add('opinion'); hiddenCols.add('status'); hiddenCols.add('notes'); }
   const visibleColumns = COLUMN_KEYS.filter((k) => !hiddenCols.has(k));
 
   const { widths, handleMouseDown, handleDoubleClick, tableRef } = useResizableColumns({
     columnKeys: visibleColumns,
     defaultWidths: DEFAULT_WIDTHS,
-    minWidths: { eval: 20 },
   });
 
   function handleSort(key: SortKey) {
@@ -121,16 +109,9 @@ export function PlayerTable({ players, hideEvaluations = false, hideScoutingData
     }
   }
 
-  /** Extract hybrid rating for sorting (report avg > manual eval > 0) */
-  const evalNum = (p: Player) => {
-    const primary = getPrimaryRating(p);
-    return primary ? primary.value : 0;
-  };
-
   const sorted = [...players].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     switch (sortKey) {
-      case 'eval':     return (evalNum(a) - evalNum(b)) * dir;
       case 'name':     return a.name.localeCompare(b.name) * dir;
       case 'dob':      return (a.dob ?? '').localeCompare(b.dob ?? '') * dir;
       case 'position': return (a.positionNormalized || 'ZZZ').localeCompare(b.positionNormalized || 'ZZZ') * dir;
@@ -175,6 +156,10 @@ export function PlayerTable({ players, hideEvaluations = false, hideScoutingData
             ].filter(Boolean);
 
             const photoUrl = player.photoUrl || player.zzPhotoUrl;
+            const primary = getPrimaryRating(player);
+            const ratingInt = primary ? (Math.ceil(primary.value) || 1) : 0;
+            const ratingColors = ratingInt ? (RATING_COLORS[ratingInt] ?? RATING_DEFAULT) : RATING_DEFAULT;
+            const ratingValue = primary ? (primary.isAverage ? primary.value.toFixed(1) : String(primary.value)) : null;
 
             return (
               <TableRow
@@ -183,54 +168,69 @@ export function PlayerTable({ players, hideEvaluations = false, hideScoutingData
                 onClick={() => router.push(`/jogadores/${player.id}`)}
                 onAuxClick={(e) => { if (e.button === 1) window.open(`/jogadores/${player.id}`, '_blank'); }}
               >
-                {!hideEvaluations && (
-                <TableCell style={{ width: widths.eval }} className="!py-1 overflow-hidden">
-                  <EvalCell player={player} />
-                </TableCell>
-                )}
-                <TableCell style={{ width: widths.name }}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    {photoUrl ? (
-                      <HoverCard openDelay={300} closeDelay={100}>
-                        <HoverCardTrigger asChild>
-                          <Image
-                            src={photoUrl}
-                            alt=""
-                            width={56}
-                            height={56}
-                            className="h-14 w-14 shrink-0 rounded-xl object-cover"
-                            unoptimized
-                          />
-                        </HoverCardTrigger>
-                        <HoverCardContent side="right" align="start" className="w-auto p-1">
-                          <Image
-                            src={photoUrl}
-                            alt={player.name}
-                            width={320}
-                            height={320}
-                            className="h-72 w-72 rounded-lg object-cover"
-                            unoptimized
-                          />
-                        </HoverCardContent>
-                      </HoverCard>
-                    ) : (
-                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-400">
-                        <User className="h-6 w-6" />
-                      </span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1.5 truncate font-medium text-neutral-900">
-                        {!hideScoutingData && <ObservationBadge player={player} />}
-                        {!hideScoutingData && <PlayingUpBadge player={player} />}
-                        <span className="truncate">{player.name}</span>
-                      </p>
-                      {player.club && (
-                        <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
+                {/* Name cell with photo flush left, full row height. `!p-0` removes the cell's
+                    own padding so the photo can sit flush against the row edge; the inner
+                    info column gets its own padding back. `items-stretch` lets the photo
+                    fill the row height. */}
+                <TableCell style={{ width: widths.name }} className="!p-0">
+                  <div className="flex min-h-[68px] items-stretch">
+                    {/* Photo flush left, full row height — magazine-card feel.
+                        Rating sticker overlays at the bottom-left of the photo. */}
+                    <div className="relative w-[72px] shrink-0 self-stretch overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+                      {photoUrl ? (
+                        <HoverCard openDelay={300} closeDelay={100}>
+                          <HoverCardTrigger asChild>
+                            <Image
+                              src={photoUrl}
+                              alt=""
+                              fill
+                              unoptimized
+                              sizes="72px"
+                              className="object-cover"
+                            />
+                          </HoverCardTrigger>
+                          <HoverCardContent side="right" align="start" className="w-auto p-1">
+                            <Image
+                              src={photoUrl}
+                              alt={player.name}
+                              width={320}
+                              height={320}
+                              className="h-72 w-72 rounded-lg object-cover"
+                              unoptimized
+                            />
+                          </HoverCardContent>
+                        </HoverCard>
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-neutral-400">
+                          <User className="h-6 w-6" />
+                        </div>
+                      )}
+                      {!hideEvaluations && primary && ratingValue && (
+                        <div
+                          className={`pointer-events-none absolute bottom-1 left-1 flex items-center justify-center rounded-md border px-1 py-0.5 shadow-sm ${ratingColors.bg} ${ratingColors.border}`}
+                          title={primary.isAverage ? `${player.reportRatingCount} avaliações` : (player.observerEval ?? '')}
+                        >
+                          <span className={`text-xs font-black leading-none ${ratingColors.num}`}>
+                            {ratingValue}
+                          </span>
+                        </div>
                       )}
                     </div>
-                    {/* Bookmark — add to list (lazy to avoid N+1 queries) */}
-                    <div className="shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                      <ListBookmarkDropdown playerId={player.id} compact lazy />
+                    <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-1.5 truncate font-medium text-neutral-900">
+                          {!hideScoutingData && <ObservationBadge player={player} />}
+                          {!hideScoutingData && <PlayingUpBadge player={player} />}
+                          <span className="truncate">{player.name}</span>
+                        </p>
+                        {player.club && (
+                          <ClubBadge club={player.club} logoUrl={player.clubLogoUrl} size="sm" className="text-muted-foreground" />
+                        )}
+                      </div>
+                      {/* Bookmark — add to list (lazy to avoid N+1 queries) */}
+                      <div className="shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                        <ListBookmarkDropdown playerId={player.id} compact lazy />
+                      </div>
                     </div>
                   </div>
                 </TableCell>
@@ -300,32 +300,6 @@ export function PlayerTable({ players, hideEvaluations = false, hideScoutingData
   );
 }
 
-/* ───────────── Eval Cell (hybrid rating — report avg > manual eval) ───────────── */
-
-function EvalCell({ player }: { player: Player }) {
-  const primary = getPrimaryRating(player);
-  if (!primary) return <span className="text-xs text-neutral-300">—</span>;
-
-  const ratingInt = Math.ceil(primary.value) || 1;
-  const c = RATING_COLORS[ratingInt] ?? RATING_DEFAULT;
-
-  // Display value: decimal for averages, integer for manual
-  const displayValue = primary.isAverage ? primary.value.toFixed(1) : String(primary.value);
-  // Label: report count for averages, text label for manual
-  const label = primary.isAverage
-    ? `${player.reportRatingCount} aval.`
-    : (player.observerEval ? parseEval(player.observerEval).label : '');
-
-  // Card-style badge matching PlayerProfile desktop widget (compact, fixed size)
-  return (
-    <div className={`flex h-[58px] w-[62px] flex-col items-center justify-center rounded-xl border ${c.bg} ${c.border}`}>
-      <span className={`text-lg font-black leading-tight ${c.num}`}>
-        {displayValue}
-      </span>
-      {label && <span className={`text-[10px] font-semibold leading-tight ${c.num} opacity-70`}>{label}</span>}
-    </div>
-  );
-}
 
 /* ───────────── Notes Cell (observation notes as compact bullet list) ───────────── */
 

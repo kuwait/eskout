@@ -13,6 +13,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { POSITION_LABELS, SPECIAL_SECTION_LABELS, POSITION_CHIP_SOLID, POSITION_CHIP_OUTLINE } from '@/lib/constants';
+import { compactName } from '@/lib/utils/player-name';
 import { Button } from '@/components/ui/button';
 import type { Player, PositionCode } from '@/lib/types';
 import type { SquadSignStatus } from '@/actions/squads';
@@ -71,13 +72,6 @@ function displayName(name: string): string {
   // ~18 chars fit in the 190px card header at text-[12px] — beyond that, abbreviate first name
   if (firstLast.length > 18) return `${first.charAt(0)}. ${last}`;
   return firstLast;
-}
-
-/** Compact name for narrow mobile cards: always "F. Last" for 2+ words */
-function compactName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) return name;
-  return `${parts[0].charAt(0)}. ${parts[parts.length - 1]}`;
 }
 
 /** Compute age in years from an ISO dob string, returns null if invalid */
@@ -213,7 +207,8 @@ function DraggablePlayerCard({
     >
       {/* Status flag — bottom-right corner (priority: Dúvida > Pré-Época > Assinou > Vai Assinar).
           Hidden while expanded — the same info is shown as toggle buttons inside the panel,
-          and the corner pin floats off the bottom of a tall expanded card looking detached. */}
+          and the corner pin floats off the bottom of a tall expanded card looking detached.
+          Sticks out of the card slightly (-bottom-1 -right-0.5) for the "tag" feel. */}
       {!showActions && (player.isDoubt ? (
         <span className="absolute -bottom-1 -right-0.5 z-10 rounded-full bg-amber-500 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white shadow-sm" title="Dúvida">
           Dúvida
@@ -234,28 +229,33 @@ function DraggablePlayerCard({
 
       {/* Rank corner badge — top-right */}
       {squadType === 'shadow' && (
-        <span className={`absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-bl-md rounded-tr-md text-[9px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
+        <span className={`absolute top-0 right-0 z-10 flex h-4 w-4 items-center justify-center rounded-bl-md rounded-tr-md text-[9px] font-bold ${RANK_CORNER[index] ?? 'bg-neutral-100 text-neutral-400'}`}>
           {index + 1}
         </span>
       )}
 
-      {/* Compact card: photo + name + club only */}
-      <div className="flex items-center gap-2 p-1.5">
-        {photoUrl ? (
-          <Image
-            src={photoUrl}
-            alt=""
-            width={32}
-            height={32}
-            unoptimized
-            className="h-8 w-8 shrink-0 rounded object-cover shadow-md ring-1 ring-black/20"
-          />
-        ) : (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-neutral-100 text-neutral-400 shadow-md ring-1 ring-black/20">
-            <User className="h-4 w-4" />
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
+      {/* Compact card: photo flush left (full row height) + name + club. Top-left rounds to
+          match the card's top-left corner. Bottom-left rounds ONLY when the card is collapsed
+          (showActions=false) — when expanded, the photo bottom meets the horizontal divider
+          line above the expanded panel, so a square corner there is what we want. */}
+      <div className="flex min-h-[44px] items-stretch">
+        <div className={`relative w-10 shrink-0 self-stretch overflow-hidden rounded-tl-md bg-neutral-100 dark:bg-neutral-800 ${!showActions ? 'rounded-bl-md' : ''}`}>
+          {photoUrl ? (
+            <Image
+              src={photoUrl}
+              alt=""
+              fill
+              unoptimized
+              sizes="40px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-neutral-400">
+              <User className="h-4 w-4" />
+            </div>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 p-1.5">
           <p className="truncate text-[12px] font-semibold leading-tight text-neutral-900" title={player.name}>
             {/* Mobile-narrow card (<lg): always abbreviate to "F. Last" to avoid truncation */}
             <span className="lg:hidden">{compactName(player.name)}</span>
