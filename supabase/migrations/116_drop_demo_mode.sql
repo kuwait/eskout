@@ -16,8 +16,9 @@
 -- Idempotent — safe to re-run on a DB without demo data.
 -- RELEVANT FILES: src/lib/supabase/club-context.ts (was using is_demo), src/components/layout/AppShell.tsx
 
-/* ───────────── 1. Fix missing CASCADE on squads/squad_players → clubs FK ───────────── */
+/* ───────────── 1. Fix FKs that block demo-club cascade delete (audit P1) ───────────── */
 
+-- squads + squad_players → clubs (migration 059 created without ON DELETE)
 ALTER TABLE squads DROP CONSTRAINT IF EXISTS squads_club_id_fkey;
 ALTER TABLE squads
   ADD CONSTRAINT squads_club_id_fkey
@@ -27,6 +28,13 @@ ALTER TABLE squad_players DROP CONSTRAINT IF EXISTS squad_players_club_id_fkey;
 ALTER TABLE squad_players
   ADD CONSTRAINT squad_players_club_id_fkey
   FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+
+-- fpf_match_players.eskout_player_id → players (migration 065 created without ON DELETE).
+-- SET NULL (not CASCADE): match-sheet historical data outlives a deleted eskout player.
+ALTER TABLE fpf_match_players DROP CONSTRAINT IF EXISTS fpf_match_players_eskout_player_id_fkey;
+ALTER TABLE fpf_match_players
+  ADD CONSTRAINT fpf_match_players_eskout_player_id_fkey
+  FOREIGN KEY (eskout_player_id) REFERENCES players(id) ON DELETE SET NULL;
 
 /* ───────────── 2. Delete demo club (cascade clears related data) ───────────── */
 
